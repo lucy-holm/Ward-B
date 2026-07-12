@@ -7,6 +7,11 @@
 </head>
 <body>
   <div id="game"></div>
+  <!-- Fullscreen film-grain overlay — background-image (a runtime-generated
+       noise data URI) and background-position are driven from Renderer, not
+       set here. Sits between the canvas and the HUD in DOM order (default
+       z-index stacking is enough: no z-index needed). -->
+  <div id="grain"></div>
 
   <div id="hud">
     <div id="stateChip" class="unmed">UNMEDICATED</div>

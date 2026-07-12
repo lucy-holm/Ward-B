@@ -311,8 +311,68 @@ const MATERIALS: Record<MatName, THREE.Material> = {
   pill: new THREE.MeshLambertMaterial({ color: 0xffffff, emissive: 0x77e0c8, emissiveIntensity: 0.55 }),
   pad: new THREE.MeshLambertMaterial({ map: PAD_TEX, emissive: 0x9fd8cb, emissiveIntensity: 0.35 }),
   dispenser: new THREE.MeshLambertMaterial({ map: DISPENSER_TEX, emissive: 0x9fd8cb, emissiveIntensity: 0.6 }),
+  // Fallback only — every 'glow' block actually authored in a room def is
+  // reclassified into one of the three GLOW_*_MAT materials below (see
+  // classifyGlowBlock), so this entry rarely renders. Kept so MATERIALS
+  // stays a total Record<MatName, Material> for any other lookup site.
   glow: new THREE.MeshBasicMaterial({ color: 0xfff2d9 }),
 };
+
+// ---------------------------------------------------------------------------
+// 'glow' sub-materials — room defs only expose one MatName ('glow') for every
+// non-diegetic light panel (TVs, ceiling strips, the "way out" exit glow),
+// so the split below happens purely off each block's authored size, with no
+// RoomDef field added and no edits to rooms/*.ts. Verified against every
+// 'glow' block currently authored (room1-8): exit/vestibule panels are thin
+// (<=0.08m) on one axis and tall (>=2m); TVs are ~0.08-0.15m thin, ~0.6-1.1m
+// tall, ~0.9-1.5m wide; everything else (ceiling strips, the med-window
+// shutter strip) falls through to the fluorescent-flicker treatment.
+// ---------------------------------------------------------------------------
+type GlowKind = 'door' | 'tv' | 'strip';
+
+function classifyGlowBlock(size: [number, number, number]): GlowKind {
+  const [sx, sy, sz] = size;
+  const thin = Math.min(sx, sz);
+  const long = Math.max(sx, sz);
+  if (thin <= 0.08 && sy >= 2) return 'door';
+  if (thin >= 0.08 && thin <= 0.15 && sy >= 0.6 && sy <= 1.1 && long >= 0.9 && long <= 1.5) return 'tv';
+  return 'strip';
+}
+
+const GLOW_BASE_COLOR = new THREE.Color(0xfff2d9);
+// Exit/vestibule glow — "the way out" always reads as gently alive.
+const GLOW_DOOR_MAT = new THREE.MeshBasicMaterial({ color: GLOW_BASE_COLOR.clone() });
+// Ceiling strips / misc light panels — institutional fluorescents, occasional flicker dip.
+const GLOW_STRIP_MAT = new THREE.MeshBasicMaterial({ color: GLOW_BASE_COLOR.clone() });
+// TVs — animated static, small canvas re-noised on a timer (see World.update).
+const GLOW_TV_SIZE = 48; // px — small + reused across every TV, per the animated-texture budget
+const glowTvCanvas = document.createElement('canvas');
+glowTvCanvas.width = GLOW_TV_SIZE;
+glowTvCanvas.height = GLOW_TV_SIZE;
+const glowTvCtx = glowTvCanvas.getContext('2d')!;
+const GLOW_TV_TEXTURE = new THREE.CanvasTexture(glowTvCanvas);
+const GLOW_TV_MAT = new THREE.MeshBasicMaterial({ map: GLOW_TV_TEXTURE });
+
+function paintTvStatic(): void {
+  const img = glowTvCtx.createImageData(GLOW_TV_SIZE, GLOW_TV_SIZE);
+  for (let i = 0; i < img.data.length; i += 4) {
+    const hot = Math.random() < 0.05;
+    const v = hot ? 255 : Math.floor(90 + Math.random() * 130);
+    img.data[i] = v;
+    img.data[i + 1] = v;
+    img.data[i + 2] = v;
+    img.data[i + 3] = 255;
+  }
+  glowTvCtx.putImageData(img, 0, 0);
+  GLOW_TV_TEXTURE.needsUpdate = true;
+}
+paintTvStatic(); // seed the first frame so a TV isn't blank before the first World.update tick
+
+function glowMaterialFor(kind: GlowKind): THREE.Material {
+  if (kind === 'door') return GLOW_DOOR_MAT;
+  if (kind === 'tv') return GLOW_TV_MAT;
+  return GLOW_STRIP_MAT;
+}
 
 // Composite dispenser/keypad parts — shared across instances like MATERIALS
 // (never disposed). Kept separate from MATERIALS.dispenser/pad (the bodies)
@@ -766,6 +826,27 @@ export class World {
   // Pill-ish meshes get an idle bob/spin so they read as "take me". Composite
   // pill fixtures are groups now, not bare meshes, hence Object3D here.
   private readonly animated: Array<{ mesh: THREE.Object3D; baseY: number }> = [];
+  // Scrawl materials — per-instance (ownsMaterial), so wobbling each one's
+  // opacity here is safe; phase gives every scrawl an independent shimmer
+  // instead of them all pulsing in lockstep.
+  private readonly scrawlMats: Array<{ mat: THREE.MeshBasicMaterial; phase: number }> = [];
+  // TV static re-noise timer — one shared canvas texture for every TV block
+  // in the scene, repainted on a period rather than every frame.
+  private tvStaticTimer = 0;
+  // Ceiling-strip flicker — a brief, occasional dip, never a strobe.
+  private stripFlickerLeft = 0;
+  private lastT = 0;
+
+  // Focused-interactable highlight (see setFocused below). A handful of
+  // entries at most (one interactable's sub-meshes), rebuilt only when the
+  // focused id actually changes.
+  private focusedId: string | null = null;
+  private readonly focusHighlights: Array<{
+    mesh: THREE.Mesh;
+    base: THREE.Material & { emissive?: THREE.Color; emissiveIntensity?: number };
+    clone: THREE.Material & { emissive?: THREE.Color; emissiveIntensity?: number };
+  }> = [];
+  private static readonly FOCUS_EMISSIVE_BUMP = 0.35;
 
   constructor(scene: THREE.Scene) {
     scene.add(this.root);
@@ -808,7 +889,8 @@ export class World {
     this.groups.both.add(floor, ceil);
 
     for (const b of def.blocks) {
-      const mesh = new THREE.Mesh(new THREE.BoxGeometry(...b.size), MATERIALS[b.mat]);
+      const mat = b.mat === 'glow' ? glowMaterialFor(classifyGlowBlock(b.size)) : MATERIALS[b.mat];
+      const mesh = new THREE.Mesh(new THREE.BoxGeometry(...b.size), mat);
       mesh.position.set(...b.pos);
       if (b.rotY) mesh.rotation.y = b.rotY;
       this.groups[b.states ?? 'both'].add(mesh);
@@ -821,6 +903,10 @@ export class World {
       mesh.rotation.y = s.rotY;
       mesh.userData.ownsMaterial = true;
       this.groups.unmed.add(mesh);
+      // Memories/hallucinations, not paint — a slow opacity shimmer so they
+      // read as alive. Each mesh owns its material already (ownsMaterial),
+      // so wobbling opacity per-instance here doesn't touch anything shared.
+      this.scrawlMats.push({ mat, phase: Math.random() * Math.PI * 2 });
     }
 
     for (const it of def.interactables) {
@@ -866,6 +952,7 @@ export class World {
   removeInteractable(id: string): void {
     const entry = this.interactables.get(id);
     if (!entry) return;
+    if (this.focusedId === id) this.setFocused(null); // drop any highlight clone before the mesh goes away
     entry.mesh.parent?.remove(entry.mesh);
     disposeObject3D(entry.mesh);
     this.interactables.delete(id);
@@ -873,16 +960,107 @@ export class World {
     if (ai >= 0) this.animated.splice(ai, 1);
   }
 
+  // Bumps emissiveIntensity (plus a warm highlight tint for materials that
+  // have no emissive channel of their own, e.g. a bare door slab) on the
+  // focused interactable's own meshes, restoring on blur. Interactable
+  // materials (MATERIALS.dispenser/pad/door, GLOW_SLOT_MAT, etc.) are shared
+  // across every instance in the room, so this never mutates them directly —
+  // it clones lazily per call and swaps the clone in, so only the focused
+  // instance visibly brightens.
+  //
+  // Safe/cheap to call every frame with the same id: id === this.focusedId
+  // is a same-value fast path that does no work. Intended call site is
+  // main.ts wiring `world.setFocused(interaction.focusedId)` once that's
+  // integrated; not called from anywhere in this file.
+  setFocused(id: string | null): void {
+    if (id === this.focusedId) return;
+    this.clearFocusHighlight();
+    this.focusedId = id;
+    if (id) this.applyFocusHighlight(id);
+  }
+
+  private applyFocusHighlight(id: string): void {
+    const entry = this.interactables.get(id);
+    if (!entry) return;
+    entry.mesh.traverse((child) => {
+      if (!(child instanceof THREE.Mesh)) return;
+      const base = child.material as THREE.Material & { emissive?: THREE.Color; emissiveIntensity?: number };
+      // MeshBasicMaterial label/plate maps have no emissive channel at all —
+      // skip rather than fake one, not worth the complexity for a printed sign.
+      if (base.emissiveIntensity === undefined) return;
+      const clone = base.clone() as typeof base;
+      if (!clone.emissive || clone.emissive.getHex() === 0x000000) {
+        clone.emissive = new THREE.Color(0xfff2d9);
+      }
+      this.focusHighlights.push({ mesh: child, base, clone });
+      child.material = clone;
+    });
+  }
+
+  private clearFocusHighlight(): void {
+    for (const h of this.focusHighlights) {
+      h.mesh.material = h.base;
+      h.clone.dispose();
+    }
+    this.focusHighlights.length = 0;
+  }
+
   update(t: number): void {
+    const dt = this.lastT === 0 ? 0 : Math.max(0, t - this.lastT);
+    this.lastT = t;
+
     for (const a of this.animated) {
       a.mesh.rotation.y = t;
       a.mesh.position.y = a.baseY + Math.sin(t * 2) * 0.03;
     }
     // subtle sinusoidal pulse so dispenser slots and keypad displays draw the eye
     GLOW_SLOT_MAT.emissiveIntensity = GLOW_SLOT_BASE_INTENSITY + Math.sin(t * 2.2) * GLOW_SLOT_PULSE_AMOUNT;
+
+    // Pill capsules already bob/spin on sin(t*2) — pulse their glow in the
+    // same phase so the light feels like it's coming from the motion.
+    const pillPulse = 0.15 * Math.sin(t * 2);
+    CAPSULE_CAP_MAT.emissiveIntensity = 0.5 + pillPulse;
+    (MATERIALS.pill as THREE.MeshLambertMaterial).emissiveIntensity = 0.55 + pillPulse;
+
+    // Exit/vestibule glow: gentle breathing pulse — "the way out" always has a live quality.
+    const doorBreathe = 1 + Math.sin(t * 1.3) * 0.15;
+    GLOW_DOOR_MAT.color.copy(GLOW_BASE_COLOR).multiplyScalar(doorBreathe);
+
+    // Ceiling strips / misc light panels: institutional fluorescents — rare, brief dip, never a strobe.
+    if (this.stripFlickerLeft > 0) {
+      this.stripFlickerLeft -= dt;
+    } else if (Math.random() < 0.015) {
+      this.stripFlickerLeft = 0.04 + Math.random() * 0.06;
+    }
+    const stripBrightness = this.stripFlickerLeft > 0 ? 0.35 : 1;
+    GLOW_STRIP_MAT.color.copy(GLOW_BASE_COLOR).multiplyScalar(stripBrightness);
+
+    // TVs: re-noise the shared static canvas on a ~120ms period, not every frame.
+    this.tvStaticTimer += dt;
+    if (this.tvStaticTimer >= 0.12) {
+      this.tvStaticTimer = 0;
+      paintTvStatic();
+    }
+
+    // Scrawls: memories/hallucinations, not paint — a slow independent opacity shimmer per instance.
+    for (const s of this.scrawlMats) {
+      s.mat.opacity = 0.82 + Math.sin(t * 1.6 + s.phase) * 0.16;
+    }
+
+    // Focused-interactable highlight: re-derive from the live base material
+    // every frame so a pulsing base (dispenser slot, pill glow, door
+    // breathing) keeps pulsing under the brightness bump instead of freezing
+    // at whatever value it had the instant focus began.
+    for (const h of this.focusHighlights) {
+      if (h.base.emissiveIntensity !== undefined) {
+        h.clone.emissiveIntensity = h.base.emissiveIntensity + World.FOCUS_EMISSIVE_BUMP;
+      }
+      if (h.base.emissive && h.clone.emissive) h.clone.emissive.copy(h.base.emissive);
+    }
   }
 
   private clear(): void {
+    this.setFocused(null);
     for (const group of Object.values(this.groups)) {
       for (const child of [...group.children]) {
         group.remove(child);
@@ -891,6 +1069,7 @@ export class World {
     }
     this.interactables.clear();
     this.animated.length = 0;
+    this.scrawlMats.length = 0;
     this.colliders = [];
   }
 }

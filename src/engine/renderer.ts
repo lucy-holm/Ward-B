@@ -44,6 +44,30 @@ function moodTargets(state: WardState): MoodTarget {
       };
 }
 
+// Runtime-generated static-noise tile for the #grain overlay (index.html) —
+// no asset file, drawn once to an offscreen canvas and handed to the DOM as
+// a data URI background-image. Small and reused for the page's lifetime;
+// Renderer.update only nudges background-position to fake motion, it never
+// repaints this canvas (that would be a real per-frame cost for something
+// that reads fine as a static, gently drifting texture at 2-4% opacity).
+function makeGrainDataUri(): string {
+  const size = 96;
+  const cv = document.createElement('canvas');
+  cv.width = size;
+  cv.height = size;
+  const g = cv.getContext('2d')!;
+  const img = g.createImageData(size, size);
+  for (let i = 0; i < img.data.length; i += 4) {
+    const v = Math.floor(Math.random() * 255);
+    img.data[i] = v;
+    img.data[i + 1] = v;
+    img.data[i + 2] = v;
+    img.data[i + 3] = 255;
+  }
+  g.putImageData(img, 0, 0);
+  return cv.toDataURL();
+}
+
 export class Renderer {
   readonly scene: THREE.Scene;
   readonly camera: THREE.PerspectiveCamera;
@@ -53,6 +77,15 @@ export class Renderer {
   private amb: THREE.AmbientLight;
   private roomLights: THREE.PointLight[] = [];
   private moodInitialized = false;
+  // Fog near/far lerp toward these each frame; the actual scene.fog values
+  // written every frame are these times a small unmed-only breathing
+  // multiplier, kept separate so the breathing oscillation never fights the
+  // mood lerp (see update()).
+  private fogNearBase = 9;
+  private fogFarBase = 30;
+
+  private readonly grainEl = document.getElementById('grain') as HTMLDivElement | null;
+  private grainOpacity = 0.025;
 
   constructor(container: HTMLElement) {
     this.scene = new THREE.Scene();
@@ -76,6 +109,12 @@ export class Renderer {
     this.scene.add(this.amb);
 
     this.scene.fog = new THREE.Fog(0xdfe8e4, 9, 30);
+
+    if (this.grainEl) {
+      this.grainEl.style.backgroundImage = `url(${makeGrainDataUri()})`;
+      this.grainEl.style.backgroundSize = '160px 160px';
+      this.grainEl.style.opacity = String(this.grainOpacity);
+    }
   }
 
   setRoomLights(positions: Array<[number, number]>): void {
@@ -105,6 +144,8 @@ export class Renderer {
       // Snap to the starting state's mood instead of lerping in from the
       // constructor's placeholder fog, matching v0.1's startup behaviour.
       fog.color.copy(tgt.fogColor);
+      this.fogNearBase = tgt.fogNear;
+      this.fogFarBase = tgt.fogFar;
       fog.near = tgt.fogNear;
       fog.far = tgt.fogFar;
       this.hemi.intensity = tgt.hemi;
@@ -118,11 +159,19 @@ export class Renderer {
 
     const k = Math.min(1, dt * 2.2);
     fog.color.lerp(tgt.fogColor, k);
-    fog.near += (tgt.fogNear - fog.near) * k;
-    fog.far += (tgt.fogFar - fog.far) * k;
+    this.fogNearBase += (tgt.fogNear - this.fogNearBase) * k;
+    this.fogFarBase += (tgt.fogFar - this.fogFarBase) * k;
     this.hemi.intensity += (tgt.hemi - this.hemi.intensity) * k;
     this.amb.intensity += (tgt.amb - this.amb.intensity) * k;
     this.webgl.setClearColor(fog.color);
+
+    // The world itself inhaling: a slow ±5% breathing wobble on fog density,
+    // unmed only. Applied on top of the lerped base rather than to fog.near/
+    // far directly, so the breathing oscillation never fights next frame's
+    // lerp back toward the mood target.
+    const breathe = state === 'unmed' ? 1 + Math.sin(t * 0.5) * 0.05 : 1;
+    fog.near = this.fogNearBase * breathe;
+    fog.far = this.fogFarBase * breathe;
 
     this.roomLights.forEach((l, i) => {
       l.color.lerp(tgt.pointColor, k);
@@ -135,6 +184,17 @@ export class Renderer {
     if (this.camera.fov > TUNING.camera.fov + 0.05) {
       this.camera.fov += (TUNING.camera.fov - this.camera.fov) * Math.min(1, dt * 6);
       this.camera.updateProjectionMatrix();
+    }
+
+    // Film grain: nudge background-position for a cheap sense of motion (no
+    // repaint), lerp opacity a little stronger in unmed (2.5% -> 4%).
+    if (this.grainEl) {
+      const targetOpacity = state === 'unmed' ? 0.04 : 0.025;
+      this.grainOpacity += (targetOpacity - this.grainOpacity) * k;
+      this.grainEl.style.opacity = String(this.grainOpacity);
+      const px = (t * 41) % 160;
+      const py = (t * 29) % 160;
+      this.grainEl.style.backgroundPosition = `${px}px ${py}px`;
     }
   }
 

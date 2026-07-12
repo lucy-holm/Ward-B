@@ -13,6 +13,15 @@ html, body {
 #game { position: fixed; inset: 0; }
 canvas { display: block; }
 
+/* Film grain — background-image/position set at runtime by Renderer.
+   Overscan the inset slightly so nudging background-position each frame
+   never reveals an edge. Opacity/blend kept low so it reads as texture,
+   not a filter; Renderer lerps the opacity a little stronger in unmed. */
+#grain {
+  position: fixed; inset: -12px; pointer-events: none;
+  background-repeat: repeat; mix-blend-mode: overlay; opacity: 0.025;
+}
+
 /* ---------- HUD ---------- */
 #hud { position: fixed; inset: 0; pointer-events: none; user-select: none; -webkit-user-select: none; }
 #reticle {

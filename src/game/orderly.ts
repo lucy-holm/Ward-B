@@ -53,6 +53,24 @@ const HEAD_TILT_AMP = 0.035; // rad, slow oscillation on top of the base tilt
 const HEAD_TILT_FREQ = 0.5; // rad/s — only advances while he's actually stepping
 const HUNCH_TILT = 0.1; // rad forward lean baked into torso/arms/head — reads as hunched shoulders, no animation involved
 
+// Walk-cycle tuning — deliberately WRONG rather than naturalistic: a slow,
+// stiff marionette swing that reads as too slow for the ground he actually
+// covers. All of it rides on animClock, so it freezes exactly when he stops
+// stepping (same convention as the head-tilt oscillation above).
+const GAIT_FREQ = 1.8; // rad/s stride cadence at patrol/return speed
+const CHASE_GAIT_MULT = 2; // gait rate doubles in chase, matching the faster ground speed
+const LEG_SWING_AMP = 0.55; // rad, stiff swing from the hip
+const ARM_SWING_AMP = 0.24; // rad
+const ARM_PHASE_LAG = 0.9; // rad, arms trail the legs' phase instead of a clean mirror-swing
+const CHASE_ARM_LIFT = 0.3; // rad, arms rise outward while chasing
+const HITCH_AMP = 0.03; // m, whole-body vertical hitch per footfall
+const TORSO_CHASE_PITCH = HUNCH_TILT * 1.9; // forward lean deepens mid-chase
+const HEAD_WATCH_TURN_RATE = 6; // 1/s, how fast the head tracks the player while watched
+const HEAD_RELAX_RATE = 3; // 1/s, how fast the head returns to forward while walking unwatched
+const IDLE_SNAP_MIN_SEC = 6; // cumulative paused-time range before a sharp head snap
+const IDLE_SNAP_RANGE_SEC = 4;
+const IDLE_SNAP_ANGLE = 1.3; // rad, half-range of the snap target
+
 // ---------------------------------------------------------------------------
 // Procedural textures for the model — generated once at module init (shared
 // across every Orderly instance; rooms 4 and 5 each spawn their own via
@@ -189,7 +207,17 @@ function buildTaperedLimb(
   return g;
 }
 
-function buildUnmedBody(): { group: THREE.Group; headGroup: THREE.Group } {
+interface UnmedBodyParts {
+  group: THREE.Group;
+  headGroup: THREE.Group;
+  torso: THREE.Mesh;
+  // Hip/shoulder pivots — rotating these swings the attached tapered limb
+  // like a pendulum from the joint, instead of the limb's own midpoint.
+  legPivots: [THREE.Group, THREE.Group];
+  armPivots: [THREE.Group, THREE.Group];
+}
+
+function buildUnmedBody(): UnmedBodyParts {
   const group = new THREE.Group();
   const skin = new THREE.MeshStandardMaterial({
     color: 0x0a0b09,
@@ -199,9 +227,20 @@ function buildUnmedBody(): { group: THREE.Group; headGroup: THREE.Group } {
     emissiveIntensity: 0.1, // faint sickly pale-green, barely there
   });
 
-  const legs = buildTaperedLimb(BODY.legW * 1.08, BODY.legD * 1.08, BODY.legW * 0.75, BODY.legD * 0.75, BODY.legH, skin);
-  legs.position.y = BODY.legH / 2;
-  group.add(legs);
+  // Legs: two separate hip-pivoted columns (previously one central mass with
+  // nothing to swing) — each pivot sits at hip height, the tapered limb hangs
+  // below it at its own vertical midpoint per buildTaperedLimb's convention.
+  const legOffsetX = BODY.legW * 0.42;
+  const legPivots: THREE.Group[] = [];
+  for (const side of [-1, 1]) {
+    const pivot = new THREE.Group();
+    pivot.position.set(side * legOffsetX, BODY.legH, 0);
+    const leg = buildTaperedLimb(BODY.legW * 0.62, BODY.legD * 0.95, BODY.legW * 0.46, BODY.legD * 0.7, BODY.legH, skin);
+    leg.position.y = -BODY.legH / 2;
+    pivot.add(leg);
+    group.add(pivot);
+    legPivots.push(pivot);
+  }
 
   const torsoY = BODY.legH + BODY.torsoH / 2;
   const torsoMat = new THREE.MeshStandardMaterial({
@@ -213,17 +252,24 @@ function buildUnmedBody(): { group: THREE.Group; headGroup: THREE.Group } {
   });
   const torso = new THREE.Mesh(new THREE.BoxGeometry(BODY.torsoW, BODY.torsoH, BODY.torsoD), torsoMat);
   torso.position.y = torsoY;
-  torso.rotation.x = HUNCH_TILT; // forward lean, shoulder line reads hunched
+  torso.rotation.x = HUNCH_TILT; // forward lean, shoulder line reads hunched; Orderly.updateGait deepens this in chase
   group.add(torso);
 
+  // Arms: shoulder-pivoted so the gait swing rotates them from the joint.
+  // The static forward droop that used to live on the arm mesh itself now
+  // lives on the pivot's rest rotation — same resting pose, animatable.
   const shoulderY = BODY.legH + BODY.torsoH - 0.08;
-  const armY = shoulderY - BODY.armLen / 2; // hangs well past knee height (~legH/2)
   const armX = BODY.torsoW / 2 + BODY.armW / 2 + 0.02;
+  const armPivots: THREE.Group[] = [];
   for (const side of [-1, 1]) {
+    const pivot = new THREE.Group();
+    pivot.position.set(side * armX, shoulderY, 0);
+    pivot.rotation.x = HUNCH_TILT * 0.5;
     const arm = buildTaperedLimb(BODY.armW * 1.15, BODY.armD * 1.15, BODY.armW * 0.7, BODY.armD * 0.7, BODY.armLen, skin);
-    arm.rotation.x = HUNCH_TILT * 0.5; // slight forward droop, matches the torso lean
-    arm.position.set(side * armX, armY, 0);
-    group.add(arm);
+    arm.position.y = -BODY.armLen / 2;
+    pivot.add(arm);
+    group.add(pivot);
+    armPivots.push(pivot);
   }
 
   const headGroup = new THREE.Group();
@@ -249,7 +295,13 @@ function buildUnmedBody(): { group: THREE.Group; headGroup: THREE.Group } {
   headGroup.add(eyes);
 
   group.add(headGroup);
-  return { group, headGroup };
+  return {
+    group,
+    headGroup,
+    torso,
+    legPivots: legPivots as [THREE.Group, THREE.Group],
+    armPivots: armPivots as [THREE.Group, THREE.Group],
+  };
 }
 
 // Flat translucent sector (triangle fan on XZ, y≈0.02) matching sightRange +
@@ -289,6 +341,14 @@ function buildSightCone(rangeM: number, coneDeg: number): THREE.Mesh {
     depthWrite: false,
   });
   return new THREE.Mesh(geo, mat);
+}
+
+// Shortest-path angle lerp (handles the wrap at ±π) — used for the head's
+// watch-tracking yaw so it turns the short way round instead of spinning.
+function lerpAngle(a: number, b: number, t: number): number {
+  const twoPi = Math.PI * 2;
+  const diff = (((b - a + Math.PI) % twoPi) + twoPi) % twoPi - Math.PI;
+  return a + diff * t;
 }
 
 function disposeGroup(g: THREE.Group): void {
@@ -341,12 +401,21 @@ export class Orderly {
   private returnPause = 0;
   private animClock = 0; // only advances while he's actually stepping
 
+  // Visual-only state (gait/head presentation) — nothing below this line
+  // feeds back into sight/movement/mode logic, only reads it.
+  private headYaw = 0;
+  private idlePauseTimer = 0; // cumulative time spent frozen at a waypoint since the last snap
+  private nextIdleSnapAt = IDLE_SNAP_MIN_SEC + Math.random() * IDLE_SNAP_RANGE_SEC;
+
   private readonly colliders: ColliderDef[];
   private readonly radius: number;
 
   private readonly root = new THREE.Group();
   private readonly unmedMesh: THREE.Group;
   private readonly headGroup: THREE.Group;
+  private readonly torso: THREE.Mesh;
+  private readonly legPivots: [THREE.Group, THREE.Group];
+  private readonly armPivots: [THREE.Group, THREE.Group];
   private readonly coneMesh: THREE.Mesh;
 
   constructor(
@@ -364,6 +433,9 @@ export class Orderly {
     const built = buildUnmedBody();
     this.unmedMesh = built.group;
     this.headGroup = built.headGroup;
+    this.torso = built.torso;
+    this.legPivots = built.legPivots;
+    this.armPivots = built.armPivots;
     this.coneMesh = buildSightCone(TUNING.orderly.sightRange, TUNING.orderly.coneDeg);
     this.unmedMesh.add(this.coneMesh);
 
@@ -400,12 +472,7 @@ export class Orderly {
     else stepping = this.returnStep(dt);
 
     if (stepping) this.animClock += dt;
-    // Dead stillness between steps IS the scare: the head-tilt oscillation
-    // freezes the instant he stops moving, same as the rest of him.
-    this.headGroup.rotation.z = HEAD_BASE_TILT + Math.sin(this.animClock * HEAD_TILT_FREQ) * HEAD_TILT_AMP;
-
-    this.root.position.set(this.x, 0, this.z);
-    this.root.rotation.y = Math.atan2(this.fx, this.fz);
+    const bodyYaw = Math.atan2(this.fx, this.fz);
 
     if (this.mode === 'chase') {
       const dx = playerX - this.x;
@@ -419,12 +486,77 @@ export class Orderly {
     }
     // mode === 'returning': ramp stays 0, no sight checks — he gave up.
 
+    // Presentation only, run after the sight/catch update above so gait and
+    // head-tracking read this frame's fresh mode/ramp instead of last frame's.
+    this.updateGait(dt, stepping, bodyYaw, playerX, playerZ);
+
+    this.root.position.set(this.x, 0, this.z);
+    this.root.rotation.y = bodyYaw;
+
     this.updateConeVisual();
   }
 
   dispose(): void {
     this.scene.remove(this.root);
     disposeGroup(this.unmedMesh);
+  }
+
+  // Walk animation, head tracking/idle-snap, and chase posture — pure
+  // presentation. Reads this.mode/this.ramp/this.animClock (all owned and
+  // mutated elsewhere) but never writes them; no detection math or movement
+  // lives here.
+  private updateGait(dt: number, stepping: boolean, bodyYaw: number, playerX: number, playerZ: number): void {
+    // Head-tilt oscillation (unchanged cadence, still frozen with animClock)
+    // plus a yaw that tracks the player while watched, relaxes forward while
+    // walking unwatched, or holds dead still — punctuated by an occasional
+    // sharp snap — while frozen at a waypoint.
+    this.headGroup.rotation.z = HEAD_BASE_TILT + Math.sin(this.animClock * HEAD_TILT_FREQ) * HEAD_TILT_AMP;
+
+    if (this.ramp > 0) {
+      // Watching: the head turns to face the player regardless of which way
+      // the body is currently walking — the single creepiest cheap trick
+      // available. Body keeps its own path/facing (root.rotation.y at the
+      // call site); only the head diverges from it.
+      const dxP = playerX - this.x;
+      const dzP = playerZ - this.z;
+      const distP = Math.hypot(dxP, dzP);
+      if (distP > 0.001) {
+        const worldYaw = Math.atan2(dxP, dzP);
+        this.headYaw = lerpAngle(this.headYaw, worldYaw - bodyYaw, Math.min(1, dt * HEAD_WATCH_TURN_RATE));
+      }
+    } else if (stepping) {
+      // Free head — restored the instant the watch-ramp has fully decayed.
+      this.headYaw = lerpAngle(this.headYaw, 0, Math.min(1, dt * HEAD_RELAX_RATE));
+    } else {
+      // Frozen at a waypoint: perfectly still except for an occasional sharp
+      // snap to a new angle once enough cumulative pause time has passed.
+      this.idlePauseTimer += dt;
+      if (this.idlePauseTimer >= this.nextIdleSnapAt) {
+        this.headYaw = (Math.random() - 0.5) * 2 * IDLE_SNAP_ANGLE;
+        this.idlePauseTimer = 0;
+        this.nextIdleSnapAt = IDLE_SNAP_MIN_SEC + Math.random() * IDLE_SNAP_RANGE_SEC;
+      }
+    }
+    this.headGroup.rotation.y = this.headYaw;
+
+    // Gait: a slow, stiff marionette swing rather than a naturalistic cycle
+    // scaled to ground speed — wrong-feeling beats realistic. Rides on
+    // animClock, so it freezes solid the instant he stops stepping.
+    const chase = this.mode === 'chase';
+    const gaitPhase = this.animClock * GAIT_FREQ * (chase ? CHASE_GAIT_MULT : 1);
+    this.legPivots[0].rotation.x = Math.sin(gaitPhase) * LEG_SWING_AMP;
+    this.legPivots[1].rotation.x = Math.sin(gaitPhase + Math.PI) * LEG_SWING_AMP;
+    this.armPivots[0].rotation.x = HUNCH_TILT * 0.5 + Math.sin(gaitPhase + Math.PI - ARM_PHASE_LAG) * ARM_SWING_AMP;
+    this.armPivots[1].rotation.x = HUNCH_TILT * 0.5 + Math.sin(gaitPhase - ARM_PHASE_LAG) * ARM_SWING_AMP;
+    const armLift = chase ? CHASE_ARM_LIFT : 0;
+    this.armPivots[0].rotation.z = -armLift;
+    this.armPivots[1].rotation.z = armLift;
+    this.unmedMesh.position.y = Math.abs(Math.sin(gaitPhase)) * HITCH_AMP;
+
+    // Chase posture: torso pitches forward harder, eased rather than snapped
+    // so the transition into/out of a chase doesn't pop.
+    const torsoTarget = chase ? TORSO_CHASE_PITCH : HUNCH_TILT;
+    this.torso.rotation.x += (torsoTarget - this.torso.rotation.x) * Math.min(1, dt * 6);
   }
 
   private updateSight(dt: number, playerX: number, playerZ: number, playerState: WardState): void {

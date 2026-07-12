@@ -58,7 +58,7 @@ export class Interaction {
         telemetry.event('dispenser_used');
         hud.setPills(n, state.maxPills, state.canShift);
         hud.pillPopup(`+${gained} pill${gained === 1 ? '' : 's'}`);
-        hud.toast(`pills rattle into your palm. (${n}/${state.maxPills})`);
+        hud.toast('a single pill rattles into your palm.');
         break;
       }
       case 'pill_pickup': {

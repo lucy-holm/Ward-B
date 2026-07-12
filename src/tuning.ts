@@ -10,7 +10,7 @@ export const TUNING = {
     touchLookScale: 1.9,
   },
   pills: {
-    max: 3,
+    max: 1,
   },
   camera: {
     fov: 72,
@@ -23,7 +23,7 @@ export const TUNING = {
     positionSampleMs: 2000,
   },
   orderly: {
-    speed: 1.1,          // m/s, patrol + walk-back speed
+    speed: 1.5,          // m/s, patrol + walk-back speed
     // m/s while chasing. Player walk speed (TUNING.player.speed) is 3.4 —
     // deliberately faster than that so outrunning him on foot isn't viable;
     // shifting lucid (the escape) is the intended answer, not a footrace.
@@ -35,6 +35,6 @@ export const TUNING = {
     coneDeg: 55,           // total cone angle, degrees
     graceSec: 0.6,         // continuous sight required before the watch-ramp fills to a chase
     warnAt: 0.5,           // ramp fraction at which the "he is looking at you" toast fires
-    pauseAtWaypoint: 1.2,  // s, brief pause at each waypoint
+    pauseAtWaypoint: 0.8,  // s, brief pause at each waypoint
   },
 } as const;

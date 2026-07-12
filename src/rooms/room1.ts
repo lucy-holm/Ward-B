@@ -96,7 +96,7 @@ export const room1Script: RoomScript = (() => {
       if (id === 'dispenser1') {
         if (!usedDispenser) {
           usedDispenser = true;
-          ctx.hud.setObjective('walk out. count your pills.');
+          ctx.hud.setObjective('walk out. hold on to it.');
         }
         return false;
       }

@@ -81,8 +81,10 @@ export const room4: RoomDef = {
       // close to the spawn point the player is teleported back to).
       id: 'dispenser4',
       type: 'dispenser',
-      size: [0.55, 0.75, 0.16],
-      pos: [-5.75, 1.45, 4.2],
+      // west-wall mount: x-thin so the faceplate faces east into the room
+      // (was authored z-thin, which pointed the plate along the wall).
+      size: [0.16, 0.75, 0.55],
+      pos: [-5.86, 1.45, 4.2],
       mat: 'dispenser',
       states: 'both',
       label: 'use the dispenser',
@@ -94,12 +96,17 @@ export const room4: RoomDef = {
 
 // Patrol loop kept east/central of the shelving unit (x >= -0.5), leaving the
 // west wall (x <= -3, in the shelf's shadow) as a readable safe lane and a
-// wide margin around the spawn-side dispenser.
+// wide margin around the spawn-side dispenser. A fifth waypoint bulges the
+// south edge toward the spawn side (z 3 -> 3.5) so the leg nearest the
+// player's first sightline is two shorter, closer strides instead of one
+// long distant one — he reads as walking, not parked, right when he's
+// first seen.
 const WAYPOINTS = [
   { x: 3.5, z: 3 },
   { x: 3.5, z: -3 },
   { x: -0.5, z: -3 },
   { x: -0.5, z: 3 },
+  { x: 1.8, z: 3.5 },
 ];
 
 // RoomScript is frozen (owned by another file); the orderly's lifecycle needs

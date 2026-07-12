@@ -12,9 +12,13 @@ import { Hud } from './ui/hud';
 import type { GameCtx } from './game/context';
 import type { RoomDef, RoomScript } from './rooms/types';
 import { room1, room1Script } from './rooms/room1';
+import { room2, room2Script } from './rooms/room2';
+import { room3, room3Script } from './rooms/room3';
 
 const rooms: Record<string, { def: RoomDef; script: RoomScript }> = {
   room1: { def: room1, script: room1Script },
+  room2: { def: room2, script: room2Script },
+  room3: { def: room3, script: room3Script },
 };
 
 const container = document.getElementById('game')!;
@@ -55,7 +59,14 @@ const ctx: GameCtx = {
   audio,
   telemetry,
   removeInteractable: (id) => world.removeInteractable(id),
+  moveInteractable: (id, pos, rotY) => {
+    const entry = world.entries().find((e) => e.def.id === id);
+    if (!entry) return;
+    entry.mesh.position.set(pos[0], pos[1], pos[2]);
+    if (rotY !== undefined) entry.mesh.rotation.y = rotY;
+  },
   shiftFx,
+  releasePointerLock: () => input.releasePointerLock(),
 };
 
 state.onChange = (next) => {
@@ -63,6 +74,7 @@ state.onChange = (next) => {
   hud.setState(next);
   audio.setState(next);
   updatePills();
+  current.script.onStateChange?.(next, ctx);
 };
 
 input.onShift = () => {
@@ -119,13 +131,14 @@ function endOfBuild(): void {
   hud.setPrompt(null);
   telemetry.flush();
   hud.showEndCard(
-    'END OF MILESTONE 1',
-    'THE CORRIDOR IS NOT BUILT YET',
+    'END OF MILESTONE 2',
+    'THE WARD DOES NOT END HERE. YOU DO.',
     `<em>PLAYTEST — tell the devs:</em><br><br>
-     1 · Did you understand the door without being told?<br>
-     2 · Did the dispenser read as "this is where pills come from"?<br>
-     3 · Did you shift back just to <em>see</em> the cell change? (fun signal)<br>
-     4 · Anything you tried that didn't work?`,
+     1 · Did the code-on-the-wall loop click — shift to read it, shift back to use it?<br>
+     2 · Did the chained door finale land, or did you get stuck refusing to go unmed?<br>
+     3 · Did you ever shift just to <em>see</em> something change, with nothing forcing you to? (fun signal)<br>
+     4 · Which state did you trust more by the end — lucid, or unmed?<br>
+     5 · Anything you tried that didn't work?`,
     'READMIT',
     () => location.reload(),
   );

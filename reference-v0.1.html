@@ -1,0 +1,606 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>WARD B — greybox v0.1</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+  :root{
+    --ink:#e9f2ef;
+    --lucid:#9fd8cb;
+    --unmed:#ff3b30;
+    --panel:rgba(8,12,11,.72);
+  }
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{width:100%;height:100%;overflow:hidden;background:#000;font-family:"SF Mono","Cascadia Mono",Consolas,Menlo,monospace;color:var(--ink)}
+  #game{position:fixed;inset:0}
+  canvas{display:block}
+
+  /* ---------- HUD ---------- */
+  #hud{position:fixed;inset:0;pointer-events:none;user-select:none;-webkit-user-select:none}
+  #reticle{position:absolute;left:50%;top:50%;width:6px;height:6px;margin:-3px 0 0 -3px;border-radius:50%;background:var(--ink);opacity:.8;box-shadow:0 0 6px rgba(0,0,0,.6)}
+  #stateChip{position:absolute;top:calc(12px + env(safe-area-inset-top));left:50%;transform:translateX(-50%);
+    padding:6px 14px;border:1px solid var(--lucid);border-radius:2px;letter-spacing:.35em;font-size:11px;
+    background:var(--panel);color:var(--lucid);transition:color .4s,border-color .4s;text-indent:.35em}
+  #stateChip.unmed{color:var(--unmed);border-color:var(--unmed)}
+  #objective{position:absolute;top:calc(46px + env(safe-area-inset-top));left:50%;transform:translateX(-50%);
+    font-size:11px;letter-spacing:.08em;opacity:.85;text-align:center;max-width:86vw;
+    background:var(--panel);padding:5px 10px;border-radius:2px}
+  #prompt{position:absolute;left:50%;bottom:22%;transform:translateX(-50%);font-size:13px;letter-spacing:.06em;
+    background:var(--panel);padding:8px 14px;border-radius:2px;border-left:2px solid var(--lucid);display:none;max-width:84vw;text-align:center}
+  #toast{position:absolute;left:50%;bottom:32%;transform:translateX(-50%);font-size:12px;letter-spacing:.05em;
+    background:var(--panel);padding:8px 14px;border-radius:2px;opacity:0;transition:opacity .4s;max-width:84vw;text-align:center;font-style:italic;color:#cdb8ba}
+
+  /* unmedicated vignette + shift pulse */
+  #vignette{position:fixed;inset:0;pointer-events:none;opacity:0;transition:opacity 1.2s;
+    background:radial-gradient(ellipse at center,transparent 42%,rgba(30,2,4,.55) 78%,rgba(12,0,2,.9) 100%)}
+  #vignette.on{opacity:1}
+  #shiftFx{position:fixed;inset:0;pointer-events:none;opacity:0;background:radial-gradient(ellipse at center,rgba(255,255,255,.9) 0%,rgba(160,40,40,.35) 45%,transparent 75%)}
+  #shiftFx.pulse{animation:pulse .55s ease-out}
+  @keyframes pulse{0%{opacity:.95}100%{opacity:0}}
+
+  /* ---------- overlays ---------- */
+  .overlay{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;
+    background:rgba(3,5,5,.92);z-index:30;padding:24px;text-align:center}
+  .overlay h1{font-size:clamp(22px,6vw,40px);letter-spacing:.3em;font-weight:400;color:var(--ink);text-indent:.3em}
+  .overlay h1 b{color:var(--lucid);font-weight:400}
+  .overlay .sub{margin-top:8px;font-size:11px;letter-spacing:.25em;opacity:.55;text-indent:.25em}
+  .overlay .card{margin-top:26px;max-width:520px;font-size:12.5px;line-height:1.85;letter-spacing:.04em;opacity:.9;text-align:left;
+    border:1px solid rgba(159,216,203,.25);padding:18px 20px;border-radius:2px;background:rgba(10,16,14,.6)}
+  .overlay .card em{color:var(--lucid);font-style:normal}
+  .overlay .card .u{color:var(--unmed)}
+  .btn{margin-top:26px;pointer-events:auto;cursor:pointer;background:none;border:1px solid var(--lucid);color:var(--lucid);
+    font-family:inherit;font-size:12px;letter-spacing:.3em;padding:13px 30px;border-radius:2px;text-indent:.3em}
+  .btn:active{background:rgba(159,216,203,.15)}
+  #endOverlay{display:none}
+  #endOverlay h1{color:var(--unmed)}
+  #endOverlay .card{border-color:rgba(255,59,48,.3)}
+
+  /* ---------- keypad ---------- */
+  #keypad{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(3,5,5,.8);z-index:25}
+  #keypad .pad{background:#0d1412;border:1px solid rgba(159,216,203,.35);border-radius:3px;padding:20px 22px;text-align:center}
+  #kpDisplay{font-size:26px;letter-spacing:.5em;text-indent:.5em;color:var(--lucid);height:38px;margin-bottom:14px;border-bottom:1px solid rgba(159,216,203,.25)}
+  #keypad .grid{display:grid;grid-template-columns:repeat(3,64px);gap:8px}
+  #keypad .k{pointer-events:auto;cursor:pointer;height:52px;background:#101b18;border:1px solid rgba(159,216,203,.25);color:var(--ink);font-family:inherit;font-size:18px;border-radius:2px}
+  #keypad .k:active{background:rgba(159,216,203,.2)}
+  #kpMsg{margin-top:12px;font-size:10px;letter-spacing:.2em;opacity:.6;height:14px}
+
+  /* ---------- touch controls ---------- */
+  .touch #stick{position:fixed;left:26px;bottom:calc(30px + env(safe-area-inset-bottom));width:110px;height:110px;border-radius:50%;
+    border:1px solid rgba(233,242,239,.25);background:rgba(8,12,11,.3);z-index:20}
+  .touch #nub{position:absolute;left:50%;top:50%;width:44px;height:44px;margin:-22px 0 0 -22px;border-radius:50%;background:rgba(233,242,239,.28)}
+  .touch .tbtn{position:fixed;right:26px;width:74px;height:74px;border-radius:50%;z-index:20;
+    border:1px solid rgba(233,242,239,.35);background:rgba(8,12,11,.45);color:var(--ink);font-family:inherit;font-size:10px;letter-spacing:.12em;display:flex;align-items:center;justify-content:center;flex-direction:column}
+  .touch #btnAct{bottom:calc(118px + env(safe-area-inset-bottom))}
+  .touch #btnShift{bottom:calc(30px + env(safe-area-inset-bottom));border-color:rgba(159,216,203,.5);color:var(--lucid)}
+  .touch .tbtn span{font-size:17px;margin-bottom:2px}
+  #stick,#btnAct,#btnShift{display:none}
+  .touch #stick,.touch #btnAct,.touch #btnShift{display:flex}
+  .tbtn:active{background:rgba(159,216,203,.2)}
+</style>
+</head>
+<body>
+<div id="game"></div>
+
+<div id="hud">
+  <div id="stateChip" class="unmed">UNMEDICATED</div>
+  <div id="objective">the walls are wrong. there was a door here once.</div>
+  <div id="reticle"></div>
+  <div id="prompt"></div>
+  <div id="toast"></div>
+</div>
+<div id="vignette" class="on"></div>
+<div id="shiftFx"></div>
+
+<div id="stick"><div id="nub"></div></div>
+<button id="btnAct" class="tbtn"><span>◉</span>INTERACT</button>
+<button id="btnShift" class="tbtn"><span>⇌</span>SHIFT</button>
+
+<div id="keypad">
+  <div class="pad">
+    <div id="kpDisplay"></div>
+    <div class="grid">
+      <button class="k">1</button><button class="k">2</button><button class="k">3</button>
+      <button class="k">4</button><button class="k">5</button><button class="k">6</button>
+      <button class="k">7</button><button class="k">8</button><button class="k">9</button>
+      <button class="k" id="kpClear">C</button><button class="k">0</button><button class="k" id="kpExit">×</button>
+    </div>
+    <div id="kpMsg">STAFF ACCESS — WING B</div>
+  </div>
+</div>
+
+<div id="startOverlay" class="overlay">
+  <h1>WARD <b>B</b></h1>
+  <div class="sub">GREYBOX PROTOTYPE — v0.1</div>
+  <div class="card">
+    You are a patient. What you see depends on what you've taken.<br><br>
+    <em>DESKTOP</em> — WASD move · mouse look · <em>E</em> interact · <em>Q</em> shift state<br>
+    <em>MOBILE</em> — left stick move · drag right side to look · on-screen buttons<br><br>
+    Some things only exist when you're <em>lucid</em>. Some only when you're <span class="u">not</span>.<br>
+    Neither state is lying to you. Neither is telling the truth.
+  </div>
+  <button class="btn" id="startBtn">ADMIT ME</button>
+</div>
+
+<div id="endOverlay" class="overlay">
+  <h1>DISCHARGED?</h1>
+  <div class="sub">YOU WALKED THROUGH THE CHAINS. OR THERE WERE NO CHAINS.</div>
+  <div class="card">
+    <em>PLAYTEST — answer honestly, this is the whole point:</em><br><br>
+    1 · Did shifting states feel like a <em>tool</em> or a chore?<br>
+    2 · The final door: did refusing the pill feel clever or cheap?<br>
+    3 · Did you ever shift just to <em>see</em> what changed? (that's the fun signal)<br>
+    4 · What did you expect to be able to do that you couldn't?<br><br>
+    If 3 is "yes", this loop can carry a game. Build ten more rooms.
+  </div>
+  <button class="btn" id="restartBtn">READMIT</button>
+</div>
+
+<script>
+(function(){
+"use strict";
+
+/* ================= STATE ================= */
+var LUCID = "lucid", UNMED = "unmed";
+var state = UNMED;            // you wake unmedicated
+var canShift = false;         // unlocked by taking the pill
+var doorUnlocked = false;     // keypad door
+var phase = 0;                // 0 pill, 1 code, 2 escape
+var started = false, ended = false;
+var CODE = "4118";
+
+/* ================= THREE BASICS ================= */
+var scene = new THREE.Scene();
+var camera = new THREE.PerspectiveCamera(72, innerWidth/innerHeight, .05, 100);
+camera.rotation.order = "YXZ";
+var renderer = new THREE.WebGLRenderer({antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.setSize(innerWidth,innerHeight);
+document.getElementById("game").appendChild(renderer.domElement);
+addEventListener("resize",function(){
+  camera.aspect = innerWidth/innerHeight; camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth,innerHeight);
+});
+
+/* player */
+var player = {x:0, z:4, yaw:Math.PI, pitch:0, r:0.35, h:1.62};
+
+/* ================= MATERIALS ================= */
+var M = {
+  wall:  new THREE.MeshLambertMaterial({color:0xb9c9c4}),
+  wall2: new THREE.MeshLambertMaterial({color:0xa7b8b2}),
+  floor: new THREE.MeshLambertMaterial({color:0x5d6a66}),
+  ceil:  new THREE.MeshLambertMaterial({color:0x8e9c97}),
+  prop:  new THREE.MeshLambertMaterial({color:0x7d8f89}),
+  bed:   new THREE.MeshLambertMaterial({color:0x8fa5b5}),
+  door:  new THREE.MeshLambertMaterial({color:0x54707f}),
+  chain: new THREE.MeshLambertMaterial({color:0x3c3f45}),
+  pill:  new THREE.MeshLambertMaterial({color:0xffffff, emissive:0x77e0c8, emissiveIntensity:.55}),
+  pad:   new THREE.MeshLambertMaterial({color:0x1d2b27, emissive:0x9fd8cb, emissiveIntensity:.35}),
+  exitG: new THREE.MeshBasicMaterial({color:0xfff2d9})
+};
+
+/* ================= COLLIDERS ================= */
+/* {minX,maxX,minZ,maxZ, state:'always'|'lucid'|'unmed'} — collider active in that state */
+var colliders = [];
+function solid(minX,maxX,minZ,maxZ,st){ colliders.push({minX:minX,maxX:maxX,minZ:minZ,maxZ:maxZ,state:st||"always"}); }
+
+function box(w,h,d,x,y,z,mat){
+  var m = new THREE.Mesh(new THREE.BoxGeometry(w,h,d), mat);
+  m.position.set(x,y,z); scene.add(m); return m;
+}
+/* wall along X (horizontal in plan): centered */
+function wallX(x0,x1,z,mat){ var w=x1-x0; box(w,3,.24,(x0+x1)/2,1.5,z,mat||M.wall); solid(x0,x1,z-.12,z+.12); }
+/* wall along Z */
+function wallZ(z0,z1,x,mat){ var d=z1-z0; box(.24,3,d,x,1.5,(z0+z1)/2,mat||M.wall2); solid(x-.12,x+.12,z0,z1); }
+
+/* ================= LEVEL ================= */
+/* floor + ceiling */
+(function(){
+  var g = new THREE.PlaneGeometry(30,16);
+  var f = new THREE.Mesh(g,M.floor); f.rotation.x=-Math.PI/2; f.position.set(-4,0,0); scene.add(f);
+  var c = new THREE.Mesh(g,M.ceil); c.rotation.x=Math.PI/2; c.position.set(-4,3,0); scene.add(c);
+})();
+
+/* ROOM A (cell) x[-3,3] z[0,6] */
+wallX(-3,3,6);                       // south
+wallZ(0,6,-3); wallZ(0,6,3);         // west/east
+wallX(-3,-1,0); wallX(1,3,0);        // north with doorway gap x[-1,1]
+
+/* doorway blocker — exists only UNMEDICATED ("there is no door") */
+var blocker = box(2,3,.26,0,1.5,0,M.wall);
+solid(-1,1,-.13,.13,UNMED);
+
+/* CORRIDOR x[-9,9] z[-4,0] */
+wallX(-9,9,-4);                      // north
+wallX(-9,-3,0); wallX(3,9,0);        // south (minus room A frontage)
+wallZ(-4,0,9);                       // east cap — the writing wall
+wallZ(-4,-3,-9); wallZ(-1,0,-9);     // west cap with door gap z[-3,-1]
+
+/* keypad door (in west gap), locked until code */
+var kDoor = box(.2,3,2,-9,1.5,-2,M.door);
+var kDoorCol = {minX:-9.12,maxX:-8.88,minZ:-3,maxZ:-1,state:"always"};
+colliders.push(kDoorCol);
+/* keypad panel on corridor side */
+var keypadMesh = box(.1,.5,.42,-8.82,1.45,-0.62,M.pad);
+
+/* COMMON ROOM x[-17,-9] z[-6,2] */
+wallX(-17,-9,-6); wallX(-17,-9,2);
+wallZ(-6,-3,-9,M.wall2); wallZ(-1,2,-9,M.wall2);   // east wall minus door gap
+wallZ(-6,-3,-17); wallZ(-1,2,-17);                  // west wall minus EXIT gap z[-3,-1]
+
+/* exit door + chains (chains exist only LUCID) */
+var exitDoor = box(.2,3,2,-17,1.5,-2,M.door); exitDoor.material = M.door;
+var chains = new THREE.Group();
+for(var i=0;i<4;i++){
+  var c = box(.06,2.9,.06,-16.86,1.5,-2.85+i*0.57,M.chain);
+  c.rotation.z = (i%2? .12 : -.12); chains.add(c); scene.remove(c); chains.add(c);
+}
+scene.add(chains); chains.position.set(0,0,0);
+solid(-17.15,-16.7,-3,-1,LUCID);   // chains block only when lucid
+/* warm glow beyond the exit */
+box(.05,2.6,1.7,-17.4,1.4,-2,M.exitG);
+
+/* PROPS */
+box(2,.55,1,  1.7,.28, 4.6, M.bed);  solid(0.7,2.7,4.1,5.1);        // bed
+var table = box(1,.8,.7, -2.2,.4, 4.7, M.prop); solid(-2.7,-1.7,4.35,5.05);
+box(1.8,.75,.8, 5.5,.38,-3.4, M.prop); solid(4.6,6.4,-3.8,-3);      // gurney
+box(1.4,.5,1.4, -13,.25,-2, M.prop);  solid(-13.7,-12.3,-2.7,-1.3); // common table
+box(.6,.9,.6, -11.5,.45,.8, M.prop);  solid(-11.8,-11.2,.5,1.1);    // chair
+
+/* pill cup on the table */
+var pill = box(.18,.22,.18, -2.2,.92,4.7, M.pill);
+
+/* ================= UNMED-ONLY DECOR ================= */
+var unmedGroup = new THREE.Group(); scene.add(unmedGroup);
+function scrawl(text,size,x,y,z,ry,big){
+  var cv = document.createElement("canvas"); cv.width=512; cv.height=256;
+  var g = cv.getContext("2d");
+  g.fillStyle="rgba(0,0,0,0)"; g.fillRect(0,0,512,256);
+  g.fillStyle="#c1170f"; g.font=(big?110:54)+"px 'Comic Sans MS', cursive, sans-serif";
+  g.textAlign="center"; g.textBaseline="middle";
+  g.save(); g.translate(256,128); g.rotate(-.05);
+  var lines = text.split("\n");
+  lines.forEach(function(l,i){ g.fillText(l,0,(i-(lines.length-1)/2)*(big?120:64)); });
+  g.restore();
+  var tex = new THREE.CanvasTexture(cv);
+  var m = new THREE.Mesh(new THREE.PlaneGeometry(size,size/2),
+    new THREE.MeshBasicMaterial({map:tex,transparent:true}));
+  m.position.set(x,y,z); m.rotation.y=ry; unmedGroup.add(m); return m;
+}
+/* THE CODE — on the east corridor wall, only visible unmedicated */
+scrawl("4 1 1 8",4,8.85,1.6,-2,-Math.PI/2,true);
+scrawl("they lock it\nfrom the inside",3,0,1.7,-3.85,0);
+scrawl("the chains\naren't yours",3,-13,1.7,1.85,Math.PI);
+scrawl("don't\nswallow",2.2,-2.85,1.8,4.7,Math.PI/2);
+/* stains */
+[[-6,-3.99,0,5],[4,-.14,0,4],[-15,1.86,Math.PI,4]].forEach(function(s){
+  var m = new THREE.Mesh(new THREE.PlaneGeometry(s[3],2.4),
+    new THREE.MeshBasicMaterial({color:0x3a0d10,transparent:true,opacity:.55}));
+  m.position.set(s[0],1.1,s[1]); m.rotation.y=s[2]; unmedGroup.add(m);
+});
+
+/* ================= LIGHTING ================= */
+var hemi = new THREE.HemisphereLight(0xeafffa,0x2c3835,.85); scene.add(hemi);
+var amb = new THREE.AmbientLight(0xffffff,.25); scene.add(amb);
+var lights = [];
+[[0,-2],[6,-2],[-6,-2],[0,4],[-13,-2]].forEach(function(p){
+  var l = new THREE.PointLight(0xf2fffb,.7,12);
+  l.position.set(p[0],2.7,p[1]); scene.add(l); lights.push(l);
+});
+scene.fog = new THREE.Fog(0xdfe8e4,10,40);
+
+/* target values per state, lerped each frame */
+var mood = {t:1}; // 1 = would-be lucid target … start value set below
+function moodTargets(){
+  return state===LUCID
+    ? {fogC:new THREE.Color(0xd7e4df), fogN:10, fogF:42, hemi:.85, amb:.25, pt:.7, ptC:new THREE.Color(0xf2fffb)}
+    : {fogC:new THREE.Color(0x150a0d), fogN:3.2, fogF:16, hemi:.14, amb:.10, pt:.5, ptC:new THREE.Color(0xff3324)};
+}
+
+/* ================= HUD helpers ================= */
+var $ = function(id){return document.getElementById(id)};
+var promptEl=$("prompt"), toastEl=$("toast"), chip=$("stateChip"), obj=$("objective");
+var toastT=null;
+function toast(t,ms){ toastEl.textContent=t; toastEl.style.opacity=1;
+  clearTimeout(toastT); toastT=setTimeout(function(){toastEl.style.opacity=0;}, ms||3200); }
+function setObjective(t){ obj.textContent=t; }
+
+/* ================= STATE SHIFT ================= */
+function applyStateVisuals(){
+  chip.textContent = state===LUCID ? "LUCID" : "UNMEDICATED";
+  chip.className = state===LUCID ? "" : "unmed";
+  $("vignette").className = state===LUCID ? "" : "on";
+  unmedGroup.visible = (state===UNMED);
+  blocker.visible = (state===UNMED);
+  chains.visible = (state===LUCID);
+  setDrone();
+}
+function shiftState(){
+  if(!canShift){ toast("you have nothing to shift with. yet."); return; }
+  if(ended) return;
+  state = (state===LUCID)? UNMED : LUCID;
+  var fx=$("shiftFx"); fx.classList.remove("pulse"); void fx.offsetWidth; fx.classList.add("pulse");
+  camera.fov = 82; camera.updateProjectionMatrix();
+  applyStateVisuals();
+  if(phase===2 && state===UNMED) toast("the chains were never yours.");
+}
+
+/* ================= AUDIO (tiny drone) ================= */
+var actx=null, osc=null, gain=null, filt=null;
+function initAudio(){
+  try{
+    actx = new (window.AudioContext||window.webkitAudioContext)();
+    osc = actx.createOscillator(); filt = actx.createBiquadFilter(); gain = actx.createGain();
+    osc.type="sawtooth"; osc.frequency.value=55;
+    filt.type="lowpass"; filt.frequency.value=180;
+    gain.gain.value=0;
+    osc.connect(filt); filt.connect(gain); gain.connect(actx.destination);
+    osc.start(); setDrone();
+  }catch(e){}
+}
+function setDrone(){
+  if(!gain) return;
+  var g = state===UNMED ? .028 : .006;
+  var f = state===UNMED ? 55 : 190;
+  try{
+    gain.gain.setTargetAtTime(g, actx.currentTime, .6);
+    osc.frequency.setTargetAtTime(f, actx.currentTime, .6);
+    osc.type = state===UNMED ? "sawtooth" : "sine";
+  }catch(e){}
+}
+
+/* ================= INTERACTION ================= */
+var ray = new THREE.Raycaster();
+var interactables = [
+  {mesh:pill, label:"take the pill", act:takePill, avail:function(){return phase===0;}},
+  {mesh:keypadMesh, label:"use keypad", act:useKeypad, avail:function(){return phase>=1 && !doorUnlocked;}},
+  {mesh:exitDoor, label:"open the door", act:useExit, avail:function(){return phase===2;}}
+];
+var focused=null;
+function updateFocus(){
+  focused=null; promptEl.style.display="none";
+  if(!started||ended) return;
+  ray.setFromCamera({x:0,y:0}, camera);
+  for(var i=0;i<interactables.length;i++){
+    var it=interactables[i];
+    if(!it.avail()) continue;
+    var hit = ray.intersectObject(it.mesh);
+    if(hit.length && hit[0].distance<2.7){
+      focused=it;
+      promptEl.textContent = (isTouch?"◉ ":"[E] ")+it.label;
+      promptEl.style.display="block";
+      break;
+    }
+  }
+}
+function interact(){ if(focused) focused.act(); }
+
+function takePill(){
+  phase=1; canShift=true;
+  state=LUCID; applyStateVisuals();
+  var fx=$("shiftFx"); fx.classList.remove("pulse"); void fx.offsetWidth; fx.classList.add("pulse");
+  scene.remove(pill);
+  toast("the wall remembers it was a door.");
+  setObjective("leave the ward — the west door is staff-locked. [Q / ⇌] shifts your state.");
+}
+
+/* keypad */
+var kpBuf="";
+function useKeypad(){
+  if(state===UNMED){ toast("the keypad is a smear of static. you can't read it like this."); return; }
+  kpBuf=""; $("kpDisplay").textContent="";
+  $("kpMsg").textContent="STAFF ACCESS — WING B";
+  $("keypad").style.display="flex";
+  releaseLook();
+}
+Array.prototype.forEach.call(document.querySelectorAll("#keypad .k"),function(b){
+  b.addEventListener("click",function(){
+    var v=b.textContent;
+    if(b.id==="kpExit"){ $("keypad").style.display="none"; return; }
+    if(b.id==="kpClear"){ kpBuf=""; $("kpDisplay").textContent=""; return; }
+    if(kpBuf.length>=4) return;
+    kpBuf+=v; $("kpDisplay").textContent=kpBuf.split("").join(" ");
+    if(kpBuf.length===4){
+      if(kpBuf===CODE){
+        $("kpMsg").textContent="ACCESS GRANTED";
+        setTimeout(function(){
+          $("keypad").style.display="none";
+          doorUnlocked=true; phase=2;
+          kDoor.position.z=-3.4; kDoor.rotation.y=1.2;      // swing open
+          kDoorCol.minX=99; kDoorCol.maxX=99;               // disable collider
+          toast("it was written on the wall the whole time. by whom?");
+          setObjective("the common room. the exit is chained. …is it?");
+        },500);
+      }else{
+        $("kpMsg").textContent="DENIED";
+        setTimeout(function(){kpBuf="";$("kpDisplay").textContent="";$("kpMsg").textContent="STAFF ACCESS — WING B";},600);
+      }
+    }
+  });
+});
+
+function useExit(){
+  if(state===LUCID){ toast("chained shut. heavy padlock. it looks very, very real."); return; }
+  endGame();
+}
+function endGame(){
+  ended=true;
+  $("endOverlay").style.display="flex";
+  if(document.pointerLockElement) document.exitPointerLock();
+}
+
+/* ================= INPUT ================= */
+var keys={};
+var isTouch = ("ontouchstart" in window) && matchMedia("(pointer:coarse)").matches;
+if(isTouch) document.body.classList.add("touch");
+
+addEventListener("keydown",function(e){
+  keys[e.code]=true;
+  if(e.code==="KeyE") interact();
+  if(e.code==="KeyQ") shiftState();
+});
+addEventListener("keyup",function(e){keys[e.code]=false;});
+
+/* mouse look — pointer lock with drag fallback */
+var plActive=false, dragging=false, lastX=0,lastY=0;
+function releaseLook(){ if(document.pointerLockElement) document.exitPointerLock(); }
+renderer.domElement.addEventListener("click",function(){
+  if(!started||ended||isTouch) return;
+  if(!plActive){ try{ renderer.domElement.requestPointerLock(); }catch(e){} }
+});
+document.addEventListener("pointerlockchange",function(){ plActive = document.pointerLockElement===renderer.domElement; });
+addEventListener("mousemove",function(e){
+  if(!started||ended) return;
+  if(plActive){ look(e.movementX,e.movementY); }
+  else if(dragging){ look(e.clientX-lastX,e.clientY-lastY); lastX=e.clientX;lastY=e.clientY; }
+});
+renderer.domElement.addEventListener("mousedown",function(e){ if(!plActive){dragging=true;lastX=e.clientX;lastY=e.clientY;} });
+addEventListener("mouseup",function(){dragging=false;});
+function look(dx,dy){
+  player.yaw  -= dx*.0024;
+  player.pitch = Math.max(-1.45,Math.min(1.45, player.pitch - dy*.0024));
+}
+
+/* touch: left stick + right look + buttons */
+var stickEl=$("stick"), nub=$("nub");
+var moveTouch=null, lookTouch=null, stickVec={x:0,y:0}, stickBase={x:0,y:0};
+addEventListener("touchstart",function(e){
+  if(!started||ended) return;
+  for(var i=0;i<e.changedTouches.length;i++){
+    var t=e.changedTouches[i];
+    if(t.target.closest && (t.target.closest(".tbtn")||t.target.closest("#keypad")||t.target.closest(".overlay"))) continue;
+    if(t.clientX < innerWidth*.45 && moveTouch===null){
+      moveTouch=t.identifier;
+      var r=stickEl.getBoundingClientRect();
+      stickBase={x:r.left+r.width/2, y:r.top+r.height/2};
+    }else if(lookTouch===null){
+      lookTouch=t.identifier; lastX=t.clientX; lastY=t.clientY;
+    }
+  }
+},{passive:true});
+addEventListener("touchmove",function(e){
+  for(var i=0;i<e.changedTouches.length;i++){
+    var t=e.changedTouches[i];
+    if(t.identifier===moveTouch){
+      var dx=t.clientX-stickBase.x, dy=t.clientY-stickBase.y;
+      var m=Math.hypot(dx,dy), max=48;
+      if(m>max){dx*=max/m;dy*=max/m;}
+      stickVec={x:dx/max,y:dy/max};
+      nub.style.transform="translate("+dx+"px,"+dy+"px)";
+    }else if(t.identifier===lookTouch){
+      look((t.clientX-lastX)*1.9,(t.clientY-lastY)*1.9);
+      lastX=t.clientX;lastY=t.clientY;
+    }
+  }
+},{passive:true});
+function touchEnd(e){
+  for(var i=0;i<e.changedTouches.length;i++){
+    var t=e.changedTouches[i];
+    if(t.identifier===moveTouch){moveTouch=null;stickVec={x:0,y:0};nub.style.transform="";}
+    if(t.identifier===lookTouch){lookTouch=null;}
+  }
+}
+addEventListener("touchend",touchEnd); addEventListener("touchcancel",touchEnd);
+$("btnAct").addEventListener("click",interact);
+$("btnShift").addEventListener("click",shiftState);
+
+/* ================= MOVEMENT + COLLISION ================= */
+function activeCollider(c){
+  return c.state==="always" || c.state===state;
+}
+function tryMove(nx,nz){
+  /* axis-separated */
+  var r=player.r, x=player.x, z=player.z;
+  var ok=true;
+  for(var i=0;i<colliders.length;i++){var c=colliders[i];
+    if(!activeCollider(c)) continue;
+    if(nx>c.minX-r && nx<c.maxX+r && z>c.minZ-r && z<c.maxZ+r){ok=false;break;}
+  }
+  if(ok) player.x=nx;
+  ok=true; x=player.x;
+  for(var j=0;j<colliders.length;j++){var d=colliders[j];
+    if(!activeCollider(d)) continue;
+    if(x>d.minX-r && x<d.maxX+r && nz>d.minZ-r && nz<d.maxZ+r){ok=false;break;}
+  }
+  if(ok) player.z=nz;
+}
+
+/* ================= MAIN LOOP ================= */
+var clock = new THREE.Clock();
+var moodCur = moodTargets(); // start at unmed targets
+scene.fog.color.copy(moodCur.fogC); scene.fog.near=moodCur.fogN; scene.fog.far=moodCur.fogF;
+applyStateVisuals();
+
+function animate(){
+  requestAnimationFrame(animate);
+  var dt = Math.min(clock.getDelta(),.05);
+  var t = clock.elapsedTime;
+
+  if(started && !ended){
+    /* movement */
+    var f=0,s=0;
+    if(keys["KeyW"]||keys["ArrowUp"])f+=1;
+    if(keys["KeyS"]||keys["ArrowDown"])f-=1;
+    if(keys["KeyA"]||keys["ArrowLeft"])s-=1;
+    if(keys["KeyD"]||keys["ArrowRight"])s+=1;
+    f += -stickVec.y; s += stickVec.x;
+    var mag=Math.hypot(f,s);
+    if(mag>0){
+      f/=Math.max(1,mag); s/=Math.max(1,mag);
+      var sp=3.4*dt;
+      var sin=Math.sin(player.yaw), cos=Math.cos(player.yaw);
+      var dx=(s*cos - f*sin)*sp;
+      var dz=(-f*cos - s*sin)*sp;
+      tryMove(player.x+dx, player.z+dz);
+    }
+    /* head-bob + unmed sway */
+    var bob = mag>0 ? Math.sin(t*9)*.035 : 0;
+    var sway = state===UNMED ? Math.sin(t*.7)*.02 : 0;
+    camera.position.set(player.x, player.h+bob, player.z);
+    camera.rotation.set(player.pitch, player.yaw, sway);
+
+    /* fov recover after shift pulse */
+    if(camera.fov>72.05){ camera.fov += (72-camera.fov)*Math.min(1,dt*6); camera.updateProjectionMatrix(); }
+
+    updateFocus();
+
+    /* escape trigger */
+    if(player.x < -17.05 && !ended) endGame();
+  }
+
+  /* mood lerp */
+  var tgt = moodTargets(); var k = Math.min(1, dt*2.2);
+  scene.fog.color.lerp(tgt.fogC,k);
+  scene.fog.near += (tgt.fogN-scene.fog.near)*k;
+  scene.fog.far  += (tgt.fogF-scene.fog.far)*k;
+  hemi.intensity += (tgt.hemi-hemi.intensity)*k;
+  amb.intensity  += (tgt.amb-amb.intensity)*k;
+  renderer.setClearColor(scene.fog.color);
+  lights.forEach(function(l,i){
+    l.color.lerp(tgt.ptC,k);
+    var flick = state===UNMED ? (Math.random()<.06? .25:1)*(0.8+0.2*Math.sin(t*13+i*7)) : 1;
+    l.intensity += (tgt.pt*flick - l.intensity)*Math.min(1,dt*8);
+  });
+
+  /* pill idle glow */
+  if(pill.parent){ pill.rotation.y=t; pill.position.y=.92+Math.sin(t*2)*.03; }
+
+  renderer.render(scene,camera);
+}
+animate();
+
+/* ================= START / RESTART ================= */
+$("startBtn").addEventListener("click",function(){
+  $("startOverlay").style.display="none";
+  started=true; initAudio();
+  setObjective("your head is loud. there's a paper cup on the table.");
+  toast("take the pill. everyone says so. even the walls.");
+});
+$("restartBtn").addEventListener("click",function(){ location.reload(); });
+
+})();
+</script>
+</body>
+</html>

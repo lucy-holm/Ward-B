@@ -1,0 +1,106 @@
+:root {
+  --ink: #e9f2ef;
+  --lucid: #9fd8cb;
+  --unmed: #ff3b30;
+  --panel: rgba(8, 12, 11, 0.72);
+}
+* { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body {
+  width: 100%; height: 100%; overflow: hidden; background: #000;
+  font-family: "SF Mono", "Cascadia Mono", Consolas, Menlo, monospace;
+  color: var(--ink);
+}
+#game { position: fixed; inset: 0; }
+canvas { display: block; }
+
+/* ---------- HUD ---------- */
+#hud { position: fixed; inset: 0; pointer-events: none; user-select: none; -webkit-user-select: none; }
+#reticle {
+  position: absolute; left: 50%; top: 50%; width: 6px; height: 6px; margin: -3px 0 0 -3px;
+  border-radius: 50%; background: var(--ink); opacity: 0.8; box-shadow: 0 0 6px rgba(0, 0, 0, 0.6);
+}
+#stateChip {
+  position: absolute; top: calc(12px + env(safe-area-inset-top)); left: 50%; transform: translateX(-50%);
+  padding: 6px 14px; border: 1px solid var(--lucid); border-radius: 2px; letter-spacing: 0.35em;
+  font-size: 11px; background: var(--panel); color: var(--lucid);
+  transition: color 0.4s, border-color 0.4s; text-indent: 0.35em;
+}
+#stateChip.unmed { color: var(--unmed); border-color: var(--unmed); }
+#objective {
+  position: absolute; top: calc(46px + env(safe-area-inset-top)); left: 50%; transform: translateX(-50%);
+  font-size: 11px; letter-spacing: 0.08em; opacity: 0.85; text-align: center; max-width: 86vw;
+  background: var(--panel); padding: 5px 10px; border-radius: 2px;
+}
+#prompt {
+  position: absolute; left: 50%; bottom: 22%; transform: translateX(-50%); font-size: 13px;
+  letter-spacing: 0.06em; background: var(--panel); padding: 8px 14px; border-radius: 2px;
+  border-left: 2px solid var(--lucid); display: none; max-width: 84vw; text-align: center;
+}
+#toast {
+  position: absolute; left: 50%; bottom: 32%; transform: translateX(-50%); font-size: 12px;
+  letter-spacing: 0.05em; background: var(--panel); padding: 8px 14px; border-radius: 2px;
+  opacity: 0; transition: opacity 0.4s; max-width: 84vw; text-align: center;
+  font-style: italic; color: #cdb8ba;
+}
+#pills {
+  position: absolute; top: calc(12px + env(safe-area-inset-top)); left: 14px;
+  font-size: 12px; letter-spacing: 0.3em; background: var(--panel);
+  padding: 6px 12px; border-radius: 2px; color: var(--lucid); border: 1px solid rgba(159, 216, 203, 0.35);
+}
+
+/* unmedicated vignette + shift pulse */
+#vignette {
+  position: fixed; inset: 0; pointer-events: none; opacity: 0; transition: opacity 1.2s;
+  background: radial-gradient(ellipse at center, transparent 42%, rgba(30, 2, 4, 0.55) 78%, rgba(12, 0, 2, 0.9) 100%);
+}
+#vignette.on { opacity: 1; }
+#shiftFx {
+  position: fixed; inset: 0; pointer-events: none; opacity: 0;
+  background: radial-gradient(ellipse at center, rgba(255, 255, 255, 0.9) 0%, rgba(160, 40, 40, 0.35) 45%, transparent 75%);
+}
+#shiftFx.pulse { animation: pulse 0.55s ease-out; }
+@keyframes pulse { 0% { opacity: 0.95; } 100% { opacity: 0; } }
+
+/* ---------- overlays ---------- */
+.overlay {
+  position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+  flex-direction: column; background: rgba(3, 5, 5, 0.92); z-index: 30; padding: 24px; text-align: center;
+}
+.overlay h1 { font-size: clamp(22px, 6vw, 40px); letter-spacing: 0.3em; font-weight: 400; color: var(--ink); text-indent: 0.3em; }
+.overlay h1 b { color: var(--lucid); font-weight: 400; }
+.overlay .sub { margin-top: 8px; font-size: 11px; letter-spacing: 0.25em; opacity: 0.55; text-indent: 0.25em; }
+.overlay .card {
+  margin-top: 26px; max-width: 520px; font-size: 12.5px; line-height: 1.85; letter-spacing: 0.04em;
+  opacity: 0.9; text-align: left; border: 1px solid rgba(159, 216, 203, 0.25); padding: 18px 20px;
+  border-radius: 2px; background: rgba(10, 16, 14, 0.6);
+}
+.overlay .card em { color: var(--lucid); font-style: normal; }
+.overlay .card .u { color: var(--unmed); }
+.btn {
+  margin-top: 26px; pointer-events: auto; cursor: pointer; background: none;
+  border: 1px solid var(--lucid); color: var(--lucid); font-family: inherit; font-size: 12px;
+  letter-spacing: 0.3em; padding: 13px 30px; border-radius: 2px; text-indent: 0.3em;
+}
+.btn:active { background: rgba(159, 216, 203, 0.15); }
+
+/* ---------- touch controls ---------- */
+.touch #stick {
+  position: fixed; left: 26px; bottom: calc(30px + env(safe-area-inset-bottom)); width: 110px; height: 110px;
+  border-radius: 50%; border: 1px solid rgba(233, 242, 239, 0.25); background: rgba(8, 12, 11, 0.3); z-index: 20;
+}
+.touch #nub {
+  position: absolute; left: 50%; top: 50%; width: 44px; height: 44px; margin: -22px 0 0 -22px;
+  border-radius: 50%; background: rgba(233, 242, 239, 0.28);
+}
+.touch .tbtn {
+  position: fixed; right: 26px; width: 74px; height: 74px; border-radius: 50%; z-index: 20;
+  border: 1px solid rgba(233, 242, 239, 0.35); background: rgba(8, 12, 11, 0.45); color: var(--ink);
+  font-family: inherit; font-size: 10px; letter-spacing: 0.12em;
+  display: flex; align-items: center; justify-content: center; flex-direction: column;
+}
+.touch #btnAct { bottom: calc(118px + env(safe-area-inset-bottom)); }
+.touch #btnShift { bottom: calc(30px + env(safe-area-inset-bottom)); border-color: rgba(159, 216, 203, 0.5); color: var(--lucid); }
+.touch .tbtn span { font-size: 17px; margin-bottom: 2px; }
+#stick, #btnAct, #btnShift { display: none; }
+.touch #stick, .touch #btnAct, .touch #btnShift { display: flex; }
+.tbtn:active { background: rgba(159, 216, 203, 0.2); }

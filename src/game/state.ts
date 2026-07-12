@@ -12,7 +12,7 @@ export class StateSystem {
   state: WardState = 'unmed';
   canShift = false;
   pills = 0;
-  readonly maxPills: number = TUNING.pills.max;
+  maxPills: number = TUNING.pills.max;
   onChange: ((next: WardState, prev: WardState) => void) | null = null;
 
   shift(): ShiftResult {
@@ -43,5 +43,12 @@ export class StateSystem {
   refill(): number {
     this.pills = this.maxPills;
     return this.pills;
+  }
+
+  // Raises the pill capacity (e.g. room 9's coat-pocket find). Never lowers
+  // it and never touches the current count — a later refill/dispenser tops
+  // up to the new max on its own.
+  upgradeCapacity(newMax: number): void {
+    if (newMax > this.maxPills) this.maxPills = newMax;
   }
 }

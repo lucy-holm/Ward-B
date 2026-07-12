@@ -11,6 +11,7 @@ export const TUNING = {
   },
   pills: {
     max: 1,
+    upgradedMax: 2,
   },
   camera: {
     fov: 72,

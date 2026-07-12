@@ -19,6 +19,8 @@ import { room5, room5Script } from './rooms/room5';
 import { room6, room6Script } from './rooms/room6';
 import { room7, room7Script } from './rooms/room7';
 import { room8, room8Script } from './rooms/room8';
+import { room9, room9Script } from './rooms/room9';
+import { room10, room10Script } from './rooms/room10';
 
 // RoomScript is frozen (rooms/types.ts). room4/room5 own an NPC with
 // scene-level resources that need an explicit teardown hook the base
@@ -35,6 +37,8 @@ const rooms: Record<string, { def: RoomDef; script: AnyRoomScript }> = {
   room6: { def: room6, script: room6Script },
   room7: { def: room7, script: room7Script },
   room8: { def: room8, script: room8Script },
+  room9: { def: room9, script: room9Script },
+  room10: { def: room10, script: room10Script },
 };
 
 const container = document.getElementById('game')!;
@@ -154,14 +158,15 @@ function endOfBuild(): void {
   hud.setPrompt(null);
   telemetry.flush();
   hud.showEndCard(
-    'END OF MILESTONE 5',
-    'THREE MORE DOORS. THE DISPENSERS NEVER MOVED — YOU DID.',
+    'END OF MILESTONE 6',
+    'TWO PILLS NOW. THE WING DOESN\'T CARE.',
     `<em>PLAYTEST — tell the devs:</em><br><br>
-     1 · Room 6's dispenser sat mid-route, not at the entrance — did the dash-for-the-code, fall-back-to-restock rhythm read clearly, or did you stumble into it?<br>
-     2 · Room 7 hid its dispenser behind the shelving with only a scrawl to go on — did that scrawl actually lead you there, or did you find it by luck?<br>
-     3 · Room 8 put two of them on the floor at once — could you feel their patrols interleaving, or did it just read as one bigger danger?<br>
-     4 · Difficulty across 6 → 7 → 8 — did it escalate at a fair pace, or was there a spike or a lull?<br>
-     5 · You ended with ${state.pills}/${state.maxPills} pills — was there ever a point you felt truly stuck, with no idea what to do next?`,
+     1 · Room 9 handed you a second pill with nothing chasing you — did that upgrade actually register as an upgrade, or did it just quietly happen?<br>
+     2 · Room 10 spread the code, the keypad, and the dispensers across zones you had to physically cross and re-cross — did that force real route planning, or did you find a way to brute-force it?<br>
+     3 · How many full unmed ↔ lucid round trips did room 10 take you, start to finish?<br>
+     4 · Two orderlies, two locked gates, one long building — where did the tension actually peak? Was it where the room intended?<br>
+     5 · Was room 10 too big, or did any single stretch of it drag?<br>
+     6 · You ended with ${state.pills}/${state.maxPills} pills — was there ever a point you felt truly stuck, with no idea what to do next?`,
     'READMIT',
     () => location.reload(),
   );
@@ -201,6 +206,7 @@ function frame(): void {
     player.update(dt, input, world.colliders, state.state);
     current.script.update?.(dt, t, ctx);
     const label = interaction.update(renderer.camera, state.state, current.script, ctx);
+    world.setFocused(interaction.focusedId);
     hud.setPrompt(label ? (input.isTouch ? '◉ ' : '[E] ') + label : null);
     checkExits();
   }

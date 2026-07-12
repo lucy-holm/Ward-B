@@ -122,7 +122,7 @@ export const room8: RoomDef = {
     { pos: [0, -6] },
     { pos: [0, -9] },
   ],
-  exits: [{ to: 'END', minX: -1, maxX: 1, minZ: -9.9, maxZ: -8.8 }],
+  exits: [{ to: 'room9', minX: -1, maxX: 1, minZ: -9.9, maxZ: -8.8 }],
 };
 
 // Orderly A — a tight inner orbit hugging the island.

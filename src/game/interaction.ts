@@ -25,7 +25,8 @@ export class Interaction {
       const states = def.states ?? 'both';
       if (states !== 'both' && states !== state) continue;
       if (script.isAvailable && !script.isAvailable(def.id, ctx)) continue;
-      const hit = this.ray.intersectObject(mesh);
+      // recursive: composite interactables (e.g. the dispenser) are groups of meshes
+      const hit = this.ray.intersectObject(mesh, true);
       if (hit.length && hit[0].distance < bestDist) {
         bestDist = hit[0].distance;
         bestLabel = def.label;
@@ -50,10 +51,13 @@ export class Interaction {
           hud.toast('the dispenser hums. you are already holding all it will give.');
           break;
         }
+        const before = state.pills;
         const n = state.refill();
+        const gained = n - before;
         audio.dispenserClunk();
         telemetry.event('dispenser_used');
         hud.setPills(n, state.maxPills, state.canShift);
+        hud.pillPopup(`+${gained} pill${gained === 1 ? '' : 's'}`);
         hud.toast(`pills rattle into your palm. (${n}/${state.maxPills})`);
         break;
       }
@@ -62,6 +66,7 @@ export class Interaction {
         this.world.removeInteractable(id);
         telemetry.event('pill_pickup');
         hud.setPills(state.pills, state.maxPills, state.canShift);
+        hud.pillPopup('+1 pill');
         hud.toast('a pill. pocketed.');
         break;
       }

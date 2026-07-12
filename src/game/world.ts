@@ -26,6 +26,17 @@ const MATERIALS: Record<MatName, THREE.Material> = {
   glow: new THREE.MeshBasicMaterial({ color: 0xfff2d9 }),
 };
 
+// Composite dispenser parts — shared across instances like MATERIALS (never disposed).
+// Kept separate from MATERIALS.dispenser (the body) so the slot can pulse on its own.
+const DISPENSER_SLOT_MAT = new THREE.MeshLambertMaterial({
+  color: 0x0c1917,
+  emissive: 0x9dfbe4,
+  emissiveIntensity: 0.55,
+});
+const DISPENSER_TRAY_MAT = new THREE.MeshLambertMaterial({ color: 0x161d1b });
+const DISPENSER_SLOT_BASE_INTENSITY = 0.55;
+const DISPENSER_SLOT_PULSE_AMOUNT = 0.4;
+
 function makeScrawlTexture(def: ScrawlDef): THREE.CanvasTexture {
   const cv = document.createElement('canvas');
   cv.width = 512;
@@ -46,6 +57,86 @@ function makeScrawlTexture(def: ScrawlDef): THREE.CanvasTexture {
   return new THREE.CanvasTexture(cv);
 }
 
+// Institutional signage for a dispenser faceplate — clean, printed, stencil-like.
+// Deliberately the visual opposite of makeScrawlTexture's handwritten red.
+function makeDispenserLabelTexture(): THREE.CanvasTexture {
+  const cv = document.createElement('canvas');
+  cv.width = 512;
+  cv.height = 192;
+  const g = cv.getContext('2d')!;
+  g.fillStyle = '#dfe8e4';
+  g.fillRect(0, 0, cv.width, cv.height);
+  g.strokeStyle = '#8a9a95';
+  g.lineWidth = 6;
+  g.strokeRect(4, 4, cv.width - 8, cv.height - 8);
+
+  // small cross symbol
+  g.strokeStyle = '#2f6e5f';
+  g.lineWidth = 12;
+  g.lineCap = 'round';
+  const cx = 76;
+  const cy = cv.height / 2;
+  g.beginPath();
+  g.moveTo(cx - 24, cy);
+  g.lineTo(cx + 24, cy);
+  g.moveTo(cx, cy - 24);
+  g.lineTo(cx, cy + 24);
+  g.stroke();
+
+  g.fillStyle = '#22332e';
+  g.font = '700 44px Arial, Helvetica, sans-serif';
+  g.textAlign = 'left';
+  g.textBaseline = 'middle';
+  // manual letter-spacing (not all canvas impls honour ctx.letterSpacing)
+  let x = 128;
+  for (const ch of 'MEDICATION') {
+    g.fillText(ch, x, cy);
+    x += g.measureText(ch).width + 8;
+  }
+  return new THREE.CanvasTexture(cv);
+}
+
+// Dispenser reads as "just a box" otherwise — build a composite so it registers
+// as a fixture: dark body, recessed glowing slot, a tray lip, printed faceplate.
+function buildDispenser(it: InteractableDef): THREE.Group {
+  const group = new THREE.Group();
+  const [w, h, d] = it.size;
+
+  const body = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), MATERIALS.dispenser);
+  group.add(body);
+
+  const slot = new THREE.Mesh(new THREE.BoxGeometry(w * 0.5, h * 0.16, d * 0.3), DISPENSER_SLOT_MAT);
+  slot.position.set(0, -h * 0.22, d / 2 - d * 0.1);
+  group.add(slot);
+
+  const tray = new THREE.Mesh(new THREE.BoxGeometry(w * 0.62, h * 0.05, d * 0.55), DISPENSER_TRAY_MAT);
+  tray.position.set(0, -h * 0.4, d / 2 + d * 0.12);
+  group.add(tray);
+
+  const labelMat = new THREE.MeshBasicMaterial({ map: makeDispenserLabelTexture() });
+  const label = new THREE.Mesh(new THREE.PlaneGeometry(w * 0.86, h * 0.32), labelMat);
+  label.position.set(0, h * 0.28, d / 2 + 0.005);
+  label.userData.ownsMaterial = true;
+  group.add(label);
+
+  return group;
+}
+
+// Disposes geometry (and any flagged-owned materials) on an object and its
+// descendants. Used for both single-mesh interactables and composite groups
+// like the dispenser, so removal/room-clear never leaks canvas textures.
+function disposeObject3D(obj: THREE.Object3D): void {
+  obj.traverse((child) => {
+    if (!(child instanceof THREE.Mesh)) return;
+    child.geometry.dispose();
+    if (child.userData.ownsMaterial) {
+      const mat = child.material as THREE.MeshBasicMaterial;
+      mat.map?.dispose();
+      mat.dispose();
+    }
+  });
+}
+
 export class World {
   room!: RoomDef;
   colliders: ColliderDef[] = [];
@@ -56,7 +147,7 @@ export class World {
     lucid: new THREE.Group(),
     unmed: new THREE.Group(),
   };
-  private readonly interactables = new Map<string, { def: InteractableDef; mesh: THREE.Mesh }>();
+  private readonly interactables = new Map<string, { def: InteractableDef; mesh: THREE.Object3D }>();
   // Pill-ish meshes get an idle bob/spin so they read as "take me".
   private readonly animated: Array<{ mesh: THREE.Mesh; baseY: number }> = [];
 
@@ -100,12 +191,13 @@ export class World {
     }
 
     for (const it of def.interactables) {
-      const mesh = new THREE.Mesh(new THREE.BoxGeometry(...it.size), MATERIALS[it.mat]);
+      const mesh: THREE.Object3D =
+        it.type === 'dispenser' ? buildDispenser(it) : new THREE.Mesh(new THREE.BoxGeometry(...it.size), MATERIALS[it.mat]);
       mesh.position.set(...it.pos);
       this.groups[it.states ?? 'both'].add(mesh);
       this.interactables.set(it.id, { def: it, mesh });
       if (it.type === 'pill_cup' || it.type === 'pill_pickup') {
-        this.animated.push({ mesh, baseY: it.pos[1] });
+        this.animated.push({ mesh: mesh as THREE.Mesh, baseY: it.pos[1] });
       }
     }
   }
@@ -116,7 +208,7 @@ export class World {
   }
 
   // Interactables currently in the room, for the Interaction raycast.
-  entries(): Array<{ def: InteractableDef; mesh: THREE.Mesh }> {
+  entries(): Array<{ def: InteractableDef; mesh: THREE.Object3D }> {
     return [...this.interactables.values()];
   }
 
@@ -124,7 +216,7 @@ export class World {
     const entry = this.interactables.get(id);
     if (!entry) return;
     entry.mesh.parent?.remove(entry.mesh);
-    entry.mesh.geometry.dispose();
+    disposeObject3D(entry.mesh);
     this.interactables.delete(id);
     const ai = this.animated.findIndex((a) => a.mesh === entry.mesh);
     if (ai >= 0) this.animated.splice(ai, 1);
@@ -135,20 +227,16 @@ export class World {
       a.mesh.rotation.y = t;
       a.mesh.position.y = a.baseY + Math.sin(t * 2) * 0.03;
     }
+    // subtle sinusoidal pulse so dispensers draw the eye from across the room
+    DISPENSER_SLOT_MAT.emissiveIntensity =
+      DISPENSER_SLOT_BASE_INTENSITY + Math.sin(t * 2.2) * DISPENSER_SLOT_PULSE_AMOUNT;
   }
 
   private clear(): void {
     for (const group of Object.values(this.groups)) {
       for (const child of [...group.children]) {
         group.remove(child);
-        if (child instanceof THREE.Mesh) {
-          child.geometry.dispose();
-          if (child.userData.ownsMaterial) {
-            const mat = child.material as THREE.MeshBasicMaterial;
-            mat.map?.dispose();
-            mat.dispose();
-          }
-        }
+        disposeObject3D(child);
       }
     }
     this.interactables.clear();

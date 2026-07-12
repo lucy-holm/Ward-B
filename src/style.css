@@ -93,6 +93,38 @@ canvas { display: block; }
 #shiftFx.pulse { animation: pulse 0.55s ease-out; }
 @keyframes pulse { 0% { opacity: 0.95; } 100% { opacity: 0; } }
 
+/* ---------- threat presentation (orderly watch-ramp) ---------- */
+/* The one red overlay register besides the wall scrawls — deliberately a
+   different shape/saturation from the soft unmed #vignette so the two never
+   get confused: this one is tight, edge-weighted, and reads as danger, not
+   atmosphere. Opacity is driven every frame from Hud.setThreat; classes are
+   only toggled on threshold crossings. */
+#threatVignette {
+  position: fixed; inset: 0; pointer-events: none; opacity: 0;
+  background: radial-gradient(ellipse at center, transparent 28%, rgba(150, 4, 10, 0.5) 62%, rgba(70, 0, 4, 0.92) 100%);
+}
+#threatVignette.pulse { animation: threatPulse 1.6s ease-in-out infinite; }
+@keyframes threatPulse {
+  0%, 100% { filter: brightness(1); }
+  50% { filter: brightness(1.35); }
+}
+#threatEdgeL, #threatEdgeR {
+  position: fixed; inset: 0; pointer-events: none; opacity: 0;
+}
+#threatEdgeL { background: linear-gradient(to right, rgba(190, 6, 12, 0.75), transparent 48%); }
+#threatEdgeR { background: linear-gradient(to left, rgba(190, 6, 12, 0.75), transparent 48%); }
+
+#threatLine {
+  position: absolute; top: calc(74px + env(safe-area-inset-top)); left: 50%; transform: translateX(-50%);
+  font-size: 10px; letter-spacing: 0.2em; color: var(--unmed); opacity: 0; text-align: center;
+  text-transform: lowercase;
+}
+#threatLine.show { animation: threatLineTremble 0.5s ease-in-out infinite; }
+@keyframes threatLineTremble {
+  0%, 100% { opacity: 0.85; transform: translateX(-50%); }
+  50% { opacity: 1; transform: translate(calc(-50% - 0.6px), 0.4px); }
+}
+
 /* ---------- overlays ---------- */
 .overlay {
   position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;

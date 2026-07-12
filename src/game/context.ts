@@ -22,8 +22,9 @@ export interface GameCtx {
   releasePointerLock(): void;
   // Scene access for room-owned actors (e.g. room4's orderly).
   scene: THREE.Scene;
-  // Current player position, for room-owned actors that need to track the player.
-  playerPos(): { x: number; z: number };
+  // Current player position + look yaw, for room-owned actors that need to
+  // track the player or compute screen-relative threat bearings.
+  playerPos(): { x: number; z: number; yaw: number };
   // Hard-reposition the player (e.g. the orderly's catch penalty).
   teleportPlayer(x: number, z: number): void;
 }

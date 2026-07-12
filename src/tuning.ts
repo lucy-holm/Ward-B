@@ -23,10 +23,17 @@ export const TUNING = {
     positionSampleMs: 2000,
   },
   orderly: {
-    speed: 1.1,          // m/s
+    speed: 1.1,          // m/s, patrol + walk-back speed
+    // m/s while chasing. Player walk speed (TUNING.player.speed) is 3.4 —
+    // deliberately faster than that so outrunning him on foot isn't viable;
+    // shifting lucid (the escape) is the intended answer, not a footrace.
+    chaseSpeed: 4.3,
+    radius: 0.4,           // m, collision radius against room colliders
+    catchRadius: 0.55,     // m, contact distance while chasing that triggers the catch
+    escapePauseSec: 0.6,   // s, stands still after a chase ends before walking back to patrol
     sightRange: 6,        // m
     coneDeg: 55,           // total cone angle, degrees
-    graceSec: 0.6,         // continuous sight required before a catch triggers
+    graceSec: 0.6,         // continuous sight required before the watch-ramp fills to a chase
     warnAt: 0.5,           // ramp fraction at which the "he is looking at you" toast fires
     pauseAtWaypoint: 1.2,  // s, brief pause at each waypoint
   },

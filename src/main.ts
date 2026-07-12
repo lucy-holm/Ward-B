@@ -15,11 +15,12 @@ import { room1, room1Script } from './rooms/room1';
 import { room2, room2Script } from './rooms/room2';
 import { room3, room3Script } from './rooms/room3';
 import { room4, room4Script } from './rooms/room4';
+import { room5, room5Script } from './rooms/room5';
 
-// RoomScript is frozen (rooms/types.ts). room4 owns an NPC with scene-level
-// resources that need an explicit teardown hook the base RoomScript doesn't
-// have, so it exports a locally-extended type; this is the only place that
-// needs to know about it.
+// RoomScript is frozen (rooms/types.ts). room4/room5 own an NPC with
+// scene-level resources that need an explicit teardown hook the base
+// RoomScript doesn't have, so they export locally-extended types; this is
+// the only place that needs to know about it.
 type AnyRoomScript = RoomScript & { onLeave?(ctx: GameCtx): void };
 
 const rooms: Record<string, { def: RoomDef; script: AnyRoomScript }> = {
@@ -27,6 +28,7 @@ const rooms: Record<string, { def: RoomDef; script: AnyRoomScript }> = {
   room2: { def: room2, script: room2Script },
   room3: { def: room3, script: room3Script },
   room4: { def: room4, script: room4Script },
+  room5: { def: room5, script: room5Script },
 };
 
 const container = document.getElementById('game')!;
@@ -76,7 +78,7 @@ const ctx: GameCtx = {
   shiftFx,
   releasePointerLock: () => input.releasePointerLock(),
   scene: renderer.scene,
-  playerPos: () => ({ x: player.x, z: player.z }),
+  playerPos: () => ({ x: player.x, z: player.z, yaw: player.yaw }),
   teleportPlayer: (x, z) => {
     player.x = x;
     player.z = z;
@@ -146,14 +148,14 @@ function endOfBuild(): void {
   hud.setPrompt(null);
   telemetry.flush();
   hud.showEndCard(
-    'END OF MILESTONE 3',
-    'HE WAS WATCHING THE WHOLE WARD. NOT JUST YOU.',
+    'END OF MILESTONE 4',
+    'THE COUNTER REMEMBERS EVERY SHADOW YOU STOOD IN.',
     `<em>PLAYTEST — tell the devs:</em><br><br>
-     1 · Did you understand the orderly's rules — safe lucid, hunted unmedicated — before he ever caught you?<br>
-     2 · When he caught you, did it feel fair, or cheap?<br>
-     3 · Did you ever shift to lucid on purpose just to walk past him unbothered? (fun signal — lucidity as camouflage)<br>
-     4 · Did the shelf's shadow read as a hiding spot, or did you find it by accident?<br>
-     5 · Which state do you trust now — lucid, unmed, or neither?`,
+     1 · The code was split on opposite sides of his loop — did that force you to actually plan a route, or did you just wing it?<br>
+     2 · Shifting lucid to cross the station meant going blind to him on purpose — did that feel tense, or just safe?<br>
+     3 · You ended with ${state.pills}/${state.maxPills} pills — did that feel like enough, or did you white-knuckle it?<br>
+     4 · Did you ever duck behind the island on purpose, using its shadow, or did you just get lucky?<br>
+     5 · After all five rooms — which state do you trust now, lucid, unmed, or neither?`,
     'READMIT',
     () => location.reload(),
   );

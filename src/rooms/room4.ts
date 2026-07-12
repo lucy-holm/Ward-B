@@ -3,13 +3,15 @@ import type { ColliderDef, RoomDef, RoomScript } from './types';
 import type { GameCtx } from '../game/context';
 import { Orderly, type OrderlyAABB } from '../game/orderly';
 
-// ROOM 4 — the Day Room. The ward's first NPC. LUCID: he's just staff,
-// ignorable, even reassuring. UNMED: you see him wrong (taller, too still
-// between steps) AND he sees YOU wrong — spotted unmedicated, he restrains
-// you and forces medication. Being lucid near him is always safe. This
-// inverts rooms 2-3's lesson: unmed shows the truth, but truth has a
-// predator. The staff door only exists while unmedicated — you have to
-// cross his room, in the state he hunts, to leave it.
+// ROOM 4 — the Day Room. The ward's first NPC. LUCID: he's completely
+// invisible — you never know where he is while medicated. UNMED: he's
+// revealed, too tall, too still between steps, and he sees YOU wrong —
+// watched long enough, he gives chase, and contact restrains you and forces
+// medication. Shifting lucid is always safe, even mid-chase (the escape
+// costs the pill it always costs). This inverts rooms 2-3's lesson: unmed
+// shows the truth, but truth has a predator. The staff door only exists
+// while unmedicated — you have to cross his room, in the state he hunts, to
+// leave it.
 
 const rb = new RoomBuilder();
 
@@ -47,6 +49,13 @@ const SHELF: OrderlyAABB = { minX: -3.0, maxX: -1.4, minZ: -1.4, maxZ: -0.6 };
 rb.block([1.6, 2.9, 0.8], [-2.2, 1.45, -1], 'wall2');
 rb.solid(SHELF.minX, SHELF.maxX, SHELF.minZ, SHELF.maxZ);
 
+// Colliders he won't clip through while patrolling/chasing — always-on ones
+// only (walls, tables, the shelf). The lucid-only staff door blocker doesn't
+// apply to him: he isn't the one trying to leave through it.
+const ORDERLY_COLLIDERS: ColliderDef[] = rb.colliders.filter(
+  (c) => c.states === undefined || c.states === 'both',
+);
+
 export const room4: RoomDef = {
   id: 'room4',
   floor: { minX: -6, maxX: 6, minZ: -7, maxZ: 5 },
@@ -80,7 +89,7 @@ export const room4: RoomDef = {
     },
   ],
   lights: [{ pos: [0, 3] }, { pos: [3.5, 0] }, { pos: [-3, -1] }, { pos: [3, -4] }, { pos: [0, -6] }],
-  exits: [{ to: 'END', minX: -1, maxX: 1, minZ: -6.9, maxZ: -5.8 }],
+  exits: [{ to: 'room5', minX: -1, maxX: 1, minZ: -6.9, maxZ: -5.8 }],
 };
 
 // Patrol loop kept east/central of the shelving unit (x >= -0.5), leaving the
@@ -99,39 +108,62 @@ const WAYPOINTS = [
 // onLeave (if present) before loading the next room.
 export type Room4Script = RoomScript & { onLeave?(ctx: GameCtx): void };
 
+// Bearing from the player to a point, relative to the player's look yaw.
+// 0 = dead ahead, positive = right. Matches player.ts's own yaw-relative
+// movement convention (forward = (-sin(yaw), -cos(yaw)), right = (cos(yaw),
+// -sin(yaw))) so a bearing of 0 always means "on screen, dead center."
+function bearingTo(dx: number, dz: number, yaw: number): number {
+  const sin = Math.sin(yaw);
+  const cos = Math.cos(yaw);
+  const fwd = -dx * sin - dz * cos;
+  const right = dx * cos - dz * sin;
+  return Math.atan2(right, fwd);
+}
+
 export const room4Script: Room4Script = (() => {
   let orderly: Orderly | null = null;
+  let toldGone = false; // first lucid shift in the room gets its own line
 
   function spawnOrderly(ctx: GameCtx): void {
     orderly?.dispose();
-    orderly = new Orderly(ctx.scene, WAYPOINTS, [SHELF], {
-      onWarn: () => {
-        ctx.hud.toast('he is looking at you.');
-        ctx.telemetry.event('orderly_spotted');
+    orderly = new Orderly(
+      ctx.scene,
+      WAYPOINTS,
+      [SHELF],
+      {
+        onWarn: () => {
+          ctx.hud.toast('he is looking at you.');
+          ctx.telemetry.event('orderly_spotted');
+        },
+        onChaseStart: () => {
+          ctx.hud.toast('run. or stop being visible.');
+          ctx.telemetry.event('orderly_chase');
+        },
+        onCaught: () => {
+          ctx.state.forceState('lucid');
+          ctx.shiftFx();
+          ctx.teleportPlayer(room4.spawn.x, room4.spawn.z);
+          ctx.hud.toast('hands. a needle. "there you are," he says.');
+          ctx.telemetry.event('orderly_caught');
+        },
       },
-      onCaught: () => {
-        ctx.state.forceState('lucid');
-        ctx.shiftFx();
-        ctx.teleportPlayer(room4.spawn.x, room4.spawn.z);
-        ctx.hud.toast('hands. a needle. "there you are," he says.');
-        ctx.telemetry.event('orderly_caught');
-      },
-    });
+      { colliders: ORDERLY_COLLIDERS },
+    );
     orderly.setWardState(ctx.state.state);
   }
 
   const script: Room4Script = {
     onEnter(ctx) {
+      toldGone = false;
       spawnOrderly(ctx);
-      ctx.hud.setObjective(
-        'an orderly walks the day room. the staff door is north — but it only shows itself while you do.',
-      );
+      ctx.hud.setObjective('the day room. he only exists when you do. the door out is the same.');
     },
 
     onStateChange(next, ctx) {
       orderly?.setWardState(next);
-      if (next === 'unmed') {
-        ctx.hud.toast('he does not look like staff anymore.');
+      if (next === 'lucid' && !toldGone) {
+        toldGone = true;
+        ctx.hud.toast("gone. or — no. you just can't see him.");
       }
     },
 
@@ -139,9 +171,24 @@ export const room4Script: Room4Script = (() => {
       if (!orderly) return;
       const p = ctx.playerPos();
       orderly.update(dt, p.x, p.z, ctx.state.state);
+
+      const level = orderly.watching;
+      const chasing = orderly.chasing;
+      const dist = Math.hypot(orderly.x - p.x, orderly.z - p.z);
+      if (level > 0 || chasing) {
+        const bearing = bearingTo(orderly.x - p.x, orderly.z - p.z, p.yaw);
+        ctx.hud.setThreat(level, bearing);
+      } else {
+        ctx.hud.setThreat(0, null);
+      }
+      // Audible presence keeps feeding even while lucid/invisible — that's
+      // the suspense: you can't see him, but you can hear how close he is.
+      ctx.audio.setThreat(level, dist, chasing);
     },
 
-    onLeave() {
+    onLeave(ctx) {
+      ctx.hud.setThreat(0, null);
+      ctx.audio.setThreat(0, Infinity, false);
       orderly?.dispose();
       orderly = null;
     },

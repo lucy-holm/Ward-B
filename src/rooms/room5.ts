@@ -90,8 +90,10 @@ export const room5: RoomDef = {
       // teleport-back point after a catch.
       id: 'dispenser5',
       type: 'dispenser',
+      // south-wall mount: already z-thin (correct axis), but was floating
+      // ~0.5m off the wall instead of sitting flush against it.
       size: [0.55, 0.75, 0.16],
-      pos: [-6.3, 1.45, 4.4],
+      pos: [-6.3, 1.45, 4.86],
       mat: 'dispenser',
       states: 'both',
       label: 'use the dispenser',
@@ -122,7 +124,7 @@ export const room5: RoomDef = {
     { pos: [0, -2.5] },
     { pos: [0, -5.5] },
   ],
-  exits: [{ to: 'END', minX: -1, maxX: 1, minZ: -7.9, maxZ: -6.8 }],
+  exits: [{ to: 'room6', minX: -1, maxX: 1, minZ: -7.9, maxZ: -6.8 }],
 };
 
 // Patrol loop encircling the island, well clear of both the medication-window

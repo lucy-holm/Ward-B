@@ -16,6 +16,9 @@ import { room2, room2Script } from './rooms/room2';
 import { room3, room3Script } from './rooms/room3';
 import { room4, room4Script } from './rooms/room4';
 import { room5, room5Script } from './rooms/room5';
+import { room6, room6Script } from './rooms/room6';
+import { room7, room7Script } from './rooms/room7';
+import { room8, room8Script } from './rooms/room8';
 
 // RoomScript is frozen (rooms/types.ts). room4/room5 own an NPC with
 // scene-level resources that need an explicit teardown hook the base
@@ -29,6 +32,9 @@ const rooms: Record<string, { def: RoomDef; script: AnyRoomScript }> = {
   room3: { def: room3, script: room3Script },
   room4: { def: room4, script: room4Script },
   room5: { def: room5, script: room5Script },
+  room6: { def: room6, script: room6Script },
+  room7: { def: room7, script: room7Script },
+  room8: { def: room8, script: room8Script },
 };
 
 const container = document.getElementById('game')!;
@@ -148,14 +154,14 @@ function endOfBuild(): void {
   hud.setPrompt(null);
   telemetry.flush();
   hud.showEndCard(
-    'END OF MILESTONE 4',
-    'THE COUNTER REMEMBERS EVERY SHADOW YOU STOOD IN.',
+    'END OF MILESTONE 5',
+    'THREE MORE DOORS. THE DISPENSERS NEVER MOVED — YOU DID.',
     `<em>PLAYTEST — tell the devs:</em><br><br>
-     1 · The code was split on opposite sides of his loop — did that force you to actually plan a route, or did you just wing it?<br>
-     2 · Shifting lucid to cross the station meant going blind to him on purpose — did that feel tense, or just safe?<br>
-     3 · You ended with ${state.pills}/${state.maxPills} pills — did that feel like enough, or did you white-knuckle it?<br>
-     4 · Did you ever duck behind the island on purpose, using its shadow, or did you just get lucky?<br>
-     5 · After all five rooms — which state do you trust now, lucid, unmed, or neither?`,
+     1 · Room 6's dispenser sat mid-route, not at the entrance — did the dash-for-the-code, fall-back-to-restock rhythm read clearly, or did you stumble into it?<br>
+     2 · Room 7 hid its dispenser behind the shelving with only a scrawl to go on — did that scrawl actually lead you there, or did you find it by luck?<br>
+     3 · Room 8 put two of them on the floor at once — could you feel their patrols interleaving, or did it just read as one bigger danger?<br>
+     4 · Difficulty across 6 → 7 → 8 — did it escalate at a fair pace, or was there a spike or a lull?<br>
+     5 · You ended with ${state.pills}/${state.maxPills} pills — was there ever a point you felt truly stuck, with no idea what to do next?`,
     'READMIT',
     () => location.reload(),
   );

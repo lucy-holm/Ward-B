@@ -62,7 +62,7 @@ export const room3: RoomDef = {
     },
   ],
   lights: [{ pos: [0, 2] }, { pos: [-2.5, -1] }, { pos: [1.5, -3] }, { pos: [0, -6] }],
-  exits: [{ to: 'END', minX: -1, maxX: 1, minZ: -6.9, maxZ: -5.8 }],
+  exits: [{ to: 'room4', minX: -1, maxX: 1, minZ: -6.9, maxZ: -5.8 }],
 };
 
 export const room3Script: RoomScript = (() => {

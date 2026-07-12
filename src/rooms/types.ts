@@ -90,4 +90,6 @@ export interface RoomScript {
   // Return true if the script fully handled the interaction (generic handler skipped).
   onInteract?(id: string, ctx: GameCtx): boolean;
   onStateChange?(next: WardState, ctx: GameCtx): void;
+  // Per-frame hook while this room is active and the game is running (NPCs, timers).
+  update?(dt: number, t: number, ctx: GameCtx): void;
 }

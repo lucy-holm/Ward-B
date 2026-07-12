@@ -14,11 +14,19 @@ import type { RoomDef, RoomScript } from './rooms/types';
 import { room1, room1Script } from './rooms/room1';
 import { room2, room2Script } from './rooms/room2';
 import { room3, room3Script } from './rooms/room3';
+import { room4, room4Script } from './rooms/room4';
 
-const rooms: Record<string, { def: RoomDef; script: RoomScript }> = {
+// RoomScript is frozen (rooms/types.ts). room4 owns an NPC with scene-level
+// resources that need an explicit teardown hook the base RoomScript doesn't
+// have, so it exports a locally-extended type; this is the only place that
+// needs to know about it.
+type AnyRoomScript = RoomScript & { onLeave?(ctx: GameCtx): void };
+
+const rooms: Record<string, { def: RoomDef; script: AnyRoomScript }> = {
   room1: { def: room1, script: room1Script },
   room2: { def: room2, script: room2Script },
   room3: { def: room3, script: room3Script },
+  room4: { def: room4, script: room4Script },
 };
 
 const container = document.getElementById('game')!;
@@ -67,6 +75,12 @@ const ctx: GameCtx = {
   },
   shiftFx,
   releasePointerLock: () => input.releasePointerLock(),
+  scene: renderer.scene,
+  playerPos: () => ({ x: player.x, z: player.z }),
+  teleportPlayer: (x, z) => {
+    player.x = x;
+    player.z = z;
+  },
 };
 
 state.onChange = (next) => {
@@ -117,6 +131,7 @@ function completeRoom(exitTo: string): void {
   telemetry.event('room_complete', {
     duration_s: Math.round((performance.now() - roomEnteredAt) / 100) / 10,
   });
+  current.script.onLeave?.(ctx);
   if (exitTo === 'END') {
     endOfBuild();
   } else {
@@ -131,14 +146,14 @@ function endOfBuild(): void {
   hud.setPrompt(null);
   telemetry.flush();
   hud.showEndCard(
-    'END OF MILESTONE 2',
-    'THE WARD DOES NOT END HERE. YOU DO.',
+    'END OF MILESTONE 3',
+    'HE WAS WATCHING THE WHOLE WARD. NOT JUST YOU.',
     `<em>PLAYTEST — tell the devs:</em><br><br>
-     1 · Did the code-on-the-wall loop click — shift to read it, shift back to use it?<br>
-     2 · Did the chained door finale land, or did you get stuck refusing to go unmed?<br>
-     3 · Did you ever shift just to <em>see</em> something change, with nothing forcing you to? (fun signal)<br>
-     4 · Which state did you trust more by the end — lucid, or unmed?<br>
-     5 · Anything you tried that didn't work?`,
+     1 · Did you understand the orderly's rules — safe lucid, hunted unmedicated — before he ever caught you?<br>
+     2 · When he caught you, did it feel fair, or cheap?<br>
+     3 · Did you ever shift to lucid on purpose just to walk past him unbothered? (fun signal — lucidity as camouflage)<br>
+     4 · Did the shelf's shadow read as a hiding spot, or did you find it by accident?<br>
+     5 · Which state do you trust now — lucid, unmed, or neither?`,
     'READMIT',
     () => location.reload(),
   );
@@ -176,6 +191,7 @@ function frame(): void {
 
   if (started && !ended) {
     player.update(dt, input, world.colliders, state.state);
+    current.script.update?.(dt, t, ctx);
     const label = interaction.update(renderer.camera, state.state, current.script, ctx);
     hud.setPrompt(label ? (input.isTouch ? '◉ ' : '[E] ') + label : null);
     checkExits();

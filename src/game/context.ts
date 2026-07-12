@@ -1,3 +1,4 @@
+import type * as THREE from 'three';
 import type { StateSystem } from './state';
 import type { Telemetry } from './telemetry';
 import type { Hud } from '../ui/hud';
@@ -19,4 +20,10 @@ export interface GameCtx {
   // Drop pointer lock so an HTML overlay (e.g. the keypad) can take mouse input.
   // The player re-acquires it by clicking the canvas again, same as the start overlay.
   releasePointerLock(): void;
+  // Scene access for room-owned actors (e.g. room4's orderly).
+  scene: THREE.Scene;
+  // Current player position, for room-owned actors that need to track the player.
+  playerPos(): { x: number; z: number };
+  // Hard-reposition the player (e.g. the orderly's catch penalty).
+  teleportPlayer(x: number, z: number): void;
 }

@@ -51,6 +51,143 @@ const BODY = {
 const HEAD_BASE_TILT = 0.11; // rad, ~6 degrees off vertical, constant cock of the head
 const HEAD_TILT_AMP = 0.035; // rad, slow oscillation on top of the base tilt
 const HEAD_TILT_FREQ = 0.5; // rad/s — only advances while he's actually stepping
+const HUNCH_TILT = 0.1; // rad forward lean baked into torso/arms/head — reads as hunched shoulders, no animation involved
+
+// ---------------------------------------------------------------------------
+// Procedural textures for the model — generated once at module init (shared
+// across every Orderly instance; rooms 4 and 5 each spawn their own via
+// buildUnmedBody). Only the per-instance *materials* that reference these
+// are disposed in Orderly.dispose() (Material.dispose() doesn't cascade to
+// its map/emissiveMap texture), so the shared canvases stay valid for the
+// next room's orderly.
+// ---------------------------------------------------------------------------
+
+// Stained scrubs — fabric that used to be pale, gone grey-black under the
+// ward's light: faint weave noise, a handful of darker stains, vertical fold
+// lines. Kept dark overall so the torso still reads as part of the same
+// near-black silhouette as the limbs/head, just with texture under it.
+function makeTorsoTexture(): THREE.CanvasTexture {
+  const size = 128;
+  const cv = document.createElement('canvas');
+  cv.width = size;
+  cv.height = size;
+  const g = cv.getContext('2d')!;
+  g.fillStyle = '#20221d';
+  g.fillRect(0, 0, size, size);
+
+  for (let i = 0; i < 40; i++) {
+    const x = Math.random() * size;
+    const y = Math.random() * size;
+    const r = 4 + Math.random() * 10;
+    const lighter = Math.random() < 0.5;
+    const grad = g.createRadialGradient(x, y, 0, x, y, r);
+    grad.addColorStop(0, lighter ? 'rgba(120,124,110,0.08)' : 'rgba(0,0,0,0.10)');
+    grad.addColorStop(1, 'rgba(0,0,0,0)');
+    g.fillStyle = grad;
+    g.beginPath();
+    g.arc(x, y, r, 0, Math.PI * 2);
+    g.fill();
+  }
+
+  for (let i = 0; i < 6; i++) {
+    const x = Math.random() * size;
+    const y = size * (0.35 + Math.random() * 0.6);
+    const r = 6 + Math.random() * 16;
+    const grad = g.createRadialGradient(x, y, 0, x, y, r);
+    grad.addColorStop(0, 'rgba(6,7,5,0.5)');
+    grad.addColorStop(1, 'rgba(6,7,5,0)');
+    g.fillStyle = grad;
+    g.beginPath();
+    g.arc(x, y, r, 0, Math.PI * 2);
+    g.fill();
+  }
+
+  g.strokeStyle = 'rgba(0,0,0,0.14)';
+  g.lineWidth = 1;
+  for (let x = 10; x < size; x += 18) {
+    g.beginPath();
+    g.moveTo(x + (Math.random() - 0.5) * 6, 0);
+    g.lineTo(x + (Math.random() - 0.5) * 6, size);
+    g.stroke();
+  }
+
+  const tex = new THREE.CanvasTexture(cv);
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.wrapT = THREE.RepeatWrapping;
+  return tex;
+}
+
+// Eye strip glow — uneven brightness across the strip, like light diffusing
+// unevenly through gauze, instead of a flat emissive box.
+function makeEyeGauzeTexture(): THREE.CanvasTexture {
+  const w = 128;
+  const h = 24;
+  const cv = document.createElement('canvas');
+  cv.width = w;
+  cv.height = h;
+  const g = cv.getContext('2d')!;
+  g.fillStyle = '#050504';
+  g.fillRect(0, 0, w, h);
+  for (let i = 0; i < 7; i++) {
+    const x = Math.random() * w;
+    const y = h / 2 + (Math.random() - 0.5) * h * 0.4;
+    const r = w * (0.08 + Math.random() * 0.14);
+    const grad = g.createRadialGradient(x, y, 0, x, y, r);
+    grad.addColorStop(0, `rgba(232,232,224,${0.5 + Math.random() * 0.4})`);
+    grad.addColorStop(1, 'rgba(232,232,224,0)');
+    g.fillStyle = grad;
+    g.beginPath();
+    g.arc(x, y, r, 0, Math.PI * 2);
+    g.fill();
+  }
+  return new THREE.CanvasTexture(cv);
+}
+
+// Soft radial falloff for the sight cone — center (apex) bright, edges fade
+// to transparent, so the sector reads as a soft beam instead of a flat-tint
+// wedge. Purely a look upgrade: see buildSightCone for how the uv attribute
+// maps this onto the (unchanged) sector geometry.
+function makeConeFadeTexture(): THREE.CanvasTexture {
+  const size = 128;
+  const cv = document.createElement('canvas');
+  cv.width = size;
+  cv.height = size;
+  const g = cv.getContext('2d')!;
+  const grad = g.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+  grad.addColorStop(0, 'rgba(255,255,255,1)');
+  grad.addColorStop(0.55, 'rgba(255,255,255,0.6)');
+  grad.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = grad;
+  g.fillRect(0, 0, size, size);
+  return new THREE.CanvasTexture(cv);
+}
+
+const TORSO_TEXTURE = makeTorsoTexture();
+const EYE_GAUZE_TEXTURE = makeEyeGauzeTexture();
+const CONE_FADE_TEXTURE = makeConeFadeTexture();
+
+// Two boxes stacked along Y (wider segment toward the joint, narrower toward
+// the extremity) — cheap taper using only primitives, no new geometry types.
+// The returned group's local origin sits at the limb's vertical midpoint,
+// same convention as the single box it replaces.
+function buildTaperedLimb(
+  topW: number,
+  topD: number,
+  bottomW: number,
+  bottomD: number,
+  length: number,
+  mat: THREE.Material,
+): THREE.Group {
+  const g = new THREE.Group();
+  const segLen = length / 2;
+  const top = new THREE.Mesh(new THREE.BoxGeometry(topW, segLen, topD), mat);
+  top.position.y = segLen / 2;
+  g.add(top);
+  const bottom = new THREE.Mesh(new THREE.BoxGeometry(bottomW, segLen, bottomD), mat);
+  bottom.position.y = -segLen / 2;
+  g.add(bottom);
+  return g;
+}
 
 function buildUnmedBody(): { group: THREE.Group; headGroup: THREE.Group } {
   const group = new THREE.Group();
@@ -62,39 +199,52 @@ function buildUnmedBody(): { group: THREE.Group; headGroup: THREE.Group } {
     emissiveIntensity: 0.1, // faint sickly pale-green, barely there
   });
 
-  const legs = new THREE.Mesh(new THREE.BoxGeometry(BODY.legW, BODY.legH, BODY.legD), skin);
+  const legs = buildTaperedLimb(BODY.legW * 1.08, BODY.legD * 1.08, BODY.legW * 0.75, BODY.legD * 0.75, BODY.legH, skin);
   legs.position.y = BODY.legH / 2;
   group.add(legs);
 
   const torsoY = BODY.legH + BODY.torsoH / 2;
-  const torso = new THREE.Mesh(new THREE.BoxGeometry(BODY.torsoW, BODY.torsoH, BODY.torsoD), skin);
+  const torsoMat = new THREE.MeshStandardMaterial({
+    map: TORSO_TEXTURE,
+    roughness: 0.92,
+    metalness: 0,
+    emissive: 0x1b2e16,
+    emissiveIntensity: 0.06,
+  });
+  const torso = new THREE.Mesh(new THREE.BoxGeometry(BODY.torsoW, BODY.torsoH, BODY.torsoD), torsoMat);
   torso.position.y = torsoY;
+  torso.rotation.x = HUNCH_TILT; // forward lean, shoulder line reads hunched
   group.add(torso);
 
   const shoulderY = BODY.legH + BODY.torsoH - 0.08;
   const armY = shoulderY - BODY.armLen / 2; // hangs well past knee height (~legH/2)
   const armX = BODY.torsoW / 2 + BODY.armW / 2 + 0.02;
   for (const side of [-1, 1]) {
-    const arm = new THREE.Mesh(new THREE.BoxGeometry(BODY.armW, BODY.armLen, BODY.armD), skin);
+    const arm = buildTaperedLimb(BODY.armW * 1.15, BODY.armD * 1.15, BODY.armW * 0.7, BODY.armD * 0.7, BODY.armLen, skin);
+    arm.rotation.x = HUNCH_TILT * 0.5; // slight forward droop, matches the torso lean
     arm.position.set(side * armX, armY, 0);
     group.add(arm);
   }
 
   const headGroup = new THREE.Group();
   const headY = BODY.legH + BODY.torsoH + BODY.headS / 2 + 0.02;
-  headGroup.position.y = headY;
+  // tiny forward offset (derived from the same hunch lean) so the head reads
+  // as carried forward off hunched shoulders — position only, the per-frame
+  // tilt oscillation below is still pure rotation.z and untouched.
+  headGroup.position.set(0, headY, Math.sin(HUNCH_TILT) * 0.12);
   headGroup.rotation.z = HEAD_BASE_TILT;
   const head = new THREE.Mesh(new THREE.BoxGeometry(BODY.headS, BODY.headS, BODY.headS), skin);
   headGroup.add(head);
 
-  // barely-visible white eye strip — the only thing that reliably catches light
+  // eye strip — uneven glow, like light through gauze, instead of a flat box
   const eyeMat = new THREE.MeshStandardMaterial({
-    color: 0x1a1a1a,
-    emissive: 0xe8e8e0,
-    emissiveIntensity: 0.35,
+    color: 0x141412,
+    emissive: 0xffffff,
+    emissiveMap: EYE_GAUZE_TEXTURE,
+    emissiveIntensity: 0.4,
     roughness: 0.5,
   });
-  const eyes = new THREE.Mesh(new THREE.BoxGeometry(BODY.headS * 0.82, 0.03, 0.02), eyeMat);
+  const eyes = new THREE.Mesh(new THREE.BoxGeometry(BODY.headS * 0.82, 0.04, 0.02), eyeMat);
   eyes.position.set(0, 0.01, BODY.headS / 2 + 0.004);
   headGroup.add(eyes);
 
@@ -104,24 +254,35 @@ function buildUnmedBody(): { group: THREE.Group; headGroup: THREE.Group } {
 
 // Flat translucent sector (triangle fan on XZ, y≈0.02) matching sightRange +
 // coneDeg, local +Z = forward (matches root.rotation.y = atan2(fx,fz)).
+// Position/index construction and the rangeM/coneDeg/segments math are
+// unchanged from before — the uv attribute added below is purely cosmetic
+// (feeds the radial alphaMap fade in the material) and doesn't touch
+// visibility logic; updateSight/updateConeVisual still work off rangeM,
+// coneDeg and the material's color/opacity exactly as before.
 function buildSightCone(rangeM: number, coneDeg: number): THREE.Mesh {
   const halfRad = (coneDeg * Math.PI) / 360;
   const segments = 20;
   const positions: number[] = [0, 0.02, 0]; // apex
+  const uvs: number[] = [0.5, 0.5]; // apex → fade texture's bright center
   for (let i = 0; i <= segments; i++) {
     const a = -halfRad + (2 * halfRad * i) / segments;
-    positions.push(Math.sin(a) * rangeM, 0.02, Math.cos(a) * rangeM);
+    const sx = Math.sin(a);
+    const cz = Math.cos(a);
+    positions.push(sx * rangeM, 0.02, cz * rangeM);
+    uvs.push(0.5 + sx * 0.5, 0.5 + cz * 0.5);
   }
   const indices: number[] = [];
   for (let i = 1; i < segments + 1; i++) indices.push(0, i, i + 1);
 
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
   geo.setIndex(indices);
   geo.computeVertexNormals();
 
   const mat = new THREE.MeshBasicMaterial({
     color: 0x661111,
+    alphaMap: CONE_FADE_TEXTURE,
     transparent: true,
     opacity: 0.08,
     side: THREE.DoubleSide,

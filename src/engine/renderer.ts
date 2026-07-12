@@ -14,23 +14,31 @@ interface MoodTarget {
 
 // Lucid/unmed target values, lerped toward each frame in update() — ported
 // from v0.1's moodTargets()/animate() mood section.
+//
+// Fog distances tuned to room scale (rooms run roughly 6-14m across, up to a
+// ~19m diagonal in room5): lucid fog now sits close enough to actually haze
+// the far end of the bigger rooms instead of never being reached, keeping
+// the "flat, clean, fluorescent-even" read up close. Unmed is pulled in
+// tighter still for a denser, more claustrophobic haze. hemi/amb nudged up
+// slightly in both states so the new procedural wall/floor textures have
+// enough fill light to read instead of going flat-black or flat-white.
 function moodTargets(state: WardState): MoodTarget {
   return state === 'lucid'
     ? {
         fogColor: new THREE.Color(0xd7e4df),
-        fogNear: 10,
-        fogFar: 42,
+        fogNear: 9,
+        fogFar: 30,
         hemi: 0.85,
-        amb: 0.25,
+        amb: 0.28,
         pointIntensity: 0.7,
         pointColor: new THREE.Color(0xf2fffb),
       }
     : {
-        fogColor: new THREE.Color(0x150a0d),
-        fogNear: 3.2,
-        fogFar: 16,
-        hemi: 0.14,
-        amb: 0.1,
+        fogColor: new THREE.Color(0x170b0a),
+        fogNear: 2.6,
+        fogFar: 13,
+        hemi: 0.17,
+        amb: 0.13,
         pointIntensity: 0.5,
         pointColor: new THREE.Color(0xff3324),
       };
@@ -64,10 +72,10 @@ export class Renderer {
 
     this.hemi = new THREE.HemisphereLight(0xeafffa, 0x2c3835, 0.85);
     this.scene.add(this.hemi);
-    this.amb = new THREE.AmbientLight(0xffffff, 0.25);
+    this.amb = new THREE.AmbientLight(0xffffff, 0.28);
     this.scene.add(this.amb);
 
-    this.scene.fog = new THREE.Fog(0xdfe8e4, 10, 40);
+    this.scene.fog = new THREE.Fog(0xdfe8e4, 9, 30);
   }
 
   setRoomLights(positions: Array<[number, number]>): void {

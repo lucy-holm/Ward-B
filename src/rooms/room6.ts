@@ -62,7 +62,11 @@ export const room6: RoomDef = {
   scrawls: [
     { text: 'he learned this hallway\nbefore you did', size: 3, pos: [-1.45, 1.7, 3], rotY: Math.PI / 2 },
     { text: 'count his steps.\nthen move.', size: 2.6, pos: [6.3, 1.6, -1.45], rotY: Math.PI },
-    { text: '6 3 2 9', size: 2.4, pos: [10.5, 1.6, -4.35], rotY: 0, big: true },
+    // Pulled a couple meters west of the keypad, deeper into the leg his
+    // patrol actually walks — the corridor's turn already makes this spot
+    // hard to reach; this just widens the gap between "found the code" and
+    // "safe at the keypad" instead of restructuring the room.
+    { text: '6 3 2 9', size: 2.4, pos: [8.3, 1.6, -4.35], rotY: 0, big: true },
   ],
   interactables: [
     {

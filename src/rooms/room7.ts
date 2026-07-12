@@ -4,14 +4,17 @@ import type { GameCtx } from '../game/context';
 import { openKeypad } from '../ui/keypad';
 import { Orderly, type OrderlyAABB } from '../game/orderly';
 
-// ROOM 7 — the Records Room. Three shelving rows force a serpentine crossing
-// (east gap, west gap, east gap) through a tight central pocket he never
-// leaves — his loop is small on purpose, so every crossing is a real
-// decision, not a formality. The dispenser is hidden behind the last row, in
-// a nook the shelving keeps out of sight from the door; a scrawl tells you
-// it's back there, but not how to get to it. The exit code is scrawled near
-// the keypad, same vocabulary as rooms 2 and 5 — the difference here is
-// getting to either one costs a lap through the maze.
+// ROOM 7 — the Records Room. Three shelving rows still force a serpentine
+// crossing (east gap, west gap, east gap), but the beat is a forced
+// backtrack, not a single crossing: the exit keypad sits right past the
+// maze, reachable lucid and blind with no code in hand. The code — and the
+// dispenser, still hidden behind a row, that quality is worth keeping — both
+// live in the back half, by the entrance you just walked away from. So the
+// route is keypad first (safe, useless), then unmed back through the maze
+// to read the code and refill, then unmed (or lucid, if you spend the pill
+// right there) forward through it again to actually open the door. His
+// patrol lives in the pocket between all three rows — the belt you cross
+// both ways — with a row's mass to duck behind on either approach.
 
 const CODE = '0452';
 
@@ -19,8 +22,8 @@ const rb = new RoomBuilder();
 
 // shell, x [-6,6] z [-7,5] — reuses room4's exact footprint, different guts
 rb.wallX(-6, 6, 5); // south cap, behind spawn
-rb.wallZ(-5, -3.6, -6); // west wall, south of the hidden nook's opening
-rb.wallZ(-2.6, 5, -6); // west wall, north of the nook's opening
+rb.wallZ(-5, 0.8, -6); // west wall, south of the hidden nook's opening
+rb.wallZ(1.8, 5, -6); // west wall, north of the nook's opening (toward spawn)
 rb.wallZ(-5, 5, 6); // east wall
 rb.wallX(-6, -1, -5); // north, west of the staff-door gap
 rb.wallX(1, 6, -5); // north, east of the staff-door gap
@@ -50,10 +53,12 @@ rb.block([4.5, 2.6, 0.8], [-3.75, 1.3, -2.2], 'wall2');
 rb.solid(ROW_C.minX, ROW_C.maxX, ROW_C.minZ, ROW_C.maxZ);
 
 // the hidden dispenser nook — carved into the west wall, tucked directly
-// behind row C, out of sight from anywhere near the entrance.
-rb.wallX(-7.4, -6, -3.6); // nook south wall — the dispenser mounts here
-rb.wallX(-7.4, -6, -2.6); // nook north wall
-rb.wallZ(-3.6, -2.6, -7.4); // nook west end cap
+// behind row A this time: its mass sits between the nook and spawn, so
+// nothing about it is visible on the walk in. Reaching it means clearing
+// row A's gap and doubling back west, into the same pocket he patrols.
+rb.wallX(-7.4, -6, 0.8); // nook south wall — the dispenser mounts here, deep end, away from spawn
+rb.wallX(-7.4, -6, 1.8); // nook north wall, toward the gap/room
+rb.wallZ(0.8, 1.8, -7.4); // nook west end cap
 
 const ORDERLY_COLLIDERS: ColliderDef[] = rb.colliders.filter(
   (c) => c.states === undefined || c.states === 'both',
@@ -66,18 +71,33 @@ export const room7: RoomDef = {
   blocks: rb.blocks,
   colliders: rb.colliders,
   scrawls: [
+    // Dispenser hint, unmoved — still true, just points at a different row now.
     { text: 'they keep the quiet\nbehind the files', size: 2.8, pos: [5.85, 1.7, 3.5], rotY: -Math.PI / 2 },
+    // Orderly atmosphere, unmoved — it already sat right where his belt runs.
     { text: 'the files don\'t forget.\nneither does he.', size: 2.8, pos: [-5.85, 1.7, -1], rotY: Math.PI / 2 },
-    { text: '0 4 5 2', size: 2.4, pos: [5.85, 1.7, -4], rotY: -Math.PI / 2, big: true },
+    // The code, relocated to the back half, near the entrance — opposite
+    // wall from the dispenser hint, same general depth into the room.
+    { text: '0 4 5 2', size: 2.4, pos: [-5.85, 1.7, 3.7], rotY: Math.PI / 2, big: true },
+    // New: planted right where the code used to live, by the keypad — the
+    // room's way of telling you that you already walked past it.
+    {
+      text: 'you walked right past it.\nback the way you came.',
+      size: 2.6,
+      pos: [5.85, 1.7, -4],
+      rotY: -Math.PI / 2,
+    },
   ],
   interactables: [
     {
-      // Tucked behind row C, not visible from spawn or from the door — the
-      // scrawl by the entrance is the only pointer to where it lives.
+      // Tucked behind row A this time, not visible from spawn or from the
+      // keypad — row A's mass is between it and the entrance, and the whole
+      // maze is between it and the door. The scrawl near the entrance is
+      // the only pointer to where it lives; reaching it means clipping the
+      // entrance-side edge of his patrol belt.
       id: 'dispenser7',
       type: 'dispenser',
       size: [0.55, 0.75, 0.16],
-      pos: [-6.7, 1.45, -3.35],
+      pos: [-6.7, 1.45, 1.05],
       mat: 'dispenser',
       states: 'both',
       label: 'use the dispenser',
@@ -107,20 +127,26 @@ export const room7: RoomDef = {
     { pos: [3.75, 0] },
     { pos: [-3.75, -2.2] },
     { pos: [0, -3.5] },
-    { pos: [-6.5, -3.1] },
+    { pos: [-6.5, 1.05] },
     { pos: [0, -6] },
   ],
   exits: [{ to: 'room8', minX: -1, maxX: 1, minZ: -6.9, maxZ: -5.8 }],
 };
 
-// A tight rectangle in the central pocket between all three rows — small on
-// purpose. It sits astride the only route from row A's gap to row B's gap to
-// row C's gap, so crossing the room means crossing his loop.
+// The belt: a rectangle spanning the full pocket between all three rows,
+// west edge close to row A/C's gap column, east edge close to row B's gap
+// column (x=1.5) — there's no lane past either end that dodges him. The
+// entrance-side edge sits just shy of row A (a hair of buffer to react in
+// before the crossing that starts at the dispenser/code and heads for the
+// keypad); the keypad-side edge sits just shy of row C (same buffer on the
+// crossing that starts at the keypad, blind or backtracking, and heads for
+// the entrance). Both rows are also passed in as occluders below, so each
+// approach has a shadow to duck into while he's on the far side of the loop.
 const WAYPOINTS = [
-  { x: -4.5, z: 0.8 },
-  { x: 0.5, z: 0.8 },
-  { x: 0.5, z: -0.8 },
-  { x: -4.5, z: -0.8 },
+  { x: -4.3, z: 1.3 },
+  { x: 1.3, z: 1.3 },
+  { x: 1.3, z: -1.3 },
+  { x: -4.3, z: -1.3 },
 ];
 
 // RoomScript is frozen; same locally-extended type as room4/5/6 for the

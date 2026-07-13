@@ -13,6 +13,15 @@ export const TUNING = {
     max: 1,
     upgradedMax: 2,
   },
+  medication: {
+    // Seconds a fresh pill's lucidity lasts before it wears off and forces
+    // an (unavoidable, free) revert to unmed. Long enough for any single
+    // intended lucid action (cross a gate, walk to and use a keypad);
+    // short enough that camping lucid across a big room isn't viable.
+    durationSec: 45,
+    // Seconds-remaining threshold at which the HUD/audio warning kicks in.
+    warnSec: 12,
+  },
   camera: {
     fov: 72,
     shiftFovKick: 82,    // fov snaps here on shift, eases back in Renderer.update

@@ -19,6 +19,11 @@ export class AudioEngine {
   private threatFootstepPhase = 0;
   private threatHeartbeatPhase = 0;
 
+  // Medication-warning layer — persistent, built lazily like the chase
+  // whine. setMedicationWarning just rides its gain, so it's cheap to call
+  // every frame.
+  private medWarnGain: GainNode | null = null;
+
   init(): void {
     if (this.actx) {
       if (this.actx.state === 'suspended') {
@@ -93,6 +98,48 @@ export class AudioEngine {
     }
   }
 
+  // Low, sickly variant of shiftStinger for the medication auto-revert —
+  // same filtered-noise shape but pitched down, louder and longer, plus a
+  // descending thud underneath. Reads as involuntary/ominous rather than a
+  // deliberate shift, so it's never confused with the player's own [Q].
+  medicationExpiredCue(): void {
+    if (!this.actx) return;
+    try {
+      const ctx = this.actx;
+      const dur = 0.55;
+      const buf = ctx.createBuffer(1, ctx.sampleRate * dur, ctx.sampleRate);
+      const data = buf.getChannelData(0);
+      for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / data.length);
+      const src = ctx.createBufferSource();
+      src.buffer = buf;
+      const filt = ctx.createBiquadFilter();
+      filt.type = 'bandpass';
+      filt.frequency.value = 220;
+      filt.Q.value = 0.6;
+      const g = ctx.createGain();
+      g.gain.value = 0.07;
+      src.connect(filt);
+      filt.connect(g);
+      g.connect(ctx.destination);
+      src.start();
+      src.stop(ctx.currentTime + dur);
+
+      const osc = ctx.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(140, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(38, ctx.currentTime + dur);
+      const og = ctx.createGain();
+      og.gain.setValueAtTime(0.05, ctx.currentTime);
+      og.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + dur);
+      osc.connect(og);
+      og.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + dur);
+    } catch {
+      // no-op
+    }
+  }
+
   // Short low mechanical thunk (~0.15s) for the pill dispenser.
   dispenserClunk(): void {
     if (!this.actx) return;
@@ -148,6 +195,56 @@ export class AudioEngine {
       this.threatChaseGain = g;
     } catch {
       this.threatChaseGain = null;
+    }
+  }
+
+  // Lazily builds a faint low unease drone, left silent (gain 0) between
+  // warnings so setMedicationWarning only ever touches params.
+  private ensureMedWarnNodes(): void {
+    if (this.medWarnGain || !this.actx) return;
+    try {
+      const ctx = this.actx;
+      const osc = ctx.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.value = 92;
+      const filt = ctx.createBiquadFilter();
+      filt.type = 'lowpass';
+      filt.frequency.value = 260;
+      const g = ctx.createGain();
+      g.gain.value = 0;
+      osc.connect(filt);
+      filt.connect(g);
+      g.connect(ctx.destination);
+      osc.start();
+
+      // Slow wobble so it reads as sickly unease rather than a pure tone.
+      const lfo = ctx.createOscillator();
+      lfo.type = 'sine';
+      lfo.frequency.value = 3.4;
+      const lfoGain = ctx.createGain();
+      lfoGain.gain.value = 10;
+      lfo.connect(lfoGain);
+      lfoGain.connect(osc.frequency);
+      lfo.start();
+
+      this.medWarnGain = g;
+    } catch {
+      this.medWarnGain = null;
+    }
+  }
+
+  // Faint rising unease as the medication meter enters its warning window.
+  // Cheap/guarded like setThreat — safe to call every frame.
+  setMedicationWarning(active: boolean): void {
+    if (!this.actx) return;
+    try {
+      if (active) this.ensureMedWarnNodes();
+      if (this.medWarnGain) {
+        const target = active ? 0.022 : 0;
+        this.medWarnGain.gain.setTargetAtTime(target, this.actx.currentTime, active ? 0.5 : 0.6);
+      }
+    } catch {
+      // no-op
     }
   }
 

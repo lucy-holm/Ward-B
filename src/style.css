@@ -76,6 +76,33 @@ canvas { display: block; }
 }
 #pills.flash { animation: pillsFlash 0.6s ease-out; }
 
+/* Medication meter — sibling of #pills, sits just below it. Drains while
+   lucid; hidden while unmed (the meter has nothing to say there). Width and
+   the warn class are the only two things touched at runtime (see
+   Hud.setMedication) — no per-frame DOM churn beyond that. */
+#medMeter {
+  position: absolute; top: calc(50px + env(safe-area-inset-top)); left: 14px;
+  display: flex; align-items: center; gap: 8px; font-size: 10px; letter-spacing: 0.16em;
+  background: var(--panel); padding: 6px 12px; border-radius: 3px; color: var(--lucid);
+  border: 1px solid rgba(159, 216, 203, 0.35); transition: border-color 0.4s;
+}
+.medMeterLabel { opacity: 0.7; text-transform: lowercase; }
+#medMeterTrack {
+  width: 72px; height: 6px; border-radius: 3px; overflow: hidden;
+  background: rgba(159, 216, 203, 0.12); border: 1px solid rgba(159, 216, 203, 0.3);
+}
+#medMeterFill {
+  height: 100%; width: 100%; background: var(--lucid); border-radius: 3px;
+  transition: width 0.15s linear, background 0.4s;
+}
+#medMeter.warn { border-color: rgba(255, 59, 48, 0.55); }
+#medMeter.warn #medMeterFill { background: var(--unmed); }
+#medMeter.warn #medMeterTrack { animation: medWarnPulse 0.9s ease-in-out infinite; }
+@keyframes medWarnPulse {
+  0%, 100% { filter: brightness(1); }
+  50% { filter: brightness(1.5); }
+}
+
 #pillPopup {
   position: absolute; left: 50%; top: 40%; transform: translate(-50%, 0);
   font-size: 24px; letter-spacing: 0.1em; color: var(--lucid); text-align: center;

@@ -8,6 +8,8 @@ export class Hud {
   private toastEl: HTMLElement;
   private pills: HTMLElement;
   private pillPopupEl: HTMLElement;
+  private medMeter: HTMLElement;
+  private medMeterFill: HTMLElement;
   private vignette: HTMLElement;
   private shiftFx: HTMLElement;
   private threatVignette: HTMLElement;
@@ -35,6 +37,11 @@ export class Hud {
   private threatPulseOn = false;
   private threatLineOn = false;
 
+  // Medication meter — tracks last visibility/warning so setMedication
+  // (called every frame) only touches classList/display on a real change.
+  private medVisible = false;
+  private medWarnOn = false;
+
   constructor() {
     this.stateChip = this.byId('stateChip');
     this.objective = this.byId('objective');
@@ -42,6 +49,8 @@ export class Hud {
     this.toastEl = this.byId('toast');
     this.pills = this.byId('pills');
     this.pillPopupEl = this.byId('pillPopup');
+    this.medMeter = this.byId('medMeter');
+    this.medMeterFill = this.byId('medMeterFill');
     this.vignette = this.byId('vignette');
     this.shiftFx = this.byId('shiftFx');
     this.threatVignette = this.byId('threatVignette');
@@ -114,6 +123,32 @@ export class Hud {
     this.pills.classList.remove('flash');
     void this.pills.offsetWidth; // restart the CSS animation
     this.pills.classList.add('flash');
+  }
+
+  // Medication meter — called every frame from the loop while lucid.
+  // fraction is 1 (fresh pill) down to 0 (worn off); visible is false while
+  // unmed (the meter hides rather than shows empty — nothing to camp on
+  // there); warning is true in the last warnSec, driving the red/amber pulse.
+  // No per-frame DOM churn: width is a plain style write, display/warn class
+  // only toggle on an actual visibility/threshold change.
+  setMedication(fraction: number, visible: boolean, warning: boolean): void {
+    if (visible !== this.medVisible) {
+      this.medMeter.style.display = visible ? 'flex' : 'none';
+      this.medVisible = visible;
+    }
+    if (!visible) {
+      if (this.medWarnOn) {
+        this.medMeter.classList.remove('warn');
+        this.medWarnOn = false;
+      }
+      return;
+    }
+    const f = Math.max(0, Math.min(1, fraction));
+    this.medMeterFill.style.width = `${f * 100}%`;
+    if (warning !== this.medWarnOn) {
+      this.medMeter.classList.toggle('warn', warning);
+      this.medWarnOn = warning;
+    }
   }
 
   // Unmissable center-screen line for the moment pills are gained, e.g. "+1 pill".

@@ -3,7 +3,9 @@ import * as THREE from 'three';
 import { Renderer } from './engine/renderer';
 import { Input } from './engine/input';
 import { AudioEngine } from './engine/audio';
+import { circleHitsSolidUnmed } from './engine/collision';
 import { StateSystem } from './game/state';
+import { TUNING } from './tuning';
 import { Player } from './game/player';
 import { World } from './game/world';
 import { Interaction } from './game/interaction';
@@ -77,6 +79,49 @@ function shiftFx(): void {
   audio.shiftStinger();
 }
 
+// Medication meter presentation state — mirrors the "track previous state,
+// only act on a threshold crossing" convention used elsewhere in the HUD/
+// audio layers. Reset whenever a fresh lucid stretch begins (state.onChange).
+let medicationWarned = false; // one-time "it's wearing thin." toast, per stretch
+let medicationTrapped = false; // true while empty but geometry is holding the revert off
+
+function updateMedication(dt: number): void {
+  if (state.state !== 'lucid') {
+    hud.setMedication(0, false, false);
+    audio.setMedicationWarning(false);
+    medicationTrapped = false;
+    return;
+  }
+
+  state.tickMedication(dt);
+  const warnFrac = TUNING.medication.warnSec / TUNING.medication.durationSec;
+  const warning = state.medication <= warnFrac;
+
+  if (warning && !medicationWarned) {
+    medicationWarned = true;
+    hud.toast("it's wearing thin.");
+  }
+
+  hud.setMedication(state.medication, true, warning);
+  audio.setMedicationWarning(warning);
+
+  if (state.medication <= 0) {
+    const trapped = circleHitsSolidUnmed(player.x, player.z, TUNING.player.radius, world.colliders);
+    if (!trapped) {
+      medicationTrapped = false;
+      state.forceState('unmed');
+      hud.toast('the calm drains out of you.');
+      audio.medicationExpiredCue();
+      telemetry.event('medication_expired');
+    } else if (!medicationTrapped) {
+      medicationTrapped = true;
+      hud.toast('wearing off — keep moving.');
+    }
+  } else {
+    medicationTrapped = false;
+  }
+}
+
 const ctx: GameCtx = {
   state,
   hud,
@@ -104,6 +149,7 @@ state.onChange = (next) => {
   hud.setState(next);
   audio.setState(next);
   updatePills();
+  if (next === 'lucid') medicationWarned = false; // fresh stretch, fresh warning
   current.script.onStateChange?.(next, ctx);
 };
 
@@ -209,6 +255,7 @@ function frame(): void {
   if (started && !ended) {
     player.update(dt, input, world.colliders, state.state);
     current.script.update?.(dt, t, ctx);
+    updateMedication(dt);
     const label = interaction.update(renderer.camera, state.state, current.script, ctx);
     world.setFocused(interaction.focusedId);
     hud.setPrompt(label ? (input.isTouch ? '◉ ' : '[E] ') + label : null);

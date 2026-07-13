@@ -36,3 +36,17 @@ export function tryMove(
   }
   if (ok) body.z = nz;
 }
+
+// True if a circle at (x,z) radius r overlaps any collider that is solid
+// only while unmedicated (states === 'unmed') — i.e. geometry that would
+// materialize around the player if they were flipped to unmed right now.
+// Same AABB-vs-circle test as tryMove's per-axis checks, just evaluated at a
+// fixed point instead of a proposed move. Used by the medication auto-revert
+// to avoid ever embedding the player in a wall/gate that only exists unmed.
+export function circleHitsSolidUnmed(x: number, z: number, r: number, colliders: ColliderDef[]): boolean {
+  for (const c of colliders) {
+    if (c.states !== 'unmed') continue;
+    if (x > c.minX - r && x < c.maxX + r && z > c.minZ - r && z < c.maxZ + r) return true;
+  }
+  return false;
+}

@@ -155,7 +155,9 @@ export const room11: RoomDef = {
     { text: "the hallway forgets\nhow long it's been", size: 2.4, pos: [-8.86, 1.7, 20], rotY: Math.PI / 2 },
     { text: 'the wall gives way to the west.\nread it quick.', size: 2.6, pos: [8.86, 1.7, 5], rotY: -Math.PI / 2 },
     { text: 'it opens for the calm.\nnot for you, yet.', size: 2.4, pos: [-5, 1.7, -5.86], rotY: 0 },
-    { text: '7 0 4 2', size: 2.2, pos: [-10.98, 1.7, 2], rotY: Math.PI / 2, big: true },
+    // Proud of the nook end cap's +x inner face (wall centered x=-11, face at
+    // x=-10.88); was authored at -10.98, buried inside the wall and invisible.
+    { text: '7 0 4 2', size: 1.8, pos: [-10.82, 1.7, 2], rotY: Math.PI / 2, big: true },
   ],
   interactables: [
     {

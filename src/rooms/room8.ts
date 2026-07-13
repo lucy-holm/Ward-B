@@ -135,12 +135,15 @@ const WAYPOINTS_A = [
 
 // Orderly B — a wide figure-eight; the two center waypoints are its waist,
 // each one hugging one face of the island, right where the code halves are.
+// West legs at x=-7.3, not -7.5: PROP_WEST's collider reaches x=-7.89 and
+// his body radius is 0.4, so -7.5 left only 0.39 clearance — he wedged on
+// the filing block mid-leg (same failure as room7's east leg).
 const WAYPOINTS_B = [
   { x: 7.5, z: 4.5 },
   { x: 7.5, z: -5.5 },
   { x: 0, z: -2.5 },
-  { x: -7.5, z: -5.5 },
-  { x: -7.5, z: 4.5 },
+  { x: -7.3, z: -5.5 },
+  { x: -7.3, z: 4.5 },
   { x: 0, z: 2.5 },
 ];
 

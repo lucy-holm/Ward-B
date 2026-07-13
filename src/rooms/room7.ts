@@ -142,10 +142,13 @@ export const room7: RoomDef = {
 // crossing that starts at the keypad, blind or backtracking, and heads for
 // the entrance). Both rows are also passed in as occluders below, so each
 // approach has a shadow to duck into while he's on the far side of the loop.
+// East legs sit at x=1.0, not 1.3: his body radius is 0.4 and row B starts at
+// x=1.5, so anything past 1.1 wedges him against the shelf mid-leg (the
+// axis-separated tryMove stops him dead, frozen facing the door).
 const WAYPOINTS = [
   { x: -4.3, z: 1.3 },
-  { x: 1.3, z: 1.3 },
-  { x: 1.3, z: -1.3 },
+  { x: 1.0, z: 1.3 },
+  { x: 1.0, z: -1.3 },
   { x: -4.3, z: -1.3 },
 ];
 

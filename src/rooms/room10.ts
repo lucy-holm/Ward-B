@@ -104,6 +104,12 @@ rb.wallX(-9.6, -8, -13.8); // dispenser-B alcove north bracket
 rb.wallZ(-15.4, -13.8, -9.6); // dispenser-B alcove end cap — the dispenser mounts here
 const ALCOVE_B: OrderlyAABB = { minX: -9.6, maxX: -8, minZ: -15.4, maxZ: -13.8 };
 
+// Glow lintels over each recess mouth — playtest 6 walked straight past the
+// nooks; a lit threshold marks "there is a space here" from across the zone.
+rb.block([0.12, 0.14, 1.6], [-8, 2.7, -8.6], 'glow'); // nook A mouth
+rb.block([0.12, 0.14, 1.6], [8, 2.7, -18.6], 'glow'); // nook B mouth
+rb.block([0.12, 0.14, 1.6], [-8, 2.7, -14.6], 'glow'); // dispenser-B alcove mouth
+
 const ORDERLY_COLLIDERS: ColliderDef[] = rb.colliders.filter(
   (c) => c.states === undefined || c.states === 'both',
 );
@@ -115,8 +121,24 @@ export const room10: RoomDef = {
   blocks: rb.blocks,
   colliders: rb.colliders,
   scrawls: [
-    { text: '3 1 – –', size: 2.2, pos: [-9.55, 1.7, -8.6], rotY: Math.PI / 2, big: true },
-    { text: '– – 7 5', size: 2.2, pos: [9.55, 1.7, -18.6], rotY: -Math.PI / 2, big: true },
+    // The nook end caps sit at x=±9.6 with inner faces at ±9.48 (walls are
+    // 0.24 thick). These were authored at ±9.55 — inside the wall, so the
+    // wall rendered over them and the code was invisible (playtest 6).
+    { text: '3 1 – –', size: 2.2, pos: [-9.46, 1.7, -8.6], rotY: Math.PI / 2, big: true },
+    { text: '– – 7 5', size: 2.2, pos: [9.46, 1.7, -18.6], rotY: -Math.PI / 2, big: true },
+    // Zone hints pointing at the nooks, readable from the open floor.
+    {
+      text: 'they scratch their numbers\nwhere the west wall breaks',
+      size: 2.8,
+      pos: [7.86, 1.7, -5],
+      rotY: -Math.PI / 2,
+    },
+    {
+      text: 'the rest is written\nwhere the east wall breaks',
+      size: 2.8,
+      pos: [-7.86, 1.7, -16.5],
+      rotY: Math.PI / 2,
+    },
     {
       text: 'the doors only open\nfor the calm ones',
       size: 2.6,
@@ -138,7 +160,8 @@ export const room10: RoomDef = {
       id: 'dispenser10b',
       type: 'dispenser',
       size: [0.16, 0.75, 0.55],
-      pos: [-9.55, 1.45, -14.6],
+      // proud of the alcove end cap's inner face (x=-9.48), not flush in it
+      pos: [-9.46, 1.45, -14.6],
       mat: 'dispenser',
       states: 'both',
       label: 'use the dispenser',

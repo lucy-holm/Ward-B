@@ -139,6 +139,15 @@ const WAYPOINTS = [
   { x: -4.4, z: 2.6 },
 ];
 
+// Reaction-time sanity check at keypad5 (1.35,-5.86), per the room6/7 pass:
+// the loop's nearest approach is the perpendicular foot on the south leg
+// (from (4.4,-2.6) to (-4.4,-2.6)), at (1.35,-2.6) — 3.26m off, but that's
+// the foot of the perpendicular, so while he's actually walking that leg
+// (facing due west/east) the keypad sits at ~90deg, outside the 55 deg cone.
+// At the adjacent corners (±4.4,-2.6) he's 4.46m/6.61m out facing along the
+// east leg (~43deg bearing, still outside the cone) — never inside cone+
+// range anywhere on the belt. Not flagrant; left as-is.
+
 // RoomScript is frozen (owned by another file); the orderly's lifecycle needs
 // a "room script is done" hook that main.ts doesn't otherwise have, so this
 // room defines and exports a locally-extended script type, same pattern as

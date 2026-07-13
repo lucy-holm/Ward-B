@@ -72,12 +72,18 @@ export const room6: RoomDef = {
     {
       // Off the entrance, in the alcove his loop passes — the first
       // dispenser you have to actually walk into his route to reach.
+      // Alcove end cap (the wall it's flush against) is at z=-6.1, mouth
+      // opens toward +z — inferFacing happens to land on the right sign here
+      // (room-wide floor center is also +z of this point), but that's
+      // coincidence, not guarantee, so it's pinned explicitly like the other
+      // alcove/nook mounts in rooms 7/8/10.
       id: 'dispenser6',
       type: 'dispenser',
       size: [0.55, 0.75, 0.16],
       pos: [6.3, 1.45, -5.85],
       mat: 'dispenser',
       states: 'both',
+      facing: 'pz',
       label: 'use the dispenser',
     },
     {
@@ -116,8 +122,19 @@ export const room6: RoomDef = {
 // leg, and back. The corner waypoint sits at z=-2.0 (inside leg B's own z
 // span) rather than right at the junction, so every leg of the loop is a
 // straight line that never grazes the wall separating leg A from leg B.
+//
+// wp0 (the south end of leg A) used to sit at z=5.5 — only 1.5m from spawn
+// (0,7). Every cycle he pauses there (0.8s) facing back toward the entrance
+// (he arrives heading +z), so a player who shifted unmed right at spawn could
+// find him already stopped, watching, 1.5m away: worst case time-to-contact
+// was ~0.6 (ramp) + (1.5-0.55)/4.3 (chase) =~ 0.8s — instant, per playtest 7.
+// Pulled back to z=0.8: distance from spawn is now 6.2m, outside his 6m sight
+// range, so a player frozen right at the entrance is never seen at all. Step
+// a couple meters further in (toward the first scrawl) and the usual tension
+// returns — that's intentional, this fixes the entrance specifically, not
+// the whole leg.
 const WAYPOINTS = [
-  { x: 0, z: 5.5 },
+  { x: 0, z: 0.8 },
   { x: 0, z: -2.0 },
   { x: 10.5, z: -2.9 },
   { x: 0, z: -2.0 },

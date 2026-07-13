@@ -54,6 +54,13 @@ export interface InteractableDef {
   mat: MatName;
   states?: StateFilter; // default 'both'
   label: string; // prompt text, e.g. "take the pill"
+  // Explicit wall-mount facing for dispenser/keypad/door composites, overriding
+  // world.ts's inferFacing heuristic (which points the faceplate toward the
+  // room's overall floor center — wrong for fixtures mounted inside an
+  // alcove/nook, where "toward room center" can point into the recess's own
+  // side wall instead of out its mouth). 'px'/'nx' = thin axis is x, faceplate
+  // toward +x/-x; 'pz'/'nz' = thin axis is z, faceplate toward +z/-z.
+  facing?: 'px' | 'nx' | 'pz' | 'nz';
 }
 
 // Walking into this AABB leaves the room.

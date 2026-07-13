@@ -53,9 +53,20 @@ rb.block([0.5, 1.1, 1.3], [1.65, 0.55, 0], 'prop'); // ring, east face
 // dispenser alcove — off the east wall, out along orderly B's eastern leg.
 // Inside patrolled ground, but lucid is always safe, so finding it is the
 // only real challenge.
-rb.wallX(9, 10.5, 0.4); // alcove south wall — the dispenser mounts here
+//
+// BUG (facing audit): the dispenser used to mount flush on the south wall
+// below (thin-z, size [0.55,0.75,0.16]) — but that wall's outward normal is
+// +z (into the alcove interior, toward the north wall), and inferFacing
+// picked -z instead (the room-wide floor center is south of this alcove),
+// pointing the whole composite — slot, tray, MEDICATION plate — straight
+// into the wall it was mounted on. Never visible from inside the alcove.
+// Remounted on the end cap instead (thin-x, facing out the mouth toward -x,
+// same convention as room10's dispenser10b) — simpler than fixing the sign
+// on a wall this narrow (1.6m along the S/N brackets) and it puts the plate
+// dead ahead as you walk in.
+rb.wallX(9, 10.5, 0.4); // alcove south wall
 rb.wallX(9, 10.5, 2.0); // alcove north wall
-rb.wallZ(0.4, 2.0, 10.5); // alcove east end cap
+rb.wallZ(0.4, 2.0, 10.5); // alcove east end cap — the dispenser mounts here now
 const ALCOVE_S: OrderlyAABB = { minX: 9, maxX: 10.5, minZ: 0.28, maxZ: 0.52 };
 const ALCOVE_N: OrderlyAABB = { minX: 9, maxX: 10.5, minZ: 1.88, maxZ: 2.12 };
 
@@ -83,12 +94,17 @@ export const room8: RoomDef = {
   ],
   interactables: [
     {
+      // Remounted on the alcove's east end cap (x=10.5), thin-x, proud of
+      // the wall's inner face (10.5 - 0.12 wall half-thickness) the same way
+      // room10's dispenser10b sits proud of its own end cap — see the facing
+      // audit note above the alcove walls.
       id: 'dispenser8',
       type: 'dispenser',
-      size: [0.55, 0.75, 0.16],
-      pos: [9.75, 1.45, 0.65],
+      size: [0.16, 0.75, 0.55],
+      pos: [10.36, 1.45, 1.2],
       mat: 'dispenser',
       states: 'both',
+      facing: 'nx',
       label: 'use the dispenser',
     },
     {
@@ -125,12 +141,21 @@ export const room8: RoomDef = {
   exits: [{ to: 'room9', minX: -1, maxX: 1, minZ: -9.9, maxZ: -8.8 }],
 };
 
-// Orderly A — a tight inner orbit hugging the island.
+// Orderly A — a tight inner orbit hugging the island. Reversed from its
+// original (3.2,2.1)->(3.2,-2.1)->(-3.2,-2.1)->(-3.2,2.1) order (clockwise)
+// to this counter-clockwise order — same four points, same clearances,
+// opposite rotation — so he no longer circulates the same direction as
+// orderly B's figure-eight (see below). Playtest 7: with both loops turning
+// the same way they tended to stay on the same side of the island at the
+// same time and read as "walking together" instead of two independent
+// threats. Starting here (index 0, the SW corner) also phase-separates him
+// from B, which now starts at B's NE corner (see below) — different corner
+// of the room at spawn instead of both starting near the south/spawn side.
 const WAYPOINTS_A = [
-  { x: 3.2, z: 2.1 },
-  { x: 3.2, z: -2.1 },
-  { x: -3.2, z: -2.1 },
   { x: -3.2, z: 2.1 },
+  { x: -3.2, z: -2.1 },
+  { x: 3.2, z: -2.1 },
+  { x: 3.2, z: 2.1 },
 ];
 
 // Orderly B — a wide figure-eight; the two center waypoints are its waist,
@@ -138,14 +163,37 @@ const WAYPOINTS_A = [
 // West legs at x=-7.3, not -7.5: PROP_WEST's collider reaches x=-7.89 and
 // his body radius is 0.4, so -7.5 left only 0.39 clearance — he wedged on
 // the filing block mid-leg (same failure as room7's east leg).
+//
+// Rotated one waypoint from its original start (used to begin at (7.5,4.5),
+// the south/spawn-side corner — the same half of the room orderly A's
+// original start (3.2,2.1) was in, another contributor to the "walking
+// together" read). Same six points, same legs, just phase-shifted so B now
+// starts on the north leg — different half of the room from A's new start.
 const WAYPOINTS_B = [
-  { x: 7.5, z: 4.5 },
   { x: 7.5, z: -5.5 },
   { x: 0, z: -2.5 },
   { x: -7.3, z: -5.5 },
   { x: -7.3, z: 4.5 },
   { x: 0, z: 2.5 },
+  { x: 7.5, z: 4.5 },
 ];
+
+// Reaction-time sanity check at keypad8 (1.35,-7.75), per the room6/7 pass:
+// - Orderly A's nearest leg point is (1.35,-2.1) on the south leg, 5.65m
+//   away. Both adjacent corners were checked for "already stopped, watching"
+//   worst case: at (3.2,-2.1) he arrives facing +x now (was facing -z before
+//   the reversal above, bearing ~18deg into the keypad at 5.95m — the one
+//   corner that was actually marginal, 0.6+(5.95-0.55)/4.3=~1.86s); post-
+//   reversal he arrives there heading east, bearing ~108deg, outside the
+//   cone. At (-3.2,-2.1) he's 7.25m out either way — beyond sight range.
+//   So the reversal (done for counter-rotation, Fix 3) also closes A's one
+//   marginal exposure here as a side effect.
+// - Orderly B's nearest approach is an interior point on the (7.5,-5.5)-
+//   (0,-2.5) leg, 4.37m away — but the closest point on a straight leg to an
+//   off-leg target is always ~90deg from the direction of travel (it's the
+//   foot of the perpendicular), so he's not actually looking at it there.
+//   The nearest real waypoint, (0,-2.5), is 5.42m out and he arrives facing
+//   away from the keypad (bearing ~126deg). Not flagrant; left as-is.
 
 // RoomScript is frozen; same locally-extended type as rooms 4-7 for the
 // orderlies' teardown hook.

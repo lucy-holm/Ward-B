@@ -1,5 +1,6 @@
 import { RoomBuilder } from './build';
 import type { ColliderDef, RoomDef, RoomScript } from './types';
+import type { GameCtx } from '../game/context';
 import { openKeypad } from '../ui/keypad';
 import { TUNING } from '../tuning';
 
@@ -105,17 +106,39 @@ export const room9: RoomDef = {
 export const room9Script: RoomScript = (() => {
   let bottleTaken = false;
   let doorUnlocked = false;
+  // One-shot nudge toast for "you tried to skip the coat" — fires the first
+  // time the player interacts with the gated keypad, or gets close to the
+  // door, before taking the coat. Reset each time the room is (re-)entered.
+  let gateNudged = false;
+
+  const GATE_TOAST = "not yet. take what's hanging there.";
+  // Door position (see interactables below) — used only for the proximity
+  // nudge, not for collision/interaction (the door itself is never directly
+  // interactable, same as every other room's exitdoor).
+  const DOOR_POS = { x: 0, z: -6 };
+  const NUDGE_RADIUS = 2.5;
+
+  function nudgeIfGated(ctx: GameCtx): void {
+    if (bottleTaken || gateNudged) return;
+    gateNudged = true;
+    ctx.hud.toast(GATE_TOAST);
+    ctx.telemetry.event('coat_gate_nudge');
+  }
 
   const script: RoomScript = {
     onEnter(ctx) {
       bottleTaken = false;
       doorUnlocked = false;
-      ctx.hud.setObjective("the doctor's office. gone quiet. something's still hanging by the door.");
+      gateNudged = false;
+      ctx.hud.setObjective("the doctor's office. gone quiet. there's a coat on the rack — take it before anything else.");
     },
 
     isAvailable(id) {
       if (id === 'exitdoor') return false;
-      if (id === 'keypad9') return !doorUnlocked;
+      // Gated on the coat first, same as the existing door-unlocked gate —
+      // the keypad doesn't do anything until you've taken it (playtest 7:
+      // the coat read as skippable set dressing, not a pickup).
+      if (id === 'keypad9') return bottleTaken && !doorUnlocked;
       return true;
     },
 
@@ -126,10 +149,10 @@ export const room9Script: RoomScript = (() => {
         ctx.state.upgradeCapacity(TUNING.pills.upgradedMax);
         ctx.removeInteractable('bottle');
         ctx.hud.setPills(ctx.state.pills, ctx.state.maxPills, ctx.state.canShift);
-        ctx.hud.pillPopup('a second pocket');
-        ctx.hud.toast("someone's coat. two pockets. both lined with foil.");
+        ctx.hud.pillPopup('pockets: two');
+        ctx.hud.toast("someone's coat. two pockets. both lined with foil. it fits.");
         ctx.telemetry.event('capacity_upgrade');
-        ctx.hud.setObjective("two now. spend them like they're the last. the code is written where you can't read it clean.");
+        ctx.hud.setObjective("two pockets now — you can carry two pills. the code is written where you can't read it clean.");
         return true;
       }
       if (id === 'keypad9') {
@@ -159,6 +182,19 @@ export const room9Script: RoomScript = (() => {
         return true;
       }
       return false;
+    },
+
+    // isAvailable(false) on keypad9 already hides it from the interact
+    // raycast while the coat is unclaimed, so a click there does nothing —
+    // this per-frame proximity check is what actually surfaces the pointed
+    // toast when the player walks up to either the keypad or the door
+    // without having taken the coat first, instead of silently doing nothing.
+    update(_dt, _t, ctx) {
+      if (bottleTaken || gateNudged) return;
+      const p = ctx.playerPos();
+      const nearKeypad = Math.hypot(p.x - 1.35, p.z - -5.75) < NUDGE_RADIUS;
+      const nearDoor = Math.hypot(p.x - DOOR_POS.x, p.z - DOOR_POS.z) < NUDGE_RADIUS;
+      if (nearKeypad || nearDoor) nudgeIfGated(ctx);
     },
   };
 

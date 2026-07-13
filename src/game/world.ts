@@ -427,21 +427,51 @@ function addEdgeGrime(g: CanvasRenderingContext2D, w: number, h: number): void {
   }
 }
 
+// Long lines/tall line-stacks used to overflow the fixed 512x256 canvas and
+// clip at its edges (playtest 7: "some of the writing on the wall
+// truncates"). Fix: measure every line at the authored (max) size, then scale
+// the font down — never up — just enough that the longest line fits within
+// ~92% of the canvas width and the full line-stack fits within ~92% of its
+// height. Short scrawls that already fit render identically to before (scale
+// clamps at 1); long ones shrink uniformly instead of clipping.
 function makeScrawlTexture(def: ScrawlDef): THREE.CanvasTexture {
   const cv = document.createElement('canvas');
   cv.width = 512;
   cv.height = 256;
   const g = cv.getContext('2d')!;
   g.fillStyle = '#c1170f';
-  g.font = `${def.big ? 110 : 54}px 'Comic Sans MS', cursive, sans-serif`;
   g.textAlign = 'center';
   g.textBaseline = 'middle';
+
+  const lines = def.text.split('\n');
+  const maxFontSize = def.big ? 110 : 54;
+  // Preserve the current line-spacing-to-font-size ratio (120/110 for big,
+  // 64/54 for normal) so scaled-down text keeps the same relative leading.
+  const lineHeightRatio = def.big ? 120 / 110 : 64 / 54;
+
+  g.font = `${maxFontSize}px 'Comic Sans MS', cursive, sans-serif`;
+  let maxLineWidth = 0;
+  for (const l of lines) {
+    const w = g.measureText(l).width;
+    if (w > maxLineWidth) maxLineWidth = w;
+  }
+
+  const widthLimit = cv.width * 0.92;
+  const heightLimit = cv.height * 0.92;
+  const totalHeightAtMax = (lines.length - 1) * (maxFontSize * lineHeightRatio) + maxFontSize;
+  const widthScale = maxLineWidth > widthLimit ? widthLimit / maxLineWidth : 1;
+  const heightScale = totalHeightAtMax > heightLimit ? heightLimit / totalHeightAtMax : 1;
+  const scale = Math.min(1, widthScale, heightScale);
+
+  const fontSize = maxFontSize * scale;
+  const lineHeight = fontSize * lineHeightRatio;
+
+  g.font = `${fontSize}px 'Comic Sans MS', cursive, sans-serif`;
   g.save();
   g.translate(256, 128);
   g.rotate(-0.05);
-  const lines = def.text.split('\n');
   lines.forEach((l, i) => {
-    g.fillText(l, 0, (i - (lines.length - 1) / 2) * (def.big ? 120 : 64));
+    g.fillText(l, 0, (i - (lines.length - 1) / 2) * lineHeight);
   });
   g.restore();
   return new THREE.CanvasTexture(cv);
@@ -503,7 +533,7 @@ function makeDispenserLabelTexture(): THREE.CanvasTexture {
 function buildDispenser(it: InteractableDef, floor: RoomDef['floor']): THREE.Group {
   const group = new THREE.Group();
   const [w, h, d] = it.size;
-  const facing = inferFacing(it, floor);
+  const facing = resolveFacing(it, floor);
   const thin = facing.axis === 'x' ? w : d;
   const along = facing.axis === 'x' ? d : w;
   const faceDist = thin / 2;
@@ -555,6 +585,28 @@ function inferFacing(it: InteractableDef, floor: RoomDef['floor']): Facing {
   }
   const cz = (floor.minZ + floor.maxZ) / 2;
   return { axis: 'z', sign: it.pos[2] > cz ? -1 : 1 };
+}
+
+// Explicit facing, for fixtures where inferFacing's "toward room center"
+// heuristic misfires (alcove/nook mounts — see InteractableDef.facing).
+function explicitFacing(facing: 'px' | 'nx' | 'pz' | 'nz'): Facing {
+  switch (facing) {
+    case 'px':
+      return { axis: 'x', sign: 1 };
+    case 'nx':
+      return { axis: 'x', sign: -1 };
+    case 'pz':
+      return { axis: 'z', sign: 1 };
+    case 'nz':
+      return { axis: 'z', sign: -1 };
+  }
+}
+
+// Facing resolution shared by buildDispenser/buildKeypad/buildDoor: an
+// authored def.facing always wins; otherwise fall back to the room-center
+// heuristic.
+function resolveFacing(it: InteractableDef, floor: RoomDef['floor']): Facing {
+  return it.facing ? explicitFacing(it.facing) : inferFacing(it, floor);
 }
 
 // World-space offset a distance `dist` out along the facing's thin axis.
@@ -633,7 +685,7 @@ function makeKeypadGridTexture(): THREE.CanvasTexture {
 function buildKeypad(it: InteractableDef, floor: RoomDef['floor']): THREE.Group {
   const group = new THREE.Group();
   const [w, h, d] = it.size;
-  const facing = inferFacing(it, floor);
+  const facing = resolveFacing(it, floor);
   const faceDist = (facing.axis === 'x' ? w : d) / 2;
   const faceRotY = faceRotationY(facing);
   const along = facing.axis === 'x' ? d : w; // extent along the wall, across the face
@@ -700,7 +752,7 @@ function doorPlateText(id: string): string | null {
 function buildDoor(it: InteractableDef, floor: RoomDef['floor']): THREE.Group {
   const group = new THREE.Group();
   const [w, h, d] = it.size;
-  const facing = inferFacing(it, floor);
+  const facing = resolveFacing(it, floor);
   const faceDist = (facing.axis === 'x' ? w : d) / 2;
   const faceRotY = faceRotationY(facing);
   const along = facing.axis === 'x' ? d : w;

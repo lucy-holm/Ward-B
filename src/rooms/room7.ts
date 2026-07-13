@@ -94,12 +94,19 @@ export const room7: RoomDef = {
       // maze is between it and the door. The scrawl near the entrance is
       // the only pointer to where it lives; reaching it means clipping the
       // entrance-side edge of his patrol belt.
+      // BUG (facing audit): mounted against the nook's south wall (z=0.8),
+      // thin in z. inferFacing pointed it toward the room-wide floor center
+      // (z=-1), i.e. -z — straight into the wall it's flush against, so the
+      // MEDICATION plate never faced anywhere the player could see it. The
+      // nook's actual open interior is +z of that wall (up to the north wall
+      // at z=1.8), so the correct facing is +z, pinned explicitly.
       id: 'dispenser7',
       type: 'dispenser',
       size: [0.55, 0.75, 0.16],
       pos: [-6.7, 1.45, 1.05],
       mat: 'dispenser',
       states: 'both',
+      facing: 'pz',
       label: 'use the dispenser',
     },
     {
@@ -138,18 +145,39 @@ export const room7: RoomDef = {
 // column (x=1.5) — there's no lane past either end that dodges him. The
 // entrance-side edge sits just shy of row A (a hair of buffer to react in
 // before the crossing that starts at the dispenser/code and heads for the
-// keypad); the keypad-side edge sits just shy of row C (same buffer on the
-// crossing that starts at the keypad, blind or backtracking, and heads for
-// the entrance). Both rows are also passed in as occluders below, so each
-// approach has a shadow to duck into while he's on the far side of the loop.
+// keypad); the keypad-side edge was pulled well clear of row C (see the
+// reaction-time note below) to give the keypad itself breathing room — it's
+// no longer hugging the row, but the belt still spans the full corridor
+// width between the two, so nothing dodges it in x. Both rows are also
+// passed in as occluders below, so each approach has a shadow to duck into
+// while he's on the far side of the loop.
 // East legs sit at x=1.0, not 1.3: his body radius is 0.4 and row B starts at
 // x=1.5, so anything past 1.1 wedges him against the shelf mid-leg (the
 // axis-separated tryMove stops him dead, frozen facing the door).
+//
+// South edge used to sit at z=-1.3, putting the SE corner (1.0,-1.3) just
+// 3.47m from keypad7 (1.35,-4.75) — and he arrives there heading straight
+// down the east leg (facing -z), which points almost dead at the keypad
+// (bearing ~5.8°, well inside the 55° cone). Worst case (already stopped
+// there, watching): 0.6 (ramp) + (3.47-0.55)/4.3 (chase) =~ 1.28s — the
+// "right in your face" complaint from playtest 7. Pulled the south edge up
+// to z=0.3: SE corner is now (1.0,0.3), 5.06m from the keypad (matches the
+// ~5m target), giving 0.6 + (5.06-0.55)/4.3 =~ 1.65s worst case. Full 2.5s
+// isn't reachable by distance alone without pulling the belt out of the
+// pocket entirely (row clearance + the keypad's fixed position cap it around
+// here) — the interior of every leg is still perpendicular-safe (the closest
+// point on a straight leg to an off-leg target is always ~90° off the
+// direction of travel, so he only actually sees the keypad in that brief
+// window while stopped at/turning through the SE corner itself, not while
+// walking the leg). Still comfortably clear of ROW_C (0.3 - (-1.8) = 2.1m,
+// well past the >0.5 clearance floor) and the belt still spans the full
+// corridor width, so the double-crossing separation between the keypad and
+// the entrance-half code/dispenser holds.
 const WAYPOINTS = [
   { x: -4.3, z: 1.3 },
   { x: 1.0, z: 1.3 },
-  { x: 1.0, z: -1.3 },
-  { x: -4.3, z: -1.3 },
+  { x: 1.0, z: 0.3 },
+  { x: -4.3, z: 0.3 },
 ];
 
 // RoomScript is frozen; same locally-extended type as room4/5/6 for the

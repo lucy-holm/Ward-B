@@ -1,10 +1,13 @@
 import type { BlockDef, ColliderDef, MatName, StateFilter } from './types';
 
 // Wall geometry constants, matching the v0.1 prototype.
-const WALL_THICKNESS = 0.24;
-const WALL_HALF_THICKNESS = WALL_THICKNESS / 2;
-const WALL_HEIGHT = 3;
-const WALL_Y = 1.5;
+// Exported (additive; every existing call site here is unaffected) so
+// src/rooms/kit.ts can place wall-mounted fixtures/scrawls flush against the
+// same wall faces this file builds, instead of re-deriving/duplicating them.
+export const WALL_THICKNESS = 0.24;
+export const WALL_HALF_THICKNESS = WALL_THICKNESS / 2;
+export const WALL_HEIGHT = 3;
+export const WALL_Y = 1.5;
 
 // Accumulates geometry + colliders for a room definition.
 export class RoomBuilder {

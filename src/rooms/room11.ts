@@ -1,258 +1,294 @@
-import { RoomBuilder } from './build';
-import type { ColliderDef, RoomDef, RoomScript } from './types';
+import { RoomBuilder, dispenser, scrawl, keypadDoor, heightZone, ramp, patrol } from './kit';
+import type { ColliderDef, RoomDef, RoomScript } from './kit';
 import type { GameCtx } from '../game/context';
-import { openKeypad } from '../ui/keypad';
-import { Orderly, type OrderlyAABB } from '../game/orderly';
+import { Orderly } from '../game/orderly';
 
-// ROOM 11 — the Treatment Corridor. Scarcity, taught explicitly. Playtest 7:
-// "the second pill didn't really have an effect — you could still do it with
-// one." This room makes that impossible.
+// ROOM 11 — the Treatment Corridor, rebuilt for verticality. Playtest 8:
+// "feels too similar to room 10, only one orderly, too easy — make it more
+// complicated, introduce the vertical dimension." This version keeps the
+// double-spend economy room11 exists to teach (see GATE 1 / GATE 2 below,
+// unchanged in spirit from the original) but replaces the single-orderly,
+// single-level ward floor with a genuine split level: a sunken lower ward
+// and a railed mezzanine platform, one orderly per level, connected by one
+// ramp. The route through Z2 goes UP to read the code and back DOWN to
+// continue — not just further down a corridor.
 //
-// Three chambers, one dispenser, north to south:
-//   Z1 the entry hall     (spawn, the ONLY dispenser, safe)
-//   Z2 the ward floor     (one orderly, the split-free code, deep in an east
-//                           nook 6m off his patrol — outside his 6m sight
-//                           range at every point on that leg, see below)
-//   Z3 the exit chamber   (safe, keypad, door)
+// Three chambers, north to south:
+//   Z1 the entry hall     (spawn, dispenser11, safe, y=0)
+//   Z2 the ward floor     (split level — see below)
+//   Z3 the exit chamber   (safe, keypad, door, y=0)
 //
-// GATE 1 (Z1/Z2) and GATE 2 (Z2/Z3) are both unmed-sealed — solid while raw,
-// open while calm, same trick as every gate since room 1. There is no
-// dispenser between them. onEnter forces the player unmed the instant the
-// room loads: whatever state they left room 10 in (almost always lucid, coming
-// off its keypad), they arrive here raw. That guarantees gate 1 costs a pill
-// no matter how the player plays it — without it, a player who tops off lucid
-// and never shifts before reaching gate 1 would cross it for free (the gate
-// simply isn't there while lucid) and the whole "carry both" lesson would be
-// skippable. Forcing unmed at the threshold, before the player has touched
-// anything, makes the intended solve the only solve:
+// Z2, in detail — single-valued floor height (rooms/types.ts's
+// HeightZone/RampDef): the whole zone is y=0 EXCEPT a railed platform along
+// the east wall (x[1,9] z[0,8], y=MEZZ_Y=0.9) and the ramp that bridges it
+// down to the lower floor (x[1,9] z[8,10], height interpolating 0.9->0).
+// Orderly LOWER patrols the sunken west side (x[-8,-6]) and never has a
+// waypoint or a leg within 6m (his sight range) of the platform/ramp
+// footprint — geometrically he cannot see anyone up there, the same
+// "provably unseeable" trick room10/11/12 already use for code nooks,
+// applied here to an entire level instead of an alcove. Orderly UPPER
+// patrols the platform itself, hugging its west rail well clear (6.78m) of
+// the code scrawled on the platform's east wall (the real room wall, at
+// mezzanine height) — same trick, one level up. Nothing about their
+// sight/chase math changed; they're just two ordinary Orderly instances
+// whose patrols happen to live on different XZ footprints, each given the
+// room's floorHeightAt so its mesh stands on its own floor (see
+// localFloorHeightAt below — a small mirror of World.floorHeightAt's
+// ramp-then-zone logic, since a RoomScript has no reference to World).
 //
-//   forced unmed at spawn -> dispenser (still unmed, top to 2, 0 spent)
-//   -> gate 1, sealed -> shift lucid (-1, 1 left) -> cross
-//   -> shift unmed (free) to read the code -> still unmed at gate 2
-//   -> gate 2, sealed -> shift lucid (-1, 0 left) -> cross
-//   -> keypad, already lucid from that crossing -> door
+// CEILING NOTE: World's ceiling plane is fixed at absolute y=3 regardless of
+// floor height, so MEZZ_Y is kept modest (0.9m) — eye height on the platform
+// is 0.9+1.62=2.52, leaving ~0.48m of headroom, same margin ROOM_AUTHORING.md
+// recommends for a raised zone.
+//
+// RAILINGS: the platform+ramp complex is open on its west side (the ramp's
+// low end matches ground height at z=10 — no hazard there, that's the
+// entrance) but the ENTIRE west edge, z[0,10] (both the platform's flat run
+// and the ramp's sloped run — a sideways step off either drops as much as
+// 0.9m with nothing under it) carries a real collider + a low visual rail.
+// The platform's north edge (z=0, no ramp there) carries the same. The east
+// edge is the room's real perimeter wall; the south edge (z=8..10) is the
+// ramp itself, walkable, not a cliff.
+//
+// GATE 1 (Z1/Z2) and GATE 2 (Z2/Z3) are unmed-sealed exactly like the
+// original room11 (and rooms 10/12): solid while raw, open while calm, no
+// dispenser between them. onEnter forces unmed at the threshold for the same
+// reason the original file did — whatever state the player left room10 in,
+// they arrive here raw, guaranteeing gate 1 costs a pill regardless of how
+// the player plays it:
+//
+//   forced unmed at spawn -> dispenser11 (still unmed, top to 2, 0 spent)
+//   -> GATE 1, sealed -> shift lucid (-1, 1 left) -> cross
+//   -> shift unmed (free) to read the code on the platform -> still unmed
+//      at GATE 2 -> GATE 2, sealed -> shift lucid (-1, 0 left) -> cross
+//   -> keypad11, already lucid from that crossing -> door
 //
 // Two pills, spent back to back, no dispenser in between — the mandatory
-// double-spend. WALK-BACK: both gates are unmed-sealed only, never
-// lucid-sealed, so a lucid player can always walk back through either one for
-// free in either direction — there is no state in this room where the path
-// back to the dispenser is blocked while calm. The only way to strand
-// yourself is to go unmed inside Z2 with 0 pills already spent (e.g. burn the
-// second pill on a needless shift instead of the gate); from there the only
-// way out is the same one the rest of the game already relies on — walk into
-// his cone and let the catch force you lucid. Worst-case trace: caught
-// anywhere in Z2, or unmed-and-broke anywhere in Z2 -> caught -> forced
-// lucid, teleported to spawn, pills kept -> dispenser is three steps away,
-// inside the same open hall, no gate between it and you. Never a dead end.
+// double-spend, unchanged from the original room. WALK-BACK: both gates are
+// unmed-sealed only, so a lucid player can always retreat through either one
+// for free in either direction.
 //
-// TIMER SOFT-LOCK AUDIT (medication-wears-off pass): the above "unmed-and-
-// broke" case used to require the player to spend recklessly to reach it —
-// with lucidity now expiring on its own after ~45s, it's reachable by doing
-// nothing at all: cross gate 1 lucid, get caught up in reading the code or
-// dodging him, and the clock revokes lucid out from under you wherever you
-// happen to be standing. Both gates are unmed-sealed, so a raw revert in Z2
-// or Z3 walls off dispenser11 in both directions at once — the "walk back"
-// escape hatch this header used to lean on doesn't exist under a timer,
-// because you don't get to choose when you go raw anymore. Getting caught is
-// still a valid unstick (it force-shifts lucid regardless of pills), but the
-// law is "reach a dispenser," not "get caught by him," so both newly-isolated
-// zones now carry their own: dispenser11b in Z2, dispenser11c in Z3. Neither
-// changes the pill math — gate 1 and gate 2 still cost one pill each, same as
-// always, whether that pill comes from a bank made in Z1 or a top-up made
-// mid-crossing — they only mean a mistimed revert in either zone is a walk,
-// not a wall.
+// TIMER SOFT-LOCK AUDIT (medication-wears-off pass, same concern the
+// original file's header raised): lucidity expires on its own after ~45s.
+// Both gates are unmed-sealed, so a raw revert anywhere between them strands
+// the player unless every reachable pocket has its own dispenser. Z2 is now
+// two levels' worth of "reachable pocket" — the lower floor AND the
+// platform (reachable only via the ramp, which stays walkable in every
+// state; ramps aren't gated). dispenser11b sits in the lower ward, 1m south
+// of GATE 1 on the east wall — reachable raw from anywhere in Z2 by simply
+// walking back down the ramp (never blocked) and along the east wall; it
+// does not require crossing orderly LOWER's patrol (his loop is confined to
+// x[-8,-6], dispenser11b is at x=8.72). dispenser11c covers Z3 the same way
+// every finale chamber in this game does. Neither dispenser touches the
+// two-pill budget — GATE 1 is already paid for by the time dispenser11b is
+// reachable, and GATE 2 is already paid for by the time dispenser11c is —
+// they only turn a mistimed revert anywhere on the floor into a walk, never
+// a dead end.
+//
+// REACTION TIME (fairness pass, ~3s time-to-contact if the player freezes,
+// per playtest note): orderly LOWER's rectangle ({-6,5},{-6,-3},{-8,-3},
+// {-8,5}) never comes within 6m (his flat sight range) of either gate
+// opening (nearest approach to GATE 1's gap: (-6,5) to (-2,12), sqrt(4^2+7^2)
+// = 8.06m; to GATE 2's gap: (-6,-3) to (-2,-10), same 8.06m) or the
+// platform/ramp footprint (his max x is -6, the platform's min x is 1 — a
+// flat 7m x-gap regardless of z, already past his sight range on x alone).
+// Since he can never be within range+cone at either threshold or at the
+// mezzanine's edge, there is no "he's already watching" case to bound with
+// grace+chaseSpeed at all — the exposure is the walk itself, same
+// "provably unseeable, not just usually safe" standard room10/11/12 already
+// hold nooks to, now extended to gate-crossing distances too (8.06m clears
+// the ~3s/~10.3m-at-immediate-alert bound comfortably once the actual
+// detection delay — closing the 8m+ gap before he can even start a chase —
+// is accounted for, and clears the ROOM_AUTHORING.md 8.17m guideline outright
+// for the gates; the platform separation is even further past sightRange
+// than either gate distance). Orderly UPPER's patrol ({2,1.2}-{2,6.8}) sits
+// 6.78m from the code scrawl on the platform's east wall ((8.78,4), just
+// past his 6m sight range) — same unseeable-from-patrol guarantee, one level
+// up. keypad11 sits in Z3, which no orderly ever reaches — safe outright.
+//
+// CODE: 2593 (fresh value — not 7042/3175/8563/4118/1907/6329/0452/2846/
+// 5216, every code already used elsewhere in the game).
 
-const CODE = '7042';
+const CODE = '2593';
+const MEZZ_Y = 0.9;
 
 const rb = new RoomBuilder();
 
-// Z1 — the entry hall. x [-9,9] z [10,22]. Dispenser here; the only one in
-// the building from this point on.
+// Z1 — the entry hall. x [-9,9] z [12,22]. dispenser11 here; the only one
+// until the safety dispensers below.
 rb.wallX(-9, 9, 22); // south cap, behind spawn
-rb.wallZ(10, 22, -9); // west wall
-rb.wallZ(10, 22, 9); // east wall
+rb.wallZ(12, 22, -9); // west wall
+rb.wallZ(12, 22, 9); // east wall
 
-// GATE 1 — Z1/Z2 boundary, z=10. Solid while unmed, open while lucid.
-rb.wallX(-9, -2, 10);
-rb.wallX(2, 9, 10);
-rb.block([4, 3, 0.24], [0, 1.5, 10], 'wall', 'unmed');
-rb.solid(-2, 2, 9.88, 10.12, 'unmed');
+// GATE 1 — Z1/Z2 boundary, z=12. Solid while unmed, open while lucid.
+rb.wallX(-9, -2, 12);
+rb.wallX(2, 9, 12);
+rb.block([4, 3, 0.24], [0, 1.5, 12], 'wall', 'unmed');
+rb.solid(-2, 2, 11.88, 12.12, 'unmed');
 
-// Z2 — the ward floor. x [-9,9] z [-6,10]. One orderly, patrolling an
-// eastward-skewed loop so the whole west side of the room — including the
-// code nook — sits well outside his reach.
-rb.wallZ(-6, 1, -9); // west wall, south of the nook mouth
-rb.wallZ(3, 10, -9); // west wall, north of the nook mouth
-rb.wallZ(-6, 10, 9); // east wall, unbroken
+// Z2 — the split-level ward floor. x [-9,9] z [-10,12]. Perimeter walls run
+// unbroken the whole zone — the platform below is an interior feature, not
+// a wall recess, so there's no wall gap to carve for it.
+rb.wallZ(-10, 12, -9); // west wall
+rb.wallZ(-10, 12, 9); // east wall
 
-// the code nook — carved into the west wall, mouth z [1,3], 2m deep. His
-// nearest leg runs at x=-3 (see WAYPOINTS below): a straight 6m perpendicular
-// offset. His sight range is 6m flat, so the ONE point on that leg where
-// distance to the nook mouth even reaches 6m is the perpendicular foot itself
-// (x=-3, z=2) — and there, heading tangent to the leg (north or south), the
-// nook sits at 90 degrees off his forward cone (55 degrees total, 27.5 either
-// side). Every other point on the leg is strictly farther than 6m. Solving
-// cos(27.5deg) = s/sqrt(s^2+p^2) for the offset p at which a straight leg can
-// ever bring a point into both range AND cone at once gives p > ~2.77m as the
-// threshold past which it's geometrically impossible — 6m clears that with
-// room to spare, so the nook is provably unseeable from patrol, not just
-// "usually safe." (Room 7's keypad-vs-corner note first flagged this
-// perpendicular-safe property; this nook leans on it deliberately instead of
-// just getting lucky with the numbers.) The real exposure window is the walk
-// to and from it, and the two gate crossings — not the read itself.
-rb.wallX(-11, -9, 1); // nook south bracket
-rb.wallX(-11, -9, 3); // nook north bracket
-rb.wallZ(1, 3, -11); // nook end cap — the code is scrawled here
-const NOOK: OrderlyAABB = { minX: -11, maxX: -9, minZ: 1, maxZ: 3 };
-rb.block([0.12, 0.14, 2], [-9, 2.7, 2], 'glow'); // glow lintel over the nook mouth
+// The mezzanine platform (heightZone) and the ramp that bridges it down to
+// the lower floor (ramp). Ramps are checked before zones by
+// World.floorHeightAt, so the ramp's high end (yLow=MEZZ_Y at minZ=8) lands
+// exactly on the platform's own edge — continuous, no seam.
+const PLATFORM = heightZone(1, 9, 0, 8, MEZZ_Y);
+const PLATFORM_RAMP = ramp(1, 9, 8, 10, 'z', MEZZ_Y, 0);
 
-// a central occluder, inside the loop's open interior — not on his path, just
-// a shadow within a couple of steps of the gate 2 approach if he's spotted
-// mid-crossing.
-const ISLAND: OrderlyAABB = { minX: 0.5, maxX: 3.5, minZ: 0.5, maxZ: 3.5 };
-rb.block([3, 1.8, 1.4], [2, 0.9, 2], 'wall2');
-rb.solid(ISLAND.minX, ISLAND.maxX, ISLAND.minZ, ISLAND.maxZ);
+// Visual slab under the platform — nothing renders a zone's floor
+// automatically (the room's one big floor mesh is still down at y=0), so
+// without this the player would stand over visibly empty space.
+rb.block([8, MEZZ_Y, 8], [5, MEZZ_Y / 2, 4], 'wall2');
 
-// GATE 2 — Z2/Z3 boundary, z=-6. Cross this one lucid and the keypad, just
-// past it, needs nothing further — you're already calm.
-rb.wallX(-9, -2, -6);
-rb.wallX(2, 9, -6);
-rb.block([4, 3, 0.24], [0, 1.5, -6], 'wall', 'unmed');
-rb.solid(-2, 2, -6.12, -5.88, 'unmed');
+// Visual ramp — BlockDef has no X-tilt, so the walkable slope (smooth, via
+// PLATFORM_RAMP) gets a 4-step visual stand-in, full width, rising from the
+// ground end (z=10) to the platform end (z=8).
+const RAMP_STEPS = 4;
+for (let i = 0; i < RAMP_STEPS; i++) {
+  const stepTop = (MEZZ_Y * (i + 1)) / RAMP_STEPS;
+  const zCenter = 10 - 0.25 - i * 0.5; // steps of width 0.5 across the 2m run
+  rb.block([8, stepTop, 0.5], [5, stepTop / 2, zCenter], 'wall2');
+}
 
-// Z3 — the exit chamber. x [-9,9] z [-14,-6]. Safe: no orderly reaches here.
-rb.wallZ(-14, -6, -9);
-rb.wallZ(-14, -6, 9);
-rb.wallX(-9, -1, -14); // north, west of the door gap
-rb.wallX(1, 9, -14); // north, east of the door gap
+// Railings — the platform+ramp complex's two open sides (west: the full
+// combined edge of both platform and ramp; north: the platform's far edge,
+// the ramp doesn't reach it). East is the real wall; south (z=10) is the
+// ramp's ground-level mouth, not a drop.
+rb.solid(0.88, 1.12, 0, 10); // west rail collider, full platform+ramp run
+rb.block([0.24, 0.9, 10], [1, MEZZ_Y + 0.45, 5], 'chain'); // west rail visual
+rb.solid(1, 9, -0.12, 0.12); // north rail collider, platform only
+rb.block([8, 0.9, 0.24], [5, MEZZ_Y + 0.45, 0], 'chain'); // north rail visual
 
-// vestibule beyond the exit door, x [-1,1] z [-16,-14]
-rb.wallZ(-16, -14, -1);
-rb.wallZ(-16, -14, 1);
-rb.wallX(-1, 1, -16);
-rb.block([1.8, 2.6, 0.06], [0, 1.4, -15.8], 'glow');
+// Glow marker at the ramp's ground-level mouth — same "lit threshold marks a
+// space" convention every nook mouth in this game already uses.
+rb.block([2, 0.14, 0.12], [5, 2.7, 10.06], 'glow');
 
-const doorCollider: ColliderDef = { minX: -1, maxX: 1, minZ: -14.13, maxZ: -13.87 };
-rb.colliders.push(doorCollider);
+// GATE 2 — Z2/Z3 boundary, z=-10.
+rb.wallX(-9, -2, -10);
+rb.wallX(2, 9, -10);
+rb.block([4, 3, 0.24], [0, 1.5, -10], 'wall', 'unmed');
+rb.solid(-2, 2, -10.12, -9.88, 'unmed');
+
+// Z3 — the exit chamber. x [-9,9] z [-18,-10]. Safe: no orderly reaches here.
+rb.wallZ(-18, -10, -9);
+rb.wallZ(-18, -10, 9);
+rb.wallX(-9, -1, -18); // north, west of the door gap
+rb.wallX(1, 9, -18); // north, east of the door gap
+
+// vestibule beyond the exit door, x [-1,1] z [-20,-18]
+rb.wallZ(-20, -18, -1);
+rb.wallZ(-20, -18, 1);
+rb.wallX(-1, 1, -20);
+rb.block([1.8, 2.6, 0.06], [0, 1.4, -19.8], 'glow');
+
+const lock = keypadDoor(rb, {
+  doorId: 'exitdoor',
+  keypadId: 'keypad11',
+  code: CODE,
+  side: 'n',
+  wallAt: -18,
+  along: 0,
+  keypadAlong: 1.35,
+  doorLabel: 'the exit door',
+  successToast: '2593. gravity was the last lock.',
+});
 
 const ORDERLY_COLLIDERS: ColliderDef[] = rb.colliders.filter(
   (c) => c.states === undefined || c.states === 'both',
 );
 
+// Mirrors World.floorHeightAt's ramp-then-zone logic for this room's own
+// PLATFORM/PLATFORM_RAMP — a RoomScript has no reference to the World
+// instance, so orderlies get this small local lookup instead (same shape,
+// same numbers, just room-scoped).
+function localFloorHeightAt(x: number, z: number): number {
+  if (
+    x >= PLATFORM_RAMP.minX &&
+    x <= PLATFORM_RAMP.maxX &&
+    z >= PLATFORM_RAMP.minZ &&
+    z <= PLATFORM_RAMP.maxZ
+  ) {
+    const t = (z - PLATFORM_RAMP.minZ) / (PLATFORM_RAMP.maxZ - PLATFORM_RAMP.minZ);
+    return PLATFORM_RAMP.yLow + (PLATFORM_RAMP.yHigh - PLATFORM_RAMP.yLow) * t;
+  }
+  if (x >= PLATFORM.minX && x <= PLATFORM.maxX && z >= PLATFORM.minZ && z <= PLATFORM.maxZ) return PLATFORM.y;
+  return 0;
+}
+
 export const room11: RoomDef = {
   id: 'room11',
-  floor: { minX: -11, maxX: 9, minZ: -16, maxZ: 22 },
+  floor: { minX: -9, maxX: 9, minZ: -20, maxZ: 22 },
   spawn: { x: 0, z: 20, yaw: 0 },
   blocks: rb.blocks,
   colliders: rb.colliders,
+  heightZones: [PLATFORM],
+  ramps: [PLATFORM_RAMP],
   scrawls: [
-    {
-      text: 'two doors ahead. no cabinets\nbetween them. carry both.',
-      size: 2.8,
-      pos: [-8.86, 1.7, 11],
-      rotY: Math.PI / 2,
-    },
-    { text: "the hallway forgets\nhow long it's been", size: 2.4, pos: [-8.86, 1.7, 20], rotY: Math.PI / 2 },
-    { text: 'the wall gives way to the west.\nread it quick.', size: 2.6, pos: [8.86, 1.7, 5], rotY: -Math.PI / 2 },
-    { text: 'it opens for the calm.\nnot for you, yet.', size: 2.4, pos: [-5, 1.7, -5.86], rotY: 0 },
-    // Proud of the nook end cap's +x inner face (wall centered x=-11, face at
-    // x=-10.88); was authored at -10.98, buried inside the wall and invisible.
-    { text: '7 0 4 2', size: 1.8, pos: [-10.82, 1.7, 2], rotY: Math.PI / 2, big: true },
+    scrawl('two doors ahead. no cabinets\nbetween them. carry both.', 'w', -9, 17),
+    scrawl("the hallway forgets\nhow long it's been", 'w', -9, 20, { size: 2.4 }),
+    scrawl('something keeps the low floor.\nsomething else keeps the high one.', 'e', 9, 13, { size: 2.6 }),
+    scrawl('the floor climbs on the east.\nhe never follows it up.', 'e', 9, 10.5, { size: 2.6 }),
+    // The code — proud of the east wall's real face by ~0.1 (not embedded;
+    // the original room11's exact bug), at platform height so it reads
+    // correctly to someone standing up there, not at ground level.
+    scrawl('2 5 9 3', 'e', 9, 4, { y: MEZZ_Y + 1.65, big: true, proud: 0.1 }),
+    scrawl('it opens for the calm.\nnot for you, yet.', 'n', -10, -5, { size: 2.4 }),
+    scrawl("the last cabinet.\nafter this, it's just the door.", 'w', -9, -14, { size: 2.4 }),
   ],
   interactables: [
-    {
-      id: 'dispenser11',
-      type: 'dispenser',
-      size: [0.16, 0.75, 0.55],
-      pos: [8.72, 1.45, 17],
-      mat: 'dispenser',
-      states: 'both',
-      facing: 'nx',
-      label: 'use the dispenser',
-    },
-    {
-      // Safety dispenser, Z2 (the ward floor) — see the TIMER SOFT-LOCK AUDIT
-      // note above. Flush on the east wall, just south of gate 1, north of
-      // his patrol rectangle's z<=7.5 footprint (z=9 clears it by 1.5m) and
-      // well east of his x=7 leg. Sits on the opposite side of the room from
-      // the code nook, so it's not something a player heading for the code
-      // walks past for free — reaching it is a real, if short, detour.
-      id: 'dispenser11b',
-      type: 'dispenser',
-      size: [0.16, 0.75, 0.55],
-      pos: [8.72, 1.45, 9],
-      mat: 'dispenser',
-      states: 'both',
-      facing: 'nx',
-      label: 'use the dispenser',
-    },
-    {
-      // Safety dispenser, Z3 (the exit chamber) — no orderly ever reaches
-      // this zone. Flush on the west wall, off the x~0-1.35 gate-2-to-keypad
-      // line, so it's tucked to the side rather than sitting on the direct
-      // route.
-      id: 'dispenser11c',
-      type: 'dispenser',
-      size: [0.16, 0.75, 0.55],
-      pos: [-8.72, 1.45, -10],
-      mat: 'dispenser',
-      states: 'both',
-      facing: 'px',
-      label: 'use the dispenser',
-    },
-    {
-      id: 'keypad11',
-      type: 'keypad',
-      size: [0.4, 0.5, 0.14],
-      pos: [1.35, 1.45, -13.75],
-      mat: 'pad',
-      states: 'both',
-      facing: 'pz',
-      label: 'use the keypad',
-    },
-    {
-      id: 'exitdoor',
-      type: 'door',
-      size: [2, 3, 0.2],
-      pos: [0, 1.5, -14],
-      mat: 'door',
-      states: 'both',
-      facing: 'pz',
-      label: 'the exit door',
-    },
+    dispenser({ id: 'dispenser11', side: 'e', wallAt: 9, along: 17, label: 'use the dispenser' }),
+    // Safety dispenser, Z2's lower floor — see the TIMER SOFT-LOCK AUDIT
+    // note above. East wall, 1m south of GATE 1, well clear of orderly
+    // LOWER's x[-8,-6] loop and off the ramp's z[8,10] footprint.
+    dispenser({ id: 'dispenser11b', side: 'e', wallAt: 9, along: 11, label: 'use the dispenser' }),
+    // Safety dispenser, Z3 — no orderly ever reaches this zone.
+    dispenser({ id: 'dispenser11c', side: 'w', wallAt: -9, along: -14, label: 'use the dispenser' }),
+    lock.door,
+    lock.keypad,
   ],
   lights: [
     { pos: [0, 20] },
-    { pos: [-5, 16] },
-    { pos: [5, 16] },
+    { pos: [0, 16] },
     { pos: [0, 12] },
-    { pos: [5, 8] },
-    { pos: [-5, 8] },
-    { pos: [5, 4] },
-    { pos: [-8, 3] },
-    { pos: [5, 0] },
-    { pos: [-5, 0] },
-    { pos: [5, -4] },
-    { pos: [-5, -4] },
-    { pos: [0, -8] },
-    { pos: [0, -11] },
+    { pos: [-7, 8] },
+    { pos: [-7, 1] },
+    { pos: [-7, -6] },
+    { pos: [5, 6] },
+    { pos: [5, 2] },
+    { pos: [0, -10] },
     { pos: [0, -14] },
+    { pos: [0, -17] },
   ],
-  exits: [{ to: 'room12', minX: -1, maxX: 1, minZ: -15.9, maxZ: -14.8 }],
+  exits: [{ to: 'room12', minX: -1, maxX: 1, minZ: -19.9, maxZ: -18.8 }],
 };
 
-// His loop is skewed east: the west leg sits at x=-3, a full 6m off the code
-// nook's mouth (x=-9). Waypoints are 2+ from every wall/gate collider (see
-// the header note) and the nook's own bracket walls sit 6m further out still.
-const WAYPOINTS = [
-  { x: 7, z: 7.5 },
-  { x: 7, z: -3.5 },
-  { x: -3, z: -3.5 },
-  { x: -3, z: 7.5 },
-];
+// Orderly LOWER — the sunken west side, x[-8,-6] z[-3,5]. Every waypoint and
+// leg stays >6m (his flat sight range) from both gate openings and from the
+// platform/ramp footprint — see the REACTION TIME note above.
+const WAYPOINTS_LOWER = patrol(
+  [
+    { x: -6, z: 5 },
+    { x: -6, z: -3 },
+    { x: -8, z: -3 },
+    { x: -8, z: 5 },
+  ],
+  rb.colliders,
+);
 
-// RoomScript is frozen; same locally-extended type as the other orderly rooms
-// for the teardown hook.
+// Orderly UPPER — the platform, a short back-and-forth strip along its west
+// rail (x=2, z[1.2,6.8]), 6.78m from the code scrawl on the east wall.
+const WAYPOINTS_UPPER = patrol(
+  [
+    { x: 2, z: 1.2 },
+    { x: 2, z: 6.8 },
+  ],
+  rb.colliders,
+);
+
 export type Room11Script = RoomScript & { onLeave?(ctx: GameCtx): void };
 
 // Bearing from the player to a point, relative to the player's look yaw —
@@ -266,16 +302,25 @@ function bearingTo(dx: number, dz: number, yaw: number): number {
 }
 
 export const room11Script: Room11Script = (() => {
-  let orderly: Orderly | null = null;
-  let doorUnlocked = false;
+  let orderlyLower: Orderly | null = null;
+  let orderlyUpper: Orderly | null = null;
   let sawUnmedToast = false;
 
-  function spawnOrderly(ctx: GameCtx): void {
-    orderly?.dispose();
-    orderly = new Orderly(
+  function handleCaught(ctx: GameCtx): void {
+    ctx.state.forceState('lucid');
+    ctx.shiftFx();
+    ctx.teleportPlayer(room11.spawn.x, room11.spawn.z);
+    ctx.hud.toast('hands. a needle. "up or down, you\'re still mine," he says.');
+    ctx.telemetry.event('orderly_caught');
+  }
+
+  function spawnOrderlies(ctx: GameCtx): void {
+    orderlyLower?.dispose();
+    orderlyUpper?.dispose();
+    orderlyLower = new Orderly(
       ctx.scene,
-      WAYPOINTS,
-      [ISLAND, NOOK],
+      WAYPOINTS_LOWER,
+      [],
       {
         onWarn: () => {
           ctx.hud.toast('he is looking at you.');
@@ -285,86 +330,84 @@ export const room11Script: Room11Script = (() => {
           ctx.hud.toast('run. or stop being visible.');
           ctx.telemetry.event('orderly_chase');
         },
-        onCaught: () => {
-          ctx.state.forceState('lucid');
-          ctx.shiftFx();
-          ctx.teleportPlayer(room11.spawn.x, room11.spawn.z);
-          ctx.hud.toast('hands. a needle. "you were so close," he says.');
-          ctx.telemetry.event('orderly_caught');
-        },
+        onCaught: () => handleCaught(ctx),
       },
-      { colliders: ORDERLY_COLLIDERS },
+      { colliders: ORDERLY_COLLIDERS, floorHeightAt: localFloorHeightAt },
     );
-    orderly.setWardState(ctx.state.state);
+    orderlyUpper = new Orderly(
+      ctx.scene,
+      WAYPOINTS_UPPER,
+      [],
+      {
+        onWarn: () => {
+          ctx.hud.toast('the one above sees you.');
+          ctx.telemetry.event('orderly_spotted');
+        },
+        onChaseStart: () => {
+          ctx.hud.toast('nowhere to go but down.');
+          ctx.telemetry.event('orderly_chase');
+        },
+        onCaught: () => handleCaught(ctx),
+      },
+      { colliders: ORDERLY_COLLIDERS, floorHeightAt: localFloorHeightAt },
+    );
+    orderlyLower.setWardState(ctx.state.state);
+    orderlyUpper.setWardState(ctx.state.state);
   }
 
   const script: Room11Script = {
     onEnter(ctx) {
-      spawnOrderly(ctx);
-      doorUnlocked = false;
+      spawnOrderlies(ctx);
       sawUnmedToast = false;
       // Forces the mandatory double-spend regardless of what state the
-      // player left room 10 in — see the header note. Doesn't touch pills.
+      // player left room10 in — see the header note. Doesn't touch pills.
       ctx.state.forceState('unmed');
       ctx.shiftFx();
       ctx.hud.toast("you come to mid-stride, raw. the calm hasn't caught up yet.");
-      ctx.hud.setObjective('the treatment corridor. one dispenser. carry enough — there is nowhere else to get it.');
+      ctx.hud.setObjective('the treatment corridor climbs. carry enough for both gates — and both floors.');
     },
 
     isAvailable(id) {
-      if (id === 'exitdoor') return false;
-      if (id === 'keypad11') return !doorUnlocked;
-      return true;
+      return lock.isAvailable(id);
     },
 
     onInteract(id, ctx) {
-      if (id === 'keypad11') {
-        if (ctx.state.state === 'unmed') {
-          ctx.hud.toast("the keypad is a smear of static. you can't read it like this.");
-          return true;
-        }
-        ctx.telemetry.event('keypad_open');
-        ctx.releasePointerLock();
-        openKeypad({
-          code: CODE,
-          onDenied: () => ctx.telemetry.event('keypad_denied'),
-          onSuccess: () => {
-            doorUnlocked = true;
-            ctx.telemetry.event('keypad_success');
-            ctx.moveInteractable('exitdoor', [-1, 1.5, -14.85], Math.PI / 2);
-            doorCollider.minX = 999;
-            doorCollider.maxX = 999.2;
-            ctx.hud.toast('7042. both pockets, spent.');
-            ctx.hud.setObjective('the door is open. go.');
-            ctx.telemetry.event('door_opened');
-          },
-          onClose: () => {
-            // player re-clicks the canvas to re-acquire pointer lock; nothing else to do.
-          },
-        });
-        return true;
-      }
-      return false;
+      return lock.handleInteract(id, ctx);
     },
 
     onStateChange(next, ctx) {
-      orderly?.setWardState(next);
+      orderlyLower?.setWardState(next);
+      orderlyUpper?.setWardState(next);
       if (next === 'unmed' && !sawUnmedToast) {
         sawUnmedToast = true;
-        ctx.hud.toast('the corridor holds its breath differently now.');
+        ctx.hud.toast('something moves on the floor below. something else, above.');
       }
     },
 
     update(dt, _t, ctx) {
-      if (!orderly) return;
+      if (!orderlyLower || !orderlyUpper) return;
       const p = ctx.playerPos();
-      orderly.update(dt, p.x, p.z, ctx.state.state);
+      orderlyLower.update(dt, p.x, p.z, ctx.state.state);
+      orderlyUpper.update(dt, p.x, p.z, ctx.state.state);
 
-      const level = orderly.watching;
-      const chasing = orderly.chasing;
-      const dist = Math.hypot(orderly.x - p.x, orderly.z - p.z);
+      const distLower = Math.hypot(orderlyLower.x - p.x, orderlyLower.z - p.z);
+      const distUpper = Math.hypot(orderlyUpper.x - p.x, orderlyUpper.z - p.z);
+      const chasing = orderlyLower.chasing || orderlyUpper.chasing;
+      const level = Math.max(orderlyLower.watching, orderlyUpper.watching);
+      const dist = Math.min(distLower, distUpper);
+
       if (level > 0 || chasing) {
-        const bearing = bearingTo(orderly.x - p.x, orderly.z - p.z, p.yaw);
+        // Chase-priority bearing: chasing beats watching, higher watch-ramp
+        // beats lower, nearer breaks ties — same aggregation as room10/12's
+        // multi-orderly pairs.
+        let primary = orderlyLower;
+        if (orderlyUpper.chasing && !orderlyLower.chasing) {
+          primary = orderlyUpper;
+        } else if (orderlyLower.chasing === orderlyUpper.chasing) {
+          if (orderlyUpper.watching > orderlyLower.watching) primary = orderlyUpper;
+          else if (orderlyUpper.watching === orderlyLower.watching && distUpper < distLower) primary = orderlyUpper;
+        }
+        const bearing = bearingTo(primary.x - p.x, primary.z - p.z, p.yaw);
         ctx.hud.setThreat(level, bearing);
       } else {
         ctx.hud.setThreat(0, null);
@@ -375,8 +418,10 @@ export const room11Script: Room11Script = (() => {
     onLeave(ctx) {
       ctx.hud.setThreat(0, null);
       ctx.audio.setThreat(0, Infinity, false);
-      orderly?.dispose();
-      orderly = null;
+      orderlyLower?.dispose();
+      orderlyUpper?.dispose();
+      orderlyLower = null;
+      orderlyUpper = null;
     },
   };
 

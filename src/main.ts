@@ -254,6 +254,12 @@ function frame(): void {
 
   if (started && !ended) {
     player.update(dt, input, world.colliders, state.state);
+    // Verticality — collision above stays 2D/XZ; this snaps the player's
+    // rendered floor height toward whatever floorHeightAt says for their new
+    // XZ, smoothed so ramps feel continuous and zone-boundary steps don't
+    // jar. No-op (targets 0, already 0) for every room without
+    // heightZones/ramps.
+    player.y += (world.floorHeightAt(player.x, player.z) - player.y) * 0.35;
     current.script.update?.(dt, t, ctx);
     updateMedication(dt);
     const label = interaction.update(renderer.camera, state.state, current.script, ctx);

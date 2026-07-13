@@ -76,16 +76,58 @@ export interface LightDef {
   pos: [number, number]; // x,z — point lights sit at y=2.7
 }
 
+// ---------------------------------------------------------------------------
+// Verticality — a room's walkable floor height is a SINGLE-VALUED function of
+// (x,z): at any spot there is exactly one walkable height, computed by
+// game/world.ts's floorHeightAt. This buys real up/down (a raised mezzanine,
+// a sunken pit, a ramped approach) without the hard problem of two walkable
+// surfaces stacked at the same XZ column — collision stays the existing 2D
+// XZ AABB system unchanged; the player is kept on the intended level by
+// walls/railings, exactly like every other collider in the game.
+//
+// Both fields are optional and purely additive: a RoomDef with neither
+// (every room shipped before this existed) has floorHeightAt return 0
+// everywhere, identical to today's flat-floor behaviour.
+// ---------------------------------------------------------------------------
+
+// A rectangular region whose walkable floor sits at a fixed height `y`.
+export interface HeightZone {
+  minX: number;
+  maxX: number;
+  minZ: number;
+  maxZ: number;
+  y: number;
+}
+
+// A rectangular region whose walkable floor height interpolates linearly
+// along `axis`: `yLow` at the region's min end on that axis, `yHigh` at the
+// max end. (Despite the names, yLow/yHigh don't have to satisfy yLow<yHigh —
+// they're just "value at the min coordinate" / "value at the max coordinate";
+// pick whichever orientation reads naturally for the ramp you're authoring.)
+export interface RampDef {
+  minX: number;
+  maxX: number;
+  minZ: number;
+  maxZ: number;
+  axis: 'x' | 'z';
+  yLow: number;
+  yHigh: number;
+}
+
 export interface RoomDef {
   id: string;
   floor: { minX: number; maxX: number; minZ: number; maxZ: number };
-  spawn: { x: number; z: number; yaw: number };
+  spawn: { x: number; z: number; yaw: number; y?: number }; // y default 0
   blocks: BlockDef[];
   colliders: ColliderDef[];
   scrawls: ScrawlDef[];
   interactables: InteractableDef[];
   lights: LightDef[];
   exits: ExitDef[];
+  // Verticality — see HeightZone/RampDef above. Absent/empty ⇒ floor is
+  // y=0 everywhere (every room without these is unaffected).
+  heightZones?: HeightZone[];
+  ramps?: RampDef[];
 }
 
 // Per-room bespoke logic (tutorial beats, phase gating). Generic behaviour

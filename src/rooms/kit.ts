@@ -19,7 +19,9 @@
 
 import type {
   ColliderDef,
+  HeightZone,
   InteractableDef,
+  RampDef,
   RoomScript,
   ScrawlDef,
   StateFilter,
@@ -34,7 +36,17 @@ import { TUNING } from '../tuning';
 // plus the primitives it's built on.
 export { RoomBuilder } from './build';
 export type { OrderlyAABB } from '../game/orderly';
-export type { ColliderDef, InteractableDef, RoomDef, RoomScript, ScrawlDef, StateFilter, WardState } from './types';
+export type {
+  ColliderDef,
+  HeightZone,
+  InteractableDef,
+  RampDef,
+  RoomDef,
+  RoomScript,
+  ScrawlDef,
+  StateFilter,
+  WardState,
+} from './types';
 
 // ---------------------------------------------------------------------------
 // Wall-relative coordinates
@@ -370,6 +382,33 @@ export function keypadDoor(rb: RoomBuilder, opts: KeypadDoorOpts): KeypadDoorLoc
 }
 
 // ---------------------------------------------------------------------------
+// Verticality — thin constructors for RoomDef.heightZones/ramps (see
+// rooms/types.ts's HeightZone/RampDef header for the single-valued-floor
+// model this relies on). These don't derive anything from wall geometry the
+// way dispenser()/keypad()/scrawl() do — a raised zone's footprint is a
+// design decision, not implied by a wall run — so they're just named,
+// typed constructors instead of a wall-relative builder. See
+// ROOM_AUTHORING.md's "Verticality" section for a worked split-level
+// example (a ramp bridging a sunken lower floor up to a railed platform).
+// ---------------------------------------------------------------------------
+
+export function heightZone(minX: number, maxX: number, minZ: number, maxZ: number, y: number): HeightZone {
+  return { minX, maxX, minZ, maxZ, y };
+}
+
+export function ramp(
+  minX: number,
+  maxX: number,
+  minZ: number,
+  maxZ: number,
+  axis: 'x' | 'z',
+  yLow: number,
+  yHigh: number,
+): RampDef {
+  return { minX, maxX, minZ, maxZ, axis, yLow, yHigh };
+}
+
+// ---------------------------------------------------------------------------
 // Patrol validation
 //
 // Fails fast (throws at module init, i.e. the moment the room file is
@@ -529,6 +568,12 @@ export interface OrderlyCfg {
   occluders: OrderlyAABB[];
   onWarnToast?: string; // default 'he is looking at you.'
   onChaseToast?: string; // default 'run. or stop being visible.'
+  // Verticality — see Orderly's OrderlyOptions.floorHeightAt. Pass the same
+  // per-XZ height lookup a vertical room uses for its player (typically a
+  // small local function mirroring the room's heightZones/ramps) so this
+  // orderly's mesh stands on his own level. Omitted ⇒ y=0 always, same as
+  // every orderly room shipped before this option existed.
+  floorHeightAt?: (x: number, z: number) => number;
 }
 
 export interface MakeOrderlyRoomScriptCfg {
@@ -590,7 +635,7 @@ export function makeOrderlyRoomScript(cfg: MakeOrderlyRoomScriptCfg): OrderlyRoo
               ctx.telemetry.event('orderly_caught');
             },
           },
-          { colliders: alwaysOnColliders },
+          { colliders: alwaysOnColliders, floorHeightAt: oc.floorHeightAt },
         ),
     );
     for (const o of orderlies) o.setWardState(ctx.state.state);

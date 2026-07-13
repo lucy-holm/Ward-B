@@ -10,6 +10,13 @@ import { TUNING } from '../tuning';
 export class Player {
   x = 0;
   z = 0;
+  // Verticality — the player's current floor height (see rooms/types.ts's
+  // HeightZone/RampDef, game/world.ts's floorHeightAt). Set on spawn, then
+  // smoothed toward floorHeightAt(x,z) each frame in main.ts; collision
+  // itself stays 2D/XZ-only (tryMove never reads or writes this). Default 0
+  // everywhere a room defines no verticality, so every existing room's eye
+  // height is unchanged.
+  y = 0;
   yaw = 0;
   pitch = 0;
   readonly r: number = TUNING.player.radius;
@@ -17,9 +24,10 @@ export class Player {
 
   private wasMoving = false;
 
-  spawn(at: { x: number; z: number; yaw: number }): void {
+  spawn(at: { x: number; z: number; yaw: number; y?: number }): void {
     this.x = at.x;
     this.z = at.z;
+    this.y = at.y ?? 0;
     this.yaw = at.yaw;
     this.pitch = 0;
   }
@@ -55,7 +63,7 @@ export class Player {
   syncCamera(camera: THREE.PerspectiveCamera, t: number, state: WardState): void {
     const bob = this.wasMoving ? Math.sin(t * 9) * 0.035 : 0;
     const sway = state === 'unmed' ? Math.sin(t * 0.7) * 0.02 : 0;
-    camera.position.set(this.x, this.h + bob, this.z);
+    camera.position.set(this.x, this.y + this.h + bob, this.z);
     camera.rotation.set(this.pitch, this.yaw, sway);
   }
 

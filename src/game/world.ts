@@ -1,8 +1,10 @@
 import * as THREE from 'three';
 import type {
+  HeightZone,
   InteractableDef,
   ColliderDef,
   MatName,
+  RampDef,
   RoomDef,
   ScrawlDef,
   StateFilter,
@@ -867,6 +869,11 @@ function disposeObject3D(obj: THREE.Object3D): void {
 export class World {
   room!: RoomDef;
   colliders: ColliderDef[] = [];
+  // Verticality (see rooms/types.ts) — this room's current height regions.
+  // Small arrays (a handful of regions at most), read every frame by
+  // floorHeightAt with no allocation.
+  private heightZones: HeightZone[] = [];
+  private ramps: RampDef[] = [];
 
   private readonly root = new THREE.Group();
   private readonly groups: Record<StateFilter, THREE.Group> = {
@@ -909,6 +916,8 @@ export class World {
     this.clear();
     this.room = def;
     this.colliders = def.colliders.slice();
+    this.heightZones = def.heightZones ?? [];
+    this.ramps = def.ramps ?? [];
 
     // floor + ceiling — single large planes per room, so (unlike the shared
     // wall/prop materials above) each gets its own cloned texture with
@@ -994,6 +1003,25 @@ export class World {
   applyState(state: WardState): void {
     this.groups.lucid.visible = state === 'lucid';
     this.groups.unmed.visible = state === 'unmed';
+  }
+
+  // Verticality — the walkable floor height at a given XZ, single-valued
+  // (see rooms/types.ts's HeightZone/RampDef header). Ramps are checked
+  // first so a ramp overlapping a flat zone's footprint always wins (lets a
+  // room author a ramp's endpoints flush against an adjacent zone without
+  // the zone's flat value fighting it at the seam). Falls through to 0 —
+  // every room without heightZones/ramps behaves exactly as before.
+  floorHeightAt(x: number, z: number): number {
+    for (const r of this.ramps) {
+      if (x >= r.minX && x <= r.maxX && z >= r.minZ && z <= r.maxZ) {
+        const t = r.axis === 'x' ? (x - r.minX) / (r.maxX - r.minX) : (z - r.minZ) / (r.maxZ - r.minZ);
+        return r.yLow + (r.yHigh - r.yLow) * t;
+      }
+    }
+    for (const hz of this.heightZones) {
+      if (x >= hz.minX && x <= hz.maxX && z >= hz.minZ && z <= hz.maxZ) return hz.y;
+    }
+    return 0;
   }
 
   // Interactables currently in the room, for the Interaction raycast.

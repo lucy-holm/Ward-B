@@ -31,6 +31,15 @@ export interface OrderlyOptions {
   colliders?: ColliderDef[];
   // Collision radius against `colliders`, default TUNING.orderly.radius.
   radius?: number;
+  // Verticality — optional floor-height lookup (game/world.ts's
+  // floorHeightAt, or a room-local equivalent) applied to the orderly's
+  // root Y each frame so he stands on his own level instead of floating
+  // above/sinking below a raised or sunken floor region. His sight/chase
+  // math stays pure XZ regardless (see game/world.ts's HeightZone/RampDef
+  // header — cross-level LOS isn't modeled, so a room using this should
+  // keep each orderly's reachable XZ footprint on one level). Omitted ⇒
+  // y=0 always, identical to every room shipped before this option existed.
+  floorHeightAt?: (x: number, z: number) => number;
 }
 
 // Proportions for the unmed body: unnaturally tall and thin, arms hanging
@@ -409,6 +418,7 @@ export class Orderly {
 
   private readonly colliders: ColliderDef[];
   private readonly radius: number;
+  private readonly floorHeightAt?: (x: number, z: number) => number;
 
   private readonly root = new THREE.Group();
   private readonly unmedMesh: THREE.Group;
@@ -429,6 +439,7 @@ export class Orderly {
     this.z = waypoints[0].z;
     this.colliders = options.colliders ?? [];
     this.radius = options.radius ?? TUNING.orderly.radius;
+    this.floorHeightAt = options.floorHeightAt;
 
     const built = buildUnmedBody();
     this.unmedMesh = built.group;
@@ -440,7 +451,8 @@ export class Orderly {
     this.unmedMesh.add(this.coneMesh);
 
     this.root.add(this.unmedMesh);
-    this.root.position.set(this.x, 0, this.z);
+    const initY = this.floorHeightAt ? this.floorHeightAt(this.x, this.z) : 0;
+    this.root.position.set(this.x, initY, this.z);
     scene.add(this.root);
 
     // Invisible until told otherwise — lucid is the default-safe assumption.
@@ -490,7 +502,8 @@ export class Orderly {
     // head-tracking read this frame's fresh mode/ramp instead of last frame's.
     this.updateGait(dt, stepping, bodyYaw, playerX, playerZ);
 
-    this.root.position.set(this.x, 0, this.z);
+    const floorY = this.floorHeightAt ? this.floorHeightAt(this.x, this.z) : 0;
+    this.root.position.set(this.x, floorY, this.z);
     this.root.rotation.y = bodyYaw;
 
     this.updateConeVisual();

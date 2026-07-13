@@ -23,6 +23,7 @@ Table of contents:
 5. [Registering a room](#5-registering-a-room)
 6. [Running it](#6-running-it)
 7. [Kit API reference](#7-kit-api-reference)
+8. [Verticality](#8-verticality)
 
 ---
 
@@ -504,3 +505,99 @@ patrol clearance threshold is `radius + 0.1`, why fixtures sit at
 `face + sign * thin/2`), read the comments in `kit.ts` directly — every
 formula there is checked against real values already shipped in room2/room5/
 room7/room8, not invented fresh.
+
+## 8. Verticality
+
+The engine's floor height is a **single-valued function of (x,z)**: at any
+spot in a room there is exactly one walkable height, computed by
+`World.floorHeightAt(x, z)` (`src/game/world.ts`) from the room's
+`heightZones`/`ramps` (`src/rooms/types.ts`). This buys real up/down — a
+raised mezzanine, a sunken pit, a ramped approach — without the hard problem
+of two walkable surfaces stacked at the same XZ column. **Collision stays
+exactly the existing 2D XZ AABB system** (`tryMove`, unchanged): a raised
+region is never a collider, it's purely a height the player's/orderly's
+render Y eases toward. The player is kept on the intended level the same way
+they're kept anywhere else — walls and railings, which *are* colliders.
+
+- **`heightZone(minX, maxX, minZ, maxZ, y): HeightZone`** — a rectangular
+  region whose floor sits at a fixed height `y`.
+- **`ramp(minX, maxX, minZ, maxZ, axis, yLow, yHigh): RampDef`** — a
+  rectangular region whose floor height interpolates linearly along `axis`
+  (`'x'` or `'z'`): `yLow` at the region's min end on that axis, `yHigh` at
+  the max end. Ramps are checked before height zones, so a ramp's footprint
+  always wins where it overlaps a flat zone — author a ramp's endpoints
+  flush against the zone it connects to and the seam is continuous.
+- `RoomDef.heightZones?: HeightZone[]` / `RoomDef.ramps?: RampDef[]` — both
+  optional, both additive. A room with neither (every room shipped before
+  this existed) has `floorHeightAt` return 0 everywhere — identical to
+  today's flat floor.
+- `RoomDef.spawn.y?: number` — spawn height, default 0.
+- An `Orderly` can be told its own level via `OrderlyOptions.floorHeightAt`
+  (raw `Orderly` construction) or `OrderlyCfg.floorHeightAt`
+  (`makeOrderlyRoomScript`) — pass the same lookup the room uses for the
+  player so his mesh stands on his own floor instead of floating/sinking.
+  His sight/chase math is still pure XZ distance+cone — it doesn't know
+  about height at all — so design a vertical room so **each orderly's
+  reachable XZ footprint stays on one level** (keep his patrol/collision
+  region geometrically clear of the other level's footprint, the same way
+  you'd keep him clear of a nook he shouldn't be able to reach); the engine
+  doesn't stop you from overlapping them, it just won't read as fair if you
+  do.
+- **The ceiling doesn't move.** `World.loadRoom` builds one flat ceiling
+  plane per room at absolute y=3, not per height zone — a raised region's
+  headroom is `3 - eyeHeight - zoneY`, so keep raised zones modest (roughly
+  ≤1m for a comfortable margin above the player's 1.62m eye height) or the
+  camera will clip through it.
+- **Railings, not magic.** Nothing auto-generates a barrier at a height
+  zone's edge. If a raised region has an open side (not bounded by a real
+  wall and not the mouth of a ramp), add a real collider there — same
+  `rb.solid(...)` you'd use for any other obstacle — plus a low visual block
+  so it reads as a railing instead of an invisible wall.
+- **`BlockDef` has no X-axis tilt** (`rotY` only), so a physically smooth
+  ramp mesh isn't directly buildable — the walkable surface (the `ramp()`
+  region) is smooth by interpolation regardless, but its *visual* tends to
+  be a short run of stepped blocks of increasing height (see the worked
+  example below) rather than one sloped mesh. This is a look, not a bug —
+  every ramp shipped so far in this game uses it.
+
+### Worked example: a sunken lower floor with a railed, ramped platform
+
+A 6×6m platform raised 0.9m above the surrounding floor, reached by a ramp on
+its south side, with railings on the two open sides that aren't a real wall
+or the ramp mouth:
+
+```ts
+import { RoomBuilder, heightZone, ramp } from './kit';
+
+const rb = new RoomBuilder();
+const MEZZ_Y = 0.9;
+
+// the platform's walkable surface — single heightZone, one line
+const platform = heightZone(1, 9, 0, 8, MEZZ_Y);
+// the ramp bridging it down to the surrounding floor (y=0, the default) —
+// axis 'z' because height varies north-south here; yLow at minZ=8 matches
+// the platform's own edge, yHigh at maxZ=10 matches the ground it lands on
+const platformRamp = ramp(1, 9, 8, 10, 'z', MEZZ_Y, 0);
+
+// visual: a solid slab under the platform (nothing renders a zone's floor
+// automatically — without this the player would stand over empty space,
+// since the room's one big floor plane is still down at y=0) plus a
+// stepped visual for the ramp run
+rb.block([8, MEZZ_Y, 8], [5, MEZZ_Y / 2, 4], 'wall2');
+rb.block([8, 0.9 * MEZZ_Y, 0.5], [5, (0.9 * MEZZ_Y) / 2, 9.75], 'wall2');
+rb.block([8, 0.45 * MEZZ_Y, 0.5], [5, (0.45 * MEZZ_Y) / 2, 8.25], 'wall2');
+
+// railings on the platform's two open sides (its east side abuts a real
+// wall in this example, and its south side is the ramp mouth — only the
+// west side needs one, plus a matching visual rail)
+rb.solid(0.88, 1.12, 0, 8);
+rb.block([0.24, 0.9, 8], [1, MEZZ_Y + 0.45, 4], 'chain');
+
+export const heightZones = [platform];
+export const ramps = [platformRamp];
+// ...and spread heightZones/ramps into the RoomDef, same as blocks/colliders.
+```
+
+See `src/rooms/room11.ts` for the full version of this pattern at room
+scale — two orderlies, one owning the lower floor and one the platform, with
+the platform gating a scrawled code the player has to climb up to read.

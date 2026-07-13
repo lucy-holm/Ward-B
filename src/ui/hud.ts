@@ -29,6 +29,13 @@ export class Hud {
   // spend) from a redundant call, and flash only when something happened.
   // -1 means "not yet shown" so the very first call never flashes.
   private prevPillCount = -1;
+  // Tracks the last capacity shown, same -1-means-"not yet shown" convention
+  // as prevPillCount, but kept separate: a capacity upgrade (room9's coat)
+  // doesn't necessarily change the pill *count* (upgradeCapacity never tops
+  // you up), so the ordinary flash-on-count-change above can silently miss
+  // it — the dot just appears with no fanfare. setPills checks this
+  // independently and pops the newly-added slot(s) whenever max grows.
+  private prevMax = -1;
 
   // Threat presentation state — smoothed level plus threshold-crossing flags
   // so setThreat (called every frame) never touches classList/innerHTML
@@ -105,17 +112,37 @@ export class Hud {
     this.pills.style.display = visible ? 'flex' : 'none';
     if (!visible) {
       this.prevPillCount = -1; // hidden means "not shown"; next reveal shouldn't flash
+      this.prevMax = -1; // same for capacity — next reveal shouldn't pop either
       return;
     }
+    // Capacity growth is rare and one-time (room9's coat), so it's worth
+    // marking BEFORE the DOM is rebuilt below: newSlotFrom is the first dot
+    // index that didn't exist last time this was called (visible) with a
+    // smaller max. -1 means "nothing new" — the ordinary case.
+    const newSlotFrom = this.prevMax !== -1 && max > this.prevMax ? this.prevMax : -1;
+
     const filled = Math.max(0, Math.min(max, n));
     let dots = '';
-    for (let i = 0; i < max; i++) dots += `<span class="pillDot${i < filled ? ' filled' : ''}"></span>`;
+    for (let i = 0; i < max; i++) {
+      const cls = `pillDot${i < filled ? ' filled' : ''}${i >= newSlotFrom && newSlotFrom !== -1 ? ' new' : ''}`;
+      dots += `<span class="${cls}"></span>`;
+    }
     const fullTag = filled >= max ? '<span class="pillsFullTag">full</span>' : '';
     this.pills.innerHTML = `<span class="pillsLabel">pills</span><span class="pillsDots">${dots}</span>${fullTag}`;
 
     // spending or gaining a pill should always be felt, whichever call site triggered it
     if (this.prevPillCount !== -1 && n !== this.prevPillCount) this.pillsFlash();
     this.prevPillCount = n;
+    this.prevMax = max;
+
+    // A capacity increase gets its own loud, one-time treatment on top of
+    // (or instead of) the ordinary flash above — the new dot needs to read
+    // as "you now have a second slot", not just "the pill row twitched".
+    // No CSS backing this (style.css isn't touched here): the pop is driven
+    // entirely by inline styles/transitions set on the freshly-built
+    // elements, so it's self-contained to this call and safe to fire
+    // exactly once per growth, never per-frame.
+    if (newSlotFrom !== -1) this.popNewPillSlots();
   }
 
   // Pops/pulses the pills HUD element — call whenever the count changes.
@@ -123,6 +150,38 @@ export class Hud {
     this.pills.classList.remove('flash');
     void this.pills.offsetWidth; // restart the CSS animation
     this.pills.classList.add('flash');
+  }
+
+  // One-time "you have a new pocket" emphasis for a capacity increase: the
+  // whole pill row gets the existing flash (loud, but says "something
+  // changed", not "you gained a slot"), and every dot marked .new (just
+  // built into innerHTML by setPills) gets an inline-driven pop — snaps in
+  // small/dim, springs past full size with a bright glow, eases back to
+  // rest — plus a slightly longer glow hang than the ordinary filled-dot
+  // look so it's unmistakably the one that's different this time.
+  private popNewPillSlots(): void {
+    this.pillsFlash();
+    const newDots = this.pills.querySelectorAll<HTMLElement>('.pillDot.new');
+    newDots.forEach((el, i) => {
+      el.style.transition = 'none';
+      el.style.transform = 'scale(0.15)';
+      el.style.opacity = '0.15';
+      void el.offsetWidth; // force the reflow so the transition below actually animates
+      // Small stagger if more than one slot ever appears at once (the
+      // upgrade is always +1 today, but this holds if that ever changes).
+      const delay = i * 90;
+      el.style.transition = `transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) ${delay}ms, opacity 0.35s ease-out ${delay}ms, box-shadow 0.6s ease-out ${delay}ms`;
+      el.style.transform = 'scale(1.45)';
+      el.style.opacity = '1';
+      el.style.boxShadow = '0 0 24px 7px rgba(159, 216, 203, 0.95)';
+      setTimeout(() => {
+        el.style.transform = 'scale(1)';
+        el.style.boxShadow = '';
+        // Drop the marker once its one-time pop has played — nothing else
+        // keys off .new, this just keeps it from meaning anything stale.
+        el.classList.remove('new');
+      }, delay + 620);
+    });
   }
 
   // Medication meter — called every frame from the loop while lucid.

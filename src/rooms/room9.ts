@@ -130,7 +130,7 @@ export const room9Script: RoomScript = (() => {
       bottleTaken = false;
       doorUnlocked = false;
       gateNudged = false;
-      ctx.hud.setObjective("the doctor's office. gone quiet. there's a coat on the rack — take it before anything else.");
+      ctx.hud.setObjective("the doctor's office. gone quiet. there's a coat on the rack, heavier than it should be — take it before anything else.");
     },
 
     isAvailable(id) {
@@ -148,11 +148,15 @@ export const room9Script: RoomScript = (() => {
         bottleTaken = true;
         ctx.state.upgradeCapacity(TUNING.pills.upgradedMax);
         ctx.removeInteractable('bottle');
+        // Capacity changed but the pill count didn't (upgradeCapacity never
+        // tops you up) — refresh the HUD explicitly so the second dot shows
+        // up right now, not on the next incidental setPills call. Hud.setPills
+        // detects the capacity growth itself and pops the new slot.
         ctx.hud.setPills(ctx.state.pills, ctx.state.maxPills, ctx.state.canShift);
-        ctx.hud.pillPopup('pockets: two');
-        ctx.hud.toast("someone's coat. two pockets. both lined with foil. it fits.");
+        ctx.hud.pillPopup('two pockets now');
+        ctx.hud.toast("someone's coat. two pockets, both lined with foil — you can carry a spare now.");
         ctx.telemetry.event('capacity_upgrade');
-        ctx.hud.setObjective("two pockets now — you can carry two pills. the code is written where you can't read it clean.");
+        ctx.hud.setObjective("two pockets now — you can carry two pills at once. the code is written where you can't read it clean.");
         return true;
       }
       if (id === 'keypad9') {

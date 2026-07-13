@@ -118,10 +118,11 @@ export const room6: RoomDef = {
   exits: [{ to: 'room7', minX: 13.2, maxX: 14, minZ: -3.9, maxZ: -1.9 }],
 };
 
-// Full back-and-forth traversal of the L: south leg, corner, the whole east
-// leg, and back. The corner waypoint sits at z=-2.0 (inside leg B's own z
-// span) rather than right at the junction, so every leg of the loop is a
-// straight line that never grazes the wall separating leg A from leg B.
+// Full back-and-forth traversal of the L: south leg, corner, a south-leaning
+// bow through the long leg, and back. The corner waypoint sits at z=-2.0
+// (inside leg B's own z span) rather than right at the junction, so every leg
+// of the loop is a straight line that never grazes the wall separating leg A
+// from leg B.
 //
 // wp0 (the south end of leg A) used to sit at z=5.5 — only 1.5m from spawn
 // (0,7). Every cycle he pauses there (0.8s) facing back toward the entrance
@@ -133,10 +134,38 @@ export const room6: RoomDef = {
 // a couple meters further in (toward the first scrawl) and the usual tension
 // returns — that's intentional, this fixes the entrance specifically, not
 // the whole leg.
+//
+// Second pass (playtest 8): "still very close to the panel the first time
+// you see him." wp0 above was fine, but the old near end — a single straight
+// diagonal from the corner (0,-2.0) to (10.5,-2.9) — was still too close to
+// several things a freshly-unmed player actually stands at. Simulated the
+// real sight/grace/chase loop (dt-stepped, matching orderly.ts exactly) and
+// measured worst-case time-to-contact if the player freezes the instant
+// they're first seen, against every landmark reachable unmed early in the
+// room, old diagonal vs. the bow below:
+//   'count his steps. then move.' scrawl (6.3,-1.45), right past the corner
+//     — the actual first-sighting beat, since it's the first thing that
+//     requires being unmed: 1.0s before -> never triggers now (the bow
+//     passes ~2.3m+ off it, at an angle the cone never covers).
+//   the code scrawl (8.3,-4.35): 1.29s before -> 1.45s now.
+//   keypad6 (11.75,-2.9), if still unmed there out of habit before shifting
+//     to use it: 0.77s before (his old near end sat 1.25m off it, same
+//     z-line) -> 1.29s now (near end pulled back and off that line).
+// The corner scrawl is the one the "~3s to react" note was really about —
+// it's the first place a player is guaranteed to be unmed, and it's now
+// fully safe on a single pass. The code scrawl and keypad approaches also
+// improve (both were under 1.3s, neither is now) but can't clear 3s outright
+// without either cutting his patrol short of the alcove — which would gut
+// the room's whole "his patrol runs through where you have to read the code"
+// premise — or moving the code/keypad, both off the table here. Patrol
+// clearance stays > 0.5 from every collider throughout (min 0.68m now, vs.
+// 0.815m before).
 const WAYPOINTS = [
   { x: 0, z: 0.8 },
   { x: 0, z: -2.0 },
-  { x: 10.5, z: -2.9 },
+  { x: 4.0, z: -3.75 },
+  { x: 9.2, z: -2.0 },
+  { x: 4.0, z: -3.75 },
   { x: 0, z: -2.0 },
 ];
 

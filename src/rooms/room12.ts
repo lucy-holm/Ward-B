@@ -44,6 +44,23 @@ import { Orderly, type OrderlyAABB } from '../game/orderly';
 // lucid. Worst case: caught (or unmed-and-broke) anywhere in Z2 or Z3 ->
 // forced lucid, teleported to spawn, pills kept -> dispenser A is inside the
 // same open hall as the spawn point, no gate between it and you.
+//
+// TIMER SOFT-LOCK AUDIT (medication-wears-off pass): same problem as room 11,
+// at this room's scale. Lucidity now expires on its own after ~45s, so the
+// "unmed-and-broke" case above no longer needs a misplay to reach it — cross
+// GATE B lucid, spend the crossing reading a code half or losing an orderly,
+// and the clock can revoke lucid while you're still deep in Z2 or Z3, with
+// GATE B and GATE C both unmed-sealed and nothing but the "get caught"
+// escape hatch between you and being stuck raw. Z2 and Z3 share an
+// ungated doorway, so they're topologically one sealed pocket — but that
+// pocket is roughly 44m north-south with three orderlies in it, so leaning on
+// a single dispenser at one end would mean a raw revert at the far end (deep
+// in Z3, by GATE C) means a full-length walk back through Z2's orderly to
+// reach it. Added one dispenser per chamber instead: dispenser12c in Z2,
+// dispenser12d in Z3. Both sit off their chamber's code-nook route and cost
+// nothing toward the two-pill budget — GATE B and GATE C are already paid for
+// by the time either is reachable — they only turn a mistimed revert
+// anywhere on the floor into a walk instead of a dead end.
 
 const CODE = '8563';
 
@@ -207,6 +224,34 @@ export const room12: RoomDef = {
       type: 'dispenser',
       size: [0.16, 0.75, 0.55],
       pos: [-9.72, 1.45, -13],
+      mat: 'dispenser',
+      states: 'both',
+      facing: 'px',
+      label: 'use the dispenser',
+    },
+    {
+      // Safety dispenser, Z2 (the quiet ward) — see the TIMER SOFT-LOCK AUDIT
+      // note above. Flush on the west wall, just south of GATE B and north of
+      // orderly C's patrol rectangle (z<=33.5, so z=35 clears it by 1.5m) and
+      // west of his x=-7 leg — well off the path to nook C on the east wall.
+      id: 'dispenser12c',
+      type: 'dispenser',
+      size: [0.16, 0.75, 0.55],
+      pos: [-9.72, 1.45, 35],
+      mat: 'dispenser',
+      states: 'both',
+      facing: 'px',
+      label: 'use the dispenser',
+    },
+    {
+      // Safety dispenser, Z3 (the day hall) — flush on the west wall, just
+      // north of GATE C and south of orderly A's patrol rectangle (z>=-5.5,
+      // so z=-7 clears it by 1.5m), clear of PILLAR_2 and well off the route
+      // to the nook on the east wall.
+      id: 'dispenser12d',
+      type: 'dispenser',
+      size: [0.16, 0.75, 0.55],
+      pos: [-9.72, 1.45, -7],
       mat: 'dispenser',
       states: 'both',
       facing: 'px',

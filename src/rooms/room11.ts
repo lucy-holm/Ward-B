@@ -44,6 +44,23 @@ import { Orderly, type OrderlyAABB } from '../game/orderly';
 // anywhere in Z2, or unmed-and-broke anywhere in Z2 -> caught -> forced
 // lucid, teleported to spawn, pills kept -> dispenser is three steps away,
 // inside the same open hall, no gate between it and you. Never a dead end.
+//
+// TIMER SOFT-LOCK AUDIT (medication-wears-off pass): the above "unmed-and-
+// broke" case used to require the player to spend recklessly to reach it —
+// with lucidity now expiring on its own after ~45s, it's reachable by doing
+// nothing at all: cross gate 1 lucid, get caught up in reading the code or
+// dodging him, and the clock revokes lucid out from under you wherever you
+// happen to be standing. Both gates are unmed-sealed, so a raw revert in Z2
+// or Z3 walls off dispenser11 in both directions at once — the "walk back"
+// escape hatch this header used to lean on doesn't exist under a timer,
+// because you don't get to choose when you go raw anymore. Getting caught is
+// still a valid unstick (it force-shifts lucid regardless of pills), but the
+// law is "reach a dispenser," not "get caught by him," so both newly-isolated
+// zones now carry their own: dispenser11b in Z2, dispenser11c in Z3. Neither
+// changes the pill math — gate 1 and gate 2 still cost one pill each, same as
+// always, whether that pill comes from a bank made in Z1 or a top-up made
+// mid-crossing — they only mean a mistimed revert in either zone is a walk,
+// not a wall.
 
 const CODE = '7042';
 
@@ -149,6 +166,36 @@ export const room11: RoomDef = {
       mat: 'dispenser',
       states: 'both',
       facing: 'nx',
+      label: 'use the dispenser',
+    },
+    {
+      // Safety dispenser, Z2 (the ward floor) — see the TIMER SOFT-LOCK AUDIT
+      // note above. Flush on the east wall, just south of gate 1, north of
+      // his patrol rectangle's z<=7.5 footprint (z=9 clears it by 1.5m) and
+      // well east of his x=7 leg. Sits on the opposite side of the room from
+      // the code nook, so it's not something a player heading for the code
+      // walks past for free — reaching it is a real, if short, detour.
+      id: 'dispenser11b',
+      type: 'dispenser',
+      size: [0.16, 0.75, 0.55],
+      pos: [8.72, 1.45, 9],
+      mat: 'dispenser',
+      states: 'both',
+      facing: 'nx',
+      label: 'use the dispenser',
+    },
+    {
+      // Safety dispenser, Z3 (the exit chamber) — no orderly ever reaches
+      // this zone. Flush on the west wall, off the x~0-1.35 gate-2-to-keypad
+      // line, so it's tucked to the side rather than sitting on the direct
+      // route.
+      id: 'dispenser11c',
+      type: 'dispenser',
+      size: [0.16, 0.75, 0.55],
+      pos: [-8.72, 1.45, -10],
+      mat: 'dispenser',
+      states: 'both',
+      facing: 'px',
       label: 'use the dispenser',
     },
     {

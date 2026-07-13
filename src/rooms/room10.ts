@@ -31,6 +31,22 @@ import { Orderly, type OrderlyAABB } from '../game/orderly';
 // (0 pills after gate 2, and gate 3 needs one). Getting caught anywhere
 // resets you to the intake hall, forced lucid, pills kept — dispenser A is
 // three steps from the spawn point, so that failure is never a dead end.
+//
+// TIMER SOFT-LOCK AUDIT (medication-wears-off pass): lucidity now expires on
+// its own after ~45s, not just on request, so a player can go raw mid-zone
+// with no warning. Z2 is fine unforced — it opens onto Z1 through the ungated
+// Z1/Z2 doorway, so an unmed revert there always has a free walk back to
+// dispenser A. Z3 was already fine too: dispenser B's alcove (ALCOVE_B) is an
+// always-on collider, never states:'unmed'-gated, so it's reachable raw
+// exactly like every other point in Z3. Z4 was the actual hole: gate 3 is
+// unmed-sealed on its only doorway, Z4 has no dispenser, and a player who
+// crosses it lucid (as the intended solve requires) and then times out
+// standing in Z4 was stranded raw with gate 3 sealed behind them and nothing
+// ahead but a keypad that refuses to read while unmed. Fixed with
+// dispenser10c, flush on Z4's west wall, well off the direct gate-3-to-keypad
+// line — it doesn't touch the two-pill budget (both gates are already paid
+// for by the time anyone reaches Z4), it only means a mistimed revert there
+// isn't a dead end anymore.
 
 const CODE = '3175';
 
@@ -167,6 +183,21 @@ export const room10: RoomDef = {
       // alcove mounts are exactly the fragile case (room7/room8 both had the
       // heuristic pick the wrong sign for the same kind of recess).
       pos: [-9.46, 1.45, -14.6],
+      mat: 'dispenser',
+      states: 'both',
+      facing: 'px',
+      label: 'use the dispenser',
+    },
+    {
+      // Safety dispenser, Z4 (the exit chamber, past both gates) — see the
+      // TIMER SOFT-LOCK AUDIT note above. Flush on the west wall, well west
+      // of the x~0-1.35 gate3-to-keypad line, so it's a real detour rather
+      // than something the intended route walks past anyway. No orderly ever
+      // reaches Z4, so there's no patrol clearance to worry about here.
+      id: 'dispenser10c',
+      type: 'dispenser',
+      size: [0.16, 0.75, 0.55],
+      pos: [-7.72, 1.45, -23],
       mat: 'dispenser',
       states: 'both',
       facing: 'px',

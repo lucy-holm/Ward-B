@@ -21,6 +21,8 @@ import { room7, room7Script } from './rooms/room7';
 import { room8, room8Script } from './rooms/room8';
 import { room9, room9Script } from './rooms/room9';
 import { room10, room10Script } from './rooms/room10';
+import { room11, room11Script } from './rooms/room11';
+import { room12, room12Script } from './rooms/room12';
 
 // RoomScript is frozen (rooms/types.ts). room4/room5 own an NPC with
 // scene-level resources that need an explicit teardown hook the base
@@ -39,6 +41,8 @@ const rooms: Record<string, { def: RoomDef; script: AnyRoomScript }> = {
   room8: { def: room8, script: room8Script },
   room9: { def: room9, script: room9Script },
   room10: { def: room10, script: room10Script },
+  room11: { def: room11, script: room11Script },
+  room12: { def: room12, script: room12Script },
 };
 
 const container = document.getElementById('game')!;
@@ -158,15 +162,15 @@ function endOfBuild(): void {
   hud.setPrompt(null);
   telemetry.flush();
   hud.showEndCard(
-    'END OF MILESTONE 6',
-    'TWO PILLS NOW. THE WING DOESN\'T CARE.',
+    'END OF MILESTONE 7',
+    'TWO POCKETS. NEVER ENOUGH FLOOR.',
     `<em>PLAYTEST — tell the devs:</em><br><br>
-     1 · Room 9 handed you a second pill with nothing chasing you — did that upgrade actually register as an upgrade, or did it just quietly happen?<br>
-     2 · Room 10 spread the code, the keypad, and the dispensers across zones you had to physically cross and re-cross — did that force real route planning, or did you find a way to brute-force it?<br>
-     3 · How many full unmed ↔ lucid round trips did room 10 take you, start to finish?<br>
-     4 · Two orderlies, two locked gates, one long building — where did the tension actually peak? Was it where the room intended?<br>
-     5 · Was room 10 too big, or did any single stretch of it drag?<br>
-     6 · You ended with ${state.pills}/${state.maxPills} pills — was there ever a point you felt truly stuck, with no idea what to do next?`,
+     1 · Room 11 sat you down with one dispenser, then two locked doors and nothing between them — did that force you to actually bank both pills before crossing, or did you find a way around carrying two?<br>
+     2 · Room 12 stretched the same trick across two whole chambers, both code halves, and three orderlies before the next cabinet — did scarcity change how you planned the crossing, or did it just feel like more of the same?<br>
+     3 · The day hall ran two of them on counter-rotating loops — did that read as two independent patrols, or did they blur into one shape?<br>
+     4 · Three orderlies on one floor — fair, or did it tip into overwhelming? Where did the tension peak?<br>
+     5 · Room 12 is the biggest room in the game — did the size and pacing hold up, or did any single stretch drag?<br>
+     6 · You ended with ${state.pills}/${state.maxPills} pills — was there ever a point the two-pill capacity actually felt like a budget, not just a buffer?`,
     'READMIT',
     () => location.reload(),
   );

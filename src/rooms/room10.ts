@@ -160,10 +160,16 @@ export const room10: RoomDef = {
       id: 'dispenser10b',
       type: 'dispenser',
       size: [0.16, 0.75, 0.55],
-      // proud of the alcove end cap's inner face (x=-9.48), not flush in it
+      // proud of the alcove end cap's inner face (x=-9.48), not flush in it.
+      // inferFacing already lands on +x here (room-wide floor center is east
+      // of this alcove, same direction as the mouth), so this was rendering
+      // correctly — pinned explicitly anyway per the facing audit, since
+      // alcove mounts are exactly the fragile case (room7/room8 both had the
+      // heuristic pick the wrong sign for the same kind of recess).
       pos: [-9.46, 1.45, -14.6],
       mat: 'dispenser',
       states: 'both',
+      facing: 'px',
       label: 'use the dispenser',
     },
     {
@@ -201,7 +207,7 @@ export const room10: RoomDef = {
     { pos: [0, -22] },
     { pos: [0, -25] },
   ],
-  exits: [{ to: 'END', minX: -1, maxX: 1, minZ: -27.9, maxZ: -26.8 }],
+  exits: [{ to: 'room11', minX: -1, maxX: 1, minZ: -27.9, maxZ: -26.8 }],
 };
 
 // Orderly A — a wide loop around the day ward's island, hugging close
@@ -223,6 +229,23 @@ const WAYPOINTS_B = [
   { x: -6.5, z: -18.5 },
   { x: -6.5, z: -11.5 },
 ];
+
+// Reaction-time sanity check, per the room6/7 pass:
+// - keypad10 (1.35,-25.75) sits in Z4, well past gate 3 (z=-20); neither
+//   orderly's belt ever reaches past z=-18.5. Distance from any waypoint is
+//   >6.5m regardless — outside sight range even ignoring the gate. Safe.
+// - The code nooks look close on paper (nearest patrol corner to nook A's
+//   scrawl at (-9.46,-8.6) is (-6.5,-8.5), only 2.96m off, arriving almost
+//   dead-on at ~1.9deg bearing — that would be ~1.16s worst case by the
+//   raw distance/cone math). But NOOK_A/NOOK_B are themselves passed to
+//   their orderly as occluder AABBs (see spawnOrderlies below): a sightline
+//   from outside the box to a player standing inside it always crosses the
+//   box boundary, so segmentHitsAABB reports occluded=true for anyone
+//   actually at the scrawl. He can never see you while you're deep enough
+//   in either nook to read the code, regardless of distance/facing — this
+//   was already the room's intended protection, not something this pass
+//   needed to add. Not flagrant; left as-is.
+// - Same occluder trick covers dispenser-B's alcove (ALCOVE_B).
 
 // RoomScript is frozen; same locally-extended type as rooms 4-8 for the
 // orderlies' teardown hook.

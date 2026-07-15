@@ -46,6 +46,16 @@ export interface OrderlyOptions {
   // teleporting") can give each a distinct tint so they're distinguishable
   // as separate patrols from a distance, not just by path shape up close.
   eyeTint?: number;
+  // Per-instance sight range override (m), default TUNING.orderly.sightRange.
+  // A room can widen (or narrow) a specific orderly's detection distance
+  // without touching the global default every other room relies on — e.g.
+  // room13's full-width corridor, where the base 6m range leaves a provable
+  // unseen gap along the far wall (see TUNING.lastWard's sight comment).
+  sightRange?: number;
+  // Per-instance cone half-angle-defining total angle override (deg),
+  // default TUNING.orderly.coneDeg. Same rationale as sightRange above —
+  // room13 needs a wide-enough cone to sweep the whole corridor width.
+  coneDeg?: number;
 }
 
 // Proportions for the unmed body: unnaturally tall and thin, arms hanging
@@ -425,6 +435,8 @@ export class Orderly {
   private readonly colliders: ColliderDef[];
   private readonly radius: number;
   private readonly floorHeightAt?: (x: number, z: number) => number;
+  private readonly sightRange: number;
+  private readonly coneDeg: number;
 
   private readonly root = new THREE.Group();
   private readonly unmedMesh: THREE.Group;
@@ -446,6 +458,8 @@ export class Orderly {
     this.colliders = options.colliders ?? [];
     this.radius = options.radius ?? TUNING.orderly.radius;
     this.floorHeightAt = options.floorHeightAt;
+    this.sightRange = options.sightRange ?? TUNING.orderly.sightRange;
+    this.coneDeg = options.coneDeg ?? TUNING.orderly.coneDeg;
 
     const built = buildUnmedBody(options.eyeTint ?? 0xffffff);
     this.unmedMesh = built.group;
@@ -453,7 +467,7 @@ export class Orderly {
     this.torso = built.torso;
     this.legPivots = built.legPivots;
     this.armPivots = built.armPivots;
-    this.coneMesh = buildSightCone(TUNING.orderly.sightRange, TUNING.orderly.coneDeg);
+    this.coneMesh = buildSightCone(this.sightRange, this.coneDeg);
     this.unmedMesh.add(this.coneMesh);
 
     this.root.add(this.unmedMesh);
@@ -593,9 +607,9 @@ export class Orderly {
       const dx = playerX - this.x;
       const dz = playerZ - this.z;
       const dist = Math.hypot(dx, dz);
-      if (dist > 0.001 && dist < TUNING.orderly.sightRange) {
+      if (dist > 0.001 && dist < this.sightRange) {
         const dot = (dx / dist) * this.fx + (dz / dist) * this.fz;
-        const cosHalf = Math.cos((TUNING.orderly.coneDeg * Math.PI) / 360);
+        const cosHalf = Math.cos((this.coneDeg * Math.PI) / 360);
         if (dot > cosHalf && !this.occluded(playerX, playerZ)) seen = true;
       }
     }

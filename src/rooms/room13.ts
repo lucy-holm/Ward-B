@@ -34,22 +34,52 @@ import { TUNING } from '../tuning';
 // him. Cosmetic consequence, accepted: below a ~3m gap the slabs pass his
 // x=±1.5 lanes and his body can poke through them.
 //
-// EVASION (the 0-pill run must be provable, not just plausible): his loop
-// is a rectangle, lanes x=±1.5 z[-22,14] — southbound on the east lane,
-// northbound on the west: he comes down the east lane head-on at anyone
-// entering from spawn, then loops back north up the west lane out of their
-// way. A player hugging the far side (|x|=3) sits 4.5m off his active
-// lane: at his max range 6m that bearing is atan(4.5/6)=36.9° > 27.5°
-// (half of TUNING.orderly.coneDeg), and bearing only grows as he nears —
-// outside the cone at every distance in range. The only exposure is within
-// ~6m of a cross leg (z=14 at the south end, z=-22 at the north) while he
-// walks it; both cross legs sit at the stretch's far ends, visible from
-// >6m up a straight corridor, so the wait is informed. COUPLING, intended:
-// lucid spending shrinks max |x|; below a ~4m gap the far-side hug stops
-// clearing the cone by geometry (need (halfGap-0.35)+1.5 >
-// 6*tan(27.5°)=3.12m, i.e. halfGap > 1.97) and passing degrades to
-// loop-timing. Spending calm eats the raw run's safety margin. That's the
-// thesis.
+// EVASION (playtest: "an unmed player can walk the raw corridor start to
+// finish without ever shifting" — the old thesis here, a provable far-side
+// pass at the base 6m/55° cone, is now deliberately dead; see
+// TUNING.lastWard's orderlySightRangeM/orderlyConeDeg comment for the trig).
+// The room's contract is forced alternation: no single state carries the
+// whole 40m crossing.
+//
+//   UNMED cannot pass a head-on orderly anywhere across the corridor's full
+//   width, including hugging a wall — TUNING.lastWard's sight comment shows
+//   the two-condition proof (cone reaches the worst-case far-wall lateral
+//   offset within range, and the in-cone window at worst-case closing speed
+//   clears graceSec with margin). There is no longer a lane you can hug to
+//   stay unwatched through a pass.
+//
+//   LUCID cannot carry the full stretch either: the 8s total lucid budget
+//   ((startGapM-minGapM)/(2*closePerSideMps), see TUNING.lastWard) is well
+//   under the ~12s a straight lucid walk of the 40m stretch would take at
+//   player speed 3.4 — "shift once and coast" was already dead before this
+//   pass; two patrols now also means a lucid player still has to time BOTH
+//   orderlies' positions while picking when to dip, not just one.
+//
+//   Two orderlies, half a lap apart (WAYPOINTS_B is WAYPOINTS_A rotated by
+//   2 — a quarter of the array, which is half the rectangle's perimeter at
+//   matched speed, so they never close the gap or collide): whichever end
+//   of the corridor a run starts from, a patrol is always roughly mid-
+//   stretch, forcing at least one unmed-to-lucid-or-back shift partway
+//   through instead of a single clean state pick at the mouth.
+//
+// THE 0-PILL CASE, honestly: this is a pressure loop, not a soft-lock —
+// nothing is unmed-sealed, so the escape always exists. With zero pills
+// saved, lucidity only ever comes from the catch/crush reset itself (both
+// force LUCID at MOUTH with the walls reset full-width, see handleCaught/
+// handleCrushed below), so a 0-pill attempt is: lucid dash from the reset →
+// free shift down to unmed once the walls' bite isn't worth it → walk the
+// unmed stretch under the now-real orderly threat → if cornered, the catch
+// resets you lucid with fresh walls and you're back at the top of the loop.
+// Nothing dead-ends; it's retries, not a wall.
+//
+// THE TRAILING CASE: following behind a receding orderly (his back to you,
+// well outside his cone) works fine right up until he reaches a lane end
+// and pauses to turn — with the wide cone now covering the full width, that
+// turn is lethal at range the old narrow cone never reached, so the player
+// has to plan around the pause-and-turn instead of tailgating blind. With
+// two patrols half a lap apart there is usually a second orderly coming the
+// other way while the first is turning, so "wait for him to turn away" isn't
+// a universal answer either.
 //
 // SOFT-LOCK AUDIT: no unmed-sealed colliders anywhere in the room, so the
 // medication timer's revert can never be geometry-blocked and a raw player
@@ -62,7 +92,8 @@ import { TUNING } from '../tuning';
 // free (no dispenser needed, none is provided) or lets the medication
 // timer wear the pill off into unmed on its own; either way nothing in the
 // room can strand them mid-decision. Both penalties restart the attempt;
-// neither can dead-end it.
+// neither can dead-end it — see THE 0-PILL CASE above for what that reset
+// loop actually looks like end to end.
 
 const W = TUNING.lastWard;
 const SHELL_X = 4; // perimeter walls at ±4
@@ -144,17 +175,34 @@ export const room13: RoomDef = {
   exits: [{ to: 'END', minX: -1, maxX: 1, minZ: -31.9, maxZ: -30.8 }],
 };
 
-// Rectangle loop, starting (waypoints[0]) at the north end of the east
-// lane: southbound on the east lane straight at anyone entering from
-// spawn, cross at the south end, northbound on the west lane back up, cross
-// at the north end — see the EVASION header note for the cone math this
-// shape guarantees.
-const WAYPOINTS = patrol(
+// Rectangle loop, starting (waypoints[0]) at the south end of the east
+// lane: northbound on the east lane straight at anyone entering from
+// spawn, cross at the north end, southbound on the west lane back down,
+// cross at the south end — see the EVASION header note for the cone math
+// this shape guarantees.
+const WAYPOINTS_A = patrol(
   [
     { x: 1.5, z: -22 },
     { x: 1.5, z: 14 },
     { x: -1.5, z: 14 },
     { x: -1.5, z: -22 },
+  ],
+  rb.colliders,
+);
+
+// Second orderly, same rectangle, same speed and pauses — WAYPOINTS_A
+// rotated by 2 (half the 4-waypoint cycle, i.e. half the rectangle's
+// perimeter). Orderly starts at waypoints[0], so the rotation IS the phase
+// offset: he spawns at the diagonally opposite corner walking the same
+// circulation direction, and the two stay exactly half a lap apart forever
+// — one is always roughly mid-stretch while the other is at an end. See the
+// EVASION header for why that half-lap offset is the point.
+const WAYPOINTS_B = patrol(
+  [
+    { x: -1.5, z: 14 },
+    { x: -1.5, z: -22 },
+    { x: 1.5, z: -22 },
+    { x: 1.5, z: 14 },
   ],
   rb.colliders,
 );
@@ -172,7 +220,8 @@ function bearingTo(dx: number, dz: number, yaw: number): number {
 }
 
 export const room13Script: Room13Script = (() => {
-  let orderly: Orderly | null = null;
+  let orderlyA: Orderly | null = null;
+  let orderlyB: Orderly | null = null;
   let sawUnmedToast = false;
   let sawClosingToast = false;
   // 0 = none shown, 1 = warn shown, 2 = tight shown — thresholds fire once
@@ -253,11 +302,12 @@ export const room13Script: Room13Script = (() => {
     ctx.telemetry.event('wall_crushed');
   }
 
-  function spawnOrderly(ctx: GameCtx): void {
-    orderly?.dispose();
-    orderly = new Orderly(
+  function spawnOrderlies(ctx: GameCtx): void {
+    orderlyA?.dispose();
+    orderlyB?.dispose();
+    orderlyA = new Orderly(
       ctx.scene,
-      WAYPOINTS,
+      WAYPOINTS_A,
       [],
       {
         onWarn: () => {
@@ -270,14 +320,41 @@ export const room13Script: Room13Script = (() => {
         },
         onCaught: () => handleCaught(ctx),
       },
-      { colliders: ORDERLY_COLLIDERS },
+      {
+        colliders: ORDERLY_COLLIDERS,
+        sightRange: W.orderlySightRangeM,
+        coneDeg: W.orderlyConeDeg,
+      },
     );
-    orderly.setWardState(ctx.state.state);
+    orderlyB = new Orderly(
+      ctx.scene,
+      WAYPOINTS_B,
+      [],
+      {
+        onWarn: () => {
+          ctx.hud.toast('the other one sees you too.');
+          ctx.telemetry.event('orderly_spotted');
+        },
+        onChaseStart: () => {
+          ctx.hud.toast('run. or stop being visible.');
+          ctx.telemetry.event('orderly_chase');
+        },
+        onCaught: () => handleCaught(ctx),
+      },
+      {
+        colliders: ORDERLY_COLLIDERS,
+        sightRange: W.orderlySightRangeM,
+        coneDeg: W.orderlyConeDeg,
+        eyeTint: 0xffb347, // amber — room12 day-hall precedent, so two patrols in one space read as two enemies
+      },
+    );
+    orderlyA.setWardState(ctx.state.state);
+    orderlyB.setWardState(ctx.state.state);
   }
 
   const script: Room13Script = {
     onEnter(ctx) {
-      spawnOrderly(ctx);
+      spawnOrderlies(ctx);
       buildWalls(ctx);
       resetAttempt();
       sawUnmedToast = false;
@@ -294,10 +371,11 @@ export const room13Script: Room13Script = (() => {
     },
 
     onStateChange(next, ctx) {
-      orderly?.setWardState(next);
+      orderlyA?.setWardState(next);
+      orderlyB?.setWardState(next);
       if (next === 'unmed' && !sawUnmedToast) {
         sawUnmedToast = true;
-        ctx.hud.toast('he keeps the middle of it.');
+        ctx.hud.toast('two of them keep it. they never rest at the same end.');
       }
     },
 
@@ -344,23 +422,42 @@ export const room13Script: Room13Script = (() => {
         }
       }
 
-      if (!orderly) return;
-      orderly.update(dt, p.x, p.z, ctx.state.state);
-      const dist = Math.hypot(orderly.x - p.x, orderly.z - p.z);
-      if (orderly.watching > 0 || orderly.chasing) {
-        const bearing = bearingTo(orderly.x - p.x, orderly.z - p.z, p.yaw);
-        ctx.hud.setThreat(orderly.chasing ? 1 : orderly.watching, bearing);
+      if (!orderlyA || !orderlyB) return;
+      orderlyA.update(dt, p.x, p.z, ctx.state.state);
+      orderlyB.update(dt, p.x, p.z, ctx.state.state);
+
+      const distA = Math.hypot(orderlyA.x - p.x, orderlyA.z - p.z);
+      const distB = Math.hypot(orderlyB.x - p.x, orderlyB.z - p.z);
+      const chasing = orderlyA.chasing || orderlyB.chasing;
+      const level = Math.max(orderlyA.watching, orderlyB.watching);
+      const dist = Math.min(distA, distB);
+
+      if (level > 0 || chasing) {
+        // Chase-priority bearing: chasing beats watching, higher watch-ramp
+        // beats lower, nearer breaks ties — same aggregation as room11's
+        // two-orderly pair.
+        let primary = orderlyA;
+        if (orderlyB.chasing && !orderlyA.chasing) {
+          primary = orderlyB;
+        } else if (orderlyA.chasing === orderlyB.chasing) {
+          if (orderlyB.watching > orderlyA.watching) primary = orderlyB;
+          else if (orderlyB.watching === orderlyA.watching && distB < distA) primary = orderlyB;
+        }
+        const bearing = bearingTo(primary.x - p.x, primary.z - p.z, p.yaw);
+        ctx.hud.setThreat(level, bearing);
       } else {
         ctx.hud.setThreat(0, null);
       }
-      ctx.audio.setThreat(orderly.watching, dist, orderly.chasing);
+      ctx.audio.setThreat(level, dist, chasing);
     },
 
     onLeave(ctx) {
       ctx.hud.setThreat(0, null);
       ctx.audio.setThreat(0, Infinity, false);
-      orderly?.dispose();
-      orderly = null;
+      orderlyA?.dispose();
+      orderlyB?.dispose();
+      orderlyA = null;
+      orderlyB = null;
       disposeWalls(ctx);
     },
   };

@@ -83,6 +83,7 @@ const OCCLUDERS: OrderlyAABB[] = [ISLAND, ALCOVE_S, ALCOVE_N, PROP_WEST];
 
 export const room8: RoomDef = {
   id: 'room8',
+  name: 'the East Ward',
   floor: { minX: -9, maxX: 10.5, minZ: -10, maxZ: 6 },
   spawn: { x: 0, z: 5, yaw: 0 },
   blocks: rb.blocks,

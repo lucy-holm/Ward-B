@@ -132,6 +132,7 @@ const ORDERLY_COLLIDERS: ColliderDef[] = rb.colliders.filter(
 
 export const room10: RoomDef = {
   id: 'room10',
+  name: 'the Wing',
   floor: { minX: -9.6, maxX: 9.6, minZ: -28, maxZ: 8 },
   spawn: { x: 0, z: 7, yaw: 0 },
   blocks: rb.blocks,

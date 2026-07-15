@@ -66,6 +66,7 @@ const lock = keypadDoor(rb, {
 
 export const _kitcheckRoom: RoomDef = {
   id: '_kitcheck',
+  name: 'kit self-check',
   floor: { minX: -6, maxX: 6, minZ: -8, maxZ: 5 },
   spawn: { x: 0, z: 4, yaw: 0 },
   blocks: rb.blocks,

@@ -116,6 +116,7 @@ export interface RampDef {
 
 export interface RoomDef {
   id: string;
+  name: string; // display label for the HUD, e.g. "the Cell"
   floor: { minX: number; maxX: number; minZ: number; maxZ: number };
   spawn: { x: number; z: number; yaw: number; y?: number }; // y default 0
   blocks: BlockDef[];

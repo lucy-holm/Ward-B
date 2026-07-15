@@ -42,6 +42,7 @@ rb.solid(-0.8, -0.2, 1.2, 1.8);
 
 export const room3: RoomDef = {
   id: 'room3',
+  name: 'the Common Room',
   floor: { minX: -5, maxX: 5, minZ: -7, maxZ: 4 },
   spawn: { x: 0, z: 3, yaw: 0 },
   blocks: rb.blocks,

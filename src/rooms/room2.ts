@@ -46,6 +46,7 @@ rb.block([0.08, 0.3, 1.14], [1.47, 0.32, -4.5], 'wall2');
 
 export const room2: RoomDef = {
   id: 'room2',
+  name: 'the Corridor',
   floor: { minX: -1.6, maxX: 1.6, minZ: -11, maxZ: 4.5 },
   spawn: { x: 0, z: 4, yaw: 0 },
   blocks: rb.blocks,

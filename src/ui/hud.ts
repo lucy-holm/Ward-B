@@ -3,6 +3,7 @@ import type { WardState } from '../rooms/types';
 // Direct DOM HUD driver — no framework, mirrors the v0.1 prototype.
 export class Hud {
   private stateChip: HTMLElement;
+  private roomLabel: HTMLElement;
   private objective: HTMLElement;
   private prompt: HTMLElement;
   private toastEl: HTMLElement;
@@ -51,6 +52,7 @@ export class Hud {
 
   constructor() {
     this.stateChip = this.byId('stateChip');
+    this.roomLabel = this.byId('roomLabel');
     this.objective = this.byId('objective');
     this.prompt = this.byId('prompt');
     this.toastEl = this.byId('toast');
@@ -88,6 +90,13 @@ export class Hud {
 
   setObjective(text: string): void {
     this.objective.textContent = text;
+  }
+
+  // Room display name, top-right — set once per room load. Playtest 8: hard
+  // to tell which room you're in from the visuals alone (rooms 10-12 all
+  // read as "grey ward hallway"), so this is a standing label, not a toast.
+  setRoomLabel(name: string): void {
+    this.roomLabel.textContent = name;
   }
 
   setPrompt(text: string | null): void {

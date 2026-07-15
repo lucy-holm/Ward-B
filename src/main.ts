@@ -178,6 +178,7 @@ function loadRoom(id: string): void {
   world.loadRoom(current.def);
   world.applyState(state.state);
   renderer.setRoomLights(current.def.lights.map((l) => l.pos));
+  hud.setRoomLabel(current.def.name);
   player.spawn(current.def.spawn);
   roomEnteredAt = performance.now();
 }

@@ -70,20 +70,17 @@ import { Orderly } from '../game/orderly';
 //
 // TIMER SOFT-LOCK AUDIT (medication-wears-off pass, same concern the
 // original file's header raised): lucidity expires on its own after ~45s.
-// Both gates are unmed-sealed, so a raw revert anywhere between them strands
-// the player unless every reachable pocket has its own dispenser. Z2 is now
-// two levels' worth of "reachable pocket" — the lower floor AND the
-// platform (reachable only via the ramp, which stays walkable in every
-// state; ramps aren't gated). dispenser11b sits in the lower ward, 1m south
-// of GATE 1 on the east wall — reachable raw from anywhere in Z2 by simply
-// walking back down the ramp (never blocked) and along the east wall; it
-// does not require crossing orderly LOWER's patrol (his loop is confined to
-// x[-8,-6], dispenser11b is at x=8.72). dispenser11c covers Z3 the same way
-// every finale chamber in this game does. Neither dispenser touches the
-// two-pill budget — GATE 1 is already paid for by the time dispenser11b is
-// reachable, and GATE 2 is already paid for by the time dispenser11c is —
-// they only turn a mistimed revert anywhere on the floor into a walk, never
-// a dead end.
+// An earlier pass added a dispenser inside Z2 (between the two gates) to
+// backstop a mistimed revert there — playtest 8 confirmed that let a player
+// top back off before GATE 2 was even reached, quietly undoing the mandatory
+// double-spend this room exists to teach (nothing between the gates was the
+// point). Removed. The actual escape for a raw revert stranded in Z2 is the
+// same one every room in this game already relies on: walk into either
+// orderly's cone and let the catch force you lucid (teleport to spawn, pills
+// kept) — both gates being unmed-sealed already means Z2 has no walk-back to
+// a dispenser regardless, so that fallback was always the real answer, not
+// an extra dispenser. dispenser11c still covers Z3 (past GATE 2, outside the
+// pocket) exactly like every finale chamber in this game.
 //
 // REACTION TIME (fairness pass, ~3s time-to-contact if the player freezes,
 // per playtest note): orderly LOWER's rectangle ({-6,5},{-6,-3},{-8,-3},
@@ -221,6 +218,7 @@ function localFloorHeightAt(x: number, z: number): number {
 
 export const room11: RoomDef = {
   id: 'room11',
+  name: 'the Treatment Corridor',
   floor: { minX: -9, maxX: 9, minZ: -20, maxZ: 22 },
   spawn: { x: 0, z: 20, yaw: 0 },
   blocks: rb.blocks,
@@ -241,10 +239,6 @@ export const room11: RoomDef = {
   ],
   interactables: [
     dispenser({ id: 'dispenser11', side: 'e', wallAt: 9, along: 17, label: 'use the dispenser' }),
-    // Safety dispenser, Z2's lower floor — see the TIMER SOFT-LOCK AUDIT
-    // note above. East wall, 1m south of GATE 1, well clear of orderly
-    // LOWER's x[-8,-6] loop and off the ramp's z[8,10] footprint.
-    dispenser({ id: 'dispenser11b', side: 'e', wallAt: 9, along: 11, label: 'use the dispenser' }),
     // Safety dispenser, Z3 — no orderly ever reaches this zone.
     dispenser({ id: 'dispenser11c', side: 'w', wallAt: -9, along: -14, label: 'use the dispenser' }),
     lock.door,

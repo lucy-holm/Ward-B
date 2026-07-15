@@ -40,6 +40,11 @@ canvas { display: block; }
   font-size: 11px; letter-spacing: 0.08em; opacity: 0.85; text-align: center; max-width: 86vw;
   background: var(--panel); padding: 5px 10px; border-radius: 2px;
 }
+#roomLabel {
+  position: absolute; top: calc(12px + env(safe-area-inset-top)); right: 14px;
+  font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; opacity: 0.65;
+  background: var(--panel); padding: 5px 10px; border-radius: 2px;
+}
 #prompt {
   position: absolute; left: 50%; bottom: 22%; transform: translateX(-50%); font-size: 13px;
   letter-spacing: 0.06em; background: var(--panel); padding: 8px 14px; border-radius: 2px;

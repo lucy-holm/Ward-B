@@ -44,6 +44,7 @@ rb.solid(-4.48, -4.32, -3.68, -3.52);
 
 export const room9: RoomDef = {
   id: 'room9',
+  name: "the Doctor's Office",
   floor: { minX: -5, maxX: 5, minZ: -8, maxZ: 5 },
   spawn: { x: 0, z: 4.3, yaw: 0 },
   blocks: rb.blocks,

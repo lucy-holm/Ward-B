@@ -40,6 +40,12 @@ export interface OrderlyOptions {
   // keep each orderly's reachable XZ footprint on one level). Omitted ⇒
   // y=0 always, identical to every room shipped before this option existed.
   floorHeightAt?: (x: number, z: number) => number;
+  // Eye-glow tint (hex), default 0xffffff — the original uneven-white gauze
+  // look. Rooms with multiple orderlies sharing one space (e.g. room12's day
+  // hall, playtest 8: two counter-rotating patrols read as "one enemy
+  // teleporting") can give each a distinct tint so they're distinguishable
+  // as separate patrols from a distance, not just by path shape up close.
+  eyeTint?: number;
 }
 
 // Proportions for the unmed body: unnaturally tall and thin, arms hanging
@@ -226,7 +232,7 @@ interface UnmedBodyParts {
   armPivots: [THREE.Group, THREE.Group];
 }
 
-function buildUnmedBody(): UnmedBodyParts {
+function buildUnmedBody(eyeTint: number): UnmedBodyParts {
   const group = new THREE.Group();
   const skin = new THREE.MeshStandardMaterial({
     color: 0x0a0b09,
@@ -294,7 +300,7 @@ function buildUnmedBody(): UnmedBodyParts {
   // eye strip — uneven glow, like light through gauze, instead of a flat box
   const eyeMat = new THREE.MeshStandardMaterial({
     color: 0x141412,
-    emissive: 0xffffff,
+    emissive: eyeTint,
     emissiveMap: EYE_GAUZE_TEXTURE,
     emissiveIntensity: 0.4,
     roughness: 0.5,
@@ -441,7 +447,7 @@ export class Orderly {
     this.radius = options.radius ?? TUNING.orderly.radius;
     this.floorHeightAt = options.floorHeightAt;
 
-    const built = buildUnmedBody();
+    const built = buildUnmedBody(options.eyeTint ?? 0xffffff);
     this.unmedMesh = built.group;
     this.headGroup = built.headGroup;
     this.torso = built.torso;
@@ -486,17 +492,26 @@ export class Orderly {
     if (stepping) this.animClock += dt;
     const bodyYaw = Math.atan2(this.fx, this.fz);
 
-    if (this.mode === 'chase') {
+    // Contact catch: physical touch always catches an unmed player, no matter
+    // his current mode — patrol/chase/returning all count. This used to only
+    // fire inside the chase branch below, so sneaking up on him from outside
+    // his sight cone (or bumping a returning orderly) let the player clip
+    // straight through with no consequence. Gated on playerState === 'unmed'
+    // so "lucid is always safe" (see file header) holds regardless of mode —
+    // a lucid player can walk through his body with zero risk.
+    if (playerState === 'unmed') {
       const dx = playerX - this.x;
       const dz = playerZ - this.z;
       if (Math.hypot(dx, dz) < TUNING.orderly.catchRadius) {
         this.beginReturn();
         this.callbacks.onCaught();
       }
-    } else if (this.mode === 'patrol') {
+    }
+    if (this.mode === 'patrol') {
       this.updateSight(dt, playerX, playerZ, playerState);
     }
-    // mode === 'returning': ramp stays 0, no sight checks — he gave up.
+    // mode === 'returning': ramp stays 0, no sight checks — he gave up (but
+    // the contact check above still applies to him).
 
     // Presentation only, run after the sight/catch update above so gait and
     // head-tracking read this frame's fresh mode/ramp instead of last frame's.

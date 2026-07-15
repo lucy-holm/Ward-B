@@ -55,6 +55,7 @@ const ORDERLY_COLLIDERS: ColliderDef[] = rb.colliders.filter(
 
 export const room6: RoomDef = {
   id: 'room6',
+  name: 'the West Corridor',
   floor: { minX: -1.8, maxX: 14, minZ: -6.3, maxZ: 8 },
   spawn: { x: 0, z: 7, yaw: 0 },
   blocks: rb.blocks,

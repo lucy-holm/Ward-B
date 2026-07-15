@@ -32,6 +32,7 @@ rb.solid(-2.7, -1.7, 4.35, 5.05);
 
 export const room1: RoomDef = {
   id: 'room1',
+  name: 'the Cell',
   floor: { minX: -3, maxX: 3, minZ: -2, maxZ: 6 },
   spawn: { x: 0, z: 4, yaw: Math.PI },
   blocks: rb.blocks,

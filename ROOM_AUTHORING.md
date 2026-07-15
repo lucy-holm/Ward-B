@@ -142,6 +142,7 @@ const ORDERLY_COLLIDERS: ColliderDef[] = rb.colliders.filter(
 
 export const closetRoom: RoomDef = {
   id: 'closet',
+  name: 'the Closet',
   floor: { minX: -6, maxX: 6, minZ: -8, maxZ: 5 },
   spawn: { x: 0, z: 4, yaw: 0 },
   blocks: rb.blocks,
@@ -306,6 +307,7 @@ const lock = keypadDoor(rb, {
 
 export const closetRoom: RoomDef = {
   id: 'closet',
+  name: 'the Closet',
   floor: { minX: -6, maxX: 6, minZ: -8, maxZ: 5 },
   spawn: { x: 0, z: 4, yaw: 0 },
   blocks: rb.blocks,

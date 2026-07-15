@@ -64,7 +64,7 @@ const SQUEEZE_MIN_Z = -16;
 const SQUEEZE_MAX_Z = 16;
 const SQUEEZE_LEN = SQUEEZE_MAX_Z - SQUEEZE_MIN_Z;
 const SQUEEZE_MID_Z = (SQUEEZE_MIN_Z + SQUEEZE_MAX_Z) / 2;
-const MOUTH = { x: 0, z: 18 }; // attempt-reset teleport target, just north of the stretch
+const MOUTH = { x: 0, z: 18 }; // attempt-reset teleport target, just south of the stretch, outside it
 
 const rb = new RoomBuilder();
 
@@ -204,7 +204,7 @@ export const room13Script: Room13Script = (() => {
     wallMat = new THREE.MeshStandardMaterial({ color: 0x777d78, roughness: 0.95, metalness: 0 });
     const geo = new THREE.BoxGeometry(1, 3, SQUEEZE_LEN);
     wallEastMesh = new THREE.Mesh(geo, wallMat);
-    wallWestMesh = new THREE.Mesh(geo.clone(), wallMat);
+    wallWestMesh = new THREE.Mesh(geo, wallMat);
     wallEastMesh.position.set(0, 1.5, SQUEEZE_MID_Z);
     wallWestMesh.position.set(0, 1.5, SQUEEZE_MID_Z);
     ctx.scene.add(wallEastMesh);
@@ -215,8 +215,10 @@ export const room13Script: Room13Script = (() => {
     for (const m of [wallEastMesh, wallWestMesh]) {
       if (!m) continue;
       ctx.scene.remove(m);
-      m.geometry.dispose();
     }
+    // Both meshes share one BoxGeometry (and one material) — dispose each
+    // exactly once, not per mesh.
+    wallEastMesh?.geometry.dispose();
     wallMat?.dispose();
     wallEastMesh = null;
     wallWestMesh = null;
@@ -296,17 +298,17 @@ export const room13Script: Room13Script = (() => {
         }
         setWallGap(Math.max(W.minGapM / 2, halfGap - W.closePerSideMps * dt));
         const gap = halfGap * 2;
-        if (toastStage < 1 && gap <= W.warnGapM) {
-          toastStage = 1;
-          ctx.hud.toast('narrower than it was. it remembers.');
-        }
-        if (toastStage < 2 && gap <= W.tightGapM) {
-          toastStage = 2;
-          ctx.hud.toast('it will not fit you much longer.');
-        }
+        // Chained, most severe first, so a large dt spike fires exactly one
+        // of these per frame instead of stacking toasts before the crush.
         if (gap <= W.minGapM) {
           handleCrushed(ctx);
           return;
+        } else if (toastStage < 2 && gap <= W.tightGapM) {
+          toastStage = 2;
+          ctx.hud.toast('it will not fit you much longer.');
+        } else if (toastStage < 1 && gap <= W.warnGapM) {
+          toastStage = 1;
+          ctx.hud.toast('narrower than it was. it remembers.');
         }
       }
 
@@ -316,8 +318,13 @@ export const room13Script: Room13Script = (() => {
       // wall can never trap someone either.
       if (inStretch) {
         const maxX = halfGap - TUNING.player.radius;
-        if (p.x > maxX) ctx.teleportPlayer(maxX, p.z);
-        else if (p.x < -maxX) ctx.teleportPlayer(-maxX, p.z);
+        if (p.x > maxX) {
+          ctx.teleportPlayer(maxX, p.z);
+          p.x = maxX;
+        } else if (p.x < -maxX) {
+          ctx.teleportPlayer(-maxX, p.z);
+          p.x = -maxX;
+        }
       }
 
       if (!orderly) return;

@@ -18,9 +18,9 @@ import { TUNING } from '../tuning';
 // Three zones, south to north:
 //   Z1 the entry hall      z [16, 22] — spawn, safe, deliberately NO
 //                          dispenser: you cross with whatever you saved.
-//   the squeeze stretch    z [-16, 16] — the moving slabs + the orderly.
-//   Z3 the exit vestibule  z [-22, -16] — safe, no lock, no code; the open
-//                          doorway at z=-22 is the end of the game.
+//   the squeeze stretch    z [-24, 16] — the moving slabs + the orderly.
+//   Z3 the exit vestibule  z [-30, -24] — safe, no lock, no code; the open
+//                          doorway at z=-30 is the end of the game.
 //
 // THE WALLS: two room-owned meshes + two mutable ColliderDefs (room 3's
 // collider-mutation trick). Colliders give correct approach/sliding
@@ -35,32 +35,38 @@ import { TUNING } from '../tuning';
 // x=±1.5 lanes and his body can poke through them.
 //
 // EVASION (the 0-pill run must be provable, not just plausible): his loop
-// is a rectangle, lanes x=±1.5 z[-14,14] — southbound only on the east
-// lane, northbound only on the west. A player hugging the far side (|x|=3)
-// sits 4.5m off his active lane: at his max range 6m that bearing is
-// atan(4.5/6)=36.9° > 27.5° (half of TUNING.orderly.coneDeg), and bearing
-// only grows as he nears — outside the cone at every distance in range. The
-// only exposure is within ~6m of a cross leg (z=±14) while he walks it;
-// both are at the stretch's far ends, visible from >6m up a straight
-// corridor, so the wait is informed. COUPLING, intended: lucid spending
-// shrinks max |x|; below a ~4m gap the far-side hug stops clearing the cone
-// by geometry (need (halfGap-0.35)+1.5 > 6*tan(27.5°)=3.12m, i.e. halfGap >
-// 1.97) and passing degrades to loop-timing. Spending calm eats the raw
-// run's safety margin. That's the thesis.
+// is a rectangle, lanes x=±1.5 z[-22,14] — southbound on the east lane,
+// northbound on the west: he comes down the east lane head-on at anyone
+// entering from spawn, then loops back north up the west lane out of their
+// way. A player hugging the far side (|x|=3) sits 4.5m off his active
+// lane: at his max range 6m that bearing is atan(4.5/6)=36.9° > 27.5°
+// (half of TUNING.orderly.coneDeg), and bearing only grows as he nears —
+// outside the cone at every distance in range. The only exposure is within
+// ~6m of a cross leg (z=14 at the south end, z=-22 at the north) while he
+// walks it; both cross legs sit at the stretch's far ends, visible from
+// >6m up a straight corridor, so the wait is informed. COUPLING, intended:
+// lucid spending shrinks max |x|; below a ~4m gap the far-side hug stops
+// clearing the cone by geometry (need (halfGap-0.35)+1.5 >
+// 6*tan(27.5°)=3.12m, i.e. halfGap > 1.97) and passing degrades to
+// loop-timing. Spending calm eats the raw run's safety margin. That's the
+// thesis.
 //
 // SOFT-LOCK AUDIT: no unmed-sealed colliders anywhere in the room, so the
 // medication timer's revert can never be geometry-blocked and a raw player
-// is never stranded — the slabs exist in both states and unmed only ever
-// halts them. Crush → forced unmed (the always-safe default), teleport to
-// the corridor mouth, full-width reset, pills kept. Catch → forced lucid,
-// same teleport (the mouth is OUTSIDE the stretch, so walls don't close
-// while you collect yourself), same full-width reset, pills kept. Both
-// penalties restart the attempt; neither can dead-end it. No dispenser is
-// needed and none is provided — that is the room's design, not a gap.
+// is never stranded — the slabs exist in both states, and at rest (not
+// actively closing) they always leave a >=minGapM walkable gap. Crush AND
+// Catch both force LUCID, teleport to the corridor mouth (OUTSIDE the
+// stretch, so the walls hold instead of closing while you reorient),
+// full-width reset, pills kept — neither penalty hands the player the
+// passing state. From the mouth a lucid player either shifts unmed for
+// free (no dispenser needed, none is provided) or lets the medication
+// timer wear the pill off into unmed on its own; either way nothing in the
+// room can strand them mid-decision. Both penalties restart the attempt;
+// neither can dead-end it.
 
 const W = TUNING.lastWard;
 const SHELL_X = 4; // perimeter walls at ±4
-const SQUEEZE_MIN_Z = -16;
+const SQUEEZE_MIN_Z = -24;
 const SQUEEZE_MAX_Z = 16;
 const SQUEEZE_LEN = SQUEEZE_MAX_Z - SQUEEZE_MIN_Z;
 const SQUEEZE_MID_Z = (SQUEEZE_MIN_Z + SQUEEZE_MAX_Z) / 2;
@@ -70,16 +76,16 @@ const rb = new RoomBuilder();
 
 // Z1 — the entry hall. x [-4,4] z [16,22].
 rb.wallX(-SHELL_X, SHELL_X, 22); // south cap, behind spawn
-rb.wallZ(-24, 22, -SHELL_X); // west perimeter, full length
-rb.wallZ(-24, 22, SHELL_X); // east perimeter, full length
+rb.wallZ(-32, 22, -SHELL_X); // west perimeter, full length
+rb.wallZ(-32, 22, SHELL_X); // east perimeter, full length
 
 // Z3 — the exit vestibule. North cap with the final open doorway.
-rb.wallX(-SHELL_X, -1, -22);
-rb.wallX(1, SHELL_X, -22);
-rb.wallZ(-24, -22, -1);
-rb.wallZ(-24, -22, 1);
-rb.wallX(-1, 1, -24);
-rb.block([1.8, 2.6, 0.06], [0, 1.4, -23.8], 'glow'); // the way out
+rb.wallX(-SHELL_X, -1, -30);
+rb.wallX(1, SHELL_X, -30);
+rb.wallZ(-32, -30, -1);
+rb.wallZ(-32, -30, 1);
+rb.wallX(-1, 1, -32);
+rb.block([1.8, 2.6, 0.06], [0, 1.4, -31.8], 'glow'); // the way out
 
 // The moving walls — colliders only here; the meshes are room-owned (built
 // in onEnter, updated per frame, disposed in onLeave) because World.loadRoom
@@ -112,14 +118,14 @@ const ORDERLY_COLLIDERS: ColliderDef[] = rb.colliders.filter(
 export const room13: RoomDef = {
   id: 'room13',
   name: 'the Last Ward',
-  floor: { minX: -SHELL_X, maxX: SHELL_X, minZ: -24, maxZ: 22 },
+  floor: { minX: -SHELL_X, maxX: SHELL_X, minZ: -32, maxZ: 22 },
   spawn: { x: 0, z: 20, yaw: 0 },
   blocks: rb.blocks,
   colliders: rb.colliders,
   scrawls: [
     scrawl('the last hallway.\nnothing left to take.', 'w', -SHELL_X, 19, { size: 2.6 }),
     scrawl('the calm makes it smaller.\nthe raw makes it watched.', 'e', SHELL_X, 19, { size: 2.8, big: true }),
-    scrawl('it lets you out.\nit just wanted to see you choose.', 'w', -SHELL_X, -19, { size: 2.4 }),
+    scrawl('it lets you out.\nit just wanted to see you choose.', 'w', -SHELL_X, -27, { size: 2.4 }),
   ],
   interactables: [],
   lights: [
@@ -130,21 +136,25 @@ export const room13: RoomDef = {
     { pos: [0, -2] },
     { pos: [0, -8] },
     { pos: [0, -14] },
-    { pos: [0, -18] },
-    { pos: [0, -21] },
+    { pos: [0, -20] },
+    { pos: [0, -24] },
+    { pos: [0, -26] },
+    { pos: [0, -29] },
   ],
-  exits: [{ to: 'END', minX: -1, maxX: 1, minZ: -23.9, maxZ: -22.8 }],
+  exits: [{ to: 'END', minX: -1, maxX: 1, minZ: -31.9, maxZ: -30.8 }],
 };
 
-// Rectangle loop: southbound on the east lane, cross, northbound on the
-// west lane, cross — see the EVASION header note for the cone math this
+// Rectangle loop, starting (waypoints[0]) at the north end of the east
+// lane: southbound on the east lane straight at anyone entering from
+// spawn, cross at the south end, northbound on the west lane back up, cross
+// at the north end — see the EVASION header note for the cone math this
 // shape guarantees.
 const WAYPOINTS = patrol(
   [
+    { x: 1.5, z: -22 },
     { x: 1.5, z: 14 },
-    { x: 1.5, z: -14 },
-    { x: -1.5, z: -14 },
     { x: -1.5, z: 14 },
+    { x: -1.5, z: -22 },
   ],
   rb.colliders,
 );
@@ -235,11 +245,11 @@ export const room13Script: Room13Script = (() => {
   }
 
   function handleCrushed(ctx: GameCtx): void {
-    ctx.state.forceState('unmed');
+    ctx.state.forceState('lucid');
     ctx.shiftFx();
     ctx.teleportPlayer(MOUTH.x, MOUTH.z);
     resetAttempt();
-    ctx.hud.toast('the corridor closes like a throat. somewhere, you are put back.');
+    ctx.hud.toast('the corridor closes like a throat. it starts you over, calm.');
     ctx.telemetry.event('wall_crushed');
   }
 
@@ -271,6 +281,13 @@ export const room13Script: Room13Script = (() => {
       buildWalls(ctx);
       resetAttempt();
       sawUnmedToast = false;
+      // Arrive lucid — free, refills the meter, costs no pill — so the room
+      // never hands the player which state is the one that survives the
+      // stretch; that's theirs to find out. Same forced-entry pattern as
+      // room11/room12's onEnter, just the other state.
+      ctx.state.forceState('lucid');
+      ctx.shiftFx();
+      ctx.hud.toast("you're calm. it decided that for you.");
       ctx.hud.setObjective(
         'the last ward. one corridor between you and out. neither state will carry you the whole way.',
       );

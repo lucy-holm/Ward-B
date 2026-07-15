@@ -22,6 +22,23 @@ export const TUNING = {
     // Seconds-remaining threshold at which the HUD/audio warning kicks in.
     warnSec: 12,
   },
+  lastWard: {
+    // Room 13's closing walls. The corridor's walkable gap starts at
+    // startGapM and, while the player is lucid inside the squeeze stretch,
+    // narrows at closePerSideMps per side (2x combined). It never widens
+    // until the attempt resets. Reaching minGapM while lucid in the stretch
+    // is a crush: forced unmed + teleport to the corridor mouth + full-width
+    // reset, pills kept. Budget check: (5.0-1.0)/(2*0.25) = 8s of total
+    // lucid per attempt — deliberately less than the ~11.8s a straight
+    // lucid walk of the 32m stretch + approach would need at player speed
+    // 3.4, so "shift once and coast" cannot clear it.
+    startGapM: 5.0,
+    minGapM: 1.0, // player diameter 0.7 + 0.3 buffer
+    closePerSideMps: 0.25,
+    // one-time warning toast thresholds (gap width, m)
+    warnGapM: 3.5,
+    tightGapM: 2.0,
+  },
   camera: {
     fov: 72,
     shiftFovKick: 82,    // fov snaps here on shift, eases back in Renderer.update

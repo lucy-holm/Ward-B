@@ -31,11 +31,12 @@ export class Hud {
   // -1 means "not yet shown" so the very first call never flashes.
   private prevPillCount = -1;
   // Tracks the last capacity shown, same -1-means-"not yet shown" convention
-  // as prevPillCount, but kept separate: a capacity upgrade (room9's coat)
-  // doesn't necessarily change the pill *count* (upgradeCapacity never tops
-  // you up), so the ordinary flash-on-count-change above can silently miss
-  // it — the dot just appears with no fanfare. setPills checks this
-  // independently and pops the newly-added slot(s) whenever max grows.
+  // as prevPillCount, but kept separate: if max ever grows, the new dot
+  // would appear without the count changing, so the ordinary
+  // flash-on-count-change above would silently miss it. setPills checks
+  // this independently and pops the newly-added slot(s) whenever max grows.
+  // (Dormant since playtest 9 fixed capacity at 1 game-wide — kept because
+  // it's the generic mechanism, not a feature of any current room.)
   private prevMax = -1;
 
   // Threat presentation state — smoothed level plus threshold-crossing flags

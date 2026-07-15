@@ -11,7 +11,6 @@ export const TUNING = {
   },
   pills: {
     max: 1,
-    upgradedMax: 2,
   },
   medication: {
     // Seconds a fresh pill's lucidity lasts before it wears off and forces

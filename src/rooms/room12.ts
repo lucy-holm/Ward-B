@@ -5,16 +5,22 @@ import { openKeypad } from '../ui/keypad';
 import { Orderly, type OrderlyAABB } from '../game/orderly';
 
 // ROOM 12 — the Asylum Floor. The finale. Biggest footprint in the game
-// (roughly 20-24m wide, 74m north-south, versus room 10's 19.2x36) and the
-// double-spend from room 11 played at full scale: instead of one small
-// chamber between two gates, the WHOLE middle of the floor — the solo
-// chamber and the big hall, two orderlies' worth of ground and both code
-// halves — sits between GATE B and GATE C with no dispenser anywhere in
-// between. One pill does not survive that stretch. Two barely does.
+// (roughly 20-24m wide, 74m north-south, versus room 10's 19.2x36). Pill
+// capacity is 1 game-wide now, so this room no longer runs room 11's
+// carry-both double-spend — it runs a one-pill economy instead. The WHOLE
+// middle of the floor — the solo chamber and the big hall, two orderlies'
+// worth of ground and both code halves — still sits between GATE B and
+// GATE C, but the pocket now holds exactly one station, dispenser12c, just
+// south of GATE B. Bank there and the one pill you're carrying is enough to
+// pay both gates and read both codes unmed in between; skip it, or burn
+// your pill before you reach it, and the only station left in reach is
+// back at the near end of a ~44m two-chamber stretch with three orderlies
+// standing in the way.
 //
 // Five chambers, north to south:
 //   Z1 the entry hall     (spawn, dispenser A, safe)
-//   Z2 the quiet ward     (orderly C, alone, code half 1 in an east nook)
+//   Z2 the quiet ward     (orderly C, alone; dispenser12c just south of
+//                           GATE B; code half 1 in an east nook)
 //   Z3 the day hall       (orderlies A + B, counter-rotating, code half 2 in
 //                           an east nook)
 //   Z4 the supply room    (dispenser B, safe — the far side of the stretch)
@@ -23,16 +29,17 @@ import { Orderly, type OrderlyAABB } from '../game/orderly';
 // Same forced-unmed-at-entry trick as room 11, same reason: room 11 ends on
 // its keypad (lucid), and without forcing raw at the threshold a player who
 // never shifts before GATE B would cross it for free, breaking the
-// mandatory spend. Intended solve:
+// mandatory spend on GATE B. Intended solve:
 //
-//   forced unmed at spawn -> dispenser A (still unmed, top to 2, 0 spent)
-//   -> GATE B, sealed -> shift lucid (-1, 1 left) -> cross
+//   forced unmed at spawn -> dispenser A (still unmed, top to 1, 0 spent)
+//   -> GATE B, sealed -> shift lucid (-1, 0 left) -> cross
+//   -> dispenser12c, just south of the gate -> bank (0 -> 1)
 //   -> Z2: shift unmed (free), read half 1, evade orderly C
 //   -> Z3: still unmed (or re-shift free), read half 2, evade A + B
 //   -> GATE C, sealed (you're unmed from reading half 2) -> shift lucid
 //      (-1, 0 left) -> cross -> already lucid, keypad needs nothing further
-//   -> dispenser B sits right there if you want a buffer, but the finale
-//      door doesn't need it
+//   -> dispenser B sits right there in Z4 if you want a buffer, but the
+//      finale door doesn't need it
 //
 // WALK-BACK: both gates are unmed-sealed only, exactly like room 11 — a
 // lucid player can always retreat through either one, in either direction,
@@ -45,27 +52,37 @@ import { Orderly, type OrderlyAABB } from '../game/orderly';
 // forced lucid, teleported to spawn, pills kept -> dispenser A is inside the
 // same open hall as the spawn point, no gate between it and you.
 //
-// TIMER SOFT-LOCK AUDIT (medication-wears-off pass): same problem as room 11,
-// at this room's scale. Lucidity now expires on its own after ~45s, so the
-// "unmed-and-broke" case above no longer needs a misplay to reach it — cross
-// GATE B lucid, spend the crossing reading a code half or losing an orderly,
-// and the clock can revoke lucid while you're still deep in Z2 or Z3. An
-// earlier pass added dispenser12c (Z2) and dispenser12d (Z3) to backstop
-// that — playtest 8 confirmed that let a player top back off just past GATE B
-// (or just before GATE C) without ever carrying both pills at once, quietly
-// undoing the "nothing between here and the far side will refill you" rule
-// the whole floor is built around. Removed both. The real escape for a raw
-// revert stranded in Z2/Z3 is the "get caught" fallback already described
-// above (forced lucid, teleported to spawn, pills kept) — every room in this
-// game already relies on that same mechanic for exactly this situation, so
-// it isn't a gap this room needed a dispenser to close.
+// TIMER SOFT-LOCK AUDIT (medication-wears-off pass, updated for the 1-pill
+// cap): same problem as room 11, at this room's scale, sharpened by the
+// capacity cut. Lucidity expires on its own after ~45s, so cross GATE B
+// lucid, spend the crossing reading a code half or losing an orderly, and
+// the clock can revoke lucid while you're still deep in Z2 or Z3 — and at
+// 1-pill capacity there is no second pill in reserve to shift back with, so
+// a station has to be reachable inside the pocket, unmedicated, or the
+// stretch is a soft-lock. dispenser12c (Z2, just south of GATE B) is back to
+// cover that. It isn't just a timer backstop anymore, either — the one-pill
+// solve above depends on banking there, so it's the load-bearing station for
+// the whole GATE B/GATE C stretch, not a safety net on top of one.
+// dispenser12d (Z3) stays gone, deliberately: this is a pressure placement,
+// not an oversight — per playtest 9, "put the medical station quite far back
+// so that if the player doesn't time it well and becomes unmedicated without
+// pills, they have to traverse back through a bunch of orderlies." The
+// pocket gets exactly one station and it sits at the near end, not one per
+// chamber. A raw revert stranded deep in Z3 by GATE C means walking back
+// through Z3's two orderlies and Z2's one to reach dispenser12c — the Z2/Z3
+// boundary is an open doorway, not a gate, so the walk is always available —
+// but it is a long walk, not a dead end. And if that walk goes wrong, the
+// "get caught" fallback described in the WALK-BACK note above still applies
+// (forced lucid, teleported to spawn, pills kept) — the same mechanic every
+// room in this game relies on for exactly this situation.
 
 const CODE = '8563';
 
 const rb = new RoomBuilder();
 
 // Z1 — the entry hall. x [-10,10] z [36,46]. Dispenser A; the last cabinet
-// until Z4, on the far side of both gates and every orderly on the floor.
+// on this side of GATE B and every orderly on the floor. dispenser12c, just
+// inside Z2, is the next one after it.
 rb.wallX(-10, 10, 46); // south cap, behind spawn
 rb.wallZ(36, 46, -10); // west wall
 rb.wallZ(36, 46, 10); // east wall
@@ -142,7 +159,7 @@ rb.block([4, 3, 0.24], [0, 1.5, -8], 'wall', 'unmed');
 rb.solid(-2, 2, -8.12, -7.88, 'unmed');
 
 // Z4 — the supply room. x [-10,10] z [-18,-8]. Safe. Dispenser B — the first
-// cabinet since Z1.
+// cabinet since dispenser12c, back in Z2.
 rb.wallZ(-18, -8, -10);
 rb.wallZ(-18, -8, 10);
 
@@ -179,7 +196,7 @@ export const room12: RoomDef = {
   colliders: rb.colliders,
   scrawls: [
     {
-      text: "nothing between here and the far\nside will refill you. carry both.",
+      text: 'one cabinet past the first gate.\nnothing after it. remember.',
       size: 2.8,
       pos: [-9.86, 1.7, 38],
       rotY: Math.PI / 2,
@@ -223,6 +240,26 @@ export const room12: RoomDef = {
       type: 'dispenser',
       size: [0.16, 0.75, 0.55],
       pos: [-9.72, 1.45, -13],
+      mat: 'dispenser',
+      states: 'both',
+      facing: 'px',
+      label: 'use the dispenser',
+    },
+    {
+      // The pocket's one station — see the TIMER SOFT-LOCK AUDIT note above.
+      // Load-bearing for the one-pill solve now, not just a timer backstop:
+      // this is where the pill spent on GATE B gets replaced before the long
+      // unmedicated crossing to GATE C. Flush on the west wall, just south
+      // of GATE B and north of orderly C's patrol rectangle (z<=33.5, so
+      // z=35 clears it by 1.5m) and west of his x=-7 leg — well off the path
+      // to nook C on the east wall. dispenser12d (Z3) is deliberately not
+      // restored alongside it — the pocket gets exactly one station, placed
+      // near, so a mistimed revert deep in Z3 costs a long walk back through
+      // every orderly on the floor instead of a short one.
+      id: 'dispenser12c',
+      type: 'dispenser',
+      size: [0.16, 0.75, 0.55],
+      pos: [-9.72, 1.45, 35],
       mat: 'dispenser',
       states: 'both',
       facing: 'px',
@@ -407,7 +444,7 @@ export const room12Script: Room12Script = (() => {
       ctx.shiftFx();
       ctx.hud.toast('the floor swims into focus. still raw.');
       ctx.hud.setObjective(
-        'the asylum floor. the last of it. two of them share the big hall; a third keeps his own room. carry enough for both gates before you cross the first.',
+        "the asylum floor. the last of it. two of them share the big hall; a third keeps his own room. one cabinet waits just past the first gate — after that, it's a long dry stretch to the far side.",
       );
     },
 

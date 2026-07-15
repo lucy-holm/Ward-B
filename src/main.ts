@@ -211,15 +211,14 @@ function endOfBuild(): void {
   hud.setPrompt(null);
   telemetry.flush();
   hud.showEndCard(
-    'END OF MILESTONE 8',
+    'END OF MILESTONE 9',
     'NEITHER STATE WAS SAFE.',
     `<em>PLAYTEST — tell the devs:</em><br><br>
      1 · Room 13: did you actually alternate states under pressure, or did one state carry you through — and if so, which?<br>
      2 · The walls never give back what they take. Did that change how you rationed lucid, or did it just feel punishing?<br>
      3 · No dispenser in room 13 — you crossed with whatever you saved. Did the earlier rooms' spending suddenly matter?<br>
-     4 · Rooms 11 and 12 again, now with nothing to refill on between the gates — did carrying two pills finally feel like a plan you had to make?<br>
-     5 · Touching an orderly now always catches you, not just when he's chasing. Fair, or did it ever feel cheap?<br>
-     6 · You ended with ${state.pills}/${state.maxPills} pills. Was there a moment you counted them before committing to something?`,
+     4 · Rooms 11 and 12 again, now with one pocket and nothing to refill on between the gates — did that crossing feel like a single decision instead of a plan?<br>
+     5 · You ended with ${state.pills}/${state.maxPills} pills. Was there a moment you sat on your one pill instead of spending it right away?`,
     'READMIT',
     () => location.reload(),
   );

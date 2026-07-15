@@ -2,15 +2,16 @@ import { RoomBuilder } from './build';
 import type { ColliderDef, RoomDef, RoomScript } from './types';
 import type { GameCtx } from '../game/context';
 import { openKeypad } from '../ui/keypad';
-import { TUNING } from '../tuning';
 
 // ROOM 9 — the Doctor's Office. A breather after the east ward: no orderly,
-// nothing hunting. The point of the room is the coat on the rack — search it
-// and the capacity upgrade lands here, mid-room, with nothing chasing you so
-// it actually registers. The exit still asks for the established two things
-// (a code, read raw; a keypad, worked calm) so the player leaves having felt
-// the oscillation once while it's still free of consequence, right before
-// room 10 makes it expensive.
+// nothing hunting. The coat on the rack holds a found pill — a small, calm
+// beat with nothing chasing you so it actually registers (playtest 9 cut
+// the room's old capacity-upgrade payoff along with two-pill carry; one
+// pocket is enough at this level of complexity, so the coat is just a top-up
+// now). The exit still asks for the established two things (a code, read
+// raw; a keypad, worked calm) so the player leaves having felt the
+// oscillation once while it's still free of consequence, right before room
+// 10 makes it expensive.
 
 const CODE = '5216';
 
@@ -56,8 +57,9 @@ export const room9: RoomDef = {
   ],
   interactables: [
     {
-      // Bespoke pickup, intercepted in onInteract below — grants the
-      // capacity upgrade instead of a pill.
+      // Bespoke pickup, intercepted in onInteract below — a loose pill in
+      // the coat pocket, guarded (like the dispenser) against granting one
+      // when already full.
       id: 'bottle',
       type: 'pill_pickup',
       size: [0.22, 0.28, 0.22],
@@ -147,17 +149,20 @@ export const room9Script: RoomScript = (() => {
       if (id === 'bottle') {
         if (bottleTaken) return true;
         bottleTaken = true;
-        ctx.state.upgradeCapacity(TUNING.pills.upgradedMax);
         ctx.removeInteractable('bottle');
-        // Capacity changed but the pill count didn't (upgradeCapacity never
-        // tops you up) — refresh the HUD explicitly so the second dot shows
-        // up right now, not on the next incidental setPills call. Hud.setPills
-        // detects the capacity growth itself and pops the new slot.
-        ctx.hud.setPills(ctx.state.pills, ctx.state.maxPills, ctx.state.canShift);
-        ctx.hud.pillPopup('two pockets now');
-        ctx.hud.toast("someone's coat. two pockets, both lined with foil — you can carry a spare now.");
-        ctx.telemetry.event('capacity_upgrade');
-        ctx.hud.setObjective("two pockets now — you can carry two pills at once. the code is written where you can't read it clean.");
+        const wasFull = ctx.state.pills >= ctx.state.maxPills;
+        if (!wasFull) {
+          ctx.state.refill();
+          ctx.hud.setPills(ctx.state.pills, ctx.state.maxPills, ctx.state.canShift);
+          ctx.hud.pillPopup('+1 pill');
+        }
+        ctx.hud.toast(
+          wasFull
+            ? "someone's coat, one pocket lined with foil. already empty — you're carrying all it had."
+            : "someone's coat, one pocket lined with foil. a pill, loose. pocketed."
+        );
+        ctx.telemetry.event('coat_pill_found');
+        ctx.hud.setObjective("the code is written where you can't read it clean.");
         return true;
       }
       if (id === 'keypad9') {
@@ -176,7 +181,7 @@ export const room9Script: RoomScript = (() => {
             ctx.moveInteractable('exitdoor', [-1, 1.5, -6.85], Math.PI / 2);
             doorCollider.minX = 999;
             doorCollider.maxX = 999.2;
-            ctx.hud.toast('5216. someone else needed two, once.');
+            ctx.hud.toast('5216. someone else needed reminding, once.');
             ctx.hud.setObjective('the door is open. go.');
             ctx.telemetry.event('door_opened');
           },

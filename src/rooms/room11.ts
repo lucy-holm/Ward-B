@@ -226,7 +226,7 @@ export const room11: RoomDef = {
   heightZones: [PLATFORM],
   ramps: [PLATFORM_RAMP],
   scrawls: [
-    scrawl('two doors ahead. no cabinets\nbetween them. carry both.', 'w', -9, 17),
+    scrawl('two doors ahead. one cabinet\nbetween them. find it.', 'w', -9, 17),
     scrawl("the hallway forgets\nhow long it's been", 'w', -9, 20, { size: 2.4 }),
     scrawl('something keeps the low floor.\nsomething else keeps the high one.', 'e', 9, 13, { size: 2.6 }),
     scrawl('the floor climbs on the east.\nhe never follows it up.', 'e', 9, 10.5, { size: 2.6 }),
@@ -239,6 +239,14 @@ export const room11: RoomDef = {
   ],
   interactables: [
     dispenser({ id: 'dispenser11', side: 'e', wallAt: 9, along: 17, label: 'use the dispenser' }),
+    // INTERIM (playtest 9): capacity is 1 game-wide now, so the two-gate
+    // pocket needs an in-pocket station or GATE 2 can never be paid —
+    // dispenser11b restored (east wall, 1m south of GATE 1, clear of orderly
+    // LOWER's x[-8,-6] loop and the ramp footprint). The header's
+    // double-spend narrative is stale with it; this whole room is queued for
+    // a two-storey rebuild on the stacked-floors engine, so the header gets
+    // rewritten then rather than twice.
+    dispenser({ id: 'dispenser11b', side: 'e', wallAt: 9, along: 11, label: 'use the dispenser' }),
     // Safety dispenser, Z3 — no orderly ever reaches this zone.
     dispenser({ id: 'dispenser11c', side: 'w', wallAt: -9, along: -14, label: 'use the dispenser' }),
     lock.door,

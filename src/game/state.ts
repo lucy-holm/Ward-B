@@ -68,11 +68,4 @@ export class StateSystem {
     this.pills = this.maxPills;
     return this.pills;
   }
-
-  // Raises the pill capacity (e.g. room 9's coat-pocket find). Never lowers
-  // it and never touches the current count — a later refill/dispenser tops
-  // up to the new max on its own.
-  upgradeCapacity(newMax: number): void {
-    if (newMax > this.maxPills) this.maxPills = newMax;
-  }
 }

@@ -25,6 +25,7 @@ import { room9, room9Script } from './rooms/room9';
 import { room10, room10Script } from './rooms/room10';
 import { room11, room11Script } from './rooms/room11';
 import { room12, room12Script } from './rooms/room12';
+import { room13, room13Script } from './rooms/room13';
 
 // RoomScript is frozen (rooms/types.ts). room4/room5 own an NPC with
 // scene-level resources that need an explicit teardown hook the base
@@ -45,6 +46,7 @@ const rooms: Record<string, { def: RoomDef; script: AnyRoomScript }> = {
   room10: { def: room10, script: room10Script },
   room11: { def: room11, script: room11Script },
   room12: { def: room12, script: room12Script },
+  room13: { def: room13, script: room13Script },
 };
 
 const container = document.getElementById('game')!;

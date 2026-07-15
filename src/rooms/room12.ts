@@ -273,7 +273,7 @@ export const room12: RoomDef = {
     { pos: [0, -23] },
     { pos: [0, -26] },
   ],
-  exits: [{ to: 'END', minX: -1, maxX: 1, minZ: -27.9, maxZ: -26.8 }],
+  exits: [{ to: 'room13', minX: -1, maxX: 1, minZ: -27.9, maxZ: -26.8 }],
 };
 
 // Orderly C — Z2, alone. West leg at x=-7, a flat 7m off nook C (mouth x=10).

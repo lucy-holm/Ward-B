@@ -211,15 +211,15 @@ function endOfBuild(): void {
   hud.setPrompt(null);
   telemetry.flush();
   hud.showEndCard(
-    'END OF MILESTONE 7',
-    'TWO POCKETS. NEVER ENOUGH FLOOR.',
+    'END OF MILESTONE 8',
+    'NEITHER STATE WAS SAFE.',
     `<em>PLAYTEST — tell the devs:</em><br><br>
-     1 · Room 11 sat you down with one dispenser, then two locked doors and nothing between them — did that force you to actually bank both pills before crossing, or did you find a way around carrying two?<br>
-     2 · Room 12 stretched the same trick across two whole chambers, both code halves, and three orderlies before the next cabinet — did scarcity change how you planned the crossing, or did it just feel like more of the same?<br>
-     3 · The day hall ran two of them on counter-rotating loops — did that read as two independent patrols, or did they blur into one shape?<br>
-     4 · Three orderlies on one floor — fair, or did it tip into overwhelming? Where did the tension peak?<br>
-     5 · Room 12 is the biggest room in the game — did the size and pacing hold up, or did any single stretch drag?<br>
-     6 · You ended with ${state.pills}/${state.maxPills} pills — was there ever a point the two-pill capacity actually felt like a budget, not just a buffer?`,
+     1 · Room 13: did you actually alternate states under pressure, or did one state carry you through — and if so, which?<br>
+     2 · The walls never give back what they take. Did that change how you rationed lucid, or did it just feel punishing?<br>
+     3 · No dispenser in room 13 — you crossed with whatever you saved. Did the earlier rooms' spending suddenly matter?<br>
+     4 · Rooms 11 and 12 again, now with nothing to refill on between the gates — did carrying two pills finally feel like a plan you had to make?<br>
+     5 · Touching an orderly now always catches you, not just when he's chasing. Fair, or did it ever feel cheap?<br>
+     6 · You ended with ${state.pills}/${state.maxPills} pills. Was there a moment you counted them before committing to something?`,
     'READMIT',
     () => location.reload(),
   );

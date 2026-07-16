@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>WARD B — room map (dev)</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; }
+    html, body { height: 100%; }
+    body {
+      display: flex; background: #14171a; color: #b8c0ba;
+      font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+    #panel {
+      width: 250px; flex: none; padding: 14px; overflow-y: auto;
+      border-right: 1px solid #262b26;
+    }
+    #panel h1 { font-size: 14px; margin-bottom: 10px; color: #d7ddd5; }
+    #room-select { width: 100%; margin-bottom: 12px; background: #1d221d; color: inherit; border: 1px solid #333a33; padding: 4px; font: inherit; }
+    #layers label { display: block; margin: 2px 0; cursor: pointer; user-select: none; }
+    #error {
+      margin-top: 12px; padding: 8px; border: 1px solid #7a3a34;
+      color: #e0897f; white-space: pre-wrap; word-break: break-word; font-size: 11px;
+    }
+    #hint { margin-top: 14px; color: #5c665e; font-size: 11px; }
+    #viewport { flex: 1; min-width: 0; }
+    #viewport svg { width: 100%; height: 100%; display: block; }
+  </style>
+</head>
+<body>
+  <aside id="panel">
+    <h1>WARD B — room map</h1>
+    <select id="room-select"></select>
+    <div id="layers"></div>
+    <div id="error" hidden></div>
+    <p id="hint">dev-only — not in the build.<br />edit a room .ts and save; this page reloads.</p>
+  </aside>
+  <main id="viewport"></main>
+  <script type="module" src="/src/devtools/map.ts"></script>
+</body>
+</html>

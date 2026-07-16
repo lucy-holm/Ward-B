@@ -58,7 +58,7 @@ Each layer is one `<g>`, toggled by a checkbox (hidden via CSS class):
   block has no collider overlapping its footprint (mesh-only geometry reads
   differently from solid).
 - **height zones / ramps** — shaded regions labeled with `y`; ramps get a
-  gradient plus an arrow along their axis from `yLow` to `yHigh`.
+  direction arrow along their axis with `yLow`/`yHigh` labels at each end.
 - **patrols** — per `DebugPatrol`: a distinct color, the waypoint loop as a
   polyline with numbered dots, and a translucent sight-radius band swept
   along each leg (radius = `sightRange` ?? `TUNING.orderly.sightRange`).

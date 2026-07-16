@@ -371,6 +371,7 @@ const PATROL_COLORS = ['#e05555', '#e0a83f', '#4fc3dd', '#b06fe0'];
 
 function drawPatrols(g: SVGGElement, patrols: DebugPatrol[]): void {
   patrols.forEach((p, i) => {
+    if (p.waypoints.length === 0) return;
     const color = PATROL_COLORS[i % PATROL_COLORS.length];
     const range = p.sightRange ?? TUNING.orderly.sightRange;
     const pts = [...p.waypoints, p.waypoints[0]]; // closed loop
@@ -423,45 +424,53 @@ function render(slot: RoomSlot, layers: Set<LayerId>): void {
   }
   errorBox.hidden = true;
 
-  const { def, patrols } = slot.room;
-  const f = def.floor;
-  const M = 2.5; // margin (m) around the floor for out-of-bounds labels
-  const svg = el('svg', {
-    viewBox: `${f.minX - M} ${f.minZ - M} ${f.maxX - f.minX + 2 * M} ${f.maxZ - f.minZ + 2 * M}`,
-  });
-  svg.appendChild(
-    rect(f.minX, f.minZ, f.maxX, f.maxZ, { fill: '#1c211c' },
-      `floor x[${f.minX}, ${f.maxX}] z[${f.minZ}, ${f.maxZ}]`),
-  );
+  // Draw-time errors (bad-but-importable room data) get the same
+  // treatment as import-time errors in loadRoom: show, don't blank.
+  try {
+    const { def, patrols } = slot.room;
+    const f = def.floor;
+    const M = 2.5; // margin (m) around the floor for out-of-bounds labels
+    const svg = el('svg', {
+      viewBox: `${f.minX - M} ${f.minZ - M} ${f.maxX - f.minX + 2 * M} ${f.maxZ - f.minZ + 2 * M}`,
+    });
+    svg.appendChild(
+      rect(f.minX, f.minZ, f.maxX, f.maxZ, { fill: '#1c211c' },
+        `floor x[${f.minX}, ${f.maxX}] z[${f.minZ}, ${f.maxZ}]`),
+    );
 
-  const defs = el('defs');
-  const marker = el('marker', {
-    id: 'arrow', markerWidth: 6, markerHeight: 6,
-    refX: 5, refY: 3, orient: 'auto', markerUnits: 'strokeWidth',
-  });
-  marker.appendChild(el('path', { d: 'M0,0 L6,3 L0,6 Z', fill: '#b3c996' }));
-  defs.appendChild(marker);
-  svg.appendChild(defs);
+    const defs = el('defs');
+    const marker = el('marker', {
+      id: 'arrow', markerWidth: 6, markerHeight: 6,
+      refX: 5, refY: 3, orient: 'auto', markerUnits: 'strokeWidth',
+    });
+    marker.appendChild(el('path', { d: 'M0,0 L6,3 L0,6 Z', fill: '#b3c996' }));
+    defs.appendChild(marker);
+    svg.appendChild(defs);
 
-  const groups = new Map<LayerId, SVGGElement>();
-  for (const l of LAYERS) {
-    const g = el('g', { id: `layer-${l.id}` });
-    if (!layers.has(l.id)) g.setAttribute('display', 'none');
-    groups.set(l.id, g);
-    svg.appendChild(g);
+    const groups = new Map<LayerId, SVGGElement>();
+    for (const l of LAYERS) {
+      const g = el('g', { id: `layer-${l.id}` });
+      if (!layers.has(l.id)) g.setAttribute('display', 'none');
+      groups.set(l.id, g);
+      svg.appendChild(g);
+    }
+
+    drawGrid(groups.get('grid')!, f);
+    drawHeight(groups.get('height')!, def);
+    drawColliders(groups.get('colliders')!, def);
+    drawBlocks(groups.get('blocks')!, def);
+    drawPatrols(groups.get('patrols')!, patrols);
+    drawSpawnExits(groups.get('spawnexits')!, def);
+    drawInteractables(groups.get('interactables')!, def);
+    drawScrawls(groups.get('scrawls')!, def);
+    drawLights(groups.get('lights')!, def);
+
+    viewport.appendChild(svg);
+  } catch (e) {
+    viewport.replaceChildren();
+    errorBox.hidden = false;
+    errorBox.textContent = e instanceof Error ? (e.stack ?? e.message) : String(e);
   }
-
-  drawGrid(groups.get('grid')!, f);
-  drawHeight(groups.get('height')!, def);
-  drawColliders(groups.get('colliders')!, def);
-  drawBlocks(groups.get('blocks')!, def);
-  drawPatrols(groups.get('patrols')!, patrols);
-  drawSpawnExits(groups.get('spawnexits')!, def);
-  drawInteractables(groups.get('interactables')!, def);
-  drawScrawls(groups.get('scrawls')!, def);
-  drawLights(groups.get('lights')!, def);
-
-  viewport.appendChild(svg);
 }
 
 // --- bootstrap -------------------------------------------------------------------

@@ -3,6 +3,7 @@ import type { ColliderDef, RoomDef, RoomScript } from './types';
 import type { GameCtx } from '../game/context';
 import { openKeypad } from '../ui/keypad';
 import { Orderly, type OrderlyAABB } from '../game/orderly';
+import type { DebugPatrol } from '../devtools/map-types';
 
 // ROOM 12 — the Asylum Floor. The finale. Biggest footprint in the game
 // (roughly 20-24m wide, 74m north-south, versus room 10's 19.2x36). Pill
@@ -552,3 +553,9 @@ export const room12Script: Room12Script = (() => {
 
   return script;
 })();
+
+export const debugPatrols: DebugPatrol[] = [
+  { waypoints: WAYPOINTS_A, label: 'A' },
+  { waypoints: WAYPOINTS_B, label: 'B' },
+  { waypoints: WAYPOINTS_C, label: 'C' },
+];

@@ -3,6 +3,7 @@ import type { ColliderDef, RoomDef, RoomScript } from './types';
 import type { GameCtx } from '../game/context';
 import { openKeypad } from '../ui/keypad';
 import { Orderly, type OrderlyAABB } from '../game/orderly';
+import type { DebugPatrol } from '../devtools/map-types';
 
 // ROOM 7 — the Records Room. Three shelving rows still force a serpentine
 // crossing (east gap, west gap, east gap), but the beat is a forced
@@ -307,3 +308,5 @@ export const room7Script: Room7Script = (() => {
 
   return script;
 })();
+
+export const debugPatrols: DebugPatrol[] = [{ waypoints: WAYPOINTS }];

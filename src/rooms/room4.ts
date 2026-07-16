@@ -2,6 +2,7 @@ import { RoomBuilder } from './build';
 import type { ColliderDef, RoomDef, RoomScript } from './types';
 import type { GameCtx } from '../game/context';
 import { Orderly, type OrderlyAABB } from '../game/orderly';
+import type { DebugPatrol } from '../devtools/map-types';
 
 // ROOM 4 — the Day Room. The ward's first NPC. LUCID: he's completely
 // invisible — you never know where he is while medicated. UNMED: he's
@@ -204,3 +205,5 @@ export const room4Script: Room4Script = (() => {
 
   return script;
 })();
+
+export const debugPatrols: DebugPatrol[] = [{ waypoints: WAYPOINTS }];

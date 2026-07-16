@@ -3,6 +3,7 @@ import type { ColliderDef, RoomDef, RoomScript } from './types';
 import type { GameCtx } from '../game/context';
 import { openKeypad } from '../ui/keypad';
 import { Orderly, type OrderlyAABB } from '../game/orderly';
+import type { DebugPatrol } from '../devtools/map-types';
 
 // ROOM 6 — the West Corridor. First bend in the ward, first room where the
 // dispenser isn't waiting at the safe entrance: it sits in an alcove off the
@@ -297,3 +298,5 @@ export const room6Script: Room6Script = (() => {
 
   return script;
 })();
+
+export const debugPatrols: DebugPatrol[] = [{ waypoints: WAYPOINTS }];

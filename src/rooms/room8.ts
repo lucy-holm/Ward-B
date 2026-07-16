@@ -3,6 +3,7 @@ import type { ColliderDef, RoomDef, RoomScript } from './types';
 import type { GameCtx } from '../game/context';
 import { openKeypad } from '../ui/keypad';
 import { Orderly, type OrderlyAABB } from '../game/orderly';
+import type { DebugPatrol } from '../devtools/map-types';
 
 // ROOM 8 — the East Ward. The finale: two of them. One keeps a tight orbit
 // around the central island; the other walks a wide figure-eight whose waist
@@ -360,3 +361,8 @@ export const room8Script: Room8Script = (() => {
 
   return script;
 })();
+
+export const debugPatrols: DebugPatrol[] = [
+  { waypoints: WAYPOINTS_A, label: 'A' },
+  { waypoints: WAYPOINTS_B, label: 'B' },
+];

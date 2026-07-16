@@ -3,6 +3,7 @@ import type { ColliderDef, RoomDef, RoomScript } from './types';
 import type { GameCtx } from '../game/context';
 import { openKeypad } from '../ui/keypad';
 import { Orderly, type OrderlyAABB } from '../game/orderly';
+import type { DebugPatrol } from '../devtools/map-types';
 
 // ROOM 5 — the Nurse Station. The capstone: every mechanic at once, in one
 // room, under threat. A central island — occluder, collider, and the only
@@ -280,3 +281,5 @@ export const room5Script: Room5Script = (() => {
 
   return script;
 })();
+
+export const debugPatrols: DebugPatrol[] = [{ waypoints: WAYPOINTS }];

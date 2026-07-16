@@ -4,6 +4,7 @@ import type { ColliderDef, RoomDef, RoomScript } from './kit';
 import type { GameCtx } from '../game/context';
 import { Orderly } from '../game/orderly';
 import { TUNING } from '../tuning';
+import type { DebugPatrol } from '../devtools/map-types';
 
 // ROOM 13 — the Last Ward. The epilogue, and the one room in the game where
 // LUCID is not safe (see docs/superpowers/specs/2026-07-15-room13-lucid-
@@ -464,3 +465,8 @@ export const room13Script: Room13Script = (() => {
 
   return script;
 })();
+
+export const debugPatrols: DebugPatrol[] = [
+  { waypoints: WAYPOINTS_A, label: 'A', sightRange: W.orderlySightRangeM },
+  { waypoints: WAYPOINTS_B, label: 'B', sightRange: W.orderlySightRangeM },
+];

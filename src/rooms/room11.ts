@@ -2,6 +2,7 @@ import { RoomBuilder, dispenser, scrawl, keypadDoor, heightZone, ramp, patrol } 
 import type { ColliderDef, RoomDef, RoomScript } from './kit';
 import type { GameCtx } from '../game/context';
 import { Orderly } from '../game/orderly';
+import type { DebugPatrol } from '../devtools/map-types';
 
 // ROOM 11 — the Treatment Corridor, rebuilt for verticality. Playtest 8:
 // "feels too similar to room 10, only one orderly, too easy — make it more
@@ -429,3 +430,8 @@ export const room11Script: Room11Script = (() => {
 
   return script;
 })();
+
+export const debugPatrols: DebugPatrol[] = [
+  { waypoints: WAYPOINTS_LOWER, label: 'lower' },
+  { waypoints: WAYPOINTS_UPPER, label: 'upper' },
+];

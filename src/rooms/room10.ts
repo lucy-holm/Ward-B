@@ -3,6 +3,7 @@ import type { ColliderDef, RoomDef, RoomScript } from './types';
 import type { GameCtx } from '../game/context';
 import { openKeypad } from '../ui/keypad';
 import { Orderly, type OrderlyAABB } from '../game/orderly';
+import type { DebugPatrol } from '../devtools/map-types';
 
 // ROOM 10 — the Wing. The spike: everything, at scale, and the two-pill
 // pocket finally has to be spent like a budget instead of a buffer.
@@ -445,3 +446,8 @@ export const room10Script: Room10Script = (() => {
 
   return script;
 })();
+
+export const debugPatrols: DebugPatrol[] = [
+  { waypoints: WAYPOINTS_A, label: 'A' },
+  { waypoints: WAYPOINTS_B, label: 'B' },
+];

@@ -6,7 +6,7 @@
 // North = −Z renders at the top: SVG y grows downward and so does +Z, so
 // svgY = worldZ directly. All coordinates/strokes/fonts are in meters via
 // the viewBox; the browser scales to fit.
-import type { RoomDef } from '../rooms/types';
+import type { BlockDef, ColliderDef, RoomDef } from '../rooms/types';
 import type { DebugPatrol } from './map-types';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
@@ -68,6 +68,32 @@ const LAYERS = [
   { id: 'lights', label: 'lights' },
 ] as const;
 type LayerId = (typeof LAYERS)[number]['id'];
+
+// --- colors ------------------------------------------------------------------
+// State-filter coloring: lucid-only vs unmed-only geometry jumps out —
+// an unmed-sealed collider (the soft-lock class) reads as red on sight.
+const STATE_COLORS: Record<'both' | 'lucid' | 'unmed', string> = {
+  both: '#59605a',
+  lucid: '#4a7fb5',
+  unmed: '#b5574a',
+};
+
+// One stroke color per MatName (rooms/types.ts) so blocks hint at what they
+// render as in-game.
+const MAT_COLORS: Record<BlockDef['mat'], string> = {
+  wall: '#8b8f8a',
+  wall2: '#77807a',
+  floor: '#3c423e',
+  ceil: '#313632',
+  prop: '#8a8266',
+  bed: '#7a6f66',
+  door: '#a8925c',
+  chain: '#5f6d75',
+  pill: '#c8d0c9',
+  pad: '#66707e',
+  dispenser: '#7e8a96',
+  glow: '#d9e8cf',
+};
 
 // --- URL state ---------------------------------------------------------------
 // ?room=<id>&layers=<csv> — survives Vite's full-page reload on save, which
@@ -170,6 +196,95 @@ function drawGrid(g: SVGGElement, f: RoomDef['floor']): void {
   );
 }
 
+function drawColliders(g: SVGGElement, def: RoomDef): void {
+  for (const c of def.colliders) {
+    const state = c.states ?? 'both';
+    g.appendChild(
+      rect(c.minX, c.minZ, c.maxX, c.maxZ,
+        { fill: STATE_COLORS[state], 'fill-opacity': 0.9 },
+        `collider x[${c.minX}, ${c.maxX}] z[${c.minZ}, ${c.maxZ}] states:${state}`),
+    );
+  }
+}
+
+// Mesh-only geometry (no collider under its footprint) draws dashed — the
+// class of mistake where something looks solid in-game but isn't.
+function blockHasCollider(b: BlockDef, colliders: ColliderDef[]): boolean {
+  const hx = b.size[0] / 2;
+  const hz = b.size[2] / 2;
+  const minX = b.pos[0] - hx;
+  const maxX = b.pos[0] + hx;
+  const minZ = b.pos[2] - hz;
+  const maxZ = b.pos[2] + hz;
+  return colliders.some(
+    (c) => c.minX < maxX && c.maxX > minX && c.minZ < maxZ && c.maxZ > minZ,
+  );
+}
+
+function drawBlocks(g: SVGGElement, def: RoomDef): void {
+  for (const b of def.blocks) {
+    const hx = b.size[0] / 2;
+    const hz = b.size[2] / 2;
+    const attrs: Record<string, string | number> = {
+      fill: 'none',
+      stroke: MAT_COLORS[b.mat],
+      'stroke-width': 0.06,
+    };
+    if (!blockHasCollider(b, def.colliders)) attrs['stroke-dasharray'] = '0.25 0.15';
+    if (b.states && b.states !== 'both') {
+      attrs.fill = STATE_COLORS[b.states];
+      attrs['fill-opacity'] = 0.25;
+    }
+    // THREE rotY is CCW seen from above with north up; SVG rotate() is CW.
+    if (b.rotY) {
+      attrs.transform = `rotate(${(-b.rotY * 180) / Math.PI} ${b.pos[0]} ${b.pos[2]})`;
+    }
+    g.appendChild(
+      rect(b.pos[0] - hx, b.pos[2] - hz, b.pos[0] + hx, b.pos[2] + hz, attrs,
+        `block ${b.mat} size[${b.size.join(', ')}] pos[${b.pos.join(', ')}]` +
+          (b.states ? ` states:${b.states}` : '') +
+          (b.rotY ? ` rotY:${b.rotY}` : '')),
+    );
+  }
+}
+
+function drawHeight(g: SVGGElement, def: RoomDef): void {
+  for (const z of def.heightZones ?? []) {
+    g.appendChild(
+      rect(z.minX, z.minZ, z.maxX, z.maxZ,
+        { fill: '#4a5d6e', 'fill-opacity': 0.35, stroke: '#6d8699', 'stroke-width': 0.04 },
+        `heightZone y=${z.y} x[${z.minX}, ${z.maxX}] z[${z.minZ}, ${z.maxZ}]`),
+    );
+    g.appendChild(
+      label((z.minX + z.maxX) / 2, (z.minZ + z.maxZ) / 2, `y=${z.y}`,
+        { fill: '#9db8cc', 'font-size': 0.55 }),
+    );
+  }
+  for (const r of def.ramps ?? []) {
+    g.appendChild(
+      rect(r.minX, r.minZ, r.maxX, r.maxZ,
+        { fill: '#5e6e4a', 'fill-opacity': 0.35, stroke: '#87996d', 'stroke-width': 0.04 },
+        `ramp axis:${r.axis} y ${r.yLow}→${r.yHigh} x[${r.minX}, ${r.maxX}] z[${r.minZ}, ${r.maxZ}]`),
+    );
+    const cx = (r.minX + r.maxX) / 2;
+    const cz = (r.minZ + r.maxZ) / 2;
+    // Arrow from the axis's min end (yLow) to its max end (yHigh); the
+    // #arrow marker is defined once per render in a <defs>.
+    const [x1, z1, x2, z2] =
+      r.axis === 'x'
+        ? [r.minX + 0.3, cz, r.maxX - 0.3, cz]
+        : [cx, r.minZ + 0.3, cx, r.maxZ - 0.3];
+    g.appendChild(
+      el('line', {
+        x1, y1: z1, x2, y2: z2,
+        stroke: '#b3c996', 'stroke-width': 0.06, 'marker-end': 'url(#arrow)',
+      }),
+    );
+    g.appendChild(label(x1, z1 - 0.25, `y=${r.yLow}`, { fill: '#b3c996', 'font-size': 0.4 }));
+    g.appendChild(label(x2, z2 - 0.25, `y=${r.yHigh}`, { fill: '#b3c996', 'font-size': 0.4 }));
+  }
+}
+
 // --- render --------------------------------------------------------------------
 const viewport = document.getElementById('viewport')!;
 const errorBox = document.getElementById('error')!;
@@ -196,6 +311,15 @@ function render(slot: RoomSlot, layers: Set<LayerId>): void {
       `floor x[${f.minX}, ${f.maxX}] z[${f.minZ}, ${f.maxZ}]`),
   );
 
+  const defs = el('defs');
+  const marker = el('marker', {
+    id: 'arrow', markerWidth: 6, markerHeight: 6,
+    refX: 5, refY: 3, orient: 'auto', markerUnits: 'strokeWidth',
+  });
+  marker.appendChild(el('path', { d: 'M0,0 L6,3 L0,6 Z', fill: '#b3c996' }));
+  defs.appendChild(marker);
+  svg.appendChild(defs);
+
   const groups = new Map<LayerId, SVGGElement>();
   for (const l of LAYERS) {
     const g = el('g', { id: `layer-${l.id}` });
@@ -205,8 +329,11 @@ function render(slot: RoomSlot, layers: Set<LayerId>): void {
   }
 
   drawGrid(groups.get('grid')!, f);
-  // Tasks 4-6 add: drawHeight, drawColliders, drawBlocks, drawPatrols,
-  // drawSpawnExits, drawInteractables, drawScrawls, drawLights.
+  drawHeight(groups.get('height')!, def);
+  drawColliders(groups.get('colliders')!, def);
+  drawBlocks(groups.get('blocks')!, def);
+  // Tasks 5-6 add: drawSpawnExits, drawInteractables, drawScrawls,
+  // drawLights, drawPatrols.
 
   viewport.appendChild(svg);
 }

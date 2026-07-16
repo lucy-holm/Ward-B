@@ -27,7 +27,7 @@ is the missing render target.
 | `map.html` (repo root) | Shell: room selector, layer checkboxes, `<svg>` viewport. **Not** added to Vite's `rollupOptions.input`, so `npm run build` (which defaults to `index.html` only) never bundles it — dev-only by construction. |
 | `src/devtools/map.ts` | All viewer logic (~250 lines): room registry (defs only), SVG rendering, layer toggles, URL state. |
 | `src/devtools/map-types.ts` | The `DebugPatrol` type, so room files never import viewer code. |
-| 8 orderly room files (room4–8, 10–13) | One-line addition each: `export const debugPatrols: DebugPatrol[] = [...]`. |
+| 9 orderly room files (room4–8, 10–13) | One-line addition each: `export const debugPatrols: DebugPatrol[] = [...]`. |
 
 ### `DebugPatrol`
 

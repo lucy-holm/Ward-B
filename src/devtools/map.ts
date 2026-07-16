@@ -293,6 +293,79 @@ function drawHeight(g: SVGGElement, def: RoomDef): void {
   }
 }
 
+function drawSpawnExits(g: SVGGElement, def: RoomDef): void {
+  for (const x of def.exits) {
+    g.appendChild(
+      rect(x.minX, x.minZ, x.maxX, x.maxZ,
+        { fill: '#3fae5a', 'fill-opacity': 0.35, stroke: '#3fae5a', 'stroke-width': 0.04 },
+        `exit → ${x.to} x[${x.minX}, ${x.maxX}] z[${x.minZ}, ${x.maxZ}]`),
+    );
+    g.appendChild(
+      label((x.minX + x.maxX) / 2, (x.minZ + x.maxZ) / 2 + 0.16, `→ ${x.to}`,
+        { fill: '#7ee39b', 'font-size': 0.5 }),
+    );
+  }
+  const s = def.spawn;
+  // Player forward at yaw θ is (−sinθ, −cosθ) in (x,z): yaw 0 faces north
+  // (−Z, up on this map). Increasing yaw turns CCW on screen; SVG rotate()
+  // is CW, hence the sign flip. Polygon points up at rotation 0.
+  g.appendChild(
+    el('polygon', {
+      points: '0,-0.6 0.38,0.42 0,0.16 -0.38,0.42',
+      fill: '#f0e68c',
+      transform: `translate(${s.x} ${s.z}) rotate(${(-s.yaw * 180) / Math.PI})`,
+    }, `spawn (${s.x}, ${s.z}) yaw=${s.yaw}${s.y ? ` y=${s.y}` : ''}`),
+  );
+}
+
+const TYPE_COLORS: Record<string, string> = {
+  dispenser: '#5fb0d9',
+  keypad: '#d9a05f',
+  door: '#c9b458',
+  pill_cup: '#e8e8e8',
+  pill_pickup: '#e8e8e8',
+};
+
+function drawInteractables(g: SVGGElement, def: RoomDef): void {
+  for (const it of def.interactables) {
+    const c = TYPE_COLORS[it.type] ?? '#ffffff';
+    g.appendChild(
+      el('circle', {
+        cx: it.pos[0], cy: it.pos[2], r: 0.18,
+        fill: c, stroke: '#14171a', 'stroke-width': 0.04,
+      }, `${it.type} "${it.id}" pos[${it.pos.join(', ')}]` +
+        (it.states ? ` states:${it.states}` : '')),
+    );
+    g.appendChild(
+      label(it.pos[0], it.pos[2] - 0.35, it.id, { fill: c, 'font-size': 0.4 }),
+    );
+  }
+}
+
+function drawScrawls(g: SVGGElement, def: RoomDef): void {
+  for (const s of def.scrawls) {
+    g.appendChild(
+      el('circle', { cx: s.pos[0], cy: s.pos[2], r: 0.12, fill: '#d98fb0' },
+        `scrawl "${s.text}" pos[${s.pos.join(', ')}] size:${s.size}${s.big ? ' big' : ''}`),
+    );
+    g.appendChild(
+      label(s.pos[0], s.pos[2] + 0.55, `“${s.text.split('\n')[0]}”`,
+        { fill: '#d98fb0', 'font-size': 0.38, 'font-style': 'italic' }),
+    );
+  }
+}
+
+function drawLights(g: SVGGElement, def: RoomDef): void {
+  for (const l of def.lights) {
+    g.appendChild(
+      el('circle', {
+        cx: l.pos[0], cy: l.pos[1], r: 0.16,
+        fill: '#e8d44d', 'fill-opacity': 0.8,
+      }, `light (${l.pos[0]}, ${l.pos[1]})`),
+    );
+  }
+}
+
 // --- render --------------------------------------------------------------------
 const viewport = document.getElementById('viewport')!;
 const errorBox = document.getElementById('error')!;
@@ -340,8 +413,11 @@ function render(slot: RoomSlot, layers: Set<LayerId>): void {
   drawHeight(groups.get('height')!, def);
   drawColliders(groups.get('colliders')!, def);
   drawBlocks(groups.get('blocks')!, def);
-  // Tasks 5-6 add: drawSpawnExits, drawInteractables, drawScrawls,
-  // drawLights, drawPatrols.
+  drawSpawnExits(groups.get('spawnexits')!, def);
+  drawInteractables(groups.get('interactables')!, def);
+  drawScrawls(groups.get('scrawls')!, def);
+  drawLights(groups.get('lights')!, def);
+  // Task 6 adds: drawPatrols.
 
   viewport.appendChild(svg);
 }

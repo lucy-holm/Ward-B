@@ -208,7 +208,9 @@ function drawColliders(g: SVGGElement, def: RoomDef): void {
 }
 
 // Mesh-only geometry (no collider under its footprint) draws dashed — the
-// class of mistake where something looks solid in-game but isn't.
+// class of mistake where something looks solid in-game but isn't. A
+// collider only counts if it exists in the block's state(s): either side
+// 'both' (or unset) matches anything; otherwise states must be equal.
 function blockHasCollider(b: BlockDef, colliders: ColliderDef[]): boolean {
   const hx = b.size[0] / 2;
   const hz = b.size[2] / 2;
@@ -216,9 +218,15 @@ function blockHasCollider(b: BlockDef, colliders: ColliderDef[]): boolean {
   const maxX = b.pos[0] + hx;
   const minZ = b.pos[2] - hz;
   const maxZ = b.pos[2] + hz;
-  return colliders.some(
-    (c) => c.minX < maxX && c.maxX > minX && c.minZ < maxZ && c.maxZ > minZ,
-  );
+  const bState = b.states ?? 'both';
+  return colliders.some((c) => {
+    const cState = c.states ?? 'both';
+    const statesCompatible = bState === 'both' || cState === 'both' || bState === cState;
+    return (
+      statesCompatible &&
+      c.minX < maxX && c.maxX > minX && c.minZ < maxZ && c.maxZ > minZ
+    );
+  });
 }
 
 function drawBlocks(g: SVGGElement, def: RoomDef): void {

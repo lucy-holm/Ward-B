@@ -445,6 +445,13 @@ that from the other device. `npm run build` produces the static bundle in
 `dist/` (itch.io-compatible, `base: './'`), and `npm run preview` serves that
 build locally to sanity-check it before shipping.
 
+While the dev server is running, `http://localhost:5173/map.html` serves a
+top-down map of any room (dev-only — not part of the build): geometry,
+colliders (state-colored), patrols with sight envelopes, spawn/exits,
+fixtures, scrawls, and lights, re-rendered on every save. Rooms with
+orderlies export their waypoint consts as `debugPatrols` (see any orderly
+room's last lines) so the viewer can draw them.
+
 ## 7. Kit API reference
 
 Everything below lives in `src/rooms/kit.ts`; one import line covers all of

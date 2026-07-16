@@ -8,6 +8,7 @@
 // the viewBox; the browser scales to fit.
 import type { BlockDef, ColliderDef, RoomDef } from '../rooms/types';
 import type { DebugPatrol } from './map-types';
+import { TUNING } from '../tuning';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
@@ -366,6 +367,47 @@ function drawLights(g: SVGGElement, def: RoomDef): void {
   }
 }
 
+const PATROL_COLORS = ['#e05555', '#e0a83f', '#4fc3dd', '#b06fe0'];
+
+function drawPatrols(g: SVGGElement, patrols: DebugPatrol[]): void {
+  patrols.forEach((p, i) => {
+    const color = PATROL_COLORS[i % PATROL_COLORS.length];
+    const range = p.sightRange ?? TUNING.orderly.sightRange;
+    const pts = [...p.waypoints, p.waypoints[0]]; // closed loop
+    const ptStr = pts.map((w) => `${w.x},${w.z}`).join(' ');
+    // The sight envelope: the loop drawn at 2×range width with round
+    // caps/joins IS the swept sight-radius band — every point within
+    // `range` of any patrol leg. Conservative (ignores facing/cone), per
+    // the spec: useful for the ≥8.2m reaction-time rule, not a simulation.
+    g.appendChild(
+      el('polyline', {
+        points: ptStr, fill: 'none', stroke: color,
+        'stroke-width': range * 2, 'stroke-opacity': 0.09,
+        'stroke-linecap': 'round', 'stroke-linejoin': 'round',
+      }, `sight envelope r=${range}m${p.label ? ` [${p.label}]` : ''}`),
+    );
+    g.appendChild(
+      el('polyline', { points: ptStr, fill: 'none', stroke: color, 'stroke-width': 0.08 }),
+    );
+    p.waypoints.forEach((w, n) => {
+      g.appendChild(
+        el('circle', { cx: w.x, cy: w.z, r: 0.22, fill: color },
+          `waypoint ${n} (${w.x}, ${w.z})${p.label ? ` [${p.label}]` : ''}`),
+      );
+      g.appendChild(
+        label(w.x + 0.35, w.z - 0.25, String(n),
+          { fill: color, 'text-anchor': 'start', 'font-size': 0.5 }),
+      );
+    });
+    if (p.label) {
+      g.appendChild(
+        label(p.waypoints[0].x, p.waypoints[0].z + 0.75, p.label,
+          { fill: color, 'font-size': 0.5 }),
+      );
+    }
+  });
+}
+
 // --- render --------------------------------------------------------------------
 const viewport = document.getElementById('viewport')!;
 const errorBox = document.getElementById('error')!;
@@ -381,7 +423,7 @@ function render(slot: RoomSlot, layers: Set<LayerId>): void {
   }
   errorBox.hidden = true;
 
-  const { def } = slot.room;
+  const { def, patrols } = slot.room;
   const f = def.floor;
   const M = 2.5; // margin (m) around the floor for out-of-bounds labels
   const svg = el('svg', {
@@ -413,11 +455,11 @@ function render(slot: RoomSlot, layers: Set<LayerId>): void {
   drawHeight(groups.get('height')!, def);
   drawColliders(groups.get('colliders')!, def);
   drawBlocks(groups.get('blocks')!, def);
+  drawPatrols(groups.get('patrols')!, patrols);
   drawSpawnExits(groups.get('spawnexits')!, def);
   drawInteractables(groups.get('interactables')!, def);
   drawScrawls(groups.get('scrawls')!, def);
   drawLights(groups.get('lights')!, def);
-  // Task 6 adds: drawPatrols.
 
   viewport.appendChild(svg);
 }

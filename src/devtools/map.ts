@@ -93,6 +93,7 @@ const MAT_COLORS: Record<BlockDef['mat'], string> = {
   pill: '#c8d0c9',
   pad: '#66707e',
   dispenser: '#7e8a96',
+  plate: '#8f9a6d',
   glow: '#d9e8cf',
 };
 

@@ -17,6 +17,7 @@ export type MatName =
   | 'pill'
   | 'pad'
   | 'dispenser'
+  | 'plate'
   | 'glow';
 
 export interface BlockDef {
@@ -28,6 +29,24 @@ export interface BlockDef {
 }
 
 export interface ColliderDef {
+  minX: number;
+  maxX: number;
+  minZ: number;
+  maxZ: number;
+  states?: StateFilter; // default 'both'
+}
+
+// A rectangular XZ region that fires enter/exit callbacks when the player
+// crosses its boundary — the declarative, reusable version of the ad-hoc
+// "inStretch" boolean every hand-rolled hazard reimplements (room13's
+// closing walls). Optionally state-filtered: a trigger with states:'lucid'
+// or 'unmed' only EXISTS — fires nothing, matches nothing — while the ward
+// is in that state, same StateFilter convention as BlockDef/ColliderDef.
+// Deliberately NO implicit collider: a trigger is a floor-level sensor, not
+// an obstacle. A room wanting a blocking trigger region authors a separate
+// rb.solid(...), same opt-in as any other prop.
+export interface TriggerDef {
+  id: string;
   minX: number;
   maxX: number;
   minZ: number;
@@ -132,6 +151,9 @@ export interface RoomDef {
   // y=0 everywhere (every room without these is unaffected).
   heightZones?: HeightZone[];
   ramps?: RampDef[];
+  // Trigger volumes — engine-polled for the player every frame (main.ts),
+  // room-polled for orderlies via kit's inTrigger(). Absent/empty ⇒ no-op.
+  triggers?: TriggerDef[];
 }
 
 // Per-room bespoke logic (tutorial beats, phase gating). Generic behaviour
@@ -143,6 +165,13 @@ export interface RoomScript {
   // Return true if the script fully handled the interaction (generic handler skipped).
   onInteract?(id: string, ctx: GameCtx): boolean;
   onStateChange?(next: WardState, ctx: GameCtx): void;
+  // Fired once when the player's (x,z) crosses into/out of a
+  // RoomDef.triggers region whose states filter matches the CURRENT
+  // WardState — checked every frame (not just on movement), so a trigger
+  // whose filter stops matching because the player shifted while standing
+  // still fires onTriggerExit on the spot. Engine-detected in main.ts.
+  onTriggerEnter?(id: string, ctx: GameCtx): void;
+  onTriggerExit?(id: string, ctx: GameCtx): void;
   // Per-frame hook while this room is active and the game is running (NPCs, timers).
   update?(dt: number, t: number, ctx: GameCtx): void;
 }

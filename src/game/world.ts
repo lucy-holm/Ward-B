@@ -293,6 +293,7 @@ const BED_TEX = makeWornTexture([143, 165, 181], 128, 26);
 const PROP_TEX = makeWornTexture([125, 143, 137], 128, 26);
 const PAD_TEX = makeWornTexture([29, 43, 39], 96, 18);
 const DISPENSER_TEX = makeWornTexture([34, 51, 46], 96, 18);
+const PLATE_TEX = makeWornTexture([64, 70, 66], 96, 18);
 const CHAIN_TEX = makeWornTexture([60, 63, 69], 96, 20);
 CHAIN_TEX.repeat.set(1, 4); // reads as stacked links on the tall thin chain boxes
 const DOOR_TEX = makeDoorTexture();
@@ -313,6 +314,10 @@ const MATERIALS: Record<MatName, THREE.Material> = {
   pill: new THREE.MeshLambertMaterial({ color: 0xffffff, emissive: 0x77e0c8, emissiveIntensity: 0.55 }),
   pad: new THREE.MeshLambertMaterial({ map: PAD_TEX, emissive: 0x9fd8cb, emissiveIntensity: 0.35 }),
   dispenser: new THREE.MeshLambertMaterial({ map: DISPENSER_TEX, emissive: 0x9fd8cb, emissiveIntensity: 0.6 }),
+  // Floor-mounted mechanism plate (trigger volumes' visible marker) — worn
+  // metal with a faint mechanism glow so it reads at floor level, distinct
+  // from pad/dispenser which are wall fixtures.
+  plate: new THREE.MeshLambertMaterial({ map: PLATE_TEX, emissive: 0x8a9a72, emissiveIntensity: 0.25 }),
   // Fallback only — every 'glow' block actually authored in a room def is
   // reclassified into one of the three GLOW_*_MAT materials below (see
   // classifyGlowBlock), so this entry rarely renders. Kept so MATERIALS

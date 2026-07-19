@@ -168,8 +168,12 @@ export interface RoomScript {
   // Fired once when the player's (x,z) crosses into/out of a
   // RoomDef.triggers region whose states filter matches the CURRENT
   // WardState — checked every frame (not just on movement), so a trigger
-  // whose filter stops matching because the player shifted while standing
-  // still fires onTriggerExit on the spot. Engine-detected in main.ts.
+  // whose filter stops matching because the ward state changed (a shift,
+  // or the medication timer expiring) while the player stood still fires
+  // onTriggerExit on the spot. On room load the active set resets empty
+  // without firing exits; a player who spawns or is teleported inside a
+  // trigger's bounds fires onTriggerEnter on the next polled frame even
+  // though nothing "crossed". Engine-detected in main.ts.
   onTriggerEnter?(id: string, ctx: GameCtx): void;
   onTriggerExit?(id: string, ctx: GameCtx): void;
   // Per-frame hook while this room is active and the game is running (NPCs, timers).

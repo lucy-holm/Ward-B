@@ -1,4 +1,15 @@
-import { RoomBuilder, dispenser, scrawl, keypadDoor, heightZone, ramp, patrol } from './kit';
+import {
+  RoomBuilder,
+  dispenser,
+  scrawl,
+  keypadDoor,
+  heightZone,
+  ramp,
+  patrol,
+  randomCode4,
+  codeClueText,
+  isRandomizeCodesEnabled,
+} from './kit';
 import type { ColliderDef, RoomDef, RoomScript } from './kit';
 import type { GameCtx } from '../game/context';
 import { Orderly } from '../game/orderly';
@@ -107,8 +118,17 @@ import type { DebugPatrol } from '../devtools/map-types';
 // CODE: 2593 (fresh value — not 7042/3175/8563/4118/1907/6329/0452/2846/
 // 5216, every code already used elsewhere in the game).
 
-const CODE = '2593';
+const FIXED_CODE = '2593';
 const MEZZ_Y = 0.9;
+
+// Rerolls the code, the lock's expected entry, its wall clue, and its
+// success flavor toast (which otherwise echoes the stale original code).
+function regenerateCode(ctx: GameCtx): void {
+  if (!isRandomizeCodesEnabled()) return;
+  const code = randomCode4();
+  lock.setCode(code, `${code}. gravity was the last lock.`);
+  ctx.updateScrawlText('codeScrawl', codeClueText(code));
+}
 
 const rb = new RoomBuilder();
 
@@ -186,7 +206,7 @@ rb.block([1.8, 2.6, 0.06], [0, 1.4, -19.8], 'glow');
 const lock = keypadDoor(rb, {
   doorId: 'exitdoor',
   keypadId: 'keypad11',
-  code: CODE,
+  code: FIXED_CODE,
   side: 'n',
   wallAt: -18,
   along: 0,
@@ -234,7 +254,7 @@ export const room11: RoomDef = {
     // The code — proud of the east wall's real face by ~0.1 (not embedded;
     // the original room11's exact bug), at platform height so it reads
     // correctly to someone standing up there, not at ground level.
-    scrawl('2 5 9 3', 'e', 9, 4, { y: MEZZ_Y + 1.65, big: true, proud: 0.1 }),
+    scrawl('2 5 9 3', 'e', 9, 4, { y: MEZZ_Y + 1.65, big: true, proud: 0.1, id: 'codeScrawl' }),
     scrawl('it opens for the calm.\nnot for you, yet.', 'n', -10, -5, { size: 2.4 }),
     scrawl("the last cabinet.\nafter this, it's just the door.", 'w', -9, -14, { size: 2.4 }),
   ],
@@ -315,6 +335,7 @@ export const room11Script: Room11Script = (() => {
     ctx.teleportPlayer(room11.spawn.x, room11.spawn.z);
     ctx.hud.toast('hands. a needle. "up or down, you\'re still mine," he says.');
     ctx.telemetry.event('orderly_caught');
+    regenerateCode(ctx);
   }
 
   function spawnOrderlies(ctx: GameCtx): void {
@@ -360,6 +381,7 @@ export const room11Script: Room11Script = (() => {
 
   const script: Room11Script = {
     onEnter(ctx) {
+      regenerateCode(ctx);
       spawnOrderlies(ctx);
       sawUnmedToast = false;
       // Forces the mandatory double-spend regardless of what state the

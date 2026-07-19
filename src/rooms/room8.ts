@@ -4,6 +4,7 @@ import type { GameCtx } from '../game/context';
 import { openKeypad } from '../ui/keypad';
 import { Orderly, type OrderlyAABB } from '../game/orderly';
 import type { DebugPatrol } from '../devtools/map-types';
+import { randomCode4, codeClueText, isRandomizeCodesEnabled } from './kit';
 
 // ROOM 8 — the East Ward. The finale: two of them. One keeps a tight orbit
 // around the central island; the other walks a wide figure-eight whose waist
@@ -18,7 +19,15 @@ import type { DebugPatrol } from '../devtools/map-types';
 // block on the west wall) is always within reach of wherever you'd need to
 // stand.
 
-const CODE = '2846';
+const FIXED_CODE = '2846';
+let code = FIXED_CODE;
+
+function regenerateCode(ctx: GameCtx): void {
+  if (!isRandomizeCodesEnabled()) return;
+  code = randomCode4();
+  ctx.updateScrawlText('codeScrawlA', codeClueText(code, [0, 2]));
+  ctx.updateScrawlText('codeScrawlB', codeClueText(code, [2, 4]));
+}
 
 const rb = new RoomBuilder();
 
@@ -91,8 +100,8 @@ export const room8: RoomDef = {
   colliders: rb.colliders,
   scrawls: [
     { text: 'two sets of footsteps.\nonly one of them is yours', size: 2.8, pos: [8.75, 1.7, 4], rotY: -Math.PI / 2 },
-    { text: '2 8 – –', size: 2.2, pos: [0, 1.6, 1.9], rotY: 0, big: true },
-    { text: '– – 4 6', size: 2.2, pos: [0, 1.6, -1.9], rotY: Math.PI, big: true },
+    { id: 'codeScrawlA', text: '2 8 – –', size: 2.2, pos: [0, 1.6, 1.9], rotY: 0, big: true },
+    { id: 'codeScrawlB', text: '– – 4 6', size: 2.2, pos: [0, 1.6, -1.9], rotY: Math.PI, big: true },
   ],
   interactables: [
     {
@@ -223,6 +232,7 @@ export const room8Script: Room8Script = (() => {
     ctx.teleportPlayer(room8.spawn.x, room8.spawn.z);
     ctx.hud.toast('hands. a needle. "there are two of us now," he says.');
     ctx.telemetry.event('orderly_caught');
+    regenerateCode(ctx);
   }
 
   function spawnOrderlies(ctx: GameCtx): void {
@@ -268,6 +278,7 @@ export const room8Script: Room8Script = (() => {
 
   const script: Room8Script = {
     onEnter(ctx) {
+      regenerateCode(ctx);
       spawnOrderlies(ctx);
       doorUnlocked = false;
       sawUnmedToast = false;
@@ -289,7 +300,7 @@ export const room8Script: Room8Script = (() => {
         ctx.telemetry.event('keypad_open');
         ctx.releasePointerLock();
         openKeypad({
-          code: CODE,
+          code,
           onDenied: () => ctx.telemetry.event('keypad_denied'),
           onSuccess: () => {
             doorUnlocked = true;
@@ -297,7 +308,7 @@ export const room8Script: Room8Script = (() => {
             ctx.moveInteractable('exitdoor', [-1, 1.5, -8.85], Math.PI / 2);
             doorCollider.minX = 999;
             doorCollider.maxX = 999.2;
-            ctx.hud.toast('2846. the last door.');
+            ctx.hud.toast(`${code}. the last door.`);
             ctx.hud.setObjective('the door is open. go.');
             ctx.telemetry.event('door_opened');
           },

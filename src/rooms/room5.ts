@@ -4,6 +4,7 @@ import type { GameCtx } from '../game/context';
 import { openKeypad } from '../ui/keypad';
 import { Orderly, type OrderlyAABB } from '../game/orderly';
 import type { DebugPatrol } from '../devtools/map-types';
+import { randomCode4, codeClueText, isRandomizeCodesEnabled } from './kit';
 
 // ROOM 5 — the Nurse Station. The capstone: every mechanic at once, in one
 // room, under threat. A central island — occluder, collider, and the only
@@ -14,7 +15,15 @@ import type { DebugPatrol } from '../devtools/map-types';
 // a route: scout blind-to-him first (lucid, safe, useless), then unmed
 // (dangerous, legible), then back to lucid to cross and open the door.
 
-const CODE = '1907';
+const FIXED_CODE = '1907';
+let code = FIXED_CODE;
+
+function regenerateCode(ctx: GameCtx): void {
+  if (!isRandomizeCodesEnabled()) return;
+  code = randomCode4();
+  ctx.updateScrawlText('codeScrawlA', codeClueText(code, [0, 2]));
+  ctx.updateScrawlText('codeScrawlB', codeClueText(code, [2, 4]));
+}
 
 const rb = new RoomBuilder();
 
@@ -76,8 +85,8 @@ export const room5: RoomDef = {
   blocks: rb.blocks,
   colliders: rb.colliders,
   scrawls: [
-    { text: '1 9 – –', size: 2.2, pos: [-6.85, 1.6, 0.6], rotY: Math.PI / 2, big: true },
-    { text: '– – 0 7', size: 2.2, pos: [6.85, 1.6, 0], rotY: -Math.PI / 2, big: true },
+    { id: 'codeScrawlA', text: '1 9 – –', size: 2.2, pos: [-6.85, 1.6, 0.6], rotY: Math.PI / 2, big: true },
+    { id: 'codeScrawlB', text: '– – 0 7', size: 2.2, pos: [6.85, 1.6, 0], rotY: -Math.PI / 2, big: true },
     {
       text: 'the coffee is always warm.\nno one drinks it.',
       size: 2.4,
@@ -193,6 +202,7 @@ export const room5Script: Room5Script = (() => {
           ctx.teleportPlayer(room5.spawn.x, room5.spawn.z);
           ctx.hud.toast('hands. a needle. "not this time," he says.');
           ctx.telemetry.event('orderly_caught');
+          regenerateCode(ctx);
         },
       },
       { colliders: ORDERLY_COLLIDERS },
@@ -202,6 +212,7 @@ export const room5Script: Room5Script = (() => {
 
   const script: Room5Script = {
     onEnter(ctx) {
+      regenerateCode(ctx);
       spawnOrderly(ctx);
       doorUnlocked = false;
       sawUnmedToast = false;
@@ -223,7 +234,7 @@ export const room5Script: Room5Script = (() => {
         ctx.telemetry.event('keypad_open');
         ctx.releasePointerLock();
         openKeypad({
-          code: CODE,
+          code,
           onDenied: () => ctx.telemetry.event('keypad_denied'),
           onSuccess: () => {
             doorUnlocked = true;
@@ -231,7 +242,7 @@ export const room5Script: Room5Script = (() => {
             ctx.moveInteractable('exitdoor', [-1, 1.5, -6.85], Math.PI / 2);
             doorCollider.minX = 999;
             doorCollider.maxX = 999.2;
-            ctx.hud.toast('1907. someone never finished their shift.');
+            ctx.hud.toast(`${code}. someone never finished their shift.`);
             ctx.hud.setObjective('the door is open. go.');
             ctx.telemetry.event('door_opened');
           },

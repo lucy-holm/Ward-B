@@ -4,6 +4,7 @@ import type { GameCtx } from '../game/context';
 import { openKeypad } from '../ui/keypad';
 import { Orderly, type OrderlyAABB } from '../game/orderly';
 import type { DebugPatrol } from '../devtools/map-types';
+import { randomCode4, codeClueText, isRandomizeCodesEnabled } from './kit';
 
 // ROOM 12 — the Asylum Floor. The finale. Biggest footprint in the game
 // (roughly 20-24m wide, 74m north-south, versus room 10's 19.2x36). Pill
@@ -77,7 +78,15 @@ import type { DebugPatrol } from '../devtools/map-types';
 // (forced lucid, teleported to spawn, pills kept) — the same mechanic every
 // room in this game relies on for exactly this situation.
 
-const CODE = '8563';
+const FIXED_CODE = '8563';
+let code = FIXED_CODE;
+
+function regenerateCode(ctx: GameCtx): void {
+  if (!isRandomizeCodesEnabled()) return;
+  code = randomCode4();
+  ctx.updateScrawlText('codeScrawlA', codeClueText(code, [0, 2]));
+  ctx.updateScrawlText('codeScrawlB', codeClueText(code, [2, 4]));
+}
 
 const rb = new RoomBuilder();
 
@@ -209,14 +218,14 @@ export const room12: RoomDef = {
       pos: [-9.86, 1.7, 28],
       rotY: Math.PI / 2,
     },
-    { text: '8 5 – –', size: 2.2, pos: [11.86, 1.7, 27], rotY: -Math.PI / 2, big: true },
+    { id: 'codeScrawlA', text: '8 5 – –', size: 2.2, pos: [11.86, 1.7, 27], rotY: -Math.PI / 2, big: true },
     {
       text: 'the hall keeps two of them.\nthey never walk the same way twice.',
       size: 2.8,
       pos: [-9.86, 1.7, 10],
       rotY: Math.PI / 2,
     },
-    { text: '– – 6 3', size: 2.2, pos: [11.86, 1.7, 5], rotY: -Math.PI / 2, big: true },
+    { id: 'codeScrawlB', text: '– – 6 3', size: 2.2, pos: [11.86, 1.7, 5], rotY: -Math.PI / 2, big: true },
     {
       text: "the far door doesn't care\nhow you got here.",
       size: 2.6,
@@ -369,6 +378,7 @@ export const room12Script: Room12Script = (() => {
     ctx.teleportPlayer(room12.spawn.x, room12.spawn.z);
     ctx.hud.toast('hands. a needle. "the whole floor, and you still tried," he says.');
     ctx.telemetry.event('orderly_caught');
+    regenerateCode(ctx);
   }
 
   function spawnOrderlies(ctx: GameCtx): void {
@@ -436,6 +446,7 @@ export const room12Script: Room12Script = (() => {
 
   const script: Room12Script = {
     onEnter(ctx) {
+      regenerateCode(ctx);
       spawnOrderlies(ctx);
       doorUnlocked = false;
       sawUnmedToast = false;
@@ -464,7 +475,7 @@ export const room12Script: Room12Script = (() => {
         ctx.telemetry.event('keypad_open');
         ctx.releasePointerLock();
         openKeypad({
-          code: CODE,
+          code,
           onDenied: () => ctx.telemetry.event('keypad_denied'),
           onSuccess: () => {
             doorUnlocked = true;
@@ -472,7 +483,7 @@ export const room12Script: Room12Script = (() => {
             ctx.moveInteractable('exitdoor', [-1, 1.5, -26.85], Math.PI / 2);
             doorCollider.minX = 999;
             doorCollider.maxX = 999.2;
-            ctx.hud.toast('8563. the floor lets you go.');
+            ctx.hud.toast(`${code}. the floor lets you go.`);
             ctx.hud.setObjective('the door is open. go.');
             ctx.telemetry.event('door_opened');
           },

@@ -4,6 +4,7 @@ import type { GameCtx } from '../game/context';
 import { openKeypad } from '../ui/keypad';
 import { Orderly, type OrderlyAABB } from '../game/orderly';
 import type { DebugPatrol } from '../devtools/map-types';
+import { randomCode4, codeClueText, isRandomizeCodesEnabled } from './kit';
 
 // ROOM 6 — the West Corridor. First bend in the ward, first room where the
 // dispenser isn't waiting at the safe entrance: it sits in an alcove off the
@@ -14,7 +15,14 @@ import type { DebugPatrol } from '../devtools/map-types';
 // at once: dash unmed for the code, fall back to the alcove to restock, cross
 // lucid at the moment that actually matters.
 
-const CODE = '6329';
+const FIXED_CODE = '6329';
+let code = FIXED_CODE;
+
+function regenerateCode(ctx: GameCtx): void {
+  if (!isRandomizeCodesEnabled()) return;
+  code = randomCode4();
+  ctx.updateScrawlText('codeScrawl', codeClueText(code));
+}
 
 const rb = new RoomBuilder();
 
@@ -68,7 +76,7 @@ export const room6: RoomDef = {
     // patrol actually walks — the corridor's turn already makes this spot
     // hard to reach; this just widens the gap between "found the code" and
     // "safe at the keypad" instead of restructuring the room.
-    { text: '6 3 2 9', size: 2.4, pos: [8.3, 1.6, -4.35], rotY: 0, big: true },
+    { id: 'codeScrawl', text: '6 3 2 9', size: 2.4, pos: [8.3, 1.6, -4.35], rotY: 0, big: true },
   ],
   interactables: [
     {
@@ -212,6 +220,7 @@ export const room6Script: Room6Script = (() => {
           ctx.teleportPlayer(room6.spawn.x, room6.spawn.z);
           ctx.hud.toast('hands. a needle. "back to the start," he says.');
           ctx.telemetry.event('orderly_caught');
+          regenerateCode(ctx);
         },
       },
       { colliders: ORDERLY_COLLIDERS },
@@ -221,6 +230,7 @@ export const room6Script: Room6Script = (() => {
 
   const script: Room6Script = {
     onEnter(ctx) {
+      regenerateCode(ctx);
       spawnOrderly(ctx);
       doorUnlocked = false;
       sawUnmedToast = false;
@@ -242,7 +252,7 @@ export const room6Script: Room6Script = (() => {
         ctx.telemetry.event('keypad_open');
         ctx.releasePointerLock();
         openKeypad({
-          code: CODE,
+          code,
           onDenied: () => ctx.telemetry.event('keypad_denied'),
           onSuccess: () => {
             doorUnlocked = true;
@@ -250,7 +260,7 @@ export const room6Script: Room6Script = (() => {
             ctx.moveInteractable('exitdoor', [12.85, 1.5, -1.9], Math.PI / 2);
             doorCollider.minX = 999;
             doorCollider.maxX = 999.2;
-            ctx.hud.toast('6329. someone counted his steps before you.');
+            ctx.hud.toast(`${code}. someone counted his steps before you.`);
             ctx.hud.setObjective('the door is open. go.');
             ctx.telemetry.event('door_opened');
           },

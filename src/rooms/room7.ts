@@ -4,6 +4,7 @@ import type { GameCtx } from '../game/context';
 import { openKeypad } from '../ui/keypad';
 import { Orderly, type OrderlyAABB } from '../game/orderly';
 import type { DebugPatrol } from '../devtools/map-types';
+import { randomCode4, codeClueText, isRandomizeCodesEnabled } from './kit';
 
 // ROOM 7 — the Records Room. Three shelving rows still force a serpentine
 // crossing (east gap, west gap, east gap), but the beat is a forced
@@ -17,7 +18,14 @@ import type { DebugPatrol } from '../devtools/map-types';
 // patrol lives in the pocket between all three rows — the belt you cross
 // both ways — with a row's mass to duck behind on either approach.
 
-const CODE = '0452';
+const FIXED_CODE = '0452';
+let code = FIXED_CODE;
+
+function regenerateCode(ctx: GameCtx): void {
+  if (!isRandomizeCodesEnabled()) return;
+  code = randomCode4();
+  ctx.updateScrawlText('codeScrawl', codeClueText(code));
+}
 
 const rb = new RoomBuilder();
 
@@ -79,7 +87,7 @@ export const room7: RoomDef = {
     { text: 'the files don\'t forget.\nneither does he.', size: 2.8, pos: [-5.85, 1.7, -1], rotY: Math.PI / 2 },
     // The code, relocated to the back half, near the entrance — opposite
     // wall from the dispenser hint, same general depth into the room.
-    { text: '0 4 5 2', size: 2.4, pos: [-5.85, 1.7, 3.7], rotY: Math.PI / 2, big: true },
+    { id: 'codeScrawl', text: '0 4 5 2', size: 2.4, pos: [-5.85, 1.7, 3.7], rotY: Math.PI / 2, big: true },
     // New: planted right where the code used to live, by the keypad — the
     // room's way of telling you that you already walked past it.
     {
@@ -222,6 +230,7 @@ export const room7Script: Room7Script = (() => {
           ctx.teleportPlayer(room7.spawn.x, room7.spawn.z);
           ctx.hud.toast('hands. a needle. "you\'ll lose your place," he says.');
           ctx.telemetry.event('orderly_caught');
+          regenerateCode(ctx);
         },
       },
       { colliders: ORDERLY_COLLIDERS },
@@ -231,6 +240,7 @@ export const room7Script: Room7Script = (() => {
 
   const script: Room7Script = {
     onEnter(ctx) {
+      regenerateCode(ctx);
       spawnOrderly(ctx);
       doorUnlocked = false;
       sawUnmedToast = false;
@@ -252,7 +262,7 @@ export const room7Script: Room7Script = (() => {
         ctx.telemetry.event('keypad_open');
         ctx.releasePointerLock();
         openKeypad({
-          code: CODE,
+          code,
           onDenied: () => ctx.telemetry.event('keypad_denied'),
           onSuccess: () => {
             doorUnlocked = true;
@@ -260,7 +270,7 @@ export const room7Script: Room7Script = (() => {
             ctx.moveInteractable('exitdoor', [-1, 1.5, -5.85], Math.PI / 2);
             doorCollider.minX = 999;
             doorCollider.maxX = 999.2;
-            ctx.hud.toast('0452. filed under nothing.');
+            ctx.hud.toast(`${code}. filed under nothing.`);
             ctx.hud.setObjective('the door is open. go.');
             ctx.telemetry.event('door_opened');
           },

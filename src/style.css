@@ -187,6 +187,21 @@ canvas { display: block; }
   letter-spacing: 0.3em; padding: 13px 30px; border-radius: 2px; text-indent: 0.3em;
 }
 .btn:active { background: rgba(159, 216, 203, 0.15); }
+.btnGhost {
+  margin-top: 12px; border-color: rgba(233, 242, 239, 0.3); color: var(--ink); opacity: 0.75;
+  font-size: 10px; padding: 10px 22px;
+}
+.btnGhost:active { background: rgba(233, 242, 239, 0.1); }
+
+.toggleRow {
+  display: flex; align-items: flex-start; gap: 14px; cursor: pointer; pointer-events: auto;
+  text-align: left;
+}
+.toggleRow input[type="checkbox"] {
+  flex: none; width: 18px; height: 18px; margin-top: 2px; accent-color: var(--lucid); cursor: pointer;
+}
+.toggleRow span { font-size: 12.5px; letter-spacing: 0.04em; }
+.toggleRow em { display: inline-block; margin-top: 4px; font-style: normal; opacity: 0.6; font-size: 11px; }
 
 /* ---------- touch controls ---------- */
 .touch #stick {

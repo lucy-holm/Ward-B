@@ -1,13 +1,26 @@
 import { RoomBuilder } from './build';
 import type { ColliderDef, RoomDef, RoomScript } from './types';
+import type { GameCtx } from '../game/context';
 import { openKeypad } from '../ui/keypad';
+import { randomCode4, codeClueText, isRandomizeCodesEnabled } from './kit';
 
 // ROOM 2 — the Corridor. Teaches the second half of the pill economy: LUCID
 // is the state that reads machinery (the keypad), UNMED is the state that
 // reads the walls (the code). The player must burn a pill to act on what
 // they saw for free.
 
-const CODE = '4118';
+const FIXED_CODE = '4118';
+// Mutable so randomizeCodes (settings.ts) can reroll it; stays FIXED_CODE
+// forever when the setting is off, same as before it existed.
+let code = FIXED_CODE;
+
+// Rerolls the code and its wall clue — called on every room entry and every
+// death, but only when the randomizeCodes setting is on.
+function regenerateCode(ctx: GameCtx): void {
+  if (!isRandomizeCodesEnabled()) return;
+  code = randomCode4();
+  ctx.updateScrawlText('codeScrawl', codeClueText(code));
+}
 
 const rb = new RoomBuilder();
 
@@ -52,7 +65,7 @@ export const room2: RoomDef = {
   blocks: rb.blocks,
   colliders: rb.colliders,
   scrawls: [
-    { text: '4 1 1 8', size: 3.4, pos: [-1.45, 1.6, -5.5], rotY: Math.PI / 2, big: true },
+    { id: 'codeScrawl', text: '4 1 1 8', size: 3.4, pos: [-1.45, 1.6, -5.5], rotY: Math.PI / 2, big: true },
     { text: 'they lock it\nfrom the inside', size: 2.6, pos: [1.45, 1.7, -6.5], rotY: -Math.PI / 2 },
   ],
   interactables: [
@@ -106,6 +119,7 @@ export const room2Script: RoomScript = (() => {
 
   const script: RoomScript = {
     onEnter(ctx) {
+      regenerateCode(ctx);
       ctx.hud.setObjective('a staff door blocks the ward. it wants a code you don\'t have.');
     },
 
@@ -124,7 +138,7 @@ export const room2Script: RoomScript = (() => {
         ctx.telemetry.event('keypad_open');
         ctx.releasePointerLock();
         openKeypad({
-          code: CODE,
+          code,
           onDenied: () => ctx.telemetry.event('keypad_denied'),
           onSuccess: () => {
             doorUnlocked = true;

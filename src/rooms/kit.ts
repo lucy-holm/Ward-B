@@ -189,6 +189,7 @@ export interface ScrawlOpts {
   y?: number; // default 1.65
   big?: boolean;
   proud?: number; // gap from the wall's face, default 0.03
+  id?: string; // stable handle for GameCtx.updateScrawlText — only needed on scrawls a room rewrites at runtime
 }
 
 const DEFAULT_SCRAWL_PROUD = 0.03;
@@ -205,7 +206,33 @@ export function scrawl(text: string, side: WallSide, wallAt: number, along: numb
   // Same axis/sign -> rotY rule as world.ts's (private) faceRotationY, so a
   // scrawl faces the room exactly like a fixture mounted on the same wall.
   const rotY = axis === 'z' ? (sign > 0 ? 0 : Math.PI) : sign > 0 ? Math.PI / 2 : -Math.PI / 2;
-  return { text, size: opts.size ?? DEFAULT_SCRAWL_SIZE, pos, rotY, big: opts.big };
+  return { text, size: opts.size ?? DEFAULT_SCRAWL_SIZE, pos, rotY, big: opts.big, id: opts.id };
+}
+
+// ---------------------------------------------------------------------------
+// Randomized keypad codes — feature-flagged (settings.isRandomizeCodesEnabled)
+// reroll of a room's 4-digit code and its on-wall clue. Off by default: every
+// room's original fixed CODE is unchanged unless the player opts in from the
+// start screen's CONFIGURATION panel. When on, a room calls regenerateCode
+// (see below, wired per-room) on every onEnter and every onCaught so the
+// code can never just be memorized across a death or a re-visit.
+// ---------------------------------------------------------------------------
+
+export { isRandomizeCodesEnabled } from '../game/settings';
+
+export function randomCode4(): string {
+  return String(Math.floor(Math.random() * 10000)).padStart(4, '0');
+}
+
+// Matches the space-separated digit convention every keypad scrawl already
+// uses (e.g. '4 1 1 8'). Pass `mask` as [startIndex, endIndex) to blank
+// positions outside that range with '–', matching the shipped split-clue
+// rooms (two scrawls, half the digits legible on each).
+export function codeClueText(code: string, mask?: [number, number]): string {
+  return code
+    .split('')
+    .map((ch, i) => (mask && (i < mask[0] || i >= mask[1]) ? '–' : ch))
+    .join(' ');
 }
 
 // ---------------------------------------------------------------------------
@@ -269,6 +296,11 @@ export interface KeypadDoorLock {
   // (unhandled) for any other id. Wire in as
   // `onInteract: (id, ctx) => lock.handleInteract(id, ctx)`.
   handleInteract(id: string, ctx: GameCtx): boolean;
+  // Reroll the code this lock checks against — for randomizeCodes, called
+  // alongside a matching GameCtx.updateScrawlText so the wall clue and the
+  // keypad never disagree. successToast, if given, replaces the room's
+  // (now-stale, code-specific) success flavor line for the new code.
+  setCode(code: string, successToast?: string): void;
 }
 
 export function keypadDoor(rb: RoomBuilder, opts: KeypadDoorOpts): KeypadDoorLock {
@@ -347,6 +379,10 @@ export function keypadDoor(rb: RoomBuilder, opts: KeypadDoorOpts): KeypadDoorLoc
       if (id === opts.doorId) return false;
       if (id === opts.keypadId) return !unlocked;
       return true;
+    },
+    setCode(code: string, successToast?: string): void {
+      opts.code = code;
+      if (successToast !== undefined) opts.successToast = successToast;
     },
     handleInteract(id: string, ctx: GameCtx): boolean {
       if (id !== opts.keypadId) return false;

@@ -2,6 +2,7 @@ import { RoomBuilder } from './build';
 import type { ColliderDef, RoomDef, RoomScript } from './types';
 import type { GameCtx } from '../game/context';
 import { openKeypad } from '../ui/keypad';
+import { randomCode4, codeClueText, isRandomizeCodesEnabled } from './kit';
 
 // ROOM 9 — the Doctor's Office. A breather after the east ward: no orderly,
 // nothing hunting. The coat on the rack holds a found pill — a small, calm
@@ -13,7 +14,14 @@ import { openKeypad } from '../ui/keypad';
 // oscillation once while it's still free of consequence, right before room
 // 10 makes it expensive.
 
-const CODE = '5216';
+const FIXED_CODE = '5216';
+let code = FIXED_CODE;
+
+function regenerateCode(ctx: GameCtx): void {
+  if (!isRandomizeCodesEnabled()) return;
+  code = randomCode4();
+  ctx.updateScrawlText('codeScrawl', codeClueText(code));
+}
 
 const rb = new RoomBuilder();
 
@@ -53,7 +61,7 @@ export const room9: RoomDef = {
   scrawls: [
     { text: "they dose you small\nso you stay small", size: 2.6, pos: [4.85, 1.7, -1], rotY: -Math.PI / 2 },
     { text: 'his coat still smells\nlike the ward', size: 2.4, pos: [-4.85, 1.7, -3.6], rotY: Math.PI / 2 },
-    { text: '5 2 1 6', size: 2.2, pos: [-4.85, 1.7, 1], rotY: Math.PI / 2, big: true },
+    { id: 'codeScrawl', text: '5 2 1 6', size: 2.2, pos: [-4.85, 1.7, 1], rotY: Math.PI / 2, big: true },
   ],
   interactables: [
     {
@@ -130,6 +138,7 @@ export const room9Script: RoomScript = (() => {
 
   const script: RoomScript = {
     onEnter(ctx) {
+      regenerateCode(ctx);
       bottleTaken = false;
       doorUnlocked = false;
       gateNudged = false;
@@ -173,7 +182,7 @@ export const room9Script: RoomScript = (() => {
         ctx.telemetry.event('keypad_open');
         ctx.releasePointerLock();
         openKeypad({
-          code: CODE,
+          code,
           onDenied: () => ctx.telemetry.event('keypad_denied'),
           onSuccess: () => {
             doorUnlocked = true;
@@ -181,7 +190,7 @@ export const room9Script: RoomScript = (() => {
             ctx.moveInteractable('exitdoor', [-1, 1.5, -6.85], Math.PI / 2);
             doorCollider.minX = 999;
             doorCollider.maxX = 999.2;
-            ctx.hud.toast('5216. someone else needed reminding, once.');
+            ctx.hud.toast(`${code}. someone else needed reminding, once.`);
             ctx.hud.setObjective('the door is open. go.');
             ctx.telemetry.event('door_opened');
           },

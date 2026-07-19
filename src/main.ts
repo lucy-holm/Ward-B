@@ -10,6 +10,7 @@ import { Player } from './game/player';
 import { World } from './game/world';
 import { Interaction } from './game/interaction';
 import { Telemetry } from './game/telemetry';
+import { isRandomizeCodesEnabled, setRandomizeCodes } from './game/settings';
 import { Hud } from './ui/hud';
 import type { GameCtx } from './game/context';
 import type { RoomDef, RoomScript } from './rooms/types';
@@ -144,6 +145,7 @@ const ctx: GameCtx = {
     player.x = x;
     player.z = z;
   },
+  updateScrawlText: (id, text) => world.updateScrawlText(id, text),
 };
 
 state.onChange = (next) => {
@@ -236,6 +238,8 @@ function checkExits(): void {
 // initial presentation: scene visible behind the start overlay
 hud.setState(state.state);
 loadRoom('room1');
+
+hud.bindConfig(isRandomizeCodesEnabled, setRandomizeCodes);
 
 hud.showStart(() => {
   started = true;

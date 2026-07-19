@@ -889,6 +889,9 @@ export class World {
   // opacity here is safe; phase gives every scrawl an independent shimmer
   // instead of them all pulsing in lockstep.
   private readonly scrawlMats: Array<{ mat: THREE.MeshBasicMaterial; phase: number }> = [];
+  // Only scrawls authored with a ScrawlDef.id land here — most scrawls are
+  // static flavor text and never need a lookup. Keyed for updateScrawlText.
+  private readonly scrawlEntries = new Map<string, { mat: THREE.MeshBasicMaterial; def: ScrawlDef }>();
   // TV static re-noise timer — one shared canvas texture for every TV block
   // in the scene, repainted on a period rather than every frame.
   private tvStaticTimer = 0;
@@ -968,6 +971,7 @@ export class World {
       // read as alive. Each mesh owns its material already (ownsMaterial),
       // so wobbling opacity per-instance here doesn't touch anything shared.
       this.scrawlMats.push({ mat, phase: Math.random() * Math.PI * 2 });
+      if (s.id) this.scrawlEntries.set(s.id, { mat, def: s });
     }
 
     for (const it of def.interactables) {
@@ -1022,6 +1026,20 @@ export class World {
       if (x >= hz.minX && x <= hz.maxX && z >= hz.minZ && z <= hz.maxZ) return hz.y;
     }
     return 0;
+  }
+
+  // Rewrites a scrawl authored with a matching ScrawlDef.id — rebakes its
+  // canvas texture in place (position/rotation/size untouched), so a room
+  // script can reroll a wall clue (e.g. a randomized keypad code) without a
+  // full loadRoom, which would also reset colliders/interactables/doors.
+  updateScrawlText(id: string, text: string): void {
+    const entry = this.scrawlEntries.get(id);
+    if (!entry) return;
+    const oldMap = entry.mat.map;
+    entry.def.text = text;
+    entry.mat.map = makeScrawlTexture(entry.def);
+    entry.mat.needsUpdate = true;
+    oldMap?.dispose();
   }
 
   // Interactables currently in the room, for the Interaction raycast.
@@ -1150,6 +1168,7 @@ export class World {
     this.interactables.clear();
     this.animated.length = 0;
     this.scrawlMats.length = 0;
+    this.scrawlEntries.clear();
     this.colliders = [];
   }
 }

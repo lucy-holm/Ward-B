@@ -42,6 +42,9 @@ export interface ScrawlDef {
   pos: [number, number, number];
   rotY: number;
   big?: boolean;
+  // Stable handle for World.updateScrawlText — only needed on scrawls a room
+  // script rewrites at runtime (e.g. a randomized keypad code's wall clue).
+  id?: string;
 }
 
 export type InteractableType = 'pill_cup' | 'dispenser' | 'pill_pickup' | 'keypad' | 'door';

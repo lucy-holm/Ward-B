@@ -19,6 +19,10 @@ export class Hud {
   private threatLine: HTMLElement;
   private startOverlay: HTMLElement;
   private startBtn: HTMLButtonElement;
+  private configBtn: HTMLButtonElement;
+  private settingsOverlay: HTMLElement;
+  private settingsBackBtn: HTMLButtonElement;
+  private randomizeCodesToggle: HTMLInputElement;
   private genericOverlay: HTMLElement;
   private ovTitle: HTMLElement;
   private ovSub: HTMLElement;
@@ -69,6 +73,10 @@ export class Hud {
     this.threatLine = this.byId('threatLine');
     this.startOverlay = this.byId('startOverlay');
     this.startBtn = this.byId('startBtn') as HTMLButtonElement;
+    this.configBtn = this.byId('configBtn') as HTMLButtonElement;
+    this.settingsOverlay = this.byId('settingsOverlay');
+    this.settingsBackBtn = this.byId('settingsBackBtn') as HTMLButtonElement;
+    this.randomizeCodesToggle = this.byId('randomizeCodesToggle') as HTMLInputElement;
     this.genericOverlay = this.byId('genericOverlay');
     this.ovTitle = this.byId('ovTitle');
     this.ovSub = this.byId('ovSub');
@@ -317,6 +325,25 @@ export class Hud {
     };
   }
 
+  // Wires the start screen's CONFIGURATION button to a settings panel.
+  // getRandomizeCodes seeds the checkbox each time the panel opens (so it
+  // always reflects the persisted value, even if settings.ts loaded before
+  // this was called); setRandomizeCodes fires on every toggle.
+  bindConfig(getRandomizeCodes: () => boolean, setRandomizeCodes: (on: boolean) => void): void {
+    this.configBtn.onclick = () => {
+      this.randomizeCodesToggle.checked = getRandomizeCodes();
+      this.startOverlay.style.display = 'none';
+      this.settingsOverlay.style.display = 'flex';
+    };
+    this.randomizeCodesToggle.onchange = () => {
+      setRandomizeCodes(this.randomizeCodesToggle.checked);
+    };
+    this.settingsBackBtn.onclick = () => {
+      this.settingsOverlay.style.display = 'none';
+      this.startOverlay.style.display = 'flex';
+    };
+  }
+
   showEndCard(title: string, sub: string, cardHtml: string, btnLabel: string, onBtn: () => void): void {
     this.ovTitle.textContent = title;
     this.ovSub.textContent = sub;
@@ -328,6 +355,7 @@ export class Hud {
 
   hideOverlays(): void {
     this.startOverlay.style.display = 'none';
+    this.settingsOverlay.style.display = 'none';
     this.genericOverlay.style.display = 'none';
   }
 }

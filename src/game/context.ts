@@ -27,4 +27,7 @@ export interface GameCtx {
   playerPos(): { x: number; z: number; yaw: number };
   // Hard-reposition the player (e.g. the orderly's catch penalty).
   teleportPlayer(x: number, z: number): void;
+  // Rewrite an already-rendered scrawl's text in place (e.g. a randomized
+  // keypad code's wall clue) — no-op if `id` isn't a scrawl in the current room.
+  updateScrawlText(id: string, text: string): void;
 }

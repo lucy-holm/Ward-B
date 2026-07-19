@@ -4,6 +4,7 @@ import type { GameCtx } from '../game/context';
 import { openKeypad } from '../ui/keypad';
 import { Orderly, type OrderlyAABB } from '../game/orderly';
 import type { DebugPatrol } from '../devtools/map-types';
+import { randomCode4, codeClueText, isRandomizeCodesEnabled } from './kit';
 
 // ROOM 10 — the Wing. The spike: everything, at scale, and the two-pill
 // pocket finally has to be spent like a budget instead of a buffer.
@@ -49,7 +50,15 @@ import type { DebugPatrol } from '../devtools/map-types';
 // for by the time anyone reaches Z4), it only means a mistimed revert there
 // isn't a dead end anymore.
 
-const CODE = '3175';
+const FIXED_CODE = '3175';
+let code = FIXED_CODE;
+
+function regenerateCode(ctx: GameCtx): void {
+  if (!isRandomizeCodesEnabled()) return;
+  code = randomCode4();
+  ctx.updateScrawlText('codeScrawlA', codeClueText(code, [0, 2]));
+  ctx.updateScrawlText('codeScrawlB', codeClueText(code, [2, 4]));
+}
 
 const rb = new RoomBuilder();
 
@@ -142,8 +151,8 @@ export const room10: RoomDef = {
     // The nook end caps sit at x=±9.6 with inner faces at ±9.48 (walls are
     // 0.24 thick). These were authored at ±9.55 — inside the wall, so the
     // wall rendered over them and the code was invisible (playtest 6).
-    { text: '3 1 – –', size: 2.2, pos: [-9.46, 1.7, -8.6], rotY: Math.PI / 2, big: true },
-    { text: '– – 7 5', size: 2.2, pos: [9.46, 1.7, -18.6], rotY: -Math.PI / 2, big: true },
+    { id: 'codeScrawlA', text: '3 1 – –', size: 2.2, pos: [-9.46, 1.7, -8.6], rotY: Math.PI / 2, big: true },
+    { id: 'codeScrawlB', text: '– – 7 5', size: 2.2, pos: [9.46, 1.7, -18.6], rotY: -Math.PI / 2, big: true },
     // Zone hints pointing at the nooks, readable from the open floor.
     {
       text: 'they scratch their numbers\nwhere the west wall breaks',
@@ -306,6 +315,7 @@ export const room10Script: Room10Script = (() => {
     ctx.teleportPlayer(room10.spawn.x, room10.spawn.z);
     ctx.hud.toast('hands. a needle. "the whole wing, and you got this far," he says.');
     ctx.telemetry.event('orderly_caught');
+    regenerateCode(ctx);
   }
 
   function spawnOrderlies(ctx: GameCtx): void {
@@ -351,6 +361,7 @@ export const room10Script: Room10Script = (() => {
 
   const script: Room10Script = {
     onEnter(ctx) {
+      regenerateCode(ctx);
       spawnOrderlies(ctx);
       doorUnlocked = false;
       sawUnmedToast = false;
@@ -374,7 +385,7 @@ export const room10Script: Room10Script = (() => {
         ctx.telemetry.event('keypad_open');
         ctx.releasePointerLock();
         openKeypad({
-          code: CODE,
+          code,
           onDenied: () => ctx.telemetry.event('keypad_denied'),
           onSuccess: () => {
             doorUnlocked = true;
@@ -382,7 +393,7 @@ export const room10Script: Room10Script = (() => {
             ctx.moveInteractable('exitdoor', [-1, 1.5, -26.85], Math.PI / 2);
             doorCollider.minX = 999;
             doorCollider.maxX = 999.2;
-            ctx.hud.toast('3175. the last door in the building.');
+            ctx.hud.toast(`${code}. the last door in the building.`);
             ctx.hud.setObjective('the door is open. go.');
             ctx.telemetry.event('door_opened');
           },

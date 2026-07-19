@@ -49,6 +49,22 @@
       Neither state is lying to you. Neither is telling the truth.
     </div>
     <button class="btn" id="startBtn">ADMIT ME</button>
+    <button class="btn btnGhost" id="configBtn">CONFIGURATION</button>
+  </div>
+
+  <div id="settingsOverlay" class="overlay" style="display:none">
+    <h1>CONFIGURATION</h1>
+    <div class="sub">GAMEPLAY OPTIONS</div>
+    <div class="card">
+      <label class="toggleRow" for="randomizeCodesToggle">
+        <input type="checkbox" id="randomizeCodesToggle" />
+        <span>
+          randomize keypad codes
+          <br /><em>a fresh code — and a fresh wall clue — every time you enter a room or get caught.</em>
+        </span>
+      </label>
+    </div>
+    <button class="btn" id="settingsBackBtn">DONE</button>
   </div>
 
   <div id="genericOverlay" class="overlay" style="display:none">

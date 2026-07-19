@@ -405,6 +405,30 @@ impossible); the rest are still on you.
   range/occlusion already bound how bad a surprise can be), but if you're
   placing a scrawl or keypad well inside patrolled ground, check the
   distance against it.
+- [ ] **Randomize-codes support (any room with a keypad).** The start
+  screen's CONFIGURATION panel has a "randomize keypad codes" toggle
+  (`src/game/settings.ts`, off by default, persisted in localStorage). When
+  it's on, every keypad room rerolls its 4-digit code — and rewrites its
+  wall clue to match — on every room entry and every orderly catch. A new
+  keypad room must wire this up or the toggle silently won't apply to it.
+  The pattern (see room2 for the single-scrawl case, room5 for the split
+  case, room11 for the `keypadDoor` kit case):
+  - keep the authored code as `const FIXED_CODE = '....'` and use a
+    mutable `let code = FIXED_CODE` everywhere the keypad checks it;
+  - give the code-clue scrawl(s) an `id` (`'codeScrawl'`, or
+    `'codeScrawlA'`/`'codeScrawlB'` for a split clue);
+  - add a local `regenerateCode(ctx)` that early-returns unless
+    `isRandomizeCodesEnabled()`, then sets `code = randomCode4()` and calls
+    `ctx.updateScrawlText(id, codeClueText(code, mask?))` per scrawl —
+    `codeClueText` formats the space-separated digit convention, and its
+    optional `[start, end)` mask blanks the other half with `–` for split
+    clues (`[0, 2]` / `[2, 4]`);
+  - call `regenerateCode(ctx)` first thing in `onEnter` and at the end of
+    the room's `onCaught`/`handleCaught`;
+  - if the success toast quotes the code, build it from the live `code`
+    (template literal), not the original string — and with the `keypadDoor`
+    kit helper, use `lock.setCode(code, successToast)` instead of the
+    `let code` variable, since the lock closure holds its own copy.
 
 ## 5. Registering a room
 
@@ -470,15 +494,22 @@ second import).
 
 - **`scrawl(text, side, wallAt, along, opts?): ScrawlDef`** — a wall decal,
   proud of the face by `opts.proud` (default 0.03m, matching every existing
-  scrawl). `opts`: `{ size?, y?, big?, proud? }`.
+  scrawl). `opts`: `{ size?, y?, big?, proud?, id? }`. `id` is only needed
+  on scrawls a room script rewrites at runtime via
+  `ctx.updateScrawlText(id, text)` — in practice, the code-clue scrawl(s);
+  see §4's randomize-codes checklist item.
 
 - **`keypadDoor(rb, opts: KeypadDoorOpts): KeypadDoorLock`** — the full lock
   assembly. Builds the door `InteractableDef`, pushes its closure-held
   collider into `rb.colliders` (mutated in place on unlock, matching every
   shipped room's `.minX = 999` trick), builds the keypad via `keypad()`, and
   returns `{ door, keypad, collider, isUnlocked(), isAvailable(id),
-  handleInteract(id, ctx) }`. Wire the last two straight into a
-  `RoomScript` (directly, or via `makeOrderlyRoomScript`'s `extraScript`).
+  handleInteract(id, ctx), setCode(code, successToast?) }`. Wire
+  `isAvailable`/`handleInteract` straight into a `RoomScript` (directly, or
+  via `makeOrderlyRoomScript`'s `extraScript`); `setCode` is the
+  randomize-codes hook — call it alongside `ctx.updateScrawlText` so the
+  wall clue and the keypad never disagree (pass a fresh `successToast` too
+  if the room's default one echoes the literal code).
   `handleInteract` implements the exact standard flow: unmed refusal toast →
   `openKeypad` → on success, unlock flag + telemetry + `moveInteractable`
   swing + collider disable + toasts. The default swing (hinge at the wall

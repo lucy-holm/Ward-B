@@ -24,6 +24,8 @@ import {
   keypadDoor,
   patrol,
   makeOrderlyRoomScript,
+  inTrigger,
+  pressurePlate,
   type OrderlyAABB,
   type RoomDef,
 } from './kit';
@@ -64,12 +66,16 @@ const lock = keypadDoor(rb, {
   successToast: '1234. someone counted on their fingers.',
 });
 
+// A trigger volume + its visible flush plate, one call — no collider, so it
+// never blocks the player or an orderly's patrol.
+const demoPlate = pressurePlate({ id: 'demoplate', minX: -1, maxX: 1, minZ: -2, maxZ: -1 });
+
 export const _kitcheckRoom: RoomDef = {
   id: '_kitcheck',
   name: 'kit self-check',
   floor: { minX: -6, maxX: 6, minZ: -8, maxZ: 5 },
   spawn: { x: 0, z: 4, yaw: 0 },
-  blocks: rb.blocks,
+  blocks: [...rb.blocks, demoPlate.block],
   colliders: rb.colliders,
   scrawls: [
     scrawl('the closet remembers\nwhat it held', 'w', -6, -2, { size: 2.4 }),
@@ -82,7 +88,12 @@ export const _kitcheckRoom: RoomDef = {
   ],
   lights: [{ pos: [0, 3.5] }, { pos: [0, 0] }, { pos: [0, -3.5] }, { pos: [0, -7] }],
   exits: [{ to: 'END', minX: -1, maxX: 1, minZ: -7.9, maxZ: -6.8 }],
+  triggers: [demoPlate.trigger],
 };
+
+// inTrigger sanity: a point inside the demo plate's rect must test true in
+// any state (the plate is states:'both').
+if (!inTrigger(demoPlate.trigger, 0, -1.5, 'unmed')) throw new Error('_kitcheck: inTrigger(demoplate) should be true at (0,-1.5)');
 
 // Patrol loop around the island — validated against the room's own colliders
 // (including the still-locked door) at module init. If this line doesn't

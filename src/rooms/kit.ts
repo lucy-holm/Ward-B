@@ -18,6 +18,7 @@
 //            makeOrderlyRoomScript } from './kit';
 
 import type {
+  BlockDef,
   ColliderDef,
   HeightZone,
   InteractableDef,
@@ -25,6 +26,8 @@ import type {
   RoomScript,
   ScrawlDef,
   StateFilter,
+  TriggerDef,
+  WardState,
 } from './types';
 import { RoomBuilder, WALL_HALF_THICKNESS } from './build';
 import type { GameCtx } from '../game/context';
@@ -37,6 +40,7 @@ import { TUNING } from '../tuning';
 export { RoomBuilder } from './build';
 export type { OrderlyAABB } from '../game/orderly';
 export type {
+  BlockDef,
   ColliderDef,
   HeightZone,
   InteractableDef,
@@ -45,6 +49,7 @@ export type {
   RoomScript,
   ScrawlDef,
   StateFilter,
+  TriggerDef,
   WardState,
 } from './types';
 
@@ -207,6 +212,59 @@ export function scrawl(text: string, side: WallSide, wallAt: number, along: numb
   // scrawl faces the room exactly like a fixture mounted on the same wall.
   const rotY = axis === 'z' ? (sign > 0 ? 0 : Math.PI) : sign > 0 ? Math.PI / 2 : -Math.PI / 2;
   return { text, size: opts.size ?? DEFAULT_SCRAWL_SIZE, pos, rotY, big: opts.big, id: opts.id };
+}
+
+// ---------------------------------------------------------------------------
+// Trigger volumes — pure containment test + the visible-plate builder.
+// The engine polls RoomDef.triggers for the PLAYER only (main.ts has never
+// known about orderlies; they're room-owned). A room that wants "is the
+// orderly on the plate" calls inTrigger against its own Orderly's public
+// .x/.z each frame, paired with a `let wasOn = false` edge-detect local —
+// same shape as room13's inStretch.
+// ---------------------------------------------------------------------------
+
+// Pure containment test against a TriggerDef, honoring its state filter —
+// the exact rectangle+state check main.ts's per-frame player poll uses,
+// exposed so a room's update() can run the identical test against any
+// room-owned actor. One rectangle, authored once, shared by both sides —
+// no drift between "where the plate visually is" and "where it fires."
+export function inTrigger(t: TriggerDef, x: number, z: number, state: WardState): boolean {
+  if (t.states && t.states !== 'both' && t.states !== state) return false;
+  return x > t.minX && x < t.maxX && z > t.minZ && z < t.maxZ;
+}
+
+export interface PlateOpts {
+  id: string;
+  minX: number;
+  maxX: number;
+  minZ: number;
+  maxZ: number;
+  states?: StateFilter; // default 'both'
+  y?: number; // visual half-height above floor, default 0.02
+}
+
+export interface PlateDef {
+  trigger: TriggerDef;
+  block: BlockDef; // thin flush box, mat:'plate', same footprint + states as the trigger
+}
+
+// One call, two shapes (same pattern as keypadDoor): a TriggerDef and the
+// thin flush 'plate' block that marks it. Spread plate.block into blocks
+// and plate.trigger into RoomDef.triggers. Deliberately NO paired collider
+// — a pressure plate must stay walkable (that's the entire mechanic), and
+// with no collider it never enters ORDERLY_COLLIDERS either, so patrols
+// cross it like bare floor with zero special-casing.
+export function pressurePlate(opts: PlateOpts): PlateDef {
+  const h = opts.y ?? 0.02;
+  return {
+    trigger: { id: opts.id, minX: opts.minX, maxX: opts.maxX, minZ: opts.minZ, maxZ: opts.maxZ, states: opts.states },
+    block: {
+      size: [opts.maxX - opts.minX, h * 2, opts.maxZ - opts.minZ],
+      pos: [(opts.minX + opts.maxX) / 2, h, (opts.minZ + opts.maxZ) / 2],
+      mat: 'plate',
+      states: opts.states,
+    },
+  };
 }
 
 // ---------------------------------------------------------------------------

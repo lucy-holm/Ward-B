@@ -625,6 +625,15 @@ export interface MakeOrderlyRoomScriptCfg {
     onStateChange?(next: import('./types').WardState, ctx: GameCtx): void;
     update?(dt: number, t: number, ctx: GameCtx): void;
     onLeave?(ctx: GameCtx): void;
+    // Runs first, before the factory spawns orderlies or sets the objective
+    // — the right place for per-entry state resets and regenerateCode.
+    onEnter?(ctx: GameCtx): void;
+    // Runs after the standard catch penalty (force lucid, teleport, toast,
+    // telemetry). The hook the randomize-codes pattern needs: call your
+    // room's regenerateCode(ctx) here — without this, any room wanting a
+    // catch-triggered side effect had to hand-write the whole orderly
+    // script instead of using this factory.
+    onCaught?(ctx: GameCtx): void;
   };
 }
 
@@ -669,6 +678,7 @@ export function makeOrderlyRoomScript(cfg: MakeOrderlyRoomScriptCfg): OrderlyRoo
               ctx.teleportPlayer(cfg.spawn.x, cfg.spawn.z);
               ctx.hud.toast(cfg.catchToast ?? 'hands. a needle. "not this time," he says.');
               ctx.telemetry.event('orderly_caught');
+              cfg.extraScript?.onCaught?.(ctx);
             },
           },
           { colliders: alwaysOnColliders, floorHeightAt: oc.floorHeightAt },
@@ -679,6 +689,7 @@ export function makeOrderlyRoomScript(cfg: MakeOrderlyRoomScriptCfg): OrderlyRoo
 
   const script: OrderlyRoomScript = {
     onEnter(ctx) {
+      cfg.extraScript?.onEnter?.(ctx);
       spawnAll(ctx);
       sawUnmedToast = false;
       ctx.hud.setObjective(cfg.onEnterObjective);

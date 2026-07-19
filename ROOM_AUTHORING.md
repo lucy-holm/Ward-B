@@ -476,6 +476,21 @@ fixtures, scrawls, and lights, re-rendered on every save. Rooms with
 orderlies export their waypoint consts as `debugPatrols` (see any orderly
 room's last lines) so the viewer can draw them.
 
+```
+npm run check:rooms
+```
+
+is the headless half of the verification loop (`scripts/check-rooms.mjs`).
+`tsc`/`vite build` never *execute* room modules, so the kit's module-init
+validators — `patrol()` clearance, the stuck-orderly bug class — only fire
+on import: in the browser, or here. The script imports every room module,
+then checks the wiring TypeScript can't see: unique ids, spawn inside the
+floor rect, every exit target resolves, the room1→END exit chain is
+unbroken, every room is registered in both `main.ts` and the map viewer's
+registry, and orderly rooms export `debugPatrols`. Run it (plus
+`npm run build`) after any room change; don't hand-roll a node harness to
+execute room modules — this is that harness.
+
 ## 7. Kit API reference
 
 Everything below lives in `src/rooms/kit.ts`; one import line covers all of
@@ -532,11 +547,16 @@ second import).
   every wall/door/island has been added) — it's filtered to always-on
   (`states: 'both'` or unset) internally, same rule `Orderly` itself
   documents. `extraScript` (`{ isAvailable?, onInteract?, onStateChange?,
-  update?, onLeave? }`) is tried first for `isAvailable`/`onInteract`
-  (falling back to `true`/unhandled); `onStateChange`/`update`/`onLeave`
-  always run the kit's own logic and then `extraScript`'s, if present — this
-  is how you compose a `keypadDoor` lock into an orderly room (see the
-  worked example).
+  update?, onLeave?, onEnter?, onCaught? }`) is tried first for
+  `isAvailable`/`onInteract` (falling back to `true`/unhandled);
+  `onStateChange`/`update`/`onLeave` always run the kit's own logic and then
+  `extraScript`'s, if present — this is how you compose a `keypadDoor` lock
+  into an orderly room (see the worked example). `onEnter` runs *before* the
+  factory spawns orderlies/sets the objective (per-entry resets,
+  `regenerateCode`); `onCaught` runs *after* the standard catch penalty
+  (force lucid + teleport + toast + telemetry) — the randomize-codes
+  catch-reroll goes here, so a room with orderlies never needs to hand-write
+  the orderly boilerplate just to get a catch hook.
 
 - **`RoomBuilder`** — re-exported unchanged from `build.ts`.
 

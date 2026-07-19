@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build && chmod -R a+rX dist",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "check:rooms": "node scripts/check-rooms.mjs"
   },
   "dependencies": {
     "three": "^0.168.0"

@@ -27,7 +27,11 @@ skill + ROOM_AUTHORING.md.
 4. **Reaction time ≥2.5s** at every spot the player must stand and read:
    `distance from patrol ≥ ~8.2m`, or make the spot **provably unseeable**
    — put the scrawl in a nook whose own AABB is passed as the orderly's
-   occluder (room10's trick; sightlines into a box always cross it).
+   occluder (room10's trick; sightlines into a box always cross it). An
+   orderly's sight check (`orderly.ts` `updateSight`) tests ONLY the AABBs
+   in its own `occluders` array — a plain wall between orderly and player
+   does NOT block sight unless that wall's AABB is also passed as an
+   occluder; generic room colliders are invisible to line-of-sight.
 5. **Dispensers are placed for pressure, not comfort** (Tom, playtest 9):
    one per sealed pocket, at the NEAR end, so a mistimed revert deep in a
    stretch means a long unmed walk back through orderlies (room12's

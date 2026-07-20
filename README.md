@@ -99,6 +99,19 @@ The layer set is also in the URL (`?room=room12&layers=grid,patrols`), so a
 bookmark can capture a specific view — handy for comparing two rooms with
 identical layers.
 
+## Jumping straight to a room in the game
+
+Don't confuse this with the map viewer above — this is the actual game.
+Opening the game itself (not `/map.html`) with `?room=<id>`, e.g.
+`http://localhost:5173/?room=room9`, boots straight into that room instead
+of replaying from room1 — click through the start overlay as usual and
+you land there. It works in every build (dev server, tailnet, GitHub
+Pages), so it's a fast way to playtest a specific room without replaying
+the whole game. An unrecognized or missing `room` value falls back to
+room1 silently. Jumping to any room past room1 also grants the shift
+ability and a full pill, since normally both come from the room1
+tutorial.
+
 ## When a room breaks
 
 The viewer loads every room independently. If a room file throws at import

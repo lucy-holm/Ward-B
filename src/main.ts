@@ -53,6 +53,14 @@ const rooms: Record<string, { def: RoomDef; script: AnyRoomScript }> = {
   room14: { def: room14, script: room14Script },
 };
 
+// Dev/playtest room-jump: ?room=<id> boots straight into that room instead
+// of replaying the whole game from room1. Read once at boot — only the
+// initial load target changes; unknown/missing values silently fall back
+// to room1. Never gated to import.meta.env.DEV: Tom playtests on the built
+// tailnet/Pages builds, not just `npm run dev`.
+const requestedRoomId = new URLSearchParams(location.search).get('room');
+const startRoomId = requestedRoomId && rooms[requestedRoomId] ? requestedRoomId : 'room1';
+
 const container = document.getElementById('game')!;
 const hud = new Hud();
 const renderer = new Renderer(container);
@@ -63,7 +71,17 @@ const world = new World(renderer.scene);
 const player = new Player();
 const interaction = new Interaction(world);
 
-let current = rooms.room1;
+if (startRoomId !== 'room1') {
+  // Skipping room1 means the player never took the tutorial's cup pill,
+  // which is what normally sets canShift (see room1.ts onInteract 'cup').
+  // Without this, a jumped-to room would be unplayable for anything that
+  // needs shifting. A full pill (the max) makes any room's economy playable
+  // from a fresh jump.
+  state.canShift = true;
+  state.refill();
+}
+
+let current = rooms[startRoomId];
 let started = false;
 let ended = false;
 let roomEnteredAt = 0;
@@ -247,7 +265,8 @@ function checkExits(): void {
 
 // initial presentation: scene visible behind the start overlay
 hud.setState(state.state);
-loadRoom('room1');
+loadRoom(startRoomId);
+updatePills(); // reflect the room-jump pill/ability grant (no-op for room1)
 
 hud.bindConfig(isRandomizeCodesEnabled, setRandomizeCodes);
 

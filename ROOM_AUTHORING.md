@@ -682,3 +682,63 @@ export const ramps = [platformRamp];
 See `src/rooms/room11.ts` for the full version of this pattern at room
 scale — two orderlies, one owning the lower floor and one the platform, with
 the platform gating a scrawled code the player has to climb up to read.
+
+### True stacked floors (`levels` / `stairwells`) — when one XZ needs two heights
+
+Everything above assumes a **single-valued** floor: one walkable height per
+XZ column. That covers a mezzanine, a pit, a ramp — anything where no two
+walkable surfaces overlap in plan. When you genuinely need two floors
+**stacked over the same rectangle** (a gallery hanging over the room below
+it), the single-valued model can't express it, and `RoomDef.levels` /
+`stairwells` do. This is strictly additive — a room with no `levels` is one
+implicit `'__flat'` level wrapping its own `heightZones`/`ramps`, so
+everything documented above still works unchanged; reach for `levels` only
+when overlapping footprints force it.
+
+- **`level(id, baseY, floor, opts?)`** — a named floor with its own baseY,
+  footprint rect (used by spawn validation + the map viewer, *not* by
+  `floorHeightAt`), and optional per-level `heightZones`/`ramps`.
+- **`stairwell(id, minX, maxX, minZ, maxZ, axis, yLow, levelAtLow, yHigh,
+  levelAtHigh)`** — the connector between exactly two levels: a ramp that
+  also flips a traveler's persistent `level` once they fully clear the far
+  end (mirrors `ramp()`'s yLow/yHigh, plus a level tag per end).
+- `RoomDef.levels?` / `RoomDef.stairwells?` / `RoomDef.ceilingY?` (default 3)
+  / `spawn.level?` (default `levels[0].id`).
+- **A traveler carries a persistent level.** The player's flips only by
+  physically walking a `stairwell` footprint start-to-finish (`resolveLevel`,
+  every frame); `floorHeightAt(level, x, z)` then reads that level's own
+  height. Two travelers at the same XZ on different levels each get their own
+  correct height and collider set — that's the whole capability.
+- **Colliders can be level-scoped.** `ColliderDef.level` (undefined = a real
+  wall, blocks on every level — the common case; set = a railing that blocks
+  only its own level, so it doesn't wall off the floor beneath it). Author a
+  level-tagged collider by pushing it onto `rb.colliders` directly
+  (`rb.solid`/`rb.wall*` emit untagged ones). `ScrawlDef.level` /
+  `InteractableDef.level` are **viewer metadata only** — the runtime never
+  reads them.
+- **Orderlies are fixed to one level for life** (`OrderlyCfg.level` /
+  `OrderlyOptions.level`) and must never patrol into a `stairwell` footprint.
+  The cross-level LOS gate (`playerLevel === orderly.level`, checked before
+  any distance/cone math) makes an orderly on one level *categorically*
+  unable to see or catch a player on another — the strongest available
+  answer, not a layout guarantee. A multi-level room's catch handler must
+  teleport with an explicit level (`makeOrderlyRoomScript`'s `spawn.level`,
+  or `ctx.teleportPlayer(x, z, level)`).
+- **`patrol()` is still 2D and level-unaware** — it validates against
+  whatever collider list you hand it. Pass each orderly a list filtered to
+  his own level (`colliders.filter(c => c.level === undefined || c.level ===
+  'ground')`) so the check stays meaningful instead of seeing the cross-level
+  union.
+- **The ceiling is still one plane** (now at `ceilingY`, room-wide). A raised
+  level's floor is an authored opaque slab (a `block`, not a plane —
+  single-sided planes vanish from beneath); its underside *is* the ceiling
+  for whoever stands below it, for free. Give a stacked room a `ceilingY`
+  tall enough for the top level's eye-height + ~1m, and add upper-visual wall
+  blocks (y above the standard 3m wall, no collider) to close the volume
+  cosmetically — collision is already handled by the untagged perimeter
+  colliders.
+
+See `src/rooms/room17.ts` for the full worked room: two levels over one
+rectangle, two stairwells, three orderlies (two sharing an XZ footprint on
+different levels), and the `/map.html` level selector + stairwells layer to
+author it against.

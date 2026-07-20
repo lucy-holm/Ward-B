@@ -62,6 +62,7 @@ const LAYERS = [
   { id: 'height', label: 'height zones / ramps' },
   { id: 'colliders', label: 'colliders' },
   { id: 'blocks', label: 'blocks (mesh)' },
+  { id: 'triggers', label: 'triggers' },
   { id: 'patrols', label: 'patrols + sight' },
   { id: 'spawnexits', label: 'spawn / exits' },
   { id: 'interactables', label: 'interactables' },
@@ -254,6 +255,25 @@ function drawBlocks(g: SVGGElement, def: RoomDef): void {
         `block ${b.mat} size[${b.size.join(', ')}] pos[${b.pos.join(', ')}]` +
           (b.states ? ` states:${b.states}` : '') +
           (b.rotY ? ` rotY:${b.rotY}` : '')),
+    );
+  }
+}
+
+// Trigger volumes — violet, a color no other layer uses (colliders own
+// grey/blue/red, exits green). A pressurePlate() room shows this rect AND
+// its 'plate' block outline in the blocks layer — seeing them coincide (or
+// not) is the debug signal: a mismatch means the visible plate and its
+// firing bounds drifted apart.
+function drawTriggers(g: SVGGElement, def: RoomDef): void {
+  for (const t of def.triggers ?? []) {
+    const state = t.states ?? 'both';
+    g.appendChild(
+      rect(t.minX, t.minZ, t.maxX, t.maxZ,
+        { fill: '#9d6fe0', 'fill-opacity': state === 'both' ? 0.3 : 0.45, stroke: '#9d6fe0', 'stroke-width': 0.05 },
+        `trigger '${t.id}' x[${t.minX}, ${t.maxX}] z[${t.minZ}, ${t.maxZ}] states:${state}`),
+    );
+    g.appendChild(
+      label((t.minX + t.maxX) / 2, (t.minZ + t.maxZ) / 2, t.id, { fill: '#c9aef0', 'font-size': 0.45 }),
     );
   }
 }
@@ -460,6 +480,7 @@ function render(slot: RoomSlot, layers: Set<LayerId>): void {
     drawHeight(groups.get('height')!, def);
     drawColliders(groups.get('colliders')!, def);
     drawBlocks(groups.get('blocks')!, def);
+    drawTriggers(groups.get('triggers')!, def);
     drawPatrols(groups.get('patrols')!, patrols);
     drawSpawnExits(groups.get('spawnexits')!, def);
     drawInteractables(groups.get('interactables')!, def);

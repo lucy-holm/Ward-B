@@ -68,6 +68,7 @@ const LAYERS = [
   { id: 'spawnexits', label: 'spawn / exits' },
   { id: 'interactables', label: 'interactables' },
   { id: 'scrawls', label: 'scrawls' },
+  { id: 'iconpanels', label: 'door icon panels' },
   { id: 'lights', label: 'lights' },
 ] as const;
 type LayerId = (typeof LAYERS)[number]['id'];
@@ -354,21 +355,60 @@ const TYPE_COLORS: Record<string, string> = {
   pill_cup: '#e8e8e8',
   pill_pickup: '#e8e8e8',
   switch: '#c96fe0',
+  shape_key: '#ffffff', // overridden per-instance by it.color below when present
+  shape_lock: '#e07fd9',
 };
 
+// shape_key instances color their own swatch (it.color) rather than sharing
+// one fixed type color — the whole point of the fixture is "which shape/color
+// is this one", so the map view should show that at a glance too.
 function drawInteractables(g: SVGGElement, def: RoomDef): void {
   for (const it of def.interactables) {
-    const c = TYPE_COLORS[it.type] ?? '#ffffff';
+    const c = it.color ?? TYPE_COLORS[it.type] ?? '#ffffff';
     g.appendChild(
       el('circle', {
         cx: it.pos[0], cy: it.pos[2], r: 0.18,
         fill: c, stroke: '#14171a', 'stroke-width': 0.04,
       }, `${it.type} "${it.id}" pos[${it.pos.join(', ')}]` +
         (it.states ? ` states:${it.states}` : '') +
-        (it.lightState && it.lightState !== 'both' ? ` [${it.lightState}-only]` : '')),
+        (it.lightState && it.lightState !== 'both' ? ` [${it.lightState}-only]` : '') +
+        (it.shape ? ` shape:${it.shape}` : '')),
     );
     g.appendChild(
       label(it.pos[0], it.pos[2] - 0.35, it.id, { fill: c, 'font-size': 0.4 }),
+    );
+  }
+}
+
+// Door icon panels (room15's shape lock) — one small square marker per
+// ShapeSpec in reading order at the panel's pos, colored per shape, titled
+// with the shape_lock's full required set. Descriptive data only, same
+// spirit as drawScrawls/drawInteractables.
+function drawIconPanels(g: SVGGElement, def: RoomDef): void {
+  for (const p of def.iconPanels ?? []) {
+    const n = p.shapes.length;
+    const spacing = 0.4;
+    const startX = p.pos[0] - ((n - 1) * spacing) / 2;
+    const required = p.shapes.map((s) => s.shape).join(', ');
+    p.shapes.forEach((s, i) => {
+      g.appendChild(
+        el(
+          'rect',
+          {
+            x: startX + i * spacing - 0.12,
+            y: p.pos[2] - 0.12,
+            width: 0.24,
+            height: 0.24,
+            fill: s.color,
+            stroke: '#14171a',
+            'stroke-width': 0.03,
+          },
+          `iconPanel '${p.id}' shape ${i}: ${s.shape} (${s.color}) — requires [${required}]`,
+        ),
+      );
+    });
+    g.appendChild(
+      label(p.pos[0], p.pos[2] + 0.5, p.id, { fill: '#e0c9f0', 'font-size': 0.4 }),
     );
   }
 }
@@ -504,6 +544,7 @@ function render(slot: RoomSlot, layers: Set<LayerId>): void {
     drawSpawnExits(groups.get('spawnexits')!, def);
     drawInteractables(groups.get('interactables')!, def);
     drawScrawls(groups.get('scrawls')!, def);
+    drawIconPanels(groups.get('iconpanels')!, def);
     drawLights(groups.get('lights')!, def);
 
     viewport.appendChild(svg);

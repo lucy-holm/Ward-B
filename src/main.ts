@@ -178,6 +178,7 @@ const ctx: GameCtx = {
     world.applyLight(dark);
     renderer.setDark(dark);
   },
+  updateIconPanel: (id, lit) => world.updateIconPanel(id, lit),
 };
 
 state.onChange = (next) => {

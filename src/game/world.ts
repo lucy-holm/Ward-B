@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type {
   HeightZone,
+  IconPanelDef,
   InteractableDef,
   ColliderDef,
   LightFilter,
@@ -8,6 +9,8 @@ import type {
   RampDef,
   RoomDef,
   ScrawlDef,
+  ShapeKind,
+  ShapeSpec,
   StateFilter,
   WardState,
 } from '../rooms/types';
@@ -852,6 +855,188 @@ function buildDoor(it: InteractableDef, floor: RoomDef['floor']): THREE.Group {
   return group;
 }
 
+// ---------------------------------------------------------------------------
+// Shape keys / shape lock / icon panel — room15's mechanic (see
+// docs/superpowers/specs/2026-07-19-room15-shape-keys-design.md). No new
+// render tech: a shape key is a small composite prop (pedestal + a flat
+// colored shape mesh, own material so removeInteractable disposes it
+// cleanly), a shape lock is a wall composite in the buildKeypad/buildDoor
+// family, and an icon panel is a CanvasTexture-on-a-PlaneGeometry rewritten
+// in place exactly like makeScrawlTexture/updateScrawlText.
+// ---------------------------------------------------------------------------
+
+// Traces one shape's outline into the current path, centered at the current
+// origin, sized by `r`. Shared by the icon panel texture and the shape-lock
+// faceplate so the three glyphs always read as the same shape everywhere.
+function traceShapePath(g: CanvasRenderingContext2D, shape: ShapeKind, r: number): void {
+  g.beginPath();
+  switch (shape) {
+    case 'circle':
+      g.arc(0, 0, r * 0.72, 0, Math.PI * 2);
+      break;
+    case 'square':
+      g.rect(-r * 0.68, -r * 0.68, r * 1.36, r * 1.36);
+      break;
+    case 'triangle':
+      g.moveTo(0, -r * 0.82);
+      g.lineTo(-r * 0.76, r * 0.6);
+      g.lineTo(r * 0.76, r * 0.6);
+      g.closePath();
+      break;
+  }
+}
+
+// A colored geometric solid standing in for the shape-key prop's "coin" —
+// flat disc/box/tri-prism, thin on Y, matching whichever shape the def asks
+// for. Own material (per-instance hex color), disposed via ownsMaterial like
+// every other per-instance fixture material in this file.
+function buildShapeKeyGlyph(shape: ShapeKind, color: string, size: number): THREE.Mesh {
+  const mat = new THREE.MeshStandardMaterial({
+    color,
+    emissive: new THREE.Color(color),
+    emissiveIntensity: 0.45,
+    roughness: 0.4,
+  });
+  const thickness = size * 0.22;
+  let geo: THREE.BufferGeometry;
+  switch (shape) {
+    case 'circle':
+      geo = new THREE.CylinderGeometry(size * 0.5, size * 0.5, thickness, 22);
+      break;
+    case 'square':
+      geo = new THREE.BoxGeometry(size * 0.86, thickness, size * 0.86);
+      break;
+    case 'triangle':
+      // 3-sided cylinder = a flat triangular prism lying on its side.
+      geo = new THREE.CylinderGeometry(size * 0.58, size * 0.58, thickness, 3);
+      break;
+  }
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.userData.ownsMaterial = true;
+  return mesh;
+}
+
+// Shape key — a free-standing pedestal + glyph, states:'unmed' always (see
+// rooms/kit.ts's shapeKeyProp), so it simply isn't in the scene while lucid —
+// no bespoke visibility code needed here, same World.groups[states] trick
+// every other unmed-only prop already uses.
+function buildShapeKey(it: InteractableDef): THREE.Group {
+  const group = new THREE.Group();
+  const [w, h] = it.size;
+  const pedestalH = h * 0.45;
+  const pedestal = new THREE.Mesh(new THREE.BoxGeometry(w * 0.55, pedestalH, w * 0.55), MATERIALS.prop);
+  pedestal.position.y = -h / 2 + pedestalH / 2;
+  group.add(pedestal);
+
+  const glyphSize = w * 0.75;
+  const glyph = buildShapeKeyGlyph(it.shape ?? 'circle', it.color ?? '#ffffff', glyphSize);
+  glyph.position.y = -h / 2 + pedestalH + glyphSize * 0.28;
+  group.add(glyph);
+
+  return group;
+}
+
+// Shape-lock faceplate — static outlines of all three shapes (this engine
+// only ever has one shape-lock kind, so there's nothing per-instance to bake
+// in); the door unlocks by count, tracked in kit.ts's shapeLockDoor, not by
+// anything this fixture displays. The icon panel above the door is what
+// actually lights up per key collected.
+function makeShapeLockPlateTexture(): THREE.CanvasTexture {
+  const cv = document.createElement('canvas');
+  cv.width = 320;
+  cv.height = 300;
+  const g = cv.getContext('2d')!;
+  g.fillStyle = '#152420';
+  g.fillRect(0, 0, cv.width, cv.height);
+  g.strokeStyle = '#6f8f86';
+  g.lineWidth = 4;
+  g.strokeRect(3, 3, cv.width - 6, cv.height - 6);
+
+  const shapes: ShapeKind[] = ['circle', 'square', 'triangle'];
+  const cellW = cv.width / shapes.length;
+  g.strokeStyle = '#bfe9de';
+  g.lineWidth = 6;
+  shapes.forEach((shape, i) => {
+    g.save();
+    g.translate(cellW * i + cellW / 2, cv.height / 2);
+    traceShapePath(g, shape, 46);
+    g.stroke();
+    g.restore();
+  });
+
+  addEdgeGrime(g, cv.width, cv.height);
+  return new THREE.CanvasTexture(cv);
+}
+
+// Wall composite, buildKeypad's shape: body + a static faceplate. Built in
+// the same canonical z-thin/faces-+z frame and offset via resolveFacing, so
+// it looks right on whichever wall it's mounted against.
+function buildShapeLock(it: InteractableDef, floor: RoomDef['floor']): THREE.Group {
+  const group = new THREE.Group();
+  const [w, h, d] = it.size;
+  const facing = resolveFacing(it, floor);
+  const faceDist = (facing.axis === 'x' ? w : d) / 2;
+  const faceRotY = faceRotationY(facing);
+  const along = facing.axis === 'x' ? d : w;
+
+  const body = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), MATERIALS.pad);
+  group.add(body);
+
+  const plateMat = new THREE.MeshBasicMaterial({ map: makeShapeLockPlateTexture() });
+  const plate = new THREE.Mesh(new THREE.PlaneGeometry(along * 0.9, h * 0.82), plateMat);
+  const plateOff = faceOffset(facing, faceDist + 0.004);
+  plate.position.set(plateOff[0], 0, plateOff[2]);
+  plate.rotation.y = faceRotY;
+  plate.userData.ownsMaterial = true;
+  group.add(plate);
+
+  const stripSize: [number, number, number] =
+    facing.axis === 'x' ? [0.012, h * 0.04, along * 0.62] : [along * 0.62, h * 0.04, 0.012];
+  const strip = new THREE.Mesh(new THREE.BoxGeometry(...stripSize), GLOW_SLOT_MAT);
+  const stripOff = faceOffset(facing, faceDist + 0.01);
+  strip.position.set(stripOff[0], h * 0.34, stripOff[2]);
+  group.add(strip);
+
+  return group;
+}
+
+// Door-top progress panel — sibling to makeScrawlTexture: dim stroked
+// outlines by default (near-invisible, "dim by default" per the design doc's
+// leaning on its open question), filled + glowing where lit[i] is true.
+// World.updateIconPanel rebakes this in place, byte-for-byte the same trick
+// updateScrawlText already uses.
+function makeIconPanelTexture(shapes: ShapeSpec[], lit: boolean[]): THREE.CanvasTexture {
+  const cv = document.createElement('canvas');
+  const cellW = 170;
+  cv.width = cellW * Math.max(1, shapes.length);
+  cv.height = 170;
+  const g = cv.getContext('2d')!;
+  g.clearRect(0, 0, cv.width, cv.height);
+
+  shapes.forEach((s, i) => {
+    const isLit = lit[i] ?? false;
+    g.save();
+    g.translate(cellW * i + cellW / 2, cv.height / 2);
+    g.lineWidth = 7;
+    if (isLit) {
+      g.strokeStyle = s.color;
+      g.fillStyle = s.color;
+      g.shadowColor = s.color;
+      g.shadowBlur = 26;
+    } else {
+      g.strokeStyle = 'rgba(255,255,255,0.22)';
+      g.fillStyle = 'transparent';
+    }
+    traceShapePath(g, s.shape, 46);
+    if (isLit) g.fill();
+    g.shadowBlur = 0;
+    g.stroke();
+    g.restore();
+  });
+
+  return new THREE.CanvasTexture(cv);
+}
+
 // Two-tone capsule (white body, teal-emissive hemisphere caps) built along
 // local Y then tilted — reused by both pill_pickup (bare) and pill_cup
 // (resting inside). Caps use SphereGeometry theta-ranges instead of a
@@ -958,6 +1143,12 @@ export class World {
   // Only scrawls authored with a ScrawlDef.id land here — most scrawls are
   // static flavor text and never need a lookup. Keyed for updateScrawlText.
   private readonly scrawlEntries = new Map<string, { mat: THREE.MeshBasicMaterial; def: ScrawlDef }>();
+  // Icon panels (room15's shape-lock progress display) — keyed for
+  // updateIconPanel, same shape as scrawlEntries.
+  private readonly iconPanelEntries = new Map<
+    string,
+    { mat: THREE.MeshBasicMaterial; def: IconPanelDef; lit: boolean[] }
+  >();
   // TV static re-noise timer — one shared canvas texture for every TV block
   // in the scene, repainted on a period rather than every frame.
   private tvStaticTimer = 0;
@@ -1063,16 +1254,34 @@ export class World {
         case 'pill_cup':
           mesh = buildPillCup(it);
           break;
+        case 'shape_key':
+          mesh = buildShapeKey(it);
+          break;
+        case 'shape_lock':
+          mesh = buildShapeLock(it, def.floor);
+          break;
         default:
           mesh = new THREE.Mesh(new THREE.BoxGeometry(...it.size), MATERIALS[it.mat]);
       }
       mesh.position.set(...it.pos);
       this.groups[it.states ?? 'both'].add(mesh);
       this.interactables.set(it.id, { def: it, mesh });
-      if (it.type === 'pill_cup' || it.type === 'pill_pickup') {
+      if (it.type === 'pill_cup' || it.type === 'pill_pickup' || it.type === 'shape_key') {
         this.animated.push({ mesh, baseY: it.pos[1] });
       }
       if (it.lightState && it.lightState !== 'both') this.lightGated.push({ mesh, light: it.lightState });
+    }
+
+    for (const p of def.iconPanels ?? []) {
+      const lit = p.shapes.map(() => false);
+      const size = p.size ?? 2.4;
+      const mat = new THREE.MeshBasicMaterial({ map: makeIconPanelTexture(p.shapes, lit), transparent: true });
+      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(size, size / Math.max(1, p.shapes.length)), mat);
+      mesh.position.set(...p.pos);
+      mesh.rotation.y = p.rotY;
+      mesh.userData.ownsMaterial = true;
+      this.groups.both.add(mesh);
+      this.iconPanelEntries.set(p.id, { mat, def: p, lit });
     }
 
     // Opening visibility for the light axis — after lightGated is fully
@@ -1132,6 +1341,20 @@ export class World {
     const oldMap = entry.mat.map;
     entry.def.text = text;
     entry.mat.map = makeScrawlTexture(entry.def);
+    entry.mat.needsUpdate = true;
+    oldMap?.dispose();
+  }
+
+  // Rewrites an icon panel authored with a matching IconPanelDef.id — rebakes
+  // its canvas texture in place (position/rotation/size untouched), same
+  // trick as updateScrawlText above. `lit` is parallel to the panel's
+  // ShapeSpec[] order.
+  updateIconPanel(id: string, lit: boolean[]): void {
+    const entry = this.iconPanelEntries.get(id);
+    if (!entry) return;
+    const oldMap = entry.mat.map;
+    entry.lit = lit;
+    entry.mat.map = makeIconPanelTexture(entry.def.shapes, lit);
     entry.mat.needsUpdate = true;
     oldMap?.dispose();
   }
@@ -1263,6 +1486,7 @@ export class World {
     this.animated.length = 0;
     this.scrawlMats.length = 0;
     this.scrawlEntries.clear();
+    this.iconPanelEntries.clear();
     this.colliders = [];
     this.lightGated = [];
     this.dark = false;

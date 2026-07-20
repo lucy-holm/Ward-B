@@ -88,7 +88,14 @@ export type InteractableType =
   | 'pill_pickup'
   | 'keypad'
   | 'door'
-  | 'switch'; // a room-wide light toggle — see room16, World.buildSwitch
+  | 'switch' // a room-wide light toggle — see room16, World.buildSwitch
+  | 'shape_key'
+  | 'shape_lock';
+
+// The three shapes room15's shape-key mechanic deals in — a shape_key prop
+// is one of these, a shape_lock needs all three, an icon panel shows them
+// left to right.
+export type ShapeKind = 'circle' | 'square' | 'triangle';
 
 export interface InteractableDef {
   id: string;
@@ -110,6 +117,27 @@ export interface InteractableDef {
   // switch/door are always-present fixtures gated by onInteract logic, not
   // by existence. default 'both'.
   lightState?: LightFilter;
+  // Meaningful only on type:'shape_key' — which shape this prop is, and its
+  // display/glow color (hex). Absent on every other interactable type.
+  shape?: ShapeKind;
+  color?: string;
+}
+
+// One shape+color pairing, e.g. one slot on a shape_lock's icon panel.
+export interface ShapeSpec {
+  shape: ShapeKind;
+  color: string; // hex
+}
+
+// A door-top progress panel — mirrors ScrawlDef's shape (world-space plane +
+// a stable id World.updateIconPanel can rewrite in place). Shapes render
+// left-to-right in array order.
+export interface IconPanelDef {
+  id: string;
+  shapes: ShapeSpec[];
+  pos: [number, number, number];
+  rotY: number;
+  size?: number; // world-units width of the plane, default 2.4 (kit.ts)
 }
 
 // Walking into this AABB leaves the room.
@@ -184,6 +212,9 @@ export interface RoomDef {
   // Initial light state on room entry (see LightFilter). Default false
   // (lit) — every room shipped before this axis existed is unaffected.
   startDark?: boolean;
+  // Door-top progress panels (room15's shape lock) — optional/additive,
+  // absent ⇒ no panels, identical to every room shipped before this existed.
+  iconPanels?: IconPanelDef[];
 }
 
 // Per-room bespoke logic (tutorial beats, phase gating). Generic behaviour

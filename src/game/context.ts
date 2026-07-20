@@ -39,4 +39,8 @@ export interface GameCtx {
   // onInteract. Drives both World's lightState-gated visibility and the
   // Renderer's real point-light/ambient dimming (atmosphere).
   setRoomDark(dark: boolean): void;
+  // Rewrite an already-rendered icon panel's lit state in place (room15's
+  // shape-key progress panel) — no-op if `id` isn't an icon panel in the
+  // current room. `lit` is parallel to the panel's ShapeSpec[] order.
+  updateIconPanel(id: string, lit: boolean[]): void;
 }

@@ -21,10 +21,13 @@ import type {
   BlockDef,
   ColliderDef,
   HeightZone,
+  IconPanelDef,
   InteractableDef,
   RampDef,
   RoomScript,
   ScrawlDef,
+  ShapeKind,
+  ShapeSpec,
   StateFilter,
   TriggerDef,
   WardState,
@@ -43,11 +46,14 @@ export type {
   BlockDef,
   ColliderDef,
   HeightZone,
+  IconPanelDef,
   InteractableDef,
   RampDef,
   RoomDef,
   RoomScript,
   ScrawlDef,
+  ShapeKind,
+  ShapeSpec,
   StateFilter,
   TriggerDef,
   WardState,
@@ -479,6 +485,291 @@ export function keypadDoor(rb: RoomBuilder, opts: KeypadDoorOpts): KeypadDoorLoc
         },
       });
       return true;
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Shape keys / shape lock / icon panel — room15's mechanic (see
+// docs/superpowers/specs/2026-07-19-room15-shape-keys-design.md). Visibility
+// gating, catch-persistence, and occlusion are all free (see the design
+// doc's "why this needs no change to the pill/state/orderly systems"
+// section) — this is purely the authoring surface.
+// ---------------------------------------------------------------------------
+
+// A free-standing colored flat-shape prop — not wall-relative like
+// dispenser()/keypad(), since keys sit mid-alcove on the floor, not mounted
+// flush to a wall face. states is forced 'unmed': the whole point — while
+// lucid the prop simply isn't rendered (World.groups[it.states] trick every
+// unmed-only fixture already relies on).
+export interface ShapeKeyOpts {
+  id: string;
+  shape: ShapeKind;
+  color: string; // hex
+  pos: [number, number, number];
+  label?: string; // default 'take it'
+  size?: [number, number, number]; // default [0.5, 0.9, 0.5], footprint for raycast + pedestal
+}
+
+const DEFAULT_SHAPE_KEY_SIZE: [number, number, number] = [0.5, 0.9, 0.5];
+
+export function shapeKeyProp(opts: ShapeKeyOpts): FixtureDef {
+  return {
+    id: opts.id,
+    type: 'shape_key',
+    size: opts.size ?? DEFAULT_SHAPE_KEY_SIZE,
+    pos: opts.pos,
+    mat: 'prop',
+    states: 'unmed',
+    label: opts.label ?? 'take it',
+    shape: opts.shape,
+    color: opts.color,
+    // Free-standing prop, not wall-mounted — facing is ignored by
+    // world.ts's buildShapeKey. Fixed at 'pz' purely so this satisfies
+    // FixtureDef's "facing guaranteed present" contract.
+    facing: 'pz',
+  };
+}
+
+// A door-top progress panel — wall-relative like scrawl(), dim outlines by
+// default, GameCtx.updateIconPanel(id, lit) rewrites it in place.
+export interface IconPanelOpts {
+  id: string;
+  shapes: ShapeSpec[]; // left-to-right order
+  size?: number; // default 2.4
+  y?: number; // default 2.6
+}
+
+const DEFAULT_ICON_PANEL_SIZE = 2.4;
+const DEFAULT_ICON_PANEL_Y = 2.6;
+
+export function iconPanel(side: WallSide, wallAt: number, along: number, opts: IconPanelOpts): IconPanelDef {
+  const { axis, sign } = SIDE[side];
+  const proud = DEFAULT_SCRAWL_PROUD; // same small decal gap as scrawl()
+  const face = wallFace(wallAt, side);
+  const depthCoord = face + sign * proud;
+  const pos: [number, number, number] =
+    axis === 'z'
+      ? [along, opts.y ?? DEFAULT_ICON_PANEL_Y, depthCoord]
+      : [depthCoord, opts.y ?? DEFAULT_ICON_PANEL_Y, along];
+  // Same axis/sign -> rotY rule as scrawl()'s, so a panel faces the room
+  // exactly like a fixture/scrawl mounted on the same wall.
+  const rotY = axis === 'z' ? (sign > 0 ? 0 : Math.PI) : sign > 0 ? Math.PI / 2 : -Math.PI / 2;
+  return { id: opts.id, shapes: opts.shapes, pos, rotY, size: opts.size ?? DEFAULT_ICON_PANEL_SIZE };
+}
+
+// Same wall-mount footprint math as keypad() (KEYPAD_FOOTPRINT), different
+// InteractableType. Kept local rather than routed through wallFixture()
+// since wallFixture's `type` parameter is a fixed 'dispenser' | 'keypad'
+// union — not worth widening for the one extra call site.
+const SHAPE_LOCK_FOOTPRINT: [number, number, number] = [0.14, 0.5, 0.4];
+
+// The full shape-lock assembly — parallel to keypadDoor, no code, a count
+// instead. Bundles the door, the shape_lock wall fixture, every shape_key
+// prop, and the icon panel into one call; owns the held-set (a room script
+// never hand-writes shape bookkeeping, same as keypadDoor owning `unlocked`).
+export interface ShapeLockDoorOpts {
+  doorId: string;
+  // door geometry — identical fields to KeypadDoorOpts (side/wallAt/along/
+  // width/height/depth/hinge/openDepth/openPos/openRotY/doorLabel)
+  side: WallSide;
+  wallAt: number;
+  along: number;
+  width?: number;
+  height?: number;
+  depth?: number;
+  hinge?: 'start' | 'end';
+  openDepth?: number;
+  openPos?: [number, number, number];
+  openRotY?: number;
+  doorLabel?: string;
+
+  lockId: string;
+  lockSide?: WallSide;
+  lockWallAt?: number;
+  lockAlong: number;
+  lockLabel?: string;
+
+  keys: Array<{ id: string; shape: ShapeKind; color: string; pos: [number, number, number]; pickupToast: string }>;
+
+  iconPanelId: string;
+  iconPanelSide: WallSide;
+  iconPanelWallAt: number;
+  iconPanelAlong: number;
+
+  states?: StateFilter;
+  refusalToastUnmed?: string; // default matches every keypad's static-refusal line
+  refusalToastIncomplete?: (have: number, need: number) => string;
+  successToast?: string;
+  successObjective?: string; // default 'the door is open. go.'
+}
+
+export interface ShapeLockDoorLock {
+  door: FixtureDef;
+  lock: FixtureDef;
+  keys: FixtureDef[];
+  iconPanel: IconPanelDef;
+  collider: ColliderDef;
+  heldCount(): number;
+  // Standard isAvailable rule: door is never directly interactable, a
+  // picked-up key stops resolving once removed, the lock disappears once
+  // unlocked. Wire into your RoomScript's extraScript.isAvailable.
+  isAvailable(id: string): boolean;
+  // Handles: any key id (unmed-only, engine already gates that) → add to
+  // held set, ctx.removeInteractable(id), ctx.updateIconPanel(...), toast;
+  // the lock id → unmed refusal / incomplete toast / full unlock (same
+  // moveInteractable + collider-disable + toasts + telemetry pattern
+  // keypadDoor.handleInteract already implements). Returns false
+  // (unhandled) for any other id.
+  handleInteract(id: string, ctx: GameCtx): boolean;
+}
+
+export function shapeLockDoor(rb: RoomBuilder, opts: ShapeLockDoorOpts): ShapeLockDoorLock {
+  const { axis, sign } = SIDE[opts.side];
+  const width = opts.width ?? 2;
+  const height = opts.height ?? 3;
+  const depth = opts.depth ?? 0.2;
+  const halfWidth = width / 2;
+  const hinge = opts.hinge ?? 'start';
+
+  const doorSize: [number, number, number] = axis === 'z' ? [width, height, depth] : [depth, height, width];
+  const doorPos: [number, number, number] =
+    axis === 'z' ? [opts.along, height / 2, opts.wallAt] : [opts.wallAt, height / 2, opts.along];
+
+  const door: FixtureDef = {
+    id: opts.doorId,
+    type: 'door',
+    size: doorSize,
+    pos: doorPos,
+    mat: 'door',
+    states: opts.states ?? 'both',
+    label: opts.doorLabel ?? 'the door',
+    facing: facingOf(opts.side),
+  };
+
+  // Closure-held collider — same "shove it out to x999 on unlock" trick
+  // keypadDoor uses, so nothing else holding a reference needs to know it moved.
+  const colliderHalf = depth / 2;
+  const collider: ColliderDef =
+    axis === 'z'
+      ? {
+          minX: opts.along - halfWidth,
+          maxX: opts.along + halfWidth,
+          minZ: opts.wallAt - colliderHalf,
+          maxZ: opts.wallAt + colliderHalf,
+          states: opts.states,
+        }
+      : {
+          minX: opts.wallAt - colliderHalf,
+          maxX: opts.wallAt + colliderHalf,
+          minZ: opts.along - halfWidth,
+          maxZ: opts.along + halfWidth,
+          states: opts.states,
+        };
+  rb.colliders.push(collider);
+
+  const hingeAlong = hinge === 'start' ? opts.along - halfWidth : opts.along + halfWidth;
+  const openDepth = opts.openDepth ?? DOOR_SWING_DEPTH;
+  const openWallCoord = opts.wallAt - sign * openDepth;
+  const defaultOpenPos: [number, number, number] =
+    axis === 'z' ? [hingeAlong, height / 2, openWallCoord] : [openWallCoord, height / 2, hingeAlong];
+  const openPos = opts.openPos ?? defaultOpenPos;
+  const openRotY = opts.openRotY ?? Math.PI / 2;
+
+  // The lock fixture — same wall-mount footprint math as keypad(), different
+  // InteractableType, so it's inlined here rather than routed through
+  // wallFixture().
+  const lockSide = opts.lockSide ?? opts.side;
+  const lockWallAt = opts.lockWallAt ?? opts.wallAt;
+  const lockAxis = SIDE[lockSide].axis;
+  const lockSign = SIDE[lockSide].sign;
+  const lockThin = SHAPE_LOCK_FOOTPRINT[0];
+  const lockSizeOriented = orientedSize(SHAPE_LOCK_FOOTPRINT, lockAxis);
+  const lockFace = wallFace(lockWallAt, lockSide);
+  const lockProudCenter = lockFace + lockSign * (lockThin / 2);
+  const lockPos: [number, number, number] =
+    lockAxis === 'z'
+      ? [opts.lockAlong, DEFAULT_FIXTURE_Y, lockProudCenter]
+      : [lockProudCenter, DEFAULT_FIXTURE_Y, opts.lockAlong];
+
+  const lock: FixtureDef = {
+    id: opts.lockId,
+    type: 'shape_lock',
+    size: lockSizeOriented,
+    pos: lockPos,
+    mat: 'pad',
+    states: opts.states ?? 'both',
+    label: opts.lockLabel ?? 'use the lock',
+    facing: facingOf(lockSide),
+  };
+
+  const keys: FixtureDef[] = opts.keys.map((k) =>
+    shapeKeyProp({ id: k.id, shape: k.shape, color: k.color, pos: k.pos }),
+  );
+
+  const iconPanelDef = iconPanel(opts.iconPanelSide, opts.iconPanelWallAt, opts.iconPanelAlong, {
+    id: opts.iconPanelId,
+    shapes: opts.keys.map((k) => ({ shape: k.shape, color: k.color })),
+  });
+
+  const held = new Set<ShapeKind>();
+  const removed = new Set<string>();
+  let unlocked = false;
+
+  function litArray(): boolean[] {
+    return opts.keys.map((k) => held.has(k.shape));
+  }
+
+  return {
+    door,
+    lock,
+    keys,
+    iconPanel: iconPanelDef,
+    collider,
+    heldCount: () => held.size,
+    isAvailable(id: string): boolean {
+      if (id === opts.doorId) return false;
+      if (id === opts.lockId) return !unlocked;
+      if (removed.has(id)) return false;
+      return true;
+    },
+    handleInteract(id: string, ctx: GameCtx): boolean {
+      const key = opts.keys.find((k) => k.id === id);
+      if (key) {
+        if (removed.has(id)) return true; // already gone — nothing to do
+        removed.add(id);
+        held.add(key.shape);
+        ctx.removeInteractable(id);
+        ctx.updateIconPanel(opts.iconPanelId, litArray());
+        ctx.hud.toast(key.pickupToast);
+        return true;
+      }
+      if (id === opts.lockId) {
+        if (ctx.state.state === 'unmed') {
+          ctx.hud.toast(
+            opts.refusalToastUnmed ??
+              "the lock is a smear of static. it's not reading shapes right now — it's not reading anything.",
+          );
+          return true;
+        }
+        if (held.size < opts.keys.length) {
+          const msg = opts.refusalToastIncomplete
+            ? opts.refusalToastIncomplete(held.size, opts.keys.length)
+            : `it wants ${opts.keys.length} shapes back. you have ${held.size}.`;
+          ctx.hud.toast(msg);
+          return true;
+        }
+        unlocked = true;
+        ctx.telemetry.event('shape_lock_success');
+        ctx.moveInteractable(opts.doorId, openPos, openRotY);
+        collider.minX = 999;
+        collider.maxX = 999.2;
+        ctx.hud.toast(opts.successToast ?? 'the door opens.');
+        ctx.hud.setObjective(opts.successObjective ?? 'the door is open. go.');
+        ctx.telemetry.event('door_opened');
+        return true;
+      }
+      return false;
     },
   };
 }

@@ -429,7 +429,7 @@ impossible); the rest are still on you.
     (template literal), not the original string — and with the `keypadDoor`
     kit helper, use `lock.setCode(code, successToast)` instead of the
     `let code` variable, since the lock closure holds its own copy.
-- **Reversible trigger-held gates**: any collider re-engaged on trigger-exit
+- [ ] **Reversible trigger-held gates.** any collider re-engaged on trigger-exit
   must defer the close while a body's circle still overlaps the gate's own
   footprint, rechecked per frame (room14's `tryCloseGate` is the worked
   example) — closing onto a body freezes it in place, the same bug class

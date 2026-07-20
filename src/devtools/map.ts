@@ -357,6 +357,7 @@ const TYPE_COLORS: Record<string, string> = {
   switch: '#c96fe0',
   shape_key: '#ffffff', // overridden per-instance by it.color below when present
   shape_lock: '#e07fd9',
+  push_block: '#8fd9a0',
 };
 
 // shape_key instances color their own swatch (it.color) rather than sharing

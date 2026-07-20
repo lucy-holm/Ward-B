@@ -82,6 +82,12 @@ export interface ScrawlDef {
   ink?: 'red' | 'phosphor'; // default 'red'
 }
 
+// 'push_block' (room20): a sokoban-lite crate. No dedicated builder in
+// world.ts's loadRoom switch — it falls through to the generic `default:`
+// branch (a plain BoxGeometry box, mat:'prop'), same as every type added
+// before a room actually needed bespoke geometry for it. Entirely
+// room-script-owned: push resolution, the mutable ColliderDef it shares
+// with orderly occluders, and the move-tween all live in room20.ts, not here.
 export type InteractableType =
   | 'pill_cup'
   | 'dispenser'
@@ -90,7 +96,8 @@ export type InteractableType =
   | 'door'
   | 'switch' // a room-wide light toggle — see room16, World.buildSwitch
   | 'shape_key'
-  | 'shape_lock';
+  | 'shape_lock'
+  | 'push_block';
 
 // The three shapes room15's shape-key mechanic deals in — a shape_key prop
 // is one of these, a shape_lock needs all three, an icon panel shows them

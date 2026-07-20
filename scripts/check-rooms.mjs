@@ -17,6 +17,7 @@
 //      src/devtools/map.ts's MODULES registry (the two easy-to-forget spots)
 //   6. any room file that spawns an Orderly exports debugPatrols (so the
 //      /map.html viewer can draw its patrol + sight envelope)
+//   7. trigger ids are unique per room (RoomDef.triggers)
 //
 // Run it after any room change; it's the cheap half of the §6 verification
 // loop in ROOM_AUTHORING.md (the map viewer is the visual half).
@@ -120,6 +121,11 @@ for (const [id, { def, file, hasDebugPatrols, spawnsOrderly }] of defs) {
   }
   if (spawnsOrderly && !hasDebugPatrols && !UNROUTED.has(id)) {
     fail(`${file}: spawns orderlies but exports no debugPatrols (map viewer can't draw the patrol)`);
+  }
+  const trigIds = new Set();
+  for (const t of def.triggers ?? []) {
+    if (trigIds.has(t.id)) fail(`${file}: duplicate trigger id '${t.id}'`);
+    trigIds.add(t.id);
   }
 }
 

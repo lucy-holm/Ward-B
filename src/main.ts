@@ -5,6 +5,7 @@ import { Input } from './engine/input';
 import { AudioEngine } from './engine/audio';
 import { circleHitsSolidUnmed } from './engine/collision';
 import { StateSystem } from './game/state';
+import { FlagStore, type Flags } from './game/flags';
 import { TUNING } from './tuning';
 import { Player } from './game/player';
 import { World } from './game/world';
@@ -36,7 +37,20 @@ import { room14, room14Script } from './rooms/room14';
 // the only place that needs to know about it.
 type AnyRoomScript = RoomScript & { onLeave?(ctx: GameCtx): void };
 
-const rooms: Record<string, { def: RoomDef; script: AnyRoomScript }> = {
+// A registry entry is either a static RoomDef (every room shipped before
+// flags existed — zero migration) or a build(flags) factory for rooms whose
+// geometry depends on a cross-room flag (game/flags.ts) that doesn't have a
+// value until runtime — a static `export const roomN: RoomDef` is baked at
+// module import, before any flag is ever set. The factory runs exactly once
+// per entry, inside loadRoom; everything downstream (`current.def.exits`,
+// checkExits, world.loadRoom) still always holds a concrete, resolved
+// RoomDef. Because rooms are one-way, "read the flag at build time" and
+// "read the flag once, ever, per playthrough" are the same statement.
+type RoomEntry =
+  | { def: RoomDef; script: AnyRoomScript }
+  | { build: (flags: Flags) => RoomDef; script: AnyRoomScript };
+
+const rooms: Record<string, RoomEntry> = {
   room1: { def: room1, script: room1Script },
   room2: { def: room2, script: room2Script },
   room3: { def: room3, script: room3Script },
@@ -67,6 +81,11 @@ const renderer = new Renderer(container);
 const input = new Input(container);
 const audio = new AudioEngine();
 const state = new StateSystem();
+// Cross-room flag store — same lifetime as StateSystem: constructed once per
+// page load, mutated for the playthrough, discarded on reload (endOfBuild's
+// READMIT is a location.reload(), which is the only full reset this game
+// has; an orderly catch never touches it). Never persisted to localStorage.
+const flagStore = new FlagStore();
 const world = new World(renderer.scene);
 const player = new Player();
 const interaction = new Interaction(world);
@@ -81,7 +100,16 @@ if (startRoomId !== 'room1') {
   state.refill();
 }
 
-let current = rooms[startRoomId];
+// Resolve a registry entry to its concrete def (running the factory against
+// the live flag store for build entries) + script. Hoisted above `current`'s
+// initializer. A jump into a factory room (e.g. ?room=room19) resolves it
+// against whatever the flag store holds at boot — its default, since no
+// upstream room ran to set the flag.
+function resolveEntry(entry: RoomEntry): { def: RoomDef; script: AnyRoomScript } {
+  return { def: 'def' in entry ? entry.def : entry.build(flagStore), script: entry.script };
+}
+
+let current = resolveEntry(rooms[startRoomId]);
 let started = false;
 let ended = false;
 let roomEnteredAt = 0;
@@ -157,6 +185,7 @@ const ctx: GameCtx = {
   hud,
   audio,
   telemetry,
+  flags: flagStore,
   removeInteractable: (id) => world.removeInteractable(id),
   moveInteractable: (id, pos, rotY) => {
     const entry = world.entries().find((e) => e.def.id === id);
@@ -211,7 +240,7 @@ input.onInteract = () => {
 };
 
 function loadRoom(id: string): void {
-  current = rooms[id];
+  current = resolveEntry(rooms[id]);
   world.loadRoom(current.def);
   world.applyState(state.state);
   // Light axis — World.loadRoom already applies this internally (so the

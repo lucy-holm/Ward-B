@@ -1,5 +1,6 @@
 import type * as THREE from 'three';
 import type { StateSystem } from './state';
+import type { Flags } from './flags';
 import type { Telemetry } from './telemetry';
 import type { Hud } from '../ui/hud';
 import type { AudioEngine } from '../engine/audio';
@@ -11,6 +12,12 @@ export interface GameCtx {
   hud: Hud;
   audio: AudioEngine;
   telemetry: Telemetry;
+  // Cross-room persistent flags (game/flags.ts). Written by one room's
+  // script, read by another's build/onEnter/isAvailable. Per-playthrough
+  // only: never persisted to localStorage (unlike game/settings.ts), never
+  // cleared by an orderly catch — the same lifetime as StateSystem, i.e. a
+  // full page reload is the only reset.
+  flags: Flags;
   // Permanently remove an interactable and its mesh (e.g. the swallowed pill cup).
   removeInteractable(id: string): void;
   // Reposition/rotate an existing interactable's mesh in place (e.g. a door swinging open).

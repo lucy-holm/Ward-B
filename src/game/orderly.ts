@@ -56,6 +56,15 @@ export interface OrderlyOptions {
   // default TUNING.orderly.coneDeg. Same rationale as sightRange above —
   // room13 needs a wide-enough cone to sweep the whole corridor width.
   coneDeg?: number;
+  // Stacked floors (rooms/types.ts's LevelDef/StairwellDef) — which level
+  // this orderly is fixed to for his entire lifetime. He never calls
+  // resolveLevel; a patrol loop simply must never enter a StairwellDef
+  // footprint (the room author's job, same as keeping him off furniture).
+  // This is what makes cross-level LOS categorically impossible rather than
+  // a layout convention — see update()/updateSight()'s playerLevel gate
+  // below. Default '__flat', matching every room without `levels` (where
+  // the player's level is also always '__flat').
+  level?: string;
 }
 
 // Proportions for the unmed body: unnaturally tall and thin, arms hanging
@@ -437,6 +446,9 @@ export class Orderly {
   private readonly floorHeightAt?: (x: number, z: number) => number;
   private readonly sightRange: number;
   private readonly coneDeg: number;
+  // Stacked floors — fixed for this orderly's whole lifetime, see
+  // OrderlyOptions.level's header.
+  readonly level: string;
 
   private readonly root = new THREE.Group();
   private readonly unmedMesh: THREE.Group;
@@ -460,6 +472,7 @@ export class Orderly {
     this.floorHeightAt = options.floorHeightAt;
     this.sightRange = options.sightRange ?? TUNING.orderly.sightRange;
     this.coneDeg = options.coneDeg ?? TUNING.orderly.coneDeg;
+    this.level = options.level ?? '__flat';
 
     const built = buildUnmedBody(options.eyeTint ?? 0xffffff);
     this.unmedMesh = built.group;
@@ -497,7 +510,13 @@ export class Orderly {
     this.unmedMesh.visible = s === 'unmed';
   }
 
-  update(dt: number, playerX: number, playerZ: number, playerState: WardState): void {
+  update(
+    dt: number,
+    playerX: number,
+    playerZ: number,
+    playerState: WardState,
+    playerLevel: string = '__flat',
+  ): void {
     let stepping = false;
     if (this.mode === 'patrol') stepping = this.patrolStep(dt);
     else if (this.mode === 'chase') stepping = this.chaseStep(dt, playerX, playerZ);
@@ -512,8 +531,11 @@ export class Orderly {
     // his sight cone (or bumping a returning orderly) let the player clip
     // straight through with no consequence. Gated on playerState === 'unmed'
     // so "lucid is always safe" (see file header) holds regardless of mode —
-    // a lucid player can walk through his body with zero risk.
-    if (playerState === 'unmed') {
+    // a lucid player can walk through his body with zero risk. Stacked
+    // floors add a second, equally hard gate: playerLevel === this.level —
+    // a player standing directly below/above a chasing orderly (same XZ,
+    // different level) must not be catchable by touch either.
+    if (playerState === 'unmed' && playerLevel === this.level) {
       const dx = playerX - this.x;
       const dz = playerZ - this.z;
       if (Math.hypot(dx, dz) < TUNING.orderly.catchRadius) {
@@ -522,7 +544,7 @@ export class Orderly {
       }
     }
     if (this.mode === 'patrol') {
-      this.updateSight(dt, playerX, playerZ, playerState);
+      this.updateSight(dt, playerX, playerZ, playerState, playerLevel);
     }
     // mode === 'returning': ramp stays 0, no sight checks — he gave up (but
     // the contact check above still applies to him).
@@ -601,9 +623,19 @@ export class Orderly {
     this.torso.rotation.x += (torsoTarget - this.torso.rotation.x) * Math.min(1, dt * 6);
   }
 
-  private updateSight(dt: number, playerX: number, playerZ: number, playerState: WardState): void {
+  private updateSight(
+    dt: number,
+    playerX: number,
+    playerZ: number,
+    playerState: WardState,
+    playerLevel: string,
+  ): void {
     let seen = false;
-    if (playerState === 'unmed') {
+    // Cross-level LOS gate — checked before any distance/cone/occlusion math,
+    // not just layered on top of it: an orderly fixed to level: 'ground'
+    // cannot ever transition into 'watching'/'chasing' against a player on
+    // 'balcony', regardless of XZ distance. See OrderlyOptions.level's header.
+    if (playerState === 'unmed' && playerLevel === this.level) {
       const dx = playerX - this.x;
       const dz = playerZ - this.z;
       const dist = Math.hypot(dx, dz);
@@ -727,8 +759,10 @@ export class Orderly {
     const body = { x: this.x, z: this.z, r: this.radius };
     // `this.colliders` is pre-filtered by the room to always-on colliders
     // (states 'both'/undefined), so the WardState arg below is inert — every
-    // collider passes isActive() regardless of what's passed here.
-    tryMove(body, this.x + dxStep, this.z + dzStep, this.colliders, 'unmed');
+    // collider passes isActive() regardless of what's passed here. `this.level`
+    // is passed so a level-tagged collider (a railing that shouldn't block
+    // the floor underneath it) is filtered against his own fixed level.
+    tryMove(body, this.x + dxStep, this.z + dzStep, this.colliders, 'unmed', this.level);
     this.x = body.x;
     this.z = body.z;
   }

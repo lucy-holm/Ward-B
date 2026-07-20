@@ -127,6 +127,35 @@ for (const [id, { def, file, hasDebugPatrols, spawnsOrderly }] of defs) {
     if (trigIds.has(t.id)) fail(`${file}: duplicate trigger id '${t.id}'`);
     trigIds.add(t.id);
   }
+
+  // True stacked floors (rooms/types.ts's LevelDef/StairwellDef) — every
+  // stairwell's level tags must resolve to a real declared level, and if
+  // spawn.level is given it must resolve too, with spawn's XZ falling
+  // inside that level's own floor rect. No-op for every room without
+  // `levels`/`stairwells` (the vast majority, still).
+  if (def.levels) {
+    const levelIds = new Set(def.levels.map((l) => l.id));
+    for (const s of def.stairwells ?? []) {
+      if (!levelIds.has(s.levelAtLow)) {
+        fail(`${file}: stairwell '${s.id}' levelAtLow '${s.levelAtLow}' is not a declared level`);
+      }
+      if (!levelIds.has(s.levelAtHigh)) {
+        fail(`${file}: stairwell '${s.id}' levelAtHigh '${s.levelAtHigh}' is not a declared level`);
+      }
+    }
+    if (spawn.level !== undefined) {
+      if (!levelIds.has(spawn.level)) {
+        fail(`${file}: spawn.level '${spawn.level}' is not a declared level`);
+      } else {
+        const lvl = def.levels.find((l) => l.id === spawn.level);
+        if (spawn.x < lvl.floor.minX || spawn.x > lvl.floor.maxX || spawn.z < lvl.floor.minZ || spawn.z > lvl.floor.maxZ) {
+          fail(`${file}: spawn (${spawn.x},${spawn.z}) is outside level '${spawn.level}'s floor rect`);
+        }
+      }
+    }
+  } else if (def.stairwells?.length) {
+    fail(`${file}: has stairwells but no levels`);
+  }
 }
 
 // Exit chain from room1 → END.

@@ -6,7 +6,7 @@
 // North = −Z renders at the top: SVG y grows downward and so does +Z, so
 // svgY = worldZ directly. All coordinates/strokes/fonts are in meters via
 // the viewBox; the browser scales to fit.
-import type { BlockDef, ColliderDef, RoomDef } from '../rooms/types';
+import type { BlockDef, ColliderDef, LevelDef, RoomDef } from '../rooms/types';
 import type { DebugPatrol } from './map-types';
 import { TUNING } from '../tuning';
 
@@ -61,6 +61,7 @@ async function loadRoom(id: string): Promise<RoomSlot> {
 const LAYERS = [
   { id: 'grid', label: 'grid' },
   { id: 'height', label: 'height zones / ramps' },
+  { id: 'stairwells', label: 'stairwells (levels)' },
   { id: 'colliders', label: 'colliders' },
   { id: 'blocks', label: 'blocks (mesh)' },
   { id: 'triggers', label: 'triggers' },
@@ -102,26 +103,44 @@ const MAT_COLORS: Record<BlockDef['mat'], string> = {
   breaker: '#cf7b2e',
 };
 
+// True stacked floors — an item tagged `level` only "belongs" to the
+// selected level; undefined always draws at full strength (a real wall/
+// pillar spanning every level). A mismatched level draws as a low-opacity
+// dashed GHOST rather than being hidden outright, so a room author can
+// visually verify two levels' footprints line up (room17's authoring need:
+// does the gallery's stairwell hole actually sit over the lower floor's
+// landing spot). `selectedLevel === null` (room has no `levels`) never
+// ghosts anything — every existing single-level room draws exactly as
+// before.
+const GHOST_OPACITY = 0.15;
+function levelGhostAttrs(itemLevel: string | undefined, selectedLevel: string | null): Record<string, string | number> {
+  if (itemLevel === undefined || selectedLevel === null || itemLevel === selectedLevel) return {};
+  return { opacity: GHOST_OPACITY, 'stroke-dasharray': '0.2 0.15' };
+}
+
 // --- URL state ---------------------------------------------------------------
-// ?room=<id>&layers=<csv> — survives Vite's full-page reload on save, which
-// is what makes the edit→save→look loop land back on the room being edited.
-// layers param omitted ⇒ all layers on.
-function readUrl(): { room: string; layers: Set<LayerId> } {
+// ?room=<id>&layers=<csv>&level=<id> — survives Vite's full-page reload on
+// save, which is what makes the edit→save→look loop land back on the room
+// being edited. layers param omitted ⇒ all layers on. level param omitted ⇒
+// the room's first declared level (or ignored entirely for a room with no
+// `levels`).
+function readUrl(): { room: string; layers: Set<LayerId>; level: string | null } {
   const q = new URLSearchParams(location.search);
   const room = q.get('room') ?? 'room1';
   const raw = q.get('layers');
-  if (raw === null) return { room, layers: new Set(LAYERS.map((l) => l.id)) };
-  const wanted = new Set(raw.split(','));
-  return {
-    room,
-    layers: new Set(LAYERS.map((l) => l.id).filter((id) => wanted.has(id))),
-  };
+  const level = q.get('level');
+  const layers =
+    raw === null
+      ? new Set(LAYERS.map((l) => l.id))
+      : new Set(LAYERS.map((l) => l.id).filter((id) => new Set(raw.split(',')).has(id)));
+  return { room, layers, level };
 }
 
-function writeUrl(room: string, layers: Set<LayerId>): void {
+function writeUrl(room: string, layers: Set<LayerId>, level: string | null): void {
   const q = new URLSearchParams();
   q.set('room', room);
   if (layers.size !== LAYERS.length) q.set('layers', [...layers].join(','));
+  if (level !== null) q.set('level', level);
   history.replaceState(null, '', `?${q.toString()}`);
 }
 
@@ -203,13 +222,14 @@ function drawGrid(g: SVGGElement, f: RoomDef['floor']): void {
   );
 }
 
-function drawColliders(g: SVGGElement, def: RoomDef): void {
+function drawColliders(g: SVGGElement, def: RoomDef, selectedLevel: string | null): void {
   for (const c of def.colliders) {
     const state = c.states ?? 'both';
     g.appendChild(
       rect(c.minX, c.minZ, c.maxX, c.maxZ,
-        { fill: STATE_COLORS[state], 'fill-opacity': 0.9 },
-        `collider x[${c.minX}, ${c.maxX}] z[${c.minZ}, ${c.maxZ}] states:${state}`),
+        { fill: STATE_COLORS[state], 'fill-opacity': 0.9, ...levelGhostAttrs(c.level, selectedLevel) },
+        `collider x[${c.minX}, ${c.maxX}] z[${c.minZ}, ${c.maxZ}] states:${state}` +
+          (c.level ? ` level:${c.level}` : '')),
     );
   }
 }
@@ -286,8 +306,14 @@ function drawTriggers(g: SVGGElement, def: RoomDef): void {
   }
 }
 
-function drawHeight(g: SVGGElement, def: RoomDef): void {
-  for (const z of def.heightZones ?? []) {
+// Reads the selected level's own heightZones/ramps when `levels` is present
+// (they live per-level, not on the top-level RoomDef fields once a room
+// authors `levels` — see rooms/types.ts's LevelDef header), falling back to
+// the top-level fields otherwise (every room without `levels`, unchanged).
+function drawHeight(g: SVGGElement, def: RoomDef, activeLevel: LevelDef | undefined): void {
+  const heightZones = activeLevel?.heightZones ?? def.heightZones ?? [];
+  const ramps = activeLevel?.ramps ?? def.ramps ?? [];
+  for (const z of heightZones) {
     g.appendChild(
       rect(z.minX, z.minZ, z.maxX, z.maxZ,
         { fill: '#4a5d6e', 'fill-opacity': 0.35, stroke: '#6d8699', 'stroke-width': 0.04 },
@@ -298,7 +324,7 @@ function drawHeight(g: SVGGElement, def: RoomDef): void {
         { fill: '#9db8cc', 'font-size': 0.55 }),
     );
   }
-  for (const r of def.ramps ?? []) {
+  for (const r of ramps) {
     g.appendChild(
       rect(r.minX, r.minZ, r.maxX, r.maxZ,
         { fill: '#5e6e4a', 'fill-opacity': 0.35, stroke: '#87996d', 'stroke-width': 0.04 },
@@ -320,6 +346,37 @@ function drawHeight(g: SVGGElement, def: RoomDef): void {
     );
     g.appendChild(label(x1, z1 - 0.25, `y=${r.yLow}`, { fill: '#b3c996', 'font-size': 0.4 }));
     g.appendChild(label(x2, z2 - 0.25, `y=${r.yHigh}`, { fill: '#b3c996', 'font-size': 0.4 }));
+  }
+}
+
+// True stacked floors — a stairwell's footprint + an arrow labeled with the
+// level ids each end belongs to (not bare y numbers, unlike drawHeight's
+// ramps — a level transition is structurally different from an in-level
+// ramp: it changes which collider/patrol set applies, not just height).
+// Distinct color (amber) so it doesn't read as just another ramp.
+function drawStairwells(g: SVGGElement, def: RoomDef): void {
+  for (const s of def.stairwells ?? []) {
+    g.appendChild(
+      rect(s.minX, s.minZ, s.maxX, s.maxZ,
+        { fill: '#8a6a3f', 'fill-opacity': 0.35, stroke: '#c99a5f', 'stroke-width': 0.05 },
+        `stairwell '${s.id}' axis:${s.axis} ${s.levelAtLow}(y=${s.yLow}) -> ${s.levelAtHigh}(y=${s.yHigh}) ` +
+          `x[${s.minX}, ${s.maxX}] z[${s.minZ}, ${s.maxZ}]`),
+    );
+    const cx = (s.minX + s.maxX) / 2;
+    const cz = (s.minZ + s.maxZ) / 2;
+    const [x1, z1, x2, z2] =
+      s.axis === 'x'
+        ? [s.minX + 0.3, cz, s.maxX - 0.3, cz]
+        : [cx, s.minZ + 0.3, cx, s.maxZ - 0.3];
+    g.appendChild(
+      el('line', {
+        x1, y1: z1, x2, y2: z2,
+        stroke: '#e0b878', 'stroke-width': 0.08, 'marker-end': 'url(#arrow)',
+      }),
+    );
+    g.appendChild(label(x1, z1 - 0.25, s.levelAtLow, { fill: '#e0b878', 'font-size': 0.42 }));
+    g.appendChild(label(x2, z2 - 0.25, s.levelAtHigh, { fill: '#e0b878', 'font-size': 0.42 }));
+    g.appendChild(label(cx, cz + 0.35, s.id, { fill: '#e0b878', 'font-size': 0.4 }));
   }
 }
 
@@ -363,20 +420,22 @@ const TYPE_COLORS: Record<string, string> = {
 // shape_key instances color their own swatch (it.color) rather than sharing
 // one fixed type color — the whole point of the fixture is "which shape/color
 // is this one", so the map view should show that at a glance too.
-function drawInteractables(g: SVGGElement, def: RoomDef): void {
+function drawInteractables(g: SVGGElement, def: RoomDef, selectedLevel: string | null): void {
   for (const it of def.interactables) {
     const c = it.color ?? TYPE_COLORS[it.type] ?? '#ffffff';
     g.appendChild(
       el('circle', {
         cx: it.pos[0], cy: it.pos[2], r: 0.18,
         fill: c, stroke: '#14171a', 'stroke-width': 0.04,
+        ...levelGhostAttrs(it.level, selectedLevel),
       }, `${it.type} "${it.id}" pos[${it.pos.join(', ')}]` +
         (it.states ? ` states:${it.states}` : '') +
         (it.lightState && it.lightState !== 'both' ? ` [${it.lightState}-only]` : '') +
-        (it.shape ? ` shape:${it.shape}` : '')),
+        (it.shape ? ` shape:${it.shape}` : '') +
+        (it.level ? ` level:${it.level}` : '')),
     );
     g.appendChild(
-      label(it.pos[0], it.pos[2] - 0.35, it.id, { fill: c, 'font-size': 0.4 }),
+      label(it.pos[0], it.pos[2] - 0.35, it.id, { fill: c, 'font-size': 0.4, ...levelGhostAttrs(it.level, selectedLevel) }),
     );
   }
 }
@@ -414,17 +473,18 @@ function drawIconPanels(g: SVGGElement, def: RoomDef): void {
   }
 }
 
-function drawScrawls(g: SVGGElement, def: RoomDef): void {
+function drawScrawls(g: SVGGElement, def: RoomDef, selectedLevel: string | null): void {
   for (const s of def.scrawls) {
     g.appendChild(
-      el('circle', { cx: s.pos[0], cy: s.pos[2], r: 0.12, fill: s.ink === 'phosphor' ? '#bfffc9' : '#d98fb0' },
+      el('circle', { cx: s.pos[0], cy: s.pos[2], r: 0.12, fill: s.ink === 'phosphor' ? '#bfffc9' : '#d98fb0', ...levelGhostAttrs(s.level, selectedLevel) },
         `scrawl "${s.text}" pos[${s.pos.join(', ')}] size:${s.size}${s.big ? ' big' : ''}` +
           (s.ink === 'phosphor' ? ' ink:phosphor' : '') +
-          (s.lightState && s.lightState !== 'both' ? ` [${s.lightState}-only]` : '')),
+          (s.lightState && s.lightState !== 'both' ? ` [${s.lightState}-only]` : '') +
+          (s.level ? ` level:${s.level}` : '')),
     );
     g.appendChild(
       label(s.pos[0], s.pos[2] + 0.55, `“${s.text.split('\n')[0]}”`,
-        { fill: '#d98fb0', 'font-size': 0.38, 'font-style': 'italic' }),
+        { fill: '#d98fb0', 'font-size': 0.38, 'font-style': 'italic', ...levelGhostAttrs(s.level, selectedLevel) }),
     );
   }
 }
@@ -442,11 +502,12 @@ function drawLights(g: SVGGElement, def: RoomDef): void {
 
 const PATROL_COLORS = ['#e05555', '#e0a83f', '#4fc3dd', '#b06fe0'];
 
-function drawPatrols(g: SVGGElement, patrols: DebugPatrol[]): void {
+function drawPatrols(g: SVGGElement, patrols: DebugPatrol[], selectedLevel: string | null): void {
   patrols.forEach((p, i) => {
     if (p.waypoints.length === 0) return;
     const color = PATROL_COLORS[i % PATROL_COLORS.length];
     const range = p.sightRange ?? TUNING.orderly.sightRange;
+    const ghost = levelGhostAttrs(p.level, selectedLevel);
     const pts = [...p.waypoints, p.waypoints[0]]; // closed loop
     const ptStr = pts.map((w) => `${w.x},${w.z}`).join(' ');
     // The sight envelope: the loop drawn at 2×range width with round
@@ -458,25 +519,26 @@ function drawPatrols(g: SVGGElement, patrols: DebugPatrol[]): void {
         points: ptStr, fill: 'none', stroke: color,
         'stroke-width': range * 2, 'stroke-opacity': 0.09,
         'stroke-linecap': 'round', 'stroke-linejoin': 'round',
-      }, `sight envelope r=${range}m${p.label ? ` [${p.label}]` : ''}`),
+        ...ghost,
+      }, `sight envelope r=${range}m${p.label ? ` [${p.label}]` : ''}${p.level ? ` level:${p.level}` : ''}`),
     );
     g.appendChild(
-      el('polyline', { points: ptStr, fill: 'none', stroke: color, 'stroke-width': 0.08 }),
+      el('polyline', { points: ptStr, fill: 'none', stroke: color, 'stroke-width': 0.08, ...ghost }),
     );
     p.waypoints.forEach((w, n) => {
       g.appendChild(
-        el('circle', { cx: w.x, cy: w.z, r: 0.22, fill: color },
+        el('circle', { cx: w.x, cy: w.z, r: 0.22, fill: color, ...ghost },
           `waypoint ${n} (${w.x}, ${w.z})${p.label ? ` [${p.label}]` : ''}`),
       );
       g.appendChild(
         label(w.x + 0.35, w.z - 0.25, String(n),
-          { fill: color, 'text-anchor': 'start', 'font-size': 0.5 }),
+          { fill: color, 'text-anchor': 'start', 'font-size': 0.5, ...ghost }),
       );
     });
     if (p.label) {
       g.appendChild(
         label(p.waypoints[0].x, p.waypoints[0].z + 0.75, p.label,
-          { fill: color, 'font-size': 0.5 }),
+          { fill: color, 'font-size': 0.5, ...ghost }),
       );
     }
   });
@@ -486,22 +548,51 @@ function drawPatrols(g: SVGGElement, patrols: DebugPatrol[]): void {
 const viewport = document.getElementById('viewport')!;
 const errorBox = document.getElementById('error')!;
 const select = document.getElementById('room-select') as HTMLSelectElement;
+const levelSelect = document.getElementById('level-select') as HTMLSelectElement;
 const layersBox = document.getElementById('layers')!;
 
-function render(slot: RoomSlot, layers: Set<LayerId>): void {
+// Populates the level selector from the room's own `levels` (hidden/disabled
+// for every room without `levels` — today's single-view behavior, untouched)
+// and returns the level id that's actually selected (a requested id that no
+// longer exists falls back to the room's first level).
+function populateLevelSelect(def: RoomDef, requested: string | null): string | null {
+  levelSelect.replaceChildren();
+  if (!def.levels || def.levels.length === 0) {
+    levelSelect.hidden = true;
+    return null;
+  }
+  levelSelect.hidden = false;
+  for (const lvl of def.levels) {
+    const opt = document.createElement('option');
+    opt.value = lvl.id;
+    opt.textContent = `${lvl.id} (y=${lvl.baseY})`;
+    levelSelect.appendChild(opt);
+  }
+  const selected = requested && def.levels.some((l) => l.id === requested) ? requested : def.levels[0].id;
+  levelSelect.value = selected;
+  return selected;
+}
+
+function render(slot: RoomSlot, layers: Set<LayerId>, requestedLevel: string | null): string | null {
   viewport.replaceChildren();
   if (!slot.room) {
     errorBox.hidden = false;
     errorBox.textContent = slot.error ?? 'unknown load error';
-    return;
+    levelSelect.hidden = true;
+    return null;
   }
   errorBox.hidden = true;
+  const selectedLevel = populateLevelSelect(slot.room.def, requestedLevel);
 
   // Draw-time errors (bad-but-importable room data) get the same
   // treatment as import-time errors in loadRoom: show, don't blank.
   try {
     const { def, patrols } = slot.room;
-    const f = def.floor;
+    const activeLevel = def.levels?.find((l) => l.id === selectedLevel);
+    // The background floor rect switches to the selected level's own
+    // footprint when `levels` is present, falling back to def.floor
+    // otherwise (every room without `levels`, unchanged).
+    const f = activeLevel?.floor ?? def.floor;
     const M = 2.5; // margin (m) around the floor for out-of-bounds labels
     const svg = el('svg', {
       viewBox: `${f.minX - M} ${f.minZ - M} ${f.maxX - f.minX + 2 * M} ${f.maxZ - f.minZ + 2 * M}`,
@@ -537,14 +628,15 @@ function render(slot: RoomSlot, layers: Set<LayerId>): void {
     }
 
     drawGrid(groups.get('grid')!, f);
-    drawHeight(groups.get('height')!, def);
-    drawColliders(groups.get('colliders')!, def);
+    drawHeight(groups.get('height')!, def, activeLevel);
+    drawStairwells(groups.get('stairwells')!, def);
+    drawColliders(groups.get('colliders')!, def, selectedLevel);
     drawBlocks(groups.get('blocks')!, def);
     drawTriggers(groups.get('triggers')!, def);
-    drawPatrols(groups.get('patrols')!, patrols);
+    drawPatrols(groups.get('patrols')!, patrols, selectedLevel);
     drawSpawnExits(groups.get('spawnexits')!, def);
-    drawInteractables(groups.get('interactables')!, def);
-    drawScrawls(groups.get('scrawls')!, def);
+    drawInteractables(groups.get('interactables')!, def, selectedLevel);
+    drawScrawls(groups.get('scrawls')!, def, selectedLevel);
     drawIconPanels(groups.get('iconpanels')!, def);
     drawLights(groups.get('lights')!, def);
 
@@ -554,6 +646,7 @@ function render(slot: RoomSlot, layers: Set<LayerId>): void {
     errorBox.hidden = false;
     errorBox.textContent = e instanceof Error ? (e.stack ?? e.message) : String(e);
   }
+  return selectedLevel;
 }
 
 // --- bootstrap -------------------------------------------------------------------
@@ -579,7 +672,7 @@ async function main(): Promise<void> {
     cb.addEventListener('change', () => {
       if (cb.checked) state.layers.add(l.id);
       else state.layers.delete(l.id);
-      writeUrl(select.value, state.layers);
+      writeUrl(select.value, state.layers, currentLevel);
       document
         .getElementById(`layer-${l.id}`)
         ?.setAttribute('display', cb.checked ? 'inline' : 'none');
@@ -589,12 +682,24 @@ async function main(): Promise<void> {
     layersBox.appendChild(lab);
   }
 
+  // Tracks the level actually selected for the current room (null for a
+  // room with no `levels`) — kept alongside `state` so the layer checkboxes'
+  // writeUrl calls above can preserve it.
+  let currentLevel: string | null = null;
+
   select.addEventListener('change', () => {
-    writeUrl(select.value, state.layers);
-    render(slots.get(select.value)!, state.layers);
+    // Switching rooms drops the previous room's level selection — the new
+    // room's own level set may not even have a matching id.
+    currentLevel = render(slots.get(select.value)!, state.layers, null);
+    writeUrl(select.value, state.layers, currentLevel);
   });
 
-  render(slots.get(state.room)!, state.layers);
+  levelSelect.addEventListener('change', () => {
+    currentLevel = render(slots.get(select.value)!, state.layers, levelSelect.value);
+    writeUrl(select.value, state.layers, currentLevel);
+  });
+
+  currentLevel = render(slots.get(state.room)!, state.layers, state.level);
 }
 
 void main();

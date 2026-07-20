@@ -17,6 +17,7 @@
     }
     #panel h1 { font-size: 14px; margin-bottom: 10px; color: #d7ddd5; }
     #room-select { width: 100%; margin-bottom: 12px; background: #1d221d; color: inherit; border: 1px solid #333a33; padding: 4px; font: inherit; }
+    #level-select { width: 100%; margin-bottom: 12px; background: #1d221d; color: inherit; border: 1px solid #333a33; padding: 4px; font: inherit; }
     #layers label { display: block; margin: 2px 0; cursor: pointer; user-select: none; }
     #error {
       margin-top: 12px; padding: 8px; border: 1px solid #7a3a34;
@@ -31,6 +32,7 @@
   <aside id="panel">
     <h1>WARD B — room map</h1>
     <select id="room-select"></select>
+    <select id="level-select" hidden></select>
     <div id="layers"></div>
     <div id="error" hidden></div>
     <p id="hint">dev-only — not in the build.<br />edit a room .ts and save; this page reloads.</p>

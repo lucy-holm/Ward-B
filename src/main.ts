@@ -14,6 +14,7 @@ import { isRandomizeCodesEnabled, setRandomizeCodes } from './game/settings';
 import { Hud } from './ui/hud';
 import type { GameCtx } from './game/context';
 import type { RoomDef, RoomScript } from './rooms/types';
+import { inTrigger } from './rooms/kit';
 import { room1, room1Script } from './rooms/room1';
 import { room2, room2Script } from './rooms/room2';
 import { room3, room3Script } from './rooms/room3';
@@ -64,6 +65,12 @@ let current = rooms.room1;
 let started = false;
 let ended = false;
 let roomEnteredAt = 0;
+
+// Trigger volumes: ids of RoomDef.triggers regions the player is currently
+// inside (state filter honored). Diffed each frame to fire the room
+// script's onTriggerEnter/onTriggerExit. Cleared on room load WITHOUT
+// firing exits — the old room's script is already torn down.
+let activeTriggers = new Set<string>();
 
 const telemetry = new Telemetry(() => ({
   room: current.def.id,
@@ -184,6 +191,7 @@ function loadRoom(id: string): void {
   renderer.setRoomLights(current.def.lights.map((l) => l.pos));
   hud.setRoomLabel(current.def.name);
   player.spawn(current.def.spawn);
+  activeTriggers.clear();
   roomEnteredAt = performance.now();
 }
 
@@ -266,6 +274,21 @@ function frame(): void {
     // jar. No-op (targets 0, already 0) for every room without
     // heightZones/ramps.
     player.y += (world.floorHeightAt(player.x, player.z) - player.y) * 0.35;
+    // Trigger poll — player only; rooms test their own actors via inTrigger.
+    // Recomputed every frame (not just on movement) so a state-filtered
+    // trigger fires exit the moment the ward state stops matching, even
+    // standing still. Same generic AABB tier as checkExits below.
+    const nowActive = new Set<string>();
+    for (const trg of current.def.triggers ?? []) {
+      if (inTrigger(trg, player.x, player.z, state.state)) nowActive.add(trg.id);
+    }
+    for (const id of nowActive) {
+      if (!activeTriggers.has(id)) current.script.onTriggerEnter?.(id, ctx);
+    }
+    for (const id of activeTriggers) {
+      if (!nowActive.has(id)) current.script.onTriggerExit?.(id, ctx);
+    }
+    activeTriggers = nowActive;
     current.script.update?.(dt, t, ctx);
     updateMedication(dt);
     const label = interaction.update(renderer.camera, state.state, current.script, ctx);

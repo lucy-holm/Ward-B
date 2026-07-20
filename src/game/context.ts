@@ -30,4 +30,8 @@ export interface GameCtx {
   // Rewrite an already-rendered scrawl's text in place (e.g. a randomized
   // keypad code's wall clue) — no-op if `id` isn't a scrawl in the current room.
   updateScrawlText(id: string, text: string): void;
+  // Rewrite an already-rendered icon panel's lit state in place (room15's
+  // shape-key progress panel) — no-op if `id` isn't an icon panel in the
+  // current room. `lit` is parallel to the panel's ShapeSpec[] order.
+  updateIconPanel(id: string, lit: boolean[]): void;
 }

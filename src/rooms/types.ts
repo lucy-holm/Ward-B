@@ -66,7 +66,19 @@ export interface ScrawlDef {
   id?: string;
 }
 
-export type InteractableType = 'pill_cup' | 'dispenser' | 'pill_pickup' | 'keypad' | 'door';
+export type InteractableType =
+  | 'pill_cup'
+  | 'dispenser'
+  | 'pill_pickup'
+  | 'keypad'
+  | 'door'
+  | 'shape_key'
+  | 'shape_lock';
+
+// The three shapes room15's shape-key mechanic deals in — a shape_key prop
+// is one of these, a shape_lock needs all three, an icon panel shows them
+// left to right.
+export type ShapeKind = 'circle' | 'square' | 'triangle';
 
 export interface InteractableDef {
   id: string;
@@ -83,6 +95,27 @@ export interface InteractableDef {
   // side wall instead of out its mouth). 'px'/'nx' = thin axis is x, faceplate
   // toward +x/-x; 'pz'/'nz' = thin axis is z, faceplate toward +z/-z.
   facing?: 'px' | 'nx' | 'pz' | 'nz';
+  // Meaningful only on type:'shape_key' — which shape this prop is, and its
+  // display/glow color (hex). Absent on every other interactable type.
+  shape?: ShapeKind;
+  color?: string;
+}
+
+// One shape+color pairing, e.g. one slot on a shape_lock's icon panel.
+export interface ShapeSpec {
+  shape: ShapeKind;
+  color: string; // hex
+}
+
+// A door-top progress panel — mirrors ScrawlDef's shape (world-space plane +
+// a stable id World.updateIconPanel can rewrite in place). Shapes render
+// left-to-right in array order.
+export interface IconPanelDef {
+  id: string;
+  shapes: ShapeSpec[];
+  pos: [number, number, number];
+  rotY: number;
+  size?: number; // world-units width of the plane, default 2.4 (kit.ts)
 }
 
 // Walking into this AABB leaves the room.
@@ -154,6 +187,9 @@ export interface RoomDef {
   // Trigger volumes — engine-polled for the player every frame (main.ts),
   // room-polled for orderlies via kit's inTrigger(). Absent/empty ⇒ no-op.
   triggers?: TriggerDef[];
+  // Door-top progress panels (room15's shape lock) — optional/additive,
+  // absent ⇒ no panels, identical to every room shipped before this existed.
+  iconPanels?: IconPanelDef[];
 }
 
 // Per-room bespoke logic (tutorial beats, phase gating). Generic behaviour

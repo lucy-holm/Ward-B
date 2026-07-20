@@ -155,6 +155,7 @@ const ctx: GameCtx = {
     player.z = z;
   },
   updateScrawlText: (id, text) => world.updateScrawlText(id, text),
+  updateIconPanel: (id, lit) => world.updateIconPanel(id, lit),
 };
 
 state.onChange = (next) => {

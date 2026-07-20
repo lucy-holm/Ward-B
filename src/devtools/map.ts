@@ -259,17 +259,20 @@ function drawBlocks(g: SVGGElement, def: RoomDef): void {
   }
 }
 
-// Trigger volumes — violet, a color no other layer uses (colliders own
-// grey/blue/red, exits green). A pressurePlate() room shows this rect AND
-// its 'plate' block outline in the blocks layer — seeing them coincide (or
-// not) is the debug signal: a mismatch means the visible plate and its
-// firing bounds drifted apart.
+// Trigger volumes — violet stroke, a color no other layer uses (colliders
+// own grey/blue/red, exits green). The stroke is the layer identity; the
+// fill tints by STATE_COLORS for state-filtered triggers so lucid-only vs
+// unmed-only jumps out, the same signal drawColliders/drawBlocks give. A
+// pressurePlate() room shows this rect AND its 'plate' block outline in the
+// blocks layer — seeing them coincide (or not) is the debug signal: a
+// mismatch means the visible plate and its firing bounds drifted apart.
 function drawTriggers(g: SVGGElement, def: RoomDef): void {
   for (const t of def.triggers ?? []) {
     const state = t.states ?? 'both';
+    const fill = state === 'both' ? '#9d6fe0' : STATE_COLORS[state];
     g.appendChild(
       rect(t.minX, t.minZ, t.maxX, t.maxZ,
-        { fill: '#9d6fe0', 'fill-opacity': state === 'both' ? 0.3 : 0.45, stroke: '#9d6fe0', 'stroke-width': 0.05 },
+        { fill, 'fill-opacity': state === 'both' ? 0.3 : 0.45, stroke: '#9d6fe0', 'stroke-width': 0.05 },
         `trigger '${t.id}' x[${t.minX}, ${t.maxX}] z[${t.minZ}, ${t.maxZ}] states:${state}`),
     );
     g.appendChild(

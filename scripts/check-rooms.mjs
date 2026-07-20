@@ -183,7 +183,9 @@ const mainSrc = readFileSync(join(root, 'src', 'main.ts'), 'utf8');
 const mapSrc = readFileSync(join(root, 'src', 'devtools', 'map.ts'), 'utf8');
 for (const id of defs.keys()) {
   if (UNROUTED.has(id)) continue;
-  if (!new RegExp(`\\b${id}:\\s*\\{\\s*def:`).test(mainSrc)) fail(`'${id}' missing from main.ts rooms record`);
+  // A registry entry is `id: { def: ... }` (static) or `id: { build: ... }`
+  // (a flag-driven factory room, e.g. room19 — see main.ts's RoomEntry).
+  if (!new RegExp(`\\b${id}:\\s*\\{\\s*(def|build):`).test(mainSrc)) fail(`'${id}' missing from main.ts rooms record`);
   if (!new RegExp(`\\b${id}:\\s*\\(\\)\\s*=>\\s*import\\(`).test(mapSrc)) fail(`'${id}' missing from src/devtools/map.ts MODULES (map viewer)`);
 }
 

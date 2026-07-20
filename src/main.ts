@@ -30,6 +30,12 @@ import { room11, room11Script } from './rooms/room11';
 import { room12, room12Script } from './rooms/room12';
 import { room13, room13Script } from './rooms/room13';
 import { room14, room14Script } from './rooms/room14';
+import { room15, room15Script } from './rooms/room15';
+import { room16, room16Script } from './rooms/room16';
+import { room17, room17Script } from './rooms/room17';
+import { room18, room18Script } from './rooms/room18';
+import { buildRoom19, room19Script, type PowerRoute } from './rooms/room19';
+import { room20, room20Script } from './rooms/room20';
 
 // RoomScript is frozen (rooms/types.ts). room4/room5 own an NPC with
 // scene-level resources that need an explicit teardown hook the base
@@ -65,6 +71,16 @@ const rooms: Record<string, RoomEntry> = {
   room12: { def: room12, script: room12Script },
   room13: { def: room13, script: room13Script },
   room14: { def: room14, script: room14Script },
+  room15: { def: room15, script: room15Script },
+  room16: { def: room16, script: room16Script },
+  room17: { def: room17, script: room17Script },
+  room18: { def: room18, script: room18Script },
+  // room19's geometry depends on room18's power lever (game/flags.ts) — a
+  // build(flags) factory, not a static def, resolved once at loadRoom. The
+  // flag is unset if the player jumped straight here (?room=room19), so the
+  // factory's own 'lights' default (the fail-safe branch) covers that.
+  room19: { build: (flags) => buildRoom19(flags.get<PowerRoute>('room18.power') ?? 'lights'), script: room19Script },
+  room20: { def: room20, script: room20Script },
 };
 
 // Dev/playtest room-jump: ?room=<id> boots straight into that room instead
@@ -288,14 +304,14 @@ function endOfBuild(): void {
   hud.setPrompt(null);
   telemetry.flush();
   hud.showEndCard(
-    'END OF MILESTONE 10',
-    'THE FLOOR REMEMBERS WEIGHT.',
+    'END OF THE NEW WING',
+    'THE LAST WARD WASN\'T THE LAST.',
     `<em>PLAYTEST — tell the devs:</em><br><br>
-     1 · Room 14: the gate re-locked the first time you walked away from the plate. Did that one failure teach you the room, or just annoy you?<br>
-     2 · Which route did you actually take — sprint it, let him carry it, or spend the pill to do it calm? Did you realize all three existed?<br>
-     3 · Did you work out on your own that his patrol crosses the plate — and that he keeps walking even when you can't see him?<br>
-     4 · After room 13, the dispenser is right there at spawn. Relief, or did the wing lose its teeth too fast?<br>
-     5 · You ended with ${state.pills}/${state.maxPills} pills. Did the plate room feel like it cost you anything?`,
+     1 · Seven new rooms, each a different lock: pressure plate (14), colored shapes (15), the lights (16), two floors (17), the power lever (18–19), the crate (20). Which one actually made you stop and think — and which one fell flat?<br>
+     2 · Room 17 stacked two floors — did you ever read the lower floor from the balcony, or get caught because you forgot an orderly was down there?<br>
+     3 · Room 18's lever only moves once. Did LIGHTS or DOORS feel like a real choice, and would you replay to see the other branch?<br>
+     4 · The wing has no keypads at all — a deliberate break from the codes in the main game. Did you miss them, or was it a relief?<br>
+     5 · You ended with ${state.pills}/${state.maxPills} pills. Across seven rooms, was the single pill ever the thing that decided a run?`,
     'READMIT',
     () => location.reload(),
   );

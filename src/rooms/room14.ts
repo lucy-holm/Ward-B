@@ -111,7 +111,7 @@ export const room14: RoomDef = {
   ],
   triggers: [plate.trigger, VESTIBULE_TRIGGER],
   // Repoint to 'room15' when it lands — END is the wing's temporary edge.
-  exits: [{ to: 'END', minX: -1, maxX: 1, minZ: -16.9, maxZ: -16.2 }],
+  exits: [{ to: 'room15', minX: -1, maxX: 1, minZ: -16.9, maxZ: -16.2 }],
 };
 
 const GATE_CLOSED_POS: [number, number, number] = [0, 1.5, -14];

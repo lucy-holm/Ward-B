@@ -30,6 +30,14 @@ const MODULES: Record<string, () => Promise<unknown>> = {
   room12: () => import('../rooms/room12'),
   room13: () => import('../rooms/room13'),
   room14: () => import('../rooms/room14'),
+  room15: () => import('../rooms/room15'),
+  room16: () => import('../rooms/room16'),
+  room17: () => import('../rooms/room17'),
+  room18: () => import('../rooms/room18'),
+  // room19 is factory-built at runtime; its module also exports a static
+  // `room19` (the 'lights' branch) so the viewer can render it like any other.
+  room19: () => import('../rooms/room19'),
+  room20: () => import('../rooms/room20'),
 };
 
 interface LoadedRoom {

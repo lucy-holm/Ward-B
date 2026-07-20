@@ -145,6 +145,11 @@ export const room14Script: Room14Script = (() => {
     gateCollider.minX = 999;
     gateCollider.maxX = 999.2; // standard disable trick
     ctx.moveInteractable('gate14', GATE_OPEN_POS, Math.PI / 2);
+    // Toast sequencing is deliberate: the first-ever open teaches the
+    // mechanism ("the floor remembers weight...") no matter who tripped it.
+    // The orderly beat then lands on his NEXT crossing — his patrol re-crosses
+    // the plate every cycle, so when he causes the first open too, the beat is
+    // delayed one cycle, never lost. Not room13's severity-chain pattern.
     if (!sawFirstOpen) {
       sawFirstOpen = true;
       ctx.hud.toast('the floor remembers weight. the door remembers the floor.');

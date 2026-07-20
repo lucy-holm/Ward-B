@@ -155,6 +155,11 @@ const ctx: GameCtx = {
     player.z = z;
   },
   updateScrawlText: (id, text) => world.updateScrawlText(id, text),
+  isRoomDark: () => world.isDark(),
+  setRoomDark: (dark) => {
+    world.applyLight(dark);
+    renderer.setDark(dark);
+  },
 };
 
 state.onChange = (next) => {
@@ -190,6 +195,12 @@ function loadRoom(id: string): void {
   current = rooms[id];
   world.loadRoom(current.def);
   world.applyState(state.state);
+  // Light axis — World.loadRoom already applies this internally (so the
+  // room's opening visibility is correct before any frame renders), but the
+  // Renderer's atmosphere (dimmed hemi/amb/point lights, tighter fog) is a
+  // separate system that needs its own explicit call.
+  world.applyLight(current.def.startDark ?? false);
+  renderer.setDark(current.def.startDark ?? false);
   renderer.setRoomLights(current.def.lights.map((l) => l.pos));
   hud.setRoomLabel(current.def.name);
   player.spawn(current.def.spawn);

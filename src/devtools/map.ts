@@ -97,6 +97,8 @@ const MAT_COLORS: Record<BlockDef['mat'], string> = {
   dispenser: '#7e8a96',
   plate: '#8f9a6d',
   glow: '#d9e8cf',
+  phosphor: '#bfffc9',
+  breaker: '#cf7b2e',
 };
 
 // --- URL state ---------------------------------------------------------------
@@ -255,7 +257,8 @@ function drawBlocks(g: SVGGElement, def: RoomDef): void {
       rect(b.pos[0] - hx, b.pos[2] - hz, b.pos[0] + hx, b.pos[2] + hz, attrs,
         `block ${b.mat} size[${b.size.join(', ')}] pos[${b.pos.join(', ')}]` +
           (b.states ? ` states:${b.states}` : '') +
-          (b.rotY ? ` rotY:${b.rotY}` : '')),
+          (b.rotY ? ` rotY:${b.rotY}` : '') +
+          (b.lightState && b.lightState !== 'both' ? ` [${b.lightState}-only]` : '')),
     );
   }
 }
@@ -350,6 +353,7 @@ const TYPE_COLORS: Record<string, string> = {
   door: '#c9b458',
   pill_cup: '#e8e8e8',
   pill_pickup: '#e8e8e8',
+  switch: '#c96fe0',
 };
 
 function drawInteractables(g: SVGGElement, def: RoomDef): void {
@@ -360,7 +364,8 @@ function drawInteractables(g: SVGGElement, def: RoomDef): void {
         cx: it.pos[0], cy: it.pos[2], r: 0.18,
         fill: c, stroke: '#14171a', 'stroke-width': 0.04,
       }, `${it.type} "${it.id}" pos[${it.pos.join(', ')}]` +
-        (it.states ? ` states:${it.states}` : '')),
+        (it.states ? ` states:${it.states}` : '') +
+        (it.lightState && it.lightState !== 'both' ? ` [${it.lightState}-only]` : '')),
     );
     g.appendChild(
       label(it.pos[0], it.pos[2] - 0.35, it.id, { fill: c, 'font-size': 0.4 }),
@@ -371,8 +376,10 @@ function drawInteractables(g: SVGGElement, def: RoomDef): void {
 function drawScrawls(g: SVGGElement, def: RoomDef): void {
   for (const s of def.scrawls) {
     g.appendChild(
-      el('circle', { cx: s.pos[0], cy: s.pos[2], r: 0.12, fill: '#d98fb0' },
-        `scrawl "${s.text}" pos[${s.pos.join(', ')}] size:${s.size}${s.big ? ' big' : ''}`),
+      el('circle', { cx: s.pos[0], cy: s.pos[2], r: 0.12, fill: s.ink === 'phosphor' ? '#bfffc9' : '#d98fb0' },
+        `scrawl "${s.text}" pos[${s.pos.join(', ')}] size:${s.size}${s.big ? ' big' : ''}` +
+          (s.ink === 'phosphor' ? ' ink:phosphor' : '') +
+          (s.lightState && s.lightState !== 'both' ? ` [${s.lightState}-only]` : '')),
     );
     g.appendChild(
       label(s.pos[0], s.pos[2] + 0.55, `“${s.text.split('\n')[0]}”`,
@@ -462,6 +469,14 @@ function render(slot: RoomSlot, layers: Set<LayerId>): void {
       rect(f.minX, f.minZ, f.maxX, f.maxZ, { fill: '#1c211c' },
         `floor x[${f.minX}, ${f.maxX}] z[${f.minZ}, ${f.maxZ}]`),
     );
+    // startDark badge — a room authored to open dark shouldn't surprise
+    // whoever's reading the map cold (see LightFilter/RoomDef.startDark).
+    if (def.startDark) {
+      svg.appendChild(
+        label((f.minX + f.maxX) / 2, f.minZ - 1.85, 'LIGHTS: OFF AT START',
+          { 'font-size': 0.55, fill: '#c96fe0' }),
+      );
+    }
 
     const defs = el('defs');
     const marker = el('marker', {

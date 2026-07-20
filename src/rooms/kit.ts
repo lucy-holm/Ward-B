@@ -138,6 +138,7 @@ const DEFAULT_FIXTURE_Y = 1.45;
 // [thin, height, along]
 const DISPENSER_FOOTPRINT: [number, number, number] = [0.16, 0.75, 0.55];
 const KEYPAD_FOOTPRINT: [number, number, number] = [0.14, 0.5, 0.4];
+const SWITCH_FOOTPRINT: [number, number, number] = [0.16, 0.6, 0.5];
 
 function orientedSize(footprint: [number, number, number], axis: 'x' | 'z'): [number, number, number] {
   const [thin, h, along] = footprint;
@@ -145,9 +146,9 @@ function orientedSize(footprint: [number, number, number], axis: 'x' | 'z'): [nu
 }
 
 function wallFixture(
-  type: 'dispenser' | 'keypad',
+  type: 'dispenser' | 'keypad' | 'switch',
   defaultFootprint: [number, number, number],
-  mat: 'dispenser' | 'pad',
+  mat: 'dispenser' | 'pad' | 'breaker',
   opts: FixtureOpts,
 ): FixtureDef {
   const { axis, sign } = SIDE[opts.side];
@@ -177,6 +178,13 @@ export function dispenser(opts: FixtureOpts): FixtureDef {
 
 export function keypad(opts: FixtureOpts): FixtureDef {
   return wallFixture('keypad', KEYPAD_FOOTPRINT, 'pad', opts);
+}
+
+// A room-wide light toggle (see rooms/types.ts's LightFilter / room16's
+// design comments) — same wall-face math as dispenser()/keypad(), 'breaker'
+// mat so World.buildSwitch renders it as a fixture to throw, not a keypad.
+export function lightSwitch(opts: FixtureOpts): FixtureDef {
+  return wallFixture('switch', SWITCH_FOOTPRINT, 'breaker', opts);
 }
 
 // ---------------------------------------------------------------------------

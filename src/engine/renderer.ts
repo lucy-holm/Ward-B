@@ -77,6 +77,14 @@ export class Renderer {
   private amb: THREE.AmbientLight;
   private roomLights: THREE.PointLight[] = [];
   private moodInitialized = false;
+  // Light axis (see rooms/types.ts's LightFilter / World.applyLight) —
+  // atmosphere only: the deterministic lightState visibility gate lives in
+  // World, this just sells "the lights just died" as a felt event. Demotes
+  // hemi/amb/point-light targets and pulls fog in tighter while true, layered
+  // on top of the existing lucid/unmed moodTargets() lerp so darkening still
+  // eases in over the same k = dt*2.2 rate rather than a hard cut.
+  private darkOverride = false;
+  private static readonly DARK_MULTIPLIER = 0.12;
   // Fog near/far lerp toward these each frame; the actual scene.fog values
   // written every frame are these times a small unmed-only breathing
   // multiplier, kept separate so the breathing oscillation never fights the
@@ -131,6 +139,10 @@ export class Renderer {
     });
   }
 
+  setDark(dark: boolean): void {
+    this.darkOverride = dark;
+  }
+
   fovKick(): void {
     this.camera.fov = TUNING.camera.shiftFovKick;
     this.camera.updateProjectionMatrix();
@@ -138,6 +150,17 @@ export class Renderer {
 
   update(dt: number, t: number, state: WardState): void {
     const tgt = moodTargets(state);
+    if (this.darkOverride) {
+      // Someone threw the breaker for the whole bay: dim ambient/point-light
+      // targets uniformly (room lights below read tgt.pointIntensity too, so
+      // they're demoted for free — no per-fixture flag needed) and pull fog
+      // in tighter, before the per-frame lerp runs.
+      tgt.hemi *= Renderer.DARK_MULTIPLIER;
+      tgt.amb *= Renderer.DARK_MULTIPLIER;
+      tgt.pointIntensity *= Renderer.DARK_MULTIPLIER;
+      tgt.fogNear *= 0.5;
+      tgt.fogFar *= 0.45;
+    }
     const fog = this.scene.fog as THREE.Fog;
 
     if (!this.moodInitialized) {

@@ -19,17 +19,25 @@ export class Player {
   y = 0;
   yaw = 0;
   pitch = 0;
+  // Stacked floors (rooms/types.ts's LevelDef/StairwellDef) — the player's
+  // persistent "which floor" answer, only ever changed by resolveLevel
+  // (game/world.ts) walking a StairwellDef's footprint start to finish.
+  // Default '__flat' matches World's implicit single-level room, so every
+  // room without `levels` never sees this differ from the pre-M13 behavior
+  // of "there is only one floor."
+  level = '__flat';
   readonly r: number = TUNING.player.radius;
   readonly h: number = TUNING.player.eyeHeight;
 
   private wasMoving = false;
 
-  spawn(at: { x: number; z: number; yaw: number; y?: number }): void {
+  spawn(at: { x: number; z: number; yaw: number; y?: number; level?: string }): void {
     this.x = at.x;
     this.z = at.z;
     this.y = at.y ?? 0;
     this.yaw = at.yaw;
     this.pitch = 0;
+    this.level = at.level ?? '__flat';
   }
 
   update(dt: number, input: Input, colliders: ColliderDef[], state: WardState): void {
@@ -55,7 +63,7 @@ export class Player {
       const cos = Math.cos(this.yaw);
       const dx = (s * cos - f * sin) * sp;
       const dz = (-f * cos - s * sin) * sp;
-      tryMove(this, this.x + dx, this.z + dz, colliders, state);
+      tryMove(this, this.x + dx, this.z + dz, colliders, state, this.level);
     }
   }
 

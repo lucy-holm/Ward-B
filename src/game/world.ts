@@ -1,15 +1,48 @@
 import * as THREE from 'three';
 import type {
-  HeightZone,
   InteractableDef,
   ColliderDef,
+  LevelDef,
   MatName,
-  RampDef,
   RoomDef,
   ScrawlDef,
+  StairwellDef,
   StateFilter,
   WardState,
 } from '../rooms/types';
+
+// True stacked floors — the implicit single level every RoomDef without
+// `levels` is treated as (rooms/types.ts's LevelDef header). Level ids are
+// room-local strings; '__flat' is reserved for this synthetic default and
+// never collides with an authored id (room authors name their levels
+// something meaningful, e.g. 'ground'/'balcony').
+const FLAT_LEVEL_ID = '__flat';
+
+// Stacked floors — resolves which level a traveler (player or a specific
+// Orderly, though orderlies never actually call this — see orderly.ts's
+// OrderlyOptions.level header) is considered "on" after moving to (x, z).
+// Level is NOT a pure function of (x, z) in general — two levels can share
+// an XZ footprint at different heights — so this only ever changes the
+// traveler's own persistent `level` by having them physically clear a
+// StairwellDef's footprint from one end to the other; everywhere else
+// (including mid-stair) it's a no-op, `current` unchanged. A no-`stairwells`
+// room (every room shipped before this existed) always returns `current`
+// unchanged, since the loop below never runs.
+export function resolveLevel(
+  current: string,
+  x: number,
+  z: number,
+  stairwells: StairwellDef[],
+): string {
+  for (const s of stairwells) {
+    if (x < s.minX || x > s.maxX || z < s.minZ || z > s.maxZ) continue;
+    if (current !== s.levelAtLow && current !== s.levelAtHigh) continue;
+    const t = s.axis === 'x' ? (x - s.minX) / (s.maxX - s.minX) : (z - s.minZ) / (s.maxZ - s.minZ);
+    if (t >= 1 && current === s.levelAtLow) return s.levelAtHigh;
+    if (t <= 0 && current === s.levelAtHigh) return s.levelAtLow;
+  }
+  return current;
+}
 
 // ---------------------------------------------------------------------------
 // Procedural textures — no image assets, everything below is drawn to
@@ -874,11 +907,15 @@ function disposeObject3D(obj: THREE.Object3D): void {
 export class World {
   room!: RoomDef;
   colliders: ColliderDef[] = [];
-  // Verticality (see rooms/types.ts) — this room's current height regions.
-  // Small arrays (a handful of regions at most), read every frame by
-  // floorHeightAt with no allocation.
-  private heightZones: HeightZone[] = [];
-  private ramps: RampDef[] = [];
+  // True stacked floors (rooms/types.ts's LevelDef/StairwellDef) — always
+  // at least one entry (the implicit '__flat' level for a room with no
+  // `levels`, see loadRoom). Public like colliders: main.ts reads
+  // `stairwells` directly for its per-frame resolveLevel call.
+  private levels: LevelDef[] = [];
+  stairwells: StairwellDef[] = [];
+  // The room's one ceiling plane height (def.ceilingY ?? 3), read by
+  // loadRoom when placing the ceiling mesh.
+  private ceilingY = 3;
 
   private readonly root = new THREE.Group();
   private readonly groups: Record<StateFilter, THREE.Group> = {
@@ -924,8 +961,15 @@ export class World {
     this.clear();
     this.room = def;
     this.colliders = def.colliders.slice();
-    this.heightZones = def.heightZones ?? [];
-    this.ramps = def.ramps ?? [];
+    // True stacked floors — a room with no `levels` is exactly one implicit
+    // level wrapping its own top-level heightZones/ramps (rooms/types.ts's
+    // LevelDef header); floorHeightAt below always reads through `levels`,
+    // so this is the one place the old flat-room shape gets folded in.
+    this.levels = def.levels ?? [
+      { id: FLAT_LEVEL_ID, baseY: 0, floor: def.floor, heightZones: def.heightZones ?? [], ramps: def.ramps ?? [] },
+    ];
+    this.stairwells = def.stairwells ?? [];
+    this.ceilingY = def.ceilingY ?? 3;
 
     // floor + ceiling — single large planes per room, so (unlike the shared
     // wall/prop materials above) each gets its own cloned texture with
@@ -952,7 +996,7 @@ export class World {
     const ceilMat = new THREE.MeshLambertMaterial({ map: ceilTex });
     const ceil = new THREE.Mesh(new THREE.PlaneGeometry(w, d), ceilMat);
     ceil.rotation.x = Math.PI / 2;
-    ceil.position.set(cx, 3, cz);
+    ceil.position.set(cx, this.ceilingY, cz);
     ceil.userData.ownsMaterial = true;
 
     this.groups.both.add(floor, ceil);
@@ -1015,22 +1059,39 @@ export class World {
   }
 
   // Verticality — the walkable floor height at a given XZ, single-valued
-  // (see rooms/types.ts's HeightZone/RampDef header). Ramps are checked
-  // first so a ramp overlapping a flat zone's footprint always wins (lets a
-  // room author a ramp's endpoints flush against an adjacent zone without
-  // the zone's flat value fighting it at the seam). Falls through to 0 —
-  // every room without heightZones/ramps behaves exactly as before.
-  floorHeightAt(x: number, z: number): number {
-    for (const r of this.ramps) {
+  // PER LEVEL (see rooms/types.ts's HeightZone/RampDef/LevelDef header): at
+  // any (level, x, z) there is exactly one walkable height, but the same
+  // (x, z) can answer differently on two different levels — that's the
+  // whole capability true stacked floors adds. Stairwells are checked first
+  // (a traveler physically on the stairs, level pinned to one end, always
+  // reads the interpolated stair height regardless of what the destination
+  // level's own zones say about that XZ column); an unmatched `level`
+  // (shouldn't happen — see resolveLevel/loadRoom) falls back to this
+  // room's first level rather than throwing. Within a level, ramps are
+  // checked before height zones so a ramp overlapping a flat zone's
+  // footprint always wins (lets a room author a ramp's endpoints flush
+  // against an adjacent zone without the zone's flat value fighting it at
+  // the seam). Falls through to the level's own baseY (0 for the implicit
+  // '__flat' level) — every room without heightZones/ramps/levels behaves
+  // exactly as before.
+  floorHeightAt(level: string, x: number, z: number): number {
+    for (const s of this.stairwells) {
+      if (x < s.minX || x > s.maxX || z < s.minZ || z > s.maxZ) continue;
+      if (level !== s.levelAtLow && level !== s.levelAtHigh) continue;
+      const t = s.axis === 'x' ? (x - s.minX) / (s.maxX - s.minX) : (z - s.minZ) / (s.maxZ - s.minZ);
+      return s.yLow + (s.yHigh - s.yLow) * t;
+    }
+    const lvl = this.levels.find((l) => l.id === level) ?? this.levels[0];
+    for (const r of lvl.ramps ?? []) {
       if (x >= r.minX && x <= r.maxX && z >= r.minZ && z <= r.maxZ) {
         const t = r.axis === 'x' ? (x - r.minX) / (r.maxX - r.minX) : (z - r.minZ) / (r.maxZ - r.minZ);
         return r.yLow + (r.yHigh - r.yLow) * t;
       }
     }
-    for (const hz of this.heightZones) {
+    for (const hz of lvl.heightZones ?? []) {
       if (x >= hz.minX && x <= hz.maxX && z >= hz.minZ && z <= hz.maxZ) return hz.y;
     }
-    return 0;
+    return lvl.baseY;
   }
 
   // Rewrites a scrawl authored with a matching ScrawlDef.id — rebakes its

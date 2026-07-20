@@ -34,6 +34,16 @@ export interface ColliderDef {
   minZ: number;
   maxZ: number;
   states?: StateFilter; // default 'both'
+  // Stacked floors (see LevelDef/StairwellDef below) — undefined = active
+  // regardless of the querying entity's current level (a real full-height
+  // wall/pillar; the common case for perimeter walls that structurally pass
+  // through every level). Set = active only while the querying entity
+  // (player or a specific Orderly) is currently on that level — e.g. a
+  // gallery's railing, which must not block the floor underneath it. Every
+  // collider shipped before this field existed has level === undefined, so
+  // it's active regardless of what level is checked against — no behavior
+  // change for any room that doesn't author `levels`.
+  level?: string;
 }
 
 // A rectangular XZ region that fires enter/exit callbacks when the player
@@ -64,6 +74,14 @@ export interface ScrawlDef {
   // Stable handle for World.updateScrawlText — only needed on scrawls a room
   // script rewrites at runtime (e.g. a randomized keypad code's wall clue).
   id?: string;
+  // Stacked floors — VIEWER METADATA ONLY, exactly like DebugPatrol.label's
+  // "descriptive data only, the game never reads it" convention. Nothing in
+  // the runtime interaction/raycast/scrawl-render path needs it: a fixture
+  // mounted at a raised level's height is already well outside a ground-
+  // level player's interact range and its mesh is real geometry a ground-
+  // level raycast simply won't reach. Exists so /map.html can filter/ghost
+  // by level without guessing from position.
+  level?: string;
 }
 
 export type InteractableType = 'pill_cup' | 'dispenser' | 'pill_pickup' | 'keypad' | 'door';
@@ -83,6 +101,9 @@ export interface InteractableDef {
   // side wall instead of out its mouth). 'px'/'nx' = thin axis is x, faceplate
   // toward +x/-x; 'pz'/'nz' = thin axis is z, faceplate toward +z/-z.
   facing?: 'px' | 'nx' | 'pz' | 'nz';
+  // Stacked floors — VIEWER METADATA ONLY, see ScrawlDef.level's header for
+  // why the runtime never needs to read this.
+  level?: string;
 }
 
 // Walking into this AABB leaves the room.
@@ -136,11 +157,57 @@ export interface RampDef {
   yHigh: number;
 }
 
+// ---------------------------------------------------------------------------
+// True stacked floors — a room-local named LEVEL is the disambiguator the
+// single-valued floorHeightAt above can't provide on its own: two levels'
+// footprints (e.g. a gallery and the floor it overhangs) can legitimately
+// share the same XZ rectangle at two different heights, because "which one
+// answers floorHeightAt" is no longer a pure function of (x,z) — it also
+// depends on which level the querying traveler (the player, or a specific
+// Orderly) currently carries. See game/world.ts's resolveLevel/floorHeightAt
+// and game/orderly.ts's cross-level LOS gate for the two places that
+// disambiguation actually happens.
+//
+// Purely additive: a RoomDef with no `levels` (every room shipped before
+// this existed) is treated as exactly one implicit level (id '__flat',
+// baseY 0, this room's own top-level heightZones/ramps) — see world.ts's
+// loadRoom for the exact shape. Nothing about rooms 1-16 changes.
+// ---------------------------------------------------------------------------
+
+// A room-local named floor.
+export interface LevelDef {
+  id: string; // room-local id, e.g. 'ground' | 'balcony'
+  baseY: number; // walkable height anywhere in this level's own footprint
+  // this level's own footprint — NOT consumed by floorHeightAt (baseY/
+  // heightZones/ramps are), only by spawn validation and the map viewer.
+  floor: { minX: number; maxX: number; minZ: number; maxZ: number };
+  heightZones?: HeightZone[]; // scoped to this level, same semantics as today
+  ramps?: RampDef[]; // scoped to this level, same semantics as today
+}
+
+// The connector between exactly two levels — a stair run, modeled as a ramp
+// that also flips which level a traveler is considered "on" once they fully
+// clear the far end. `yLow`/`levelAtLow` describe the axis's min end,
+// `yHigh`/`levelAtHigh` the max end (mirrors RampDef's yLow/yHigh convention
+// exactly, plus the level tag each end belongs to).
+export interface StairwellDef {
+  id: string;
+  minX: number;
+  maxX: number;
+  minZ: number;
+  maxZ: number;
+  axis: 'x' | 'z';
+  yLow: number;
+  levelAtLow: string;
+  yHigh: number;
+  levelAtHigh: string;
+}
+
 export interface RoomDef {
   id: string;
   name: string; // display label for the HUD, e.g. "the Cell"
   floor: { minX: number; maxX: number; minZ: number; maxZ: number };
-  spawn: { x: number; z: number; yaw: number; y?: number }; // y default 0
+  spawn: { x: number; z: number; yaw: number; y?: number; level?: string }; // y default 0, level default levels?.[0]?.id ?? '__flat'
   blocks: BlockDef[];
   colliders: ColliderDef[];
   scrawls: ScrawlDef[];
@@ -148,9 +215,19 @@ export interface RoomDef {
   lights: LightDef[];
   exits: ExitDef[];
   // Verticality — see HeightZone/RampDef above. Absent/empty ⇒ floor is
-  // y=0 everywhere (every room without these is unaffected).
+  // y=0 everywhere (every room without these is unaffected). Ignored by
+  // floorHeightAt when `levels` is present (the implicit level wraps these
+  // instead) — a room author uses one or the other, never both.
   heightZones?: HeightZone[];
   ramps?: RampDef[];
+  // True stacked floors — see the LevelDef/StairwellDef header above.
+  // Absent ⇒ one implicit level ('__flat'), absent stairwells ⇒ none.
+  levels?: LevelDef[];
+  stairwells?: StairwellDef[];
+  // The room's one ceiling plane height (world.ts's loadRoom). Default 3
+  // (today's hardcoded constant) — deliberately room-wide, not per-level;
+  // see room17.ts's header for the headroom arithmetic on a stacked room.
+  ceilingY?: number;
   // Trigger volumes — engine-polled for the player every frame (main.ts),
   // room-polled for orderlies via kit's inTrigger(). Absent/empty ⇒ no-op.
   triggers?: TriggerDef[];

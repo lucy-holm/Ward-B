@@ -14,4 +14,8 @@ export interface DebugPatrol {
   // Display label when a room has multiple orderlies ('A'/'B', room11's
   // 'lower'/'upper').
   label?: string;
+  // True stacked floors — which level this orderly is fixed to (matches the
+  // `level` passed to Orderly/OrderlyCfg). Absent ⇒ '__flat'/undrawn-level
+  // filtering treats it like every other room's patrol, i.e. always shown.
+  level?: string;
 }

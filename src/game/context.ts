@@ -23,10 +23,19 @@ export interface GameCtx {
   // Scene access for room-owned actors (e.g. room4's orderly).
   scene: THREE.Scene;
   // Current player position + look yaw, for room-owned actors that need to
-  // track the player or compute screen-relative threat bearings.
-  playerPos(): { x: number; z: number; yaw: number };
-  // Hard-reposition the player (e.g. the orderly's catch penalty).
-  teleportPlayer(x: number, z: number): void;
+  // track the player or compute screen-relative threat bearings. `level`
+  // (true stacked floors, rooms/types.ts's LevelDef) is '__flat' for every
+  // room without `levels` — the honest generalization, even though most
+  // rooms never read it.
+  playerPos(): { x: number; z: number; yaw: number; level: string };
+  // Hard-reposition the player (e.g. the orderly's catch penalty). `level`
+  // is optional and defaults to leaving the player's current level
+  // untouched — every existing call site (no third argument) keeps working
+  // unchanged. A multi-level room's catch/reset handler must pass it
+  // explicitly, or a catch on an upper level would teleport the player to
+  // ground-level spawn coordinates while still flagged as being on the
+  // upper level.
+  teleportPlayer(x: number, z: number, level?: string): void;
   // Rewrite an already-rendered scrawl's text in place (e.g. a randomized
   // keypad code's wall clue) — no-op if `id` isn't a scrawl in the current room.
   updateScrawlText(id: string, text: string): void;

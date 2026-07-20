@@ -22,9 +22,11 @@ import type {
   ColliderDef,
   HeightZone,
   InteractableDef,
+  LevelDef,
   RampDef,
   RoomScript,
   ScrawlDef,
+  StairwellDef,
   StateFilter,
   TriggerDef,
   WardState,
@@ -44,10 +46,12 @@ export type {
   ColliderDef,
   HeightZone,
   InteractableDef,
+  LevelDef,
   RampDef,
   RoomDef,
   RoomScript,
   ScrawlDef,
+  StairwellDef,
   StateFilter,
   TriggerDef,
   WardState,
@@ -503,6 +507,41 @@ export function ramp(
 }
 
 // ---------------------------------------------------------------------------
+// True stacked floors — thin constructors for RoomDef.levels/stairwells (see
+// rooms/types.ts's LevelDef/StairwellDef header). Same "just a named,
+// typed constructor" role as heightZone()/ramp() above; a stairwell/level's
+// footprint is a design decision, not implied by a wall run, so there's
+// nothing wall-relative to derive.
+// ---------------------------------------------------------------------------
+
+// StairwellDef.id has no natural default (unlike heightZone/ramp, which
+// don't need one) — it's the map viewer's + this room's own stable handle
+// for the connector, so it's the constructor's first argument.
+export function stairwell(
+  id: string,
+  minX: number,
+  maxX: number,
+  minZ: number,
+  maxZ: number,
+  axis: 'x' | 'z',
+  yLow: number,
+  levelAtLow: string,
+  yHigh: number,
+  levelAtHigh: string,
+): StairwellDef {
+  return { id, minX, maxX, minZ, maxZ, axis, yLow, levelAtLow, yHigh, levelAtHigh };
+}
+
+export function level(
+  id: string,
+  baseY: number,
+  floor: { minX: number; maxX: number; minZ: number; maxZ: number },
+  opts: { heightZones?: HeightZone[]; ramps?: RampDef[] } = {},
+): LevelDef {
+  return { id, baseY, floor, heightZones: opts.heightZones, ramps: opts.ramps };
+}
+
+// ---------------------------------------------------------------------------
 // Patrol validation
 //
 // Fails fast (throws at module init, i.e. the moment the room file is
@@ -513,6 +552,19 @@ export function ramp(
 // against every always-on collider (states 'both'/undefined — state-gated
 // colliders, like a lucid-only blocker, don't apply to him, same rule
 // Orderly itself documents).
+//
+// NOT extended to check StairwellDef footprints (true stacked floors,
+// rooms/types.ts's StairwellDef) — this validator is, and stays, purely 2D
+// XZ clearance against ColliderDef rectangles. An orderly is fixed to one
+// level for his whole lifetime (game/orderly.ts's OrderlyOptions.level) and
+// never crosses a stairwell, so a room author keeping every waypoint/leg
+// clear of both StairwellDef footprints (the same discipline already
+// required for furniture) is unenforced here on purpose — flagged as a
+// follow-up, not silently assumed solved. Per level, this validator is
+// exactly as meaningful as it always was: it only ever sees the flat
+// ColliderDef list a room passes in (typically pre-filtered to one level's
+// worth of geometry), so a multi-level room's clearance is still checked
+// per orderly, just not stairwell-aware.
 // ---------------------------------------------------------------------------
 
 export interface PatrolValidationOpts {
@@ -662,18 +714,32 @@ export interface OrderlyCfg {
   occluders: OrderlyAABB[];
   onWarnToast?: string; // default 'he is looking at you.'
   onChaseToast?: string; // default 'run. or stop being visible.'
+  // Per-orderly catch line, overriding the room-wide cfg.catchToast — for
+  // rooms where each orderly keeps his own ground (room17's south hall /
+  // balcony / pocket trio) and the catch line should say which one got you.
+  // Falls back to cfg.catchToast, then the shared default.
+  onCaughtToast?: string;
   // Verticality — see Orderly's OrderlyOptions.floorHeightAt. Pass the same
   // per-XZ height lookup a vertical room uses for its player (typically a
   // small local function mirroring the room's heightZones/ramps) so this
   // orderly's mesh stands on his own level. Omitted ⇒ y=0 always, same as
   // every orderly room shipped before this option existed.
   floorHeightAt?: (x: number, z: number) => number;
+  // True stacked floors — see Orderly's OrderlyOptions.level. Fixed for this
+  // orderly's whole lifetime; omitted ⇒ '__flat', same as every orderly
+  // room shipped before `levels` existed (where the player's level is also
+  // always '__flat', so the cross-level LOS gate is always satisfied).
+  level?: string;
 }
 
 export interface MakeOrderlyRoomScriptCfg {
   orderlies: OrderlyCfg[];
   colliders: ColliderDef[]; // pass rb.colliders — filtered to always-on internally, same as every shipped room's ORDERLY_COLLIDERS
-  spawn: { x: number; z: number };
+  // `level` — true stacked floors: the level the post-catch teleport lands
+  // on. Optional, defaults to leaving the player's level untouched (every
+  // room shipped before `levels` existed never sets this) — see
+  // GameCtx.teleportPlayer's header for why a multi-level room must pass it.
+  spawn: { x: number; z: number; level?: string };
   onEnterObjective: string;
   catchToast?: string; // default matches room5/room7's phrasing
   unmedToast?: string; // shown once on first shift to unmed; default matches room5/room7's phrasing
@@ -733,13 +799,13 @@ export function makeOrderlyRoomScript(cfg: MakeOrderlyRoomScriptCfg): OrderlyRoo
             onCaught: () => {
               ctx.state.forceState('lucid');
               ctx.shiftFx();
-              ctx.teleportPlayer(cfg.spawn.x, cfg.spawn.z);
-              ctx.hud.toast(cfg.catchToast ?? 'hands. a needle. "not this time," he says.');
+              ctx.teleportPlayer(cfg.spawn.x, cfg.spawn.z, cfg.spawn.level);
+              ctx.hud.toast(oc.onCaughtToast ?? cfg.catchToast ?? 'hands. a needle. "not this time," he says.');
               ctx.telemetry.event('orderly_caught');
               cfg.extraScript?.onCaught?.(ctx);
             },
           },
-          { colliders: alwaysOnColliders, floorHeightAt: oc.floorHeightAt },
+          { colliders: alwaysOnColliders, floorHeightAt: oc.floorHeightAt, level: oc.level },
         ),
     );
     for (const o of orderlies) o.setWardState(ctx.state.state);
@@ -774,7 +840,7 @@ export function makeOrderlyRoomScript(cfg: MakeOrderlyRoomScriptCfg): OrderlyRoo
       cfg.extraScript?.update?.(dt, t, ctx);
       if (orderlies.length === 0) return;
       const p = ctx.playerPos();
-      for (const o of orderlies) o.update(dt, p.x, p.z, ctx.state.state);
+      for (const o of orderlies) o.update(dt, p.x, p.z, ctx.state.state, p.level);
 
       let level = 0;
       let dist = Infinity;

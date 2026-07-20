@@ -7,7 +7,7 @@ import { circleHitsSolidUnmed } from './engine/collision';
 import { StateSystem } from './game/state';
 import { TUNING } from './tuning';
 import { Player } from './game/player';
-import { World } from './game/world';
+import { World, resolveLevel } from './game/world';
 import { Interaction } from './game/interaction';
 import { Telemetry } from './game/telemetry';
 import { isRandomizeCodesEnabled, setRandomizeCodes } from './game/settings';
@@ -118,7 +118,7 @@ function updateMedication(dt: number): void {
   audio.setMedicationWarning(warning);
 
   if (state.medication <= 0) {
-    const trapped = circleHitsSolidUnmed(player.x, player.z, TUNING.player.radius, world.colliders);
+    const trapped = circleHitsSolidUnmed(player.x, player.z, TUNING.player.radius, world.colliders, player.level);
     if (!trapped) {
       medicationTrapped = false;
       state.forceState('unmed');
@@ -149,10 +149,11 @@ const ctx: GameCtx = {
   shiftFx,
   releasePointerLock: () => input.releasePointerLock(),
   scene: renderer.scene,
-  playerPos: () => ({ x: player.x, z: player.z, yaw: player.yaw }),
-  teleportPlayer: (x, z) => {
+  playerPos: () => ({ x: player.x, z: player.z, yaw: player.yaw, level: player.level }),
+  teleportPlayer: (x, z, level) => {
     player.x = x;
     player.z = z;
+    if (level !== undefined) player.level = level;
   },
   updateScrawlText: (id, text) => world.updateScrawlText(id, text),
 };
@@ -192,7 +193,12 @@ function loadRoom(id: string): void {
   world.applyState(state.state);
   renderer.setRoomLights(current.def.lights.map((l) => l.pos));
   hud.setRoomLabel(current.def.name);
-  player.spawn(current.def.spawn);
+  // True stacked floors — spawn.level defaults to the room's first declared
+  // level (or '__flat' for a room with no `levels`), same default
+  // rooms/types.ts's RoomDef.spawn documents. Resolved here (loadRoom has
+  // current.def in scope) rather than inside Player.spawn, which has no
+  // reference to the room def.
+  player.spawn({ ...current.def.spawn, level: current.def.spawn.level ?? current.def.levels?.[0]?.id ?? '__flat' });
   activeTriggers.clear();
   roomEnteredAt = performance.now();
 }
@@ -270,12 +276,18 @@ function frame(): void {
 
   if (started && !ended) {
     player.update(dt, input, world.colliders, state.state);
+    // True stacked floors — resolved AFTER movement, from the player's new
+    // (x,z): a no-op everywhere except fully clearing a StairwellDef
+    // footprint (game/world.ts's resolveLevel), so this only ever fires at
+    // the top/bottom of a stair run. No-op (stays '__flat') for every room
+    // without `stairwells`.
+    player.level = resolveLevel(player.level, player.x, player.z, world.stairwells);
     // Verticality — collision above stays 2D/XZ; this snaps the player's
     // rendered floor height toward whatever floorHeightAt says for their new
-    // XZ, smoothed so ramps feel continuous and zone-boundary steps don't
-    // jar. No-op (targets 0, already 0) for every room without
-    // heightZones/ramps.
-    player.y += (world.floorHeightAt(player.x, player.z) - player.y) * 0.35;
+    // (level, x, z), smoothed so ramps feel continuous and zone-boundary
+    // steps don't jar. No-op (targets 0, already 0) for every room without
+    // heightZones/ramps/levels.
+    player.y += (world.floorHeightAt(player.level, player.x, player.z) - player.y) * 0.35;
     // Trigger poll — player only; rooms test their own actors via inTrigger.
     // Recomputed every frame (not just on movement) so a state-filtered
     // trigger fires exit the moment the ward state stops matching, even

@@ -173,7 +173,7 @@ export const room13: RoomDef = {
     { pos: [0, -26] },
     { pos: [0, -29] },
   ],
-  exits: [{ to: 'END', minX: -1, maxX: 1, minZ: -31.9, maxZ: -30.8 }],
+  exits: [{ to: 'room14', minX: -1, maxX: 1, minZ: -31.9, maxZ: -30.8 }],
 };
 
 // Rectangle loop, starting (waypoints[0]) at the south end of the east

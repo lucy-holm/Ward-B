@@ -28,6 +28,7 @@ import { room10, room10Script } from './rooms/room10';
 import { room11, room11Script } from './rooms/room11';
 import { room12, room12Script } from './rooms/room12';
 import { room13, room13Script } from './rooms/room13';
+import { room14, room14Script } from './rooms/room14';
 
 // RoomScript is frozen (rooms/types.ts). room4/room5 own an NPC with
 // scene-level resources that need an explicit teardown hook the base
@@ -49,6 +50,7 @@ const rooms: Record<string, { def: RoomDef; script: AnyRoomScript }> = {
   room11: { def: room11, script: room11Script },
   room12: { def: room12, script: room12Script },
   room13: { def: room13, script: room13Script },
+  room14: { def: room14, script: room14Script },
 };
 
 const container = document.getElementById('game')!;
@@ -221,14 +223,14 @@ function endOfBuild(): void {
   hud.setPrompt(null);
   telemetry.flush();
   hud.showEndCard(
-    'END OF MILESTONE 9',
-    'NEITHER STATE WAS SAFE.',
+    'END OF MILESTONE 10',
+    'THE FLOOR REMEMBERS WEIGHT.',
     `<em>PLAYTEST — tell the devs:</em><br><br>
-     1 · Room 13: did you actually alternate states under pressure, or did one state carry you through — and if so, which?<br>
-     2 · The walls never give back what they take. Did that change how you rationed lucid, or did it just feel punishing?<br>
-     3 · No dispenser in room 13 — you crossed with whatever you saved. Did the earlier rooms' spending suddenly matter?<br>
-     4 · Rooms 11 and 12 again, now with one pocket and nothing to refill on between the gates — did that crossing feel like a single decision instead of a plan?<br>
-     5 · You ended with ${state.pills}/${state.maxPills} pills. Was there a moment you sat on your one pill instead of spending it right away?`,
+     1 · Room 14: the gate re-locked the first time you walked away from the plate. Did that one failure teach you the room, or just annoy you?<br>
+     2 · Which route did you actually take — sprint it, let him carry it, or spend the pill to do it calm? Did you realize all three existed?<br>
+     3 · Did you work out on your own that his patrol crosses the plate — and that he keeps walking even when you can't see him?<br>
+     4 · After room 13, the dispenser is right there at spawn. Relief, or did the wing lose its teeth too fast?<br>
+     5 · You ended with ${state.pills}/${state.maxPills} pills. Did the plate room feel like it cost you anything?`,
     'READMIT',
     () => location.reload(),
   );

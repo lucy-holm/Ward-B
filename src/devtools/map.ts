@@ -29,6 +29,7 @@ const MODULES: Record<string, () => Promise<unknown>> = {
   room11: () => import('../rooms/room11'),
   room12: () => import('../rooms/room12'),
   room13: () => import('../rooms/room13'),
+  room14: () => import('../rooms/room14'),
 };
 
 interface LoadedRoom {

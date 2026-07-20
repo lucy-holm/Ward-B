@@ -30,4 +30,13 @@ export interface GameCtx {
   // Rewrite an already-rendered scrawl's text in place (e.g. a randomized
   // keypad code's wall clue) — no-op if `id` isn't a scrawl in the current room.
   updateScrawlText(id: string, text: string): void;
+  // True while the current room's lights are off. Content gated by
+  // BlockDef/ScrawlDef/InteractableDef.lightState reacts to this
+  // automatically (World); a room script reads it for its own interaction
+  // logic (e.g. room16's exit door refusing to open while lit).
+  isRoomDark(): boolean;
+  // Toggle the room's light state — called from a 'switch' interactable's
+  // onInteract. Drives both World's lightState-gated visibility and the
+  // Renderer's real point-light/ambient dimming (atmosphere).
+  setRoomDark(dark: boolean): void;
 }

@@ -3,6 +3,7 @@ import type {
   HeightZone,
   InteractableDef,
   ColliderDef,
+  LightFilter,
   MatName,
   RampDef,
   RoomDef,
@@ -297,6 +298,9 @@ const PLATE_TEX = makeWornTexture([64, 70, 66], 96, 18);
 const CHAIN_TEX = makeWornTexture([60, 63, 69], 96, 20);
 CHAIN_TEX.repeat.set(1, 4); // reads as stacked links on the tall thin chain boxes
 const DOOR_TEX = makeDoorTexture();
+// Breaker switch body — worn dark-metal, distinct from pad's teal-cool
+// emissive so it never reads as "another keypad" (see MatName.breaker).
+const BREAKER_TEX = makeWornTexture([46, 51, 42], 96, 18);
 
 // Shared grey-box materials (never disposed). Scrawl materials own their
 // canvas textures and are disposed with the room. floor/ceil below are
@@ -323,6 +327,16 @@ const MATERIALS: Record<MatName, THREE.Material> = {
   // classifyGlowBlock), so this entry rarely renders. Kept so MATERIALS
   // stays a total Record<MatName, Material> for any other lookup site.
   glow: new THREE.MeshBasicMaterial({ color: 0xfff2d9 }),
+  // Glow-in-the-dark paint (floor/wall markers, room16's phosphor path) —
+  // unlit MeshBasicMaterial so, per the same reasoning as the dispenser/exit
+  // glow, it reads at full brightness regardless of the room's own light
+  // state. Content that should only be SEEN in the dark is gated by
+  // lightState:'dark' on the block itself, not by this material dimming.
+  phosphor: new THREE.MeshBasicMaterial({ color: 0xbfffc9 }),
+  // Breaker switch body (room16's lightSwitch16) — worn dark metal with a
+  // faint amber indicator glow, deliberately not teal (MATERIALS.pad's
+  // color) so it never reads as another keypad.
+  breaker: new THREE.MeshLambertMaterial({ map: BREAKER_TEX, emissive: 0xcf7b2e, emissiveIntensity: 0.25 }),
 };
 
 // ---------------------------------------------------------------------------
@@ -446,7 +460,10 @@ function makeScrawlTexture(def: ScrawlDef): THREE.CanvasTexture {
   cv.width = 512;
   cv.height = 256;
   const g = cv.getContext('2d')!;
-  g.fillStyle = '#c1170f';
+  // 'phosphor' = glow-in-the-dark paint (pale green), matching MATERIALS
+  // .phosphor's color; 'red' (default/undefined) is the ordinary ink every
+  // other scrawl in the game already uses.
+  g.fillStyle = def.ink === 'phosphor' ? '#bfffc9' : '#c1170f';
   g.textAlign = 'center';
   g.textBaseline = 'middle';
 
@@ -726,6 +743,42 @@ function buildKeypad(it: InteractableDef, floor: RoomDef['floor']): THREE.Group 
   return group;
 }
 
+// Breaker switch (room16's lightSwitch16) — a wall fixture that reads as
+// "throw this" rather than "type on this": pad-material-adjacent body
+// (MATERIALS.breaker, distinct color/emissive from the keypad's pad
+// material) plus a small lever protruding off the face. No special animated
+// toggle state lives here — the room script flips the lever's rotation via
+// the existing ctx.moveInteractable(id, pos, rotY) hook (already used for
+// door swings elsewhere), so a toggle is just a small rotY change on the
+// whole fixture, reusing machinery instead of adding a new one.
+function buildSwitch(it: InteractableDef, floor: RoomDef['floor']): THREE.Group {
+  const group = new THREE.Group();
+  const [w, h, d] = it.size;
+  const facing = resolveFacing(it, floor);
+  const faceDist = (facing.axis === 'x' ? w : d) / 2;
+  const along = facing.axis === 'x' ? d : w;
+
+  const body = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), MATERIALS.breaker);
+  group.add(body);
+
+  // The lever: a short bar proud of the face, offset toward one side so a
+  // small rotY change on the whole group reads as "the lever moved," not
+  // "the whole box spun."
+  const leverSize: [number, number, number] =
+    facing.axis === 'x' ? [along * 0.35, h * 0.09, along * 0.09] : [along * 0.09, h * 0.09, along * 0.35];
+  const lever = new THREE.Mesh(new THREE.BoxGeometry(...leverSize), MATERIALS.chain);
+  const leverOff = faceOffset(facing, faceDist + along * 0.18);
+  lever.position.set(leverOff[0], -h * 0.05, leverOff[2]);
+  group.add(lever);
+
+  const indicator = new THREE.Mesh(new THREE.BoxGeometry(...(facing.axis === 'x' ? [along * 0.1, h * 0.1, along * 0.06] : [along * 0.06, h * 0.1, along * 0.1])), GLOW_SLOT_MAT);
+  const indicatorOff = faceOffset(facing, faceDist + 0.01);
+  indicator.position.set(indicatorOff[0], h * 0.28, indicatorOff[2]);
+  group.add(indicator);
+
+  return group;
+}
+
 // Small clinical plate for a door header — reuses the dispenser's printed-
 // label look. Text is derived from the def id since room defs aren't edited.
 function makeDoorPlateTexture(text: string): THREE.CanvasTexture {
@@ -879,6 +932,14 @@ export class World {
   // floorHeightAt with no allocation.
   private heightZones: HeightZone[] = [];
   private ramps: RampDef[] = [];
+  // Light axis (see rooms/types.ts's LightFilter) — room-wide, orthogonal to
+  // the lucid/unmed groups above. `lightGated` collects only the meshes
+  // whose def actually authored a non-'both' lightState (most rooms have
+  // none at all); applyLight flips their .visible in one pass. THREE
+  // respects an ancestor's .visible=false regardless of a child's own flag,
+  // so this composes cleanly with groups.lucid/unmed toggling in applyState.
+  private dark = false;
+  private lightGated: Array<{ mesh: THREE.Object3D; light: Exclude<LightFilter, 'both'> }> = [];
 
   private readonly root = new THREE.Group();
   private readonly groups: Record<StateFilter, THREE.Group> = {
@@ -963,6 +1024,7 @@ export class World {
       mesh.position.set(...b.pos);
       if (b.rotY) mesh.rotation.y = b.rotY;
       this.groups[b.states ?? 'both'].add(mesh);
+      if (b.lightState && b.lightState !== 'both') this.lightGated.push({ mesh, light: b.lightState });
     }
 
     for (const s of def.scrawls) {
@@ -977,6 +1039,7 @@ export class World {
       // so wobbling opacity per-instance here doesn't touch anything shared.
       this.scrawlMats.push({ mat, phase: Math.random() * Math.PI * 2 });
       if (s.id) this.scrawlEntries.set(s.id, { mat, def: s });
+      if (s.lightState && s.lightState !== 'both') this.lightGated.push({ mesh, light: s.lightState });
     }
 
     for (const it of def.interactables) {
@@ -990,6 +1053,9 @@ export class World {
           break;
         case 'door':
           mesh = buildDoor(it, def.floor);
+          break;
+        case 'switch':
+          mesh = buildSwitch(it, def.floor);
           break;
         case 'pill_pickup':
           mesh = buildPillPickup(it);
@@ -1006,12 +1072,35 @@ export class World {
       if (it.type === 'pill_cup' || it.type === 'pill_pickup') {
         this.animated.push({ mesh, baseY: it.pos[1] });
       }
+      if (it.lightState && it.lightState !== 'both') this.lightGated.push({ mesh, light: it.lightState });
     }
+
+    // Opening visibility for the light axis — after lightGated is fully
+    // populated, so the room's first frame is already correct without a
+    // second main.ts call racing it.
+    this.applyLight(def.startDark ?? false);
   }
 
   applyState(state: WardState): void {
     this.groups.lucid.visible = state === 'lucid';
     this.groups.unmed.visible = state === 'unmed';
+  }
+
+  // Light axis (LightFilter) — sets every lightGated mesh's own .visible so
+  // it's shown exactly when its authored light state matches. Composes with
+  // applyState above: a mesh that's both group-gated (e.g. every scrawl is
+  // implicitly unmed-only) and light-gated is only ever actually rendered
+  // when both conditions hold, since THREE respects an ancestor's
+  // visible=false regardless of a child's own flag.
+  applyLight(dark: boolean): void {
+    this.dark = dark;
+    for (const entry of this.lightGated) {
+      entry.mesh.visible = (entry.light === 'dark') === dark;
+    }
+  }
+
+  isDark(): boolean {
+    return this.dark;
   }
 
   // Verticality — the walkable floor height at a given XZ, single-valued
@@ -1175,5 +1264,7 @@ export class World {
     this.scrawlMats.length = 0;
     this.scrawlEntries.clear();
     this.colliders = [];
+    this.lightGated = [];
+    this.dark = false;
   }
 }

@@ -24,6 +24,8 @@ export class Interaction {
     for (const { def, mesh } of this.world.entries()) {
       const states = def.states ?? 'both';
       if (states !== 'both' && states !== state) continue;
+      const lightState = def.lightState ?? 'both';
+      if (lightState !== 'both' && lightState !== (this.world.isDark() ? 'dark' : 'lit')) continue;
       if (script.isAvailable && !script.isAvailable(def.id, ctx)) continue;
       // recursive: composite interactables (e.g. the dispenser) are groups of meshes
       const hit = this.ray.intersectObject(mesh, true);

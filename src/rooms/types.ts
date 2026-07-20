@@ -5,6 +5,12 @@ export type WardState = 'lucid' | 'unmed';
 // Which state(s) a mesh/collider/interactable exists in.
 export type StateFilter = 'both' | 'lucid' | 'unmed';
 
+// A room's light state (room-wide — see room16's design comments), orthogonal
+// to StateFilter/WardState: whether the player is lucid/unmed is independent
+// of whether the room's lights are on. Default 'both' everywhere, so every
+// room shipped before this axis existed is unaffected.
+export type LightFilter = 'both' | 'lit' | 'dark';
+
 export type MatName =
   | 'wall'
   | 'wall2'
@@ -18,7 +24,9 @@ export type MatName =
   | 'pad'
   | 'dispenser'
   | 'plate'
-  | 'glow';
+  | 'glow'
+  | 'phosphor' // glow-in-the-dark paint — floor/wall markers, always lightState:'dark'
+  | 'breaker'; // the switch fixture's own body, distinct from 'pad' so it doesn't read as another keypad
 
 export interface BlockDef {
   size: [number, number, number];
@@ -26,6 +34,7 @@ export interface BlockDef {
   mat: MatName;
   states?: StateFilter; // default 'both'
   rotY?: number;
+  lightState?: LightFilter; // default 'both'
 }
 
 export interface ColliderDef {
@@ -64,9 +73,22 @@ export interface ScrawlDef {
   // Stable handle for World.updateScrawlText — only needed on scrawls a room
   // script rewrites at runtime (e.g. a randomized keypad code's wall clue).
   id?: string;
+  lightState?: LightFilter; // default 'both'
+  // Ink color for makeScrawlTexture: 'red' (default, unchanged) or
+  // 'phosphor' (pale glow-green, #bfffc9) — a scrawl that's supposed to read
+  // as glow-in-the-dark paint should look like it, not like the same red ink
+  // every other scrawl in the game uses. Purely cosmetic; doesn't affect
+  // visibility (lightState does that).
+  ink?: 'red' | 'phosphor'; // default 'red'
 }
 
-export type InteractableType = 'pill_cup' | 'dispenser' | 'pill_pickup' | 'keypad' | 'door';
+export type InteractableType =
+  | 'pill_cup'
+  | 'dispenser'
+  | 'pill_pickup'
+  | 'keypad'
+  | 'door'
+  | 'switch'; // a room-wide light toggle — see room16, World.buildSwitch
 
 export interface InteractableDef {
   id: string;
@@ -83,6 +105,11 @@ export interface InteractableDef {
   // side wall instead of out its mouth). 'px'/'nx' = thin axis is x, faceplate
   // toward +x/-x; 'pz'/'nz' = thin axis is z, faceplate toward +z/-z.
   facing?: 'px' | 'nx' | 'pz' | 'nz';
+  // Supported for generality (a future room's hidden switch/dispenser
+  // findable only in one light state) — unused by room16 itself, whose
+  // switch/door are always-present fixtures gated by onInteract logic, not
+  // by existence. default 'both'.
+  lightState?: LightFilter;
 }
 
 // Walking into this AABB leaves the room.
@@ -154,6 +181,9 @@ export interface RoomDef {
   // Trigger volumes — engine-polled for the player every frame (main.ts),
   // room-polled for orderlies via kit's inTrigger(). Absent/empty ⇒ no-op.
   triggers?: TriggerDef[];
+  // Initial light state on room entry (see LightFilter). Default false
+  // (lit) — every room shipped before this axis existed is unaffected.
+  startDark?: boolean;
 }
 
 // Per-room bespoke logic (tutorial beats, phase gating). Generic behaviour

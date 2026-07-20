@@ -429,6 +429,11 @@ impossible); the rest are still on you.
     (template literal), not the original string — and with the `keypadDoor`
     kit helper, use `lock.setCode(code, successToast)` instead of the
     `let code` variable, since the lock closure holds its own copy.
+- **Reversible trigger-held gates**: any collider re-engaged on trigger-exit
+  must defer the close while a body's circle still overlaps the gate's own
+  footprint, rechecked per frame (room14's `tryCloseGate` is the worked
+  example) — closing onto a body freezes it in place, the same bug class
+  room13's per-frame wall-clamp guards against.
 
 ## 5. Registering a room
 
@@ -513,6 +518,22 @@ second import).
   on scrawls a room script rewrites at runtime via
   `ctx.updateScrawlText(id, text)` — in practice, the code-clue scrawl(s);
   see §4's randomize-codes checklist item.
+
+- **`inTrigger(trigger: TriggerDef, x: number, z: number, state:
+  WardState): boolean`** — pure containment test against a `TriggerDef`,
+  honoring its state filter. The exact rectangle+state check the engine's
+  per-frame player poll runs against `RoomDef.triggers`, exposed so a
+  room's own `update()` can run the identical test against a room-owned
+  actor — in practice, an `Orderly`'s public `.x`/`.z`, paired with a `let
+  wasOn = false` edge-detect local (same shape as room13's `inStretch`).
+
+- **`pressurePlate(opts: PlateOpts): PlateDef`** — `PlateOpts`: `{ id,
+  minX, maxX, minZ, maxZ, states?, y? }`. Returns `{ trigger, block }`:
+  spread `block` into `blocks` and `trigger` into `RoomDef.triggers`.
+  Deliberately no implicit collider — a plate stays walkable, and with no
+  collider it never enters `ORDERLY_COLLIDERS` either, so patrols cross it
+  like bare floor with zero special-casing. Author a separate
+  `rb.solid(...)` if a trigger region must also block movement.
 
 - **`keypadDoor(rb, opts: KeypadDoorOpts): KeypadDoorLock`** — the full lock
   assembly. Builds the door `InteractableDef`, pushes its closure-held

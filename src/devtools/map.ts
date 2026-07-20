@@ -13,7 +13,7 @@ import { TUNING } from '../tuning';
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
 // --- registry -------------------------------------------------------------
-// Same 13 ids as main.ts's registry. Every room file exports its def under
+// Same ids as main.ts's registry. Every room file exports its def under
 // its own id (`export const room7: RoomDef`), which loadRoom relies on.
 const MODULES: Record<string, () => Promise<unknown>> = {
   room1: () => import('../rooms/room1'),

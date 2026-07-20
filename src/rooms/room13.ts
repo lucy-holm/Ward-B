@@ -21,7 +21,8 @@ import type { DebugPatrol } from '../devtools/map-types';
 //                          dispenser: you cross with whatever you saved.
 //   the squeeze stretch    z [-24, 16] — the moving slabs + the orderly.
 //   Z3 the exit vestibule  z [-30, -24] — safe, no lock, no code; the open
-//                          doorway at z=-30 is the end of the game.
+//                          doorway at z=-30 exits to the next room (the
+//                          wing beyond, room14).
 //
 // THE WALLS: two room-owned meshes + two mutable ColliderDefs (room 3's
 // collider-mutation trick). Colliders give correct approach/sliding

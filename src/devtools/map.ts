@@ -350,6 +350,7 @@ const TYPE_COLORS: Record<string, string> = {
   door: '#c9b458',
   pill_cup: '#e8e8e8',
   pill_pickup: '#e8e8e8',
+  push_block: '#8fd9a0',
 };
 
 function drawInteractables(g: SVGGElement, def: RoomDef): void {

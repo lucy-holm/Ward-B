@@ -66,7 +66,13 @@ export interface ScrawlDef {
   id?: string;
 }
 
-export type InteractableType = 'pill_cup' | 'dispenser' | 'pill_pickup' | 'keypad' | 'door';
+// 'push_block' (room20): a sokoban-lite crate. No dedicated builder in
+// world.ts's loadRoom switch — it falls through to the generic `default:`
+// branch (a plain BoxGeometry box, mat:'prop'), same as every type added
+// before a room actually needed bespoke geometry for it. Entirely
+// room-script-owned: push resolution, the mutable ColliderDef it shares
+// with orderly occluders, and the move-tween all live in room20.ts, not here.
+export type InteractableType = 'pill_cup' | 'dispenser' | 'pill_pickup' | 'keypad' | 'door' | 'push_block';
 
 export interface InteractableDef {
   id: string;

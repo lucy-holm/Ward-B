@@ -602,7 +602,16 @@ export interface ShapeLockDoorOpts {
   iconPanelAlong: number;
 
   states?: StateFilter;
-  refusalToastUnmed?: string; // default matches every keypad's static-refusal line
+  // When true, skips the unmed refusal entirely — the lock is operable in
+  // BOTH ward states, not lucid-only. Default false, preserving every
+  // previously-shipped shapeLockDoor caller's behavior (lucid-only unlock,
+  // mirroring keypadDoor's unmed refusal) unchanged. room15's whole-room-
+  // unmed rework (see its header) is the first caller to opt in — the room
+  // has no lucid requirement left anywhere, so the door mechanism can't be
+  // the one thing that still demands it. Additive: no other room is
+  // affected by this option existing.
+  allowUnmed?: boolean;
+  refusalToastUnmed?: string; // shown on an unmed interaction when allowUnmed is false; default matches every keypad's static-refusal line
   refusalToastIncomplete?: (have: number, need: number) => string;
   successToast?: string;
   successObjective?: string; // default 'the door is open. go.'
@@ -749,7 +758,7 @@ export function shapeLockDoor(rb: RoomBuilder, opts: ShapeLockDoorOpts): ShapeLo
         return true;
       }
       if (id === opts.lockId) {
-        if (ctx.state.state === 'unmed') {
+        if (ctx.state.state === 'unmed' && !opts.allowUnmed) {
           ctx.hud.toast(
             opts.refusalToastUnmed ??
               "the lock is a smear of static. it's not reading shapes right now — it's not reading anything.",

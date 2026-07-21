@@ -225,6 +225,7 @@ const ctx: GameCtx = {
     renderer.setDark(dark);
   },
   updateIconPanel: (id, lit) => world.updateIconPanel(id, lit),
+  setGlowFade: (level) => world.setGlowFade(level),
 };
 
 state.onChange = (next) => {

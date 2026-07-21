@@ -59,4 +59,12 @@ export interface GameCtx {
   // shape-key progress panel) — no-op if `id` isn't an icon panel in the
   // current room. `lit` is parallel to the panel's ShapeSpec[] order.
   updateIconPanel(id: string, lit: boolean[]): void;
+  // Room-wide phosphor charge/fade dial (room16's "the paint drinks the
+  // light" mechanic) — 1 = full glow, 0 = fully faded. Dims every
+  // lightState:'dark' block authored mat:'phosphor' plus every scrawl
+  // authored ink:'phosphor', in place, every frame (World.update). Purely
+  // visual: never touches lightState visibility gating or any collider, so
+  // it can never strand the player, only their sense of direction. Clamped
+  // to [0,1] by World — a room script may pass an unbounded ratio freely.
+  setGlowFade(level: number): void;
 }

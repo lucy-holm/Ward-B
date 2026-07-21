@@ -368,7 +368,11 @@ const MATERIALS: Record<MatName, THREE.Material> = {
   // glow, it reads at full brightness regardless of the room's own light
   // state. Content that should only be SEEN in the dark is gated by
   // lightState:'dark' on the block itself, not by this material dimming.
-  phosphor: new THREE.MeshBasicMaterial({ color: 0xbfffc9 }),
+  // transparent:true so a room's charge/fade mechanic (World.setGlowFade,
+  // room16) can dim this via opacity — every 'phosphor' block gets its own
+  // per-room clone of this template (see loadRoom), so mutating opacity at
+  // runtime never bleeds into another room reusing the same MatName.
+  phosphor: new THREE.MeshBasicMaterial({ color: 0xbfffc9, transparent: true }),
   // Breaker switch body (room16's lightSwitch16) — worn dark metal with a
   // faint amber indicator glow, deliberately not teal (MATERIALS.pad's
   // color) so it never reads as another keypad.
@@ -1164,6 +1168,19 @@ export class World {
   // so this composes cleanly with groups.lucid/unmed toggling in applyState.
   private dark = false;
   private lightGated: Array<{ mesh: THREE.Object3D; light: Exclude<LightFilter, 'both'> }> = [];
+  // Phosphor charge/fade (room16's "the paint drinks the light" mechanic,
+  // see room16.ts's header) — a single room-wide dial, orthogonal to
+  // applyLight's on/off visibility gate: 1 = full glow, 0 = fully faded.
+  // Applied every frame in update() rather than written once from
+  // setGlowFade, so it composes with the existing per-scrawl shimmer
+  // instead of fighting it. Room-scoped: reset to 1 and re-populated by
+  // loadRoom/clear, so no state leaks from one room into the next.
+  private phosphorGlow = 1;
+  // Per-room clone of MATERIALS.phosphor, shared by every 'phosphor' block
+  // in the CURRENT room only (cloned fresh in loadRoom, disposed in clear) —
+  // never the module-level template, so opacity mutation here can't affect
+  // a different room that also happens to use mat:'phosphor'.
+  private phosphorBlockMats: THREE.MeshBasicMaterial[] = [];
 
   private readonly root = new THREE.Group();
   private readonly groups: Record<StateFilter, THREE.Group> = {
@@ -1178,7 +1195,11 @@ export class World {
   // Scrawl materials — per-instance (ownsMaterial), so wobbling each one's
   // opacity here is safe; phase gives every scrawl an independent shimmer
   // instead of them all pulsing in lockstep.
-  private readonly scrawlMats: Array<{ mat: THREE.MeshBasicMaterial; phase: number }> = [];
+  // `phosphor` marks scrawls painted in glow ink (ScrawlDef.ink==='phosphor')
+  // — their shimmer in update() is additionally scaled by phosphorGlow, so a
+  // charge/fade room (room16) dims the ink together with the floor path
+  // without touching this loop's shimmer math for ordinary red-ink scrawls.
+  private readonly scrawlMats: Array<{ mat: THREE.MeshBasicMaterial; phase: number; phosphor: boolean }> = [];
   // Only scrawls authored with a ScrawlDef.id land here — most scrawls are
   // static flavor text and never need a lookup. Keyed for updateScrawlText.
   private readonly scrawlEntries = new Map<string, { mat: THREE.MeshBasicMaterial; def: ScrawlDef }>();
@@ -1255,8 +1276,28 @@ export class World {
 
     this.groups.both.add(floor, ceil);
 
+    // Fresh per-room phosphor glow state — see the phosphorGlow/
+    // phosphorBlockMats field header above.
+    this.phosphorGlow = 1;
+    this.phosphorBlockMats = [];
+    let phosphorBlockMat: THREE.MeshBasicMaterial | null = null;
+
     for (const b of def.blocks) {
-      const mat = b.mat === 'glow' ? glowMaterialFor(classifyGlowBlock(b.size)) : MATERIALS[b.mat];
+      let mat: THREE.Material;
+      if (b.mat === 'glow') {
+        mat = glowMaterialFor(classifyGlowBlock(b.size));
+      } else if (b.mat === 'phosphor') {
+        // Lazily clone once per room, then share across every phosphor
+        // block in it — one opacity write in update() dims them all
+        // uniformly, matching "the paint" being one substance.
+        if (!phosphorBlockMat) {
+          phosphorBlockMat = (MATERIALS.phosphor as THREE.MeshBasicMaterial).clone();
+          this.phosphorBlockMats.push(phosphorBlockMat);
+        }
+        mat = phosphorBlockMat;
+      } else {
+        mat = MATERIALS[b.mat];
+      }
       const mesh = new THREE.Mesh(new THREE.BoxGeometry(...b.size), mat);
       mesh.position.set(...b.pos);
       if (b.rotY) mesh.rotation.y = b.rotY;
@@ -1274,7 +1315,7 @@ export class World {
       // Memories/hallucinations, not paint — a slow opacity shimmer so they
       // read as alive. Each mesh owns its material already (ownsMaterial),
       // so wobbling opacity per-instance here doesn't touch anything shared.
-      this.scrawlMats.push({ mat, phase: Math.random() * Math.PI * 2 });
+      this.scrawlMats.push({ mat, phase: Math.random() * Math.PI * 2, phosphor: s.ink === 'phosphor' });
       if (s.id) this.scrawlEntries.set(s.id, { mat, def: s });
       if (s.lightState && s.lightState !== 'both') this.lightGated.push({ mesh, light: s.lightState });
     }
@@ -1356,6 +1397,15 @@ export class World {
 
   isDark(): boolean {
     return this.dark;
+  }
+
+  // Phosphor charge/fade dial (room16) — see the phosphorGlow field header.
+  // Purely visual (opacity only); never touches lightGated visibility, so a
+  // fully-faded room is still exactly as dark/lit as applyLight says, and
+  // every lightState-gated collider/interactable is unaffected. Clamped so
+  // a room script computing this from an unbounded ratio can't overshoot.
+  setGlowFade(level: number): void {
+    this.phosphorGlow = Math.max(0, Math.min(1, level));
   }
 
   // Verticality — the walkable floor height at a given XZ, single-valued
@@ -1521,8 +1571,18 @@ export class World {
     }
 
     // Scrawls: memories/hallucinations, not paint — a slow independent opacity shimmer per instance.
+    // Phosphor ink additionally rides the room's charge/fade dial
+    // (phosphorGlow) on top of its own shimmer, instead of replacing it —
+    // it keeps looking alive right up until it's fully faded.
     for (const s of this.scrawlMats) {
-      s.mat.opacity = 0.82 + Math.sin(t * 1.6 + s.phase) * 0.16;
+      const shimmer = 0.82 + Math.sin(t * 1.6 + s.phase) * 0.16;
+      s.mat.opacity = s.phosphor ? shimmer * this.phosphorGlow : shimmer;
+    }
+
+    // Phosphor floor/wall blocks: no idle shimmer of their own (unlike
+    // scrawls), just the room's charge/fade dial directly.
+    for (const m of this.phosphorBlockMats) {
+      m.opacity = this.phosphorGlow;
     }
 
     // Focused-interactable highlight: re-derive from the live base material
@@ -1553,5 +1613,8 @@ export class World {
     this.colliders = [];
     this.lightGated = [];
     this.dark = false;
+    for (const m of this.phosphorBlockMats) m.dispose();
+    this.phosphorBlockMats = [];
+    this.phosphorGlow = 1;
   }
 }

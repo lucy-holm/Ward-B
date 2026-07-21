@@ -381,6 +381,38 @@ export const room17: RoomDef = {
   exits: [{ to: 'room18', minX: -1, maxX: 1, minZ: -7.9, maxZ: -6.8 }],
 };
 
+// Ground-level terrain height INCLUDING both stairwells' interpolation —
+// mirrors what World.floorHeightAt('ground', x, z) computes for this room
+// (STAIR_EAST/STAIR_WEST checked first, else flat GROUND_Y). BUG FIX
+// (playtest: "the orderly... gets stuck in a wall" trying to "go up the
+// stairs"): ORDERLY-SOUTH and ORDERLY-POCKET are fixed level:'ground' and
+// their PATROL loops never enter a stairwell footprint, but chase() is
+// unbounded — kit.ts's own header calls it out: "deliberately not a nav
+// system: distance + forward cone + a handful of AABB occluders/colliders,
+// nothing pathfinds around them." A fleeing player stays level:'ground' for
+// the entire climb (the flip only fires on fully clearing the stairwell),
+// so a chasing ground orderly can and does follow him straight into the
+// stair mouth — nothing in the corridor blocks a ground-tagged mover
+// walking in from z=16. Without a floorHeightAt override, his root Y stays
+// pinned at 0 (Orderly's default) while the stepped visual geometry
+// (EAST_STEPS/WEST_STEPS, solid opaque blocks sitting on the floor and
+// rising to 3.4) rises up around his fixed-height body — he visually
+// disappears into what reads as solid wall, exactly Tom's report. This
+// does NOT let him climb in the sense the design forbids: his `level`
+// field never changes, so orderly.ts's cross-level LOS/catch gates
+// (`playerLevel === this.level`) still make him categorically unable to
+// see or catch a player who's reached 'balcony' — this only keeps his mesh
+// honest about the ground level's own terrain on the rare chase that
+// carries him somewhere his patrol loop never goes.
+function groundFloorHeightAt(x: number, z: number): number {
+  for (const s of [STAIR_EAST, STAIR_WEST]) {
+    if (x < s.minX || x > s.maxX || z < s.minZ || z > s.maxZ) continue;
+    const t = s.axis === 'x' ? (x - s.minX) / (s.maxX - s.minX) : (z - s.minZ) / (s.maxZ - s.minZ);
+    return s.yLow + (s.yHigh - s.yLow) * t;
+  }
+  return GROUND_Y;
+}
+
 // --- patrols ----------------------------------------------------------------
 // ORDERLY-SOUTH (ground) — the approach. Back-and-forth across the south hall;
 // the crossing to the east stair mouth (x≈7,z=16) is a through-point.
@@ -425,6 +457,7 @@ export const room17Script = makeOrderlyRoomScript({
       waypoints: WAYPOINTS_SOUTH,
       occluders: [],
       level: 'ground',
+      floorHeightAt: groundFloorHeightAt, // stays visually honest if a chase carries him into the east stair mouth
       onWarnToast: 'the one in the hall sees you.',
       onChaseToast: 'run. or stop being visible.',
       onCaughtToast: 'hands. a needle. "not even past the stairs," he says.',
@@ -442,6 +475,7 @@ export const room17Script = makeOrderlyRoomScript({
       waypoints: WAYPOINTS_POCKET,
       occluders: [],
       level: 'ground',
+      floorHeightAt: groundFloorHeightAt, // stays visually honest if a chase carries him into either stairwell mouth
       onWarnToast: 'the one below the gallery sees you.',
       onChaseToast: 'run. or stop being visible.',
       onCaughtToast: 'hands. a needle. "back where the light doesn\'t reach," he says.',

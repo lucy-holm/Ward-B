@@ -267,11 +267,31 @@ railingBlock(8, 9, 10);
 rb.colliders.push({ minX: -1, maxX: 1, minZ: -6.12, maxZ: -5.88, level: 'balcony' });
 railingBlock(-1, 1, -6);
 
-// Landing seam guard: a GROUND-only strip across the east landing gap at
-// z=10, so a ground pocket traveler can't step off the pocket floor onto the
-// balcony landing (a 3.4m instant lift). Balcony travelers (level:'balcony')
-// pass it and descend the stair normally.
-rb.colliders.push({ minX: 6, maxX: 8, minZ: 9.9, maxZ: 10.1, level: 'ground' });
+// Landing seam guard: a GROUND-only strip that keeps a ground pocket
+// traveler from stepping off the pocket floor into the east stairwell's
+// footprint (a 3.4m instant lift — floorHeightAt returns the stair's yLow
+// the instant z>=10, no gradual climb, since the pocket approach never
+// walked the ramp). BUG FIX (playtest: "invisible wall at the top of the
+// stairs"): the original guard, z[9.9,10.1], straddled z=10 itself. The
+// climber arriving from the south hall is ALSO level:'ground' for the
+// entire ascent — resolveLevel only flips on FULLY CLEARING the stairwell
+// (reaching z<=10) — so a guard whose radius-expanded footprint
+// (z[9.55,10.45] at player.radius 0.35) covers z=10 makes that arrival
+// physically unreachable: he gets pushed back before ever landing at
+// z<=10, the flip never fires, and he's walled out of the balcony forever.
+// Fix: keep the guard entirely south of z=10 with margin (maxZ + radius =
+// 9.75, well clear of 10 even accounting for a worst-case single-frame
+// overshoot — main.ts clamps dt to 0.05s, so at player.speed 3.4 the
+// biggest possible step is 0.17m), and start its X range past x=6.6 rather
+// than the stair's full x[6,8] width so it stays >0.5m (orderly.radius 0.4
+// + patrol()'s 0.1 margin) from ORDERLY-POCKET's (6,9) waypoint/leg. The
+// dropped west sliver (x[6,6.6]) isn't an open gap: the flanking stair wall
+// (tallWallZ at x=6, z[10,16]) already blocks x<6.47 (radius-expanded) down
+// to z=9.65, and this guard's own radius-expanded zone starts at x=6.25 —
+// the two overlap with no seam, so the sneak is still closed end to end.
+// Balcony travelers (level:'balcony') are never subject to this collider
+// and descend the stair normally.
+rb.colliders.push({ minX: 6.6, maxX: 8, minZ: 9.1, maxZ: 9.4, level: 'ground' });
 
 // --- keypad-locked exit door (north wall of the pocket, z=-6) ---------------
 const lock = keypadDoor(rb, {

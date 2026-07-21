@@ -32,6 +32,40 @@ const FLAT_LEVEL_ID = '__flat';
 // (including mid-stair) it's a no-op, `current` unchanged. A no-`stairwells`
 // room (every room shipped before this existed) always returns `current`
 // unchanged, since the loop below never runs.
+// BUG FIX (found while proving room17's stair-climb fix by simulation, not
+// by inspection — see the room17.ts commit this shipped with): the flip
+// conditions below (`t>=1`/`t<=0`) used to be gated behind a containment
+// check on BOTH dimensions — `z < s.minZ || z > s.maxZ` (or the `x`
+// equivalent) — which clamps the axis coordinate into the stairwell's own
+// [min,max] range before `t` is ever computed. That makes `t` mechanically
+// confined to [0,1] whenever the loop body runs at all, so `t>=1`/`t<=0`
+// can only be satisfied by `t` landing on EXACTLY 0 or 1 — i.e. the
+// traveler's position landing on the exact boundary coordinate for that
+// frame. Real per-frame movement (position += speed*dt) essentially never
+// lands on an exact float boundary; it steps a few cm past it. Net effect:
+// a traveler climbing/descending a stairwell would sail through the exit
+// boundary without ever flipping `level`, then fall out of the stairwell's
+// containment check entirely on the very next frame (now past minZ/maxZ)
+// and keep going as a WRONG level — never catching the flip at all. (This
+// is what turned room17's "invisible wall" bug into a second wall a meter
+// further along the very first time the actual crossing was simulated
+// step-by-step instead of asserted from geometry alone.)
+// Fix: keep the LATERAL dimension (the one `t` doesn't interpolate over)
+// strictly bounded — that one has no crossing to detect, a traveler is
+// either on the stair's width or they aren't — but give the AXIS dimension
+// (the one `t` walks over) a generous, bounded overshoot allowance past
+// each end, so a frame that steps past the exit boundary is still caught.
+// STAIR_OVERSHOOT_M is deliberately generous relative to a single frame's
+// travel (main.ts clamps dt to 0.05s; at the fastest mover in the game,
+// orderly.chaseSpeed 4.3 m/s, that's a 0.215m worst-case step) while still
+// being small relative to room-scale coordinates, so it can't bridge to an
+// unrelated stairwell or spuriously flip a traveler who's merely elsewhere
+// in the same level's footprint at the same lateral coordinate. Backward
+// compatible: a room with no `stairwells` never enters the loop body at
+// all (unchanged), and this only widens — never narrows — when an existing
+// stairwell's flip can fire, so no room that already worked can regress.
+const STAIR_OVERSHOOT_M = 1;
+
 export function resolveLevel(
   current: string,
   x: number,
@@ -39,7 +73,13 @@ export function resolveLevel(
   stairwells: StairwellDef[],
 ): string {
   for (const s of stairwells) {
-    if (x < s.minX || x > s.maxX || z < s.minZ || z > s.maxZ) continue;
+    if (s.axis === 'x') {
+      if (z < s.minZ || z > s.maxZ) continue; // lateral bound — strict
+      if (x < s.minX - STAIR_OVERSHOOT_M || x > s.maxX + STAIR_OVERSHOOT_M) continue;
+    } else {
+      if (x < s.minX || x > s.maxX) continue; // lateral bound — strict
+      if (z < s.minZ - STAIR_OVERSHOOT_M || z > s.maxZ + STAIR_OVERSHOOT_M) continue;
+    }
     if (current !== s.levelAtLow && current !== s.levelAtHigh) continue;
     const t = s.axis === 'x' ? (x - s.minX) / (s.maxX - s.minX) : (z - s.minZ) / (s.maxZ - s.minZ);
     if (t >= 1 && current === s.levelAtLow) return s.levelAtHigh;

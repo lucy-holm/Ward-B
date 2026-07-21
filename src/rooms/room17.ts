@@ -267,11 +267,31 @@ railingBlock(8, 9, 10);
 rb.colliders.push({ minX: -1, maxX: 1, minZ: -6.12, maxZ: -5.88, level: 'balcony' });
 railingBlock(-1, 1, -6);
 
-// Landing seam guard: a GROUND-only strip across the east landing gap at
-// z=10, so a ground pocket traveler can't step off the pocket floor onto the
-// balcony landing (a 3.4m instant lift). Balcony travelers (level:'balcony')
-// pass it and descend the stair normally.
-rb.colliders.push({ minX: 6, maxX: 8, minZ: 9.9, maxZ: 10.1, level: 'ground' });
+// Landing seam guard: a GROUND-only strip that keeps a ground pocket
+// traveler from stepping off the pocket floor into the east stairwell's
+// footprint (a 3.4m instant lift — floorHeightAt returns the stair's yLow
+// the instant z>=10, no gradual climb, since the pocket approach never
+// walked the ramp). BUG FIX (playtest: "invisible wall at the top of the
+// stairs"): the original guard, z[9.9,10.1], straddled z=10 itself. The
+// climber arriving from the south hall is ALSO level:'ground' for the
+// entire ascent — resolveLevel only flips on FULLY CLEARING the stairwell
+// (reaching z<=10) — so a guard whose radius-expanded footprint
+// (z[9.55,10.45] at player.radius 0.35) covers z=10 makes that arrival
+// physically unreachable: he gets pushed back before ever landing at
+// z<=10, the flip never fires, and he's walled out of the balcony forever.
+// Fix: keep the guard entirely south of z=10 with margin (maxZ + radius =
+// 9.75, well clear of 10 even accounting for a worst-case single-frame
+// overshoot — main.ts clamps dt to 0.05s, so at player.speed 3.4 the
+// biggest possible step is 0.17m), and start its X range past x=6.6 rather
+// than the stair's full x[6,8] width so it stays >0.5m (orderly.radius 0.4
+// + patrol()'s 0.1 margin) from ORDERLY-POCKET's (6,9) waypoint/leg. The
+// dropped west sliver (x[6,6.6]) isn't an open gap: the flanking stair wall
+// (tallWallZ at x=6, z[10,16]) already blocks x<6.47 (radius-expanded) down
+// to z=9.65, and this guard's own radius-expanded zone starts at x=6.25 —
+// the two overlap with no seam, so the sneak is still closed end to end.
+// Balcony travelers (level:'balcony') are never subject to this collider
+// and descend the stair normally.
+rb.colliders.push({ minX: 6.6, maxX: 8, minZ: 9.1, maxZ: 9.4, level: 'ground' });
 
 // --- keypad-locked exit door (north wall of the pocket, z=-6) ---------------
 const lock = keypadDoor(rb, {
@@ -361,6 +381,38 @@ export const room17: RoomDef = {
   exits: [{ to: 'room18', minX: -1, maxX: 1, minZ: -7.9, maxZ: -6.8 }],
 };
 
+// Ground-level terrain height INCLUDING both stairwells' interpolation —
+// mirrors what World.floorHeightAt('ground', x, z) computes for this room
+// (STAIR_EAST/STAIR_WEST checked first, else flat GROUND_Y). BUG FIX
+// (playtest: "the orderly... gets stuck in a wall" trying to "go up the
+// stairs"): ORDERLY-SOUTH and ORDERLY-POCKET are fixed level:'ground' and
+// their PATROL loops never enter a stairwell footprint, but chase() is
+// unbounded — kit.ts's own header calls it out: "deliberately not a nav
+// system: distance + forward cone + a handful of AABB occluders/colliders,
+// nothing pathfinds around them." A fleeing player stays level:'ground' for
+// the entire climb (the flip only fires on fully clearing the stairwell),
+// so a chasing ground orderly can and does follow him straight into the
+// stair mouth — nothing in the corridor blocks a ground-tagged mover
+// walking in from z=16. Without a floorHeightAt override, his root Y stays
+// pinned at 0 (Orderly's default) while the stepped visual geometry
+// (EAST_STEPS/WEST_STEPS, solid opaque blocks sitting on the floor and
+// rising to 3.4) rises up around his fixed-height body — he visually
+// disappears into what reads as solid wall, exactly Tom's report. This
+// does NOT let him climb in the sense the design forbids: his `level`
+// field never changes, so orderly.ts's cross-level LOS/catch gates
+// (`playerLevel === this.level`) still make him categorically unable to
+// see or catch a player who's reached 'balcony' — this only keeps his mesh
+// honest about the ground level's own terrain on the rare chase that
+// carries him somewhere his patrol loop never goes.
+function groundFloorHeightAt(x: number, z: number): number {
+  for (const s of [STAIR_EAST, STAIR_WEST]) {
+    if (x < s.minX || x > s.maxX || z < s.minZ || z > s.maxZ) continue;
+    const t = s.axis === 'x' ? (x - s.minX) / (s.maxX - s.minX) : (z - s.minZ) / (s.maxZ - s.minZ);
+    return s.yLow + (s.yHigh - s.yLow) * t;
+  }
+  return GROUND_Y;
+}
+
 // --- patrols ----------------------------------------------------------------
 // ORDERLY-SOUTH (ground) — the approach. Back-and-forth across the south hall;
 // the crossing to the east stair mouth (x≈7,z=16) is a through-point.
@@ -405,6 +457,7 @@ export const room17Script = makeOrderlyRoomScript({
       waypoints: WAYPOINTS_SOUTH,
       occluders: [],
       level: 'ground',
+      floorHeightAt: groundFloorHeightAt, // stays visually honest if a chase carries him into the east stair mouth
       onWarnToast: 'the one in the hall sees you.',
       onChaseToast: 'run. or stop being visible.',
       onCaughtToast: 'hands. a needle. "not even past the stairs," he says.',
@@ -422,6 +475,7 @@ export const room17Script = makeOrderlyRoomScript({
       waypoints: WAYPOINTS_POCKET,
       occluders: [],
       level: 'ground',
+      floorHeightAt: groundFloorHeightAt, // stays visually honest if a chase carries him into either stairwell mouth
       onWarnToast: 'the one below the gallery sees you.',
       onChaseToast: 'run. or stop being visible.',
       onCaughtToast: 'hands. a needle. "back where the light doesn\'t reach," he says.',

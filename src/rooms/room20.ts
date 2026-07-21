@@ -70,11 +70,14 @@ import type { DebugPatrol } from '../devtools/map-types';
 //   back toward A. The only way real sokoban dead-ends (a crate shoved into
 //   a two-wall corner) requires the crate adjacent to a wall on two
 //   perpendicular sides at once. Every cell on the crate's intended route —
-//   (2,1)(1,1)(0,1)(0,0)(0,-1)(0,-2)(-1,-2)(0,-9)(1,-9)(0,-15), and every
-//   straight-run transit cell between them — sits >=3m from the nearest
-//   perimeter wall (x=+-6, z=6, z=-16) and >=1m clear of ISLAND_C. No cell in
-//   the reachable set is a two-wall corner; a "wrong" push from any of them
-//   lands on open floor, always walk-around-and-reverse-able.
+//   (2,1)(1,1)(0,1)(0,0)(0,-1)(0,-2)(-1,-2)(0,-9)(1,-9)(1,-10)(1,-11)(1,-12)
+//   (1,-13)(1,-14)(1,-15), and every straight-run transit cell between
+//   them — is at most one wall away on a SINGLE side (the two plate cells,
+//   (1,1) and (1,-15), each sit exactly 1 cell south/north of their gate's
+//   wall row, by design — see PASSAGE-CLEARANCE FIX below) and >=1m clear of
+//   ISLAND_C. No cell in the reachable set is a two-wall corner; a "wrong"
+//   push from any of them lands on open floor or on solid wall (a safe
+//   no-op), always walk-around-and-reverse-able.
 //   Named risk: over-pushing past a cover stop (e.g. (0,-2) -> (-1,-2) ->
 //   (-2,-2), straight onto Orderly A's own waypoint) doesn't dead-end the
 //   crate (still reversible — see above) but does make the retrieval walk
@@ -88,6 +91,42 @@ import type { DebugPatrol } from '../devtools/map-types';
 //   re-sealed by a catch) — only the crate, the one thing that was never
 //   nailed down, resets.
 //
+// PASSAGE-CLEARANCE FIX (patch, post-playtest — Tom: "the crate blocks the
+// door so you can open it — which I like — however the door is being
+// blocked by the crate so you can't get past it physically"). Root cause:
+// PLATE_1/PLATE_2 originally sat at x=0 — the exact x-center of GATE_1's and
+// GATE_2's own 1m gap (x in [-0.5,0.5]) — one cell (1.0m) north of their
+// gate. A single further same-direction push (an INTENDED step at GATE_1:
+// job 2 requires the crate to transit the gap into Z2; an easy, unintended
+// extra press at GATE_2, the room's last action, since nothing signals
+// "stop here") lands the crate astride the gap itself: 0.86m crate in a
+// 1.0m opening leaves only 0.07m clear on each side — 2x under
+// 2*TUNING.player.radius (2*0.35 = 0.7m) needed to fit through, i.e.
+// functionally 0m passable. At GATE_1 this also breaks the SOFT-LOCK
+// AUDIT's guarantee #2 below (dispenser reachable via Z1) for as long as the
+// crate sits there. Fix (the smaller of the two options in the design
+// review — move the plate vs. widen the gate — since widening either gate
+// enough to tolerate a wedged crate would mean roughly doubling it, a much
+// bigger change): PLATE_1/PLATE_2 both moved one cell EAST, off the x=0
+// causeway, to x in [0.5,1.5] (cell x=1 instead of x=0). Consequence: a
+// further push in the passage direction from either seat cell — (1,1)->(1,0)
+// for GATE_1, (1,-15)->(1,-16) for GATE_2 — now hits the gate's flanking
+// wall (solid, x in [0.5,6] at both gate rows) instead of the gap, and is
+// silently refused ("it doesn't go that way.") exactly like every other
+// wall bump in the game. The crate can no longer physically occupy either
+// gate's opening at all, by construction, not by margin — so the "clear
+// passage width" is simply the gate's full, permanently-unobstructed 1.0m
+// (comfortably over the 0.7m two-radii minimum), not a value that shrinks to
+// 0.14m under a plausible player action. GATE_1/GATE_2's own width (1.0m) is
+// narrower than every other door in the game (room14's plate-gate and every
+// keypadDoor default to 2.0m) but was not the reported bug and is unchanged
+// here — see the route re-proof script referenced in this room's commit for
+// the full before/after clearance numbers. PLATE_1 now seats one push
+// earlier than before (crate reaches x=1 before x=0), so GATE_1 opens
+// slightly sooner in the route; PLATE_2's approach simplifies to a straight
+// run down x=1 instead of jogging to x=0 — both are drop-in replacements for
+// the equivalent old route segments, verified push-by-push (see commit).
+//
 // SOFT-LOCK AUDIT. Hard law (0-pill unmed player can always reach a
 // dispenser) — room20's version of "a push block may never be the sole
 // obstruction between the player and a dispenser," satisfied three ways:
@@ -100,16 +139,25 @@ import type { DebugPatrol } from '../devtools/map-types';
 //      always walk straight back north through the open gate to the
 //      dispenser. This is the load-bearing guarantee: "is the dispenser
 //      reachable" reduces to "is Z1 reachable," true for the room's entire
-//      lifetime once GATE_1 opens.
+//      lifetime once GATE_1 opens — PROVIDED the crate itself never sits IN
+//      the gate's own 1m gap, which it briefly could before the
+//      PASSAGE-CLEARANCE FIX above (job 2's own required transit push). The
+//      plate relocation is what makes this guarantee actually hold for the
+//      room's entire lifetime, not just "once GATE_1 opens."
 //   3. The crate's 0.86m footprint, on a 12m-wide floor, can never
 //      physically wall off the retreat route — even at its narrowest
 //      designed stop (COVER_A/COVER_B), several meters of open floor remain
 //      on either side. Nothing here depends on a single-file chokepoint the
-//      crate could seal.
+//      crate could seal, EXCEPT the two 1m gate gaps themselves — see the
+//      PASSAGE-CLEARANCE FIX above, which is exactly this rule applied to
+//      GATE_1/GATE_2.
 //   General rule for a future push-block room (worth ROOM_AUTHORING.md):
 //   a pushable block may only ever gate progress FORWARD (a plate/gate
 //   combo, one-way) — never be the only thing standing between the player
-//   and a dispenser/exit once placed.
+//   and a dispenser/exit once placed, AND a plate must never sit on the
+//   gate's own passage centerline one cell short of the gap, or an entirely
+//   ordinary continued push (intended or not) wedges the crate in the one
+//   place on the map wide enough to matter: the gap itself.
 //
 // REACTION-TIME AUDIT. minInspectionDistance(2.5) = (2.5-0.6)*4.3 = 8.17m ~=
 // 8.2m — the kit constant. This rule is scoped to STATIC inspection points
@@ -125,9 +173,9 @@ import type { DebugPatrol } from '../devtools/map-types';
 //     2.0m — well under 8.2m, but this IS the live-evasion crossing itself,
 //     not a static read; fairness comes from A's rendered sight cone (unmed)
 //     plus the option to wait him off the leg before pushing.
-//   - PLATE_2 (0,-15) to B's nearest loop point (2,-9): 6.3m — under 8.2m by
+//   - PLATE_2 (1,-15) to B's nearest loop point (2,-9): 6.08m — under 8.2m by
 //     raw distance, but B's forward vector there runs along his own x=2
-//     return leg, not toward (0,-15), except mid waypoint-pause.
+//     return leg, not toward (1,-15), except mid waypoint-pause.
 //   Playtest note (matching the design doc): if either reads as an unfair
 //   surprise rather than "you should have watched him," the cheap fix is
 //   widening the PLATE_2/Orderly-B gap a few meters — doesn't touch the
@@ -206,9 +254,9 @@ rb.solid(ISLAND_C.minX, ISLAND_C.maxX, ISLAND_C.minZ, ISLAND_C.maxZ);
 // inside the trigger rect, polled in update() below (not the engine's
 // player-only trigger poll — only the crate's weight counts here, unlike
 // room14's "anyone's weight").
-const PLATE_1 = pressurePlate({ id: 'plate1', minX: -0.5, maxX: 0.5, minZ: 0.5, maxZ: 1.5 });
+const PLATE_1 = pressurePlate({ id: 'plate1', minX: 0.5, maxX: 1.5, minZ: 0.5, maxZ: 1.5 });
 rb.blocks.push(PLATE_1.block);
-const PLATE_2 = pressurePlate({ id: 'plate2', minX: -0.5, maxX: 0.5, minZ: -15.5, maxZ: -14.5 });
+const PLATE_2 = pressurePlate({ id: 'plate2', minX: 0.5, maxX: 1.5, minZ: -15.5, maxZ: -14.5 });
 rb.blocks.push(PLATE_2.block);
 
 // The crate. Static-half: one InteractableDef (renders + is raycastable via

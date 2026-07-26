@@ -185,6 +185,9 @@ export class Telemetry {
   private queue: Record<string, unknown>[] = [];
   private droppedCount = 0;
   private quitFired = false;
+  // Set on pagehide. Gates the webglcontextlost error handler — see the
+  // comment there for why a context loss during teardown is not a fault.
+  private unloading = false;
   private pageLoadCalled = false;
   private started = false;
 
@@ -354,6 +357,7 @@ export class Telemetry {
 
   private installUnloadHandlers(): void {
     addEventListener('pagehide', () => {
+      this.unloading = true;
       if (!this.quitFired) {
         this.quitFired = true;
         this.event('quit');
@@ -394,9 +398,19 @@ export class Telemetry {
     // webglcontextlost does not bubble, so a capture-phase listener on
     // window is the only way to catch it without a reference to the
     // canvas (which may not exist yet when pageLoad() runs).
+    //
+    // Suppressed once `unloading` is set (pagehide), because tearing the
+    // page down destroys the GL context and fires this as a matter of
+    // course — observed in a Playwright run where browser.close() produced
+    // an 'error' row on an otherwise completely clean session. Left
+    // unguarded it would log roughly one spurious error PER SESSION, which
+    // would bury the real driver/GPU failures this metric exists to catch
+    // under noise proportional to traffic. A context loss during actual
+    // play still reports normally; only the one on the way out is dropped.
     window.addEventListener(
       'webglcontextlost',
       () => {
+        if (this.unloading) return;
         this.event('error', { kind: 'webglcontextlost', msg: 'WebGL context lost' });
       },
       true,

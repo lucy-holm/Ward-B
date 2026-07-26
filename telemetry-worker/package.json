@@ -1,0 +1,19 @@
+{
+  "name": "wardb-telemetry-worker",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "tail": "wrangler tail",
+    "typecheck": "tsc --noEmit",
+    "db:schema": "wrangler d1 execute wardb-telemetry --remote --file=./schema.sql",
+    "db:schema:local": "wrangler d1 execute wardb-telemetry --local --file=./schema.sql"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260722.1",
+    "typescript": "^5.5.4",
+    "wrangler": "^4.0.0"
+  }
+}

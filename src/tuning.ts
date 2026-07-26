@@ -1,5 +1,19 @@
 // All gameplay numbers live here so playtest tuning never touches logic.
-export const BUILD_VERSION = 'wardb-0.2.0-m1';
+
+// __BUILD_SHA__ is injected by vite.config.ts's `define` (CI sets
+// VITE_BUILD_SHA; local builds fall back to `git rev-parse --short HEAD`;
+// outside a git repo, 'dev'). Stamped on every telemetry payload (F16 in
+// the telemetry design doc) so before/after tuning comparisons and A/B arms
+// never silently mix builds. `typeof` guards against ReferenceError when
+// this module runs outside the Vite build pipeline (e.g. scripts/check-
+// rooms.mjs, which imports plain Node, not vite) — in that case fall back
+// to the old hand-maintained literal.
+declare const __BUILD_SHA__: string | undefined;
+const FALLBACK_VERSION = 'wardb-0.2.0-m1';
+export const BUILD_VERSION =
+  typeof __BUILD_SHA__ !== 'undefined' && __BUILD_SHA__
+    ? `wardb-${__BUILD_SHA__}`
+    : FALLBACK_VERSION;
 
 export const TUNING = {
   player: {
@@ -100,6 +114,9 @@ export const TUNING = {
   },
   telemetry: {
     positionSampleMs: 2000,
+    flushMs: 15000,          // time-based flush trigger — bounds data loss from a crashed tab (F6)
+    idleThresholdMs: 20000,  // no-input gap before activeMs stops accruing and idle_start fires (F9)
+    perfIntervalMs: 30000,   // window size for the rolling fps_p50/fps_p10 sample (F18)
   },
   orderly: {
     speed: 1.5,          // m/s, patrol + walk-back speed

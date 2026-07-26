@@ -1,0 +1,77 @@
+name: Publish to itch.io
+
+# Staging pipeline: this workflow is completely separate from
+# deploy.yml (Pages-on-main). It only runs on pushes to the `release`
+# branch, so publishing to itch is always a deliberate second step —
+# `main` alone never touches itch. See:
+#   docs/superpowers/specs/2026-07-26-itch-release-runbook.md
+#
+# Release flow (also documented in the runbook):
+#   git checkout release && git merge main && git push
+#
+# One-time manual itch.io setup this workflow CANNOT do for you —
+# see the runbook's "Manual itch.io setup" section. Skipping it means
+# the uploaded build shows a download button instead of a play button.
+
+on:
+  push:
+    branches: [release]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  # Don't cancel a push already talking to itch's build servers mid-upload.
+  group: itch-release
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Build
+        run: npm run build
+        env:
+          # Same build-metadata contract as deploy.yml (Pages). Keep the
+          # two in sync if this ever changes.
+          VITE_BUILD_SHA: ${{ github.sha }}
+          VITE_TELEMETRY_URL: ${{ vars.TELEMETRY_URL }}
+
+      - name: Install butler
+        run: |
+          curl -L -o butler.zip https://broth.itch.ovh/butler/linux-amd64/LATEST/archive/default
+          unzip -o butler.zip -d butler-bin
+          chmod +x butler-bin/butler
+          echo "$PWD/butler-bin" >> "$GITHUB_PATH"
+
+      - name: Verify butler
+        run: butler -V
+
+      - name: Push build to itch.io
+        env:
+          # butler reads this env var directly — no `butler login` needed
+          # in CI. Set as a GitHub Actions *secret* named BUTLER_API_KEY
+          # (see the runbook for how to generate and add it).
+          BUTLER_API_KEY: ${{ secrets.BUTLER_API_KEY }}
+        run: |
+          # PLACEHOLDER — CONFIRM BEFORE FIRST RUN. "lucy-holm/ward-b"
+          # assumes the itch username is lucy-holm (matching the GitHub
+          # account) and the slug is ward-b (from the project name "Ward
+          # b"). itch usernames are independent of GitHub, so this is a
+          # guess, not a fact. Check the project's public page URL, which
+          # has the form
+          #     https://<username>.itch.io/<slug>
+          # butler's target is then "<username>/<slug>". Edit below if
+          # either part differs.
+          butler push dist lucy-holm/ward-b:html5 \
+            --userversion "$(git rev-parse --short HEAD)-${{ github.run_number }}"

@@ -19,7 +19,12 @@ export class StateSystem {
   // drained in real time by tickMedication. Left untouched while unmed —
   // nothing reads it, and re-entering lucid always refills it anyway.
   medication = 0;
-  onChange: ((next: WardState, prev: WardState) => void) | null = null;
+  // `source` (optional, additive) tells the caller *why* the state changed:
+  // 'manual' for the player's own Q press, or whatever string a forceState()
+  // caller passes (e.g. 'catch', 'tutorial', 'room13-entry'). Left undefined
+  // for old call sites that don't pass one, so this is a pure superset of the
+  // original two-arg signature — nothing that read (next, prev) breaks.
+  onChange: ((next: WardState, prev: WardState, source?: string) => void) | null = null;
 
   shift(): ShiftResult {
     if (!this.canShift) return 'no-ability';
@@ -34,7 +39,7 @@ export class StateSystem {
       this.state = 'unmed';
     }
 
-    this.onChange?.(this.state, prev);
+    this.onChange?.(this.state, prev, 'manual');
     return 'ok';
   }
 
@@ -42,13 +47,15 @@ export class StateSystem {
   // scripted first pill, or a room's scripted lucid beat). Fires onChange
   // only if the state actually changed. Forcing to lucid starts the
   // medication meter fresh, same as a manual shift — a scripted pill is
-  // still a pill.
-  forceState(s: WardState): void {
+  // still a pill. `source` is optional and purely descriptive (telemetry) —
+  // callers that omit it keep the previous silent-scripted-shift behaviour
+  // except that onChange now receives `undefined` as the third arg.
+  forceState(s: WardState, source?: string): void {
     const prev = this.state;
     if (prev === s) return;
     this.state = s;
     if (s === 'lucid') this.medication = 1;
-    this.onChange?.(s, prev);
+    this.onChange?.(s, prev, source);
   }
 
   // Drains the medication meter in real time; only has effect while lucid

@@ -8,7 +8,16 @@ export interface KeypadOptions {
   onSuccess: () => void;
   onClose: () => void;
   // Fired each time a 4-digit entry is wrong, before the buffer resets.
-  onDenied?: () => void;
+  // `attempt` is the 1-indexed attempt count within this keypad session;
+  // `entered` is the 4 digits that were typed (not PII — it's a fictional
+  // door code, but it's what tells a typo apart from a misread clue).
+  onDenied?: (info: { attempt: number; entered: string }) => void;
+  // Fired when the pad is dismissed (× button or Escape) WITHOUT ever
+  // succeeding. Opening a lock, failing, and walking away is one of the
+  // strongest "stuck" signals in the game; onClose alone can't distinguish
+  // it from a success-then-close. Not fired on success (see `succeeded`
+  // guard in openKeypad). `attempts` is the total denied count this session.
+  onAbandon?: (info: { attempts: number }) => void;
 }
 
 const STYLE_ID = 'wardb-kp-style';
@@ -97,6 +106,8 @@ export function openKeypad(opts: KeypadOptions): void {
 
   let buf = '';
   let locked = false; // ignore input while showing DENIED/GRANTED
+  let attempts = 0; // count of denied submissions this keypad session
+  let succeeded = false; // guards onAbandon: only fires on a failure-close
 
   const render = (): void => {
     display.textContent = buf.split('').join(' ');
@@ -104,12 +115,14 @@ export function openKeypad(opts: KeypadOptions): void {
 
   const close = (): void => {
     teardown();
+    if (!succeeded) opts.onAbandon?.({ attempts });
     opts.onClose();
   };
 
   const submit = (): void => {
     locked = true;
     if (buf === opts.code) {
+      succeeded = true;
       msg.textContent = 'ACCESS GRANTED';
       msg.className = 'wardb-kp-msg wardb-kp-granted';
       setTimeout(() => {
@@ -117,9 +130,10 @@ export function openKeypad(opts: KeypadOptions): void {
         close();
       }, 500);
     } else {
+      attempts += 1;
       msg.textContent = 'DENIED';
       msg.className = 'wardb-kp-msg wardb-kp-denied';
-      opts.onDenied?.();
+      opts.onDenied?.({ attempt: attempts, entered: buf });
       setTimeout(() => {
         buf = '';
         render();

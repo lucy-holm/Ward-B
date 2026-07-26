@@ -24,7 +24,15 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
-      - run: npm run build
+      - name: Build
+        run: npm run build
+        env:
+          # Build metadata baked into the bundle (see vite.config.ts).
+          # VITE_TELEMETRY_URL is a public endpoint URL, not a secret — it
+          # lives in a repo *variable*. If it's unset the game just logs
+          # telemetry to console instead of failing the build.
+          VITE_BUILD_SHA: ${{ github.sha }}
+          VITE_TELEMETRY_URL: ${{ vars.TELEMETRY_URL }}
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist

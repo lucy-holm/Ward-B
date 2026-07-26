@@ -38,6 +38,7 @@ import { RoomBuilder, WALL_HALF_THICKNESS } from './build';
 import type { GameCtx } from '../game/context';
 import { openKeypad } from '../ui/keypad';
 import { Orderly, type OrderlyAABB } from '../game/orderly';
+import { isRandomizeCodesEnabled } from '../game/settings';
 import { TUNING } from '../tuning';
 
 // Re-exports so a room file needs exactly one import line for the whole kit
@@ -470,7 +471,17 @@ export function keypadDoor(rb: RoomBuilder, opts: KeypadDoorOpts): KeypadDoorLoc
       ctx.releasePointerLock();
       openKeypad({
         code: opts.code,
-        onDenied: () => ctx.telemetry.event('keypad_denied'),
+        // `randomized` matters for reading `keypad_denied`: a wrong entry
+        // means something different when the code rerolls every room entry
+        // (mistyped/half-remembered a code just seen) vs a fixed code
+        // (never found the clue, or found the wrong room's).
+        onDenied: (info) =>
+          ctx.telemetry.event('keypad_denied', {
+            attempt: info.attempt,
+            entered: info.entered,
+            randomized: isRandomizeCodesEnabled(),
+          }),
+        onAbandon: (info) => ctx.telemetry.event('keypad_close', { attempts: info.attempts }),
         onSuccess: () => {
           unlocked = true;
           ctx.telemetry.event('keypad_success');
@@ -1105,7 +1116,7 @@ export function makeOrderlyRoomScript(cfg: MakeOrderlyRoomScriptCfg): OrderlyRoo
               ctx.telemetry.event('orderly_chase');
             },
             onCaught: () => {
-              ctx.state.forceState('lucid');
+              ctx.state.forceState('lucid', 'catch');
               ctx.shiftFx();
               ctx.teleportPlayer(cfg.spawn.x, cfg.spawn.z, cfg.spawn.level);
               ctx.hud.toast(oc.onCaughtToast ?? cfg.catchToast ?? 'hands. a needle. "not this time," he says.');

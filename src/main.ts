@@ -136,12 +136,70 @@ let roomEnteredAt = 0;
 // firing exits — the old room's script is already torn down.
 let activeTriggers = new Set<string>();
 
-const telemetry = new Telemetry(() => ({
-  room: current.def.id,
-  x: player.x,
-  z: player.z,
-  pills: state.pills,
-}));
+const telemetry = new Telemetry(
+  () => ({
+    room: current.def.id,
+    x: player.x,
+    z: player.z,
+    yaw: player.yaw,
+    level: player.level,
+    pills: state.pills,
+    state: state.state,
+    medication: state.medication,
+  }),
+  // debug: true whenever the player arrived via the ?room= dev jump
+  // (main.ts's startRoomId resolution above), which also grants a free
+  // pill + shift ability (see the startRoomId !== 'room1' block below) —
+  // a session that starts mid-game with unearned resources is never
+  // representative of a real playthrough. Tagging it here means every
+  // metric downstream can filter Tom's own playtests out at the source
+  // instead of every consumer having to know about the dev jump.
+  { debug: requestedRoomId !== null },
+);
+
+// Session/room telemetry rollups (F2 game_complete, F12 room_complete).
+// orderly_caught and keypad_denied are emitted by room scripts through
+// ctx.telemetry, which main.ts doesn't otherwise observe. Rather than
+// widening GameCtx (owned by another agent this session) or reaching into
+// every room script to report back, ctx gets a thin Proxy over the real
+// Telemetry instance (see ctxTelemetry below): its event() bumps the
+// relevant counters, then forwards to the real instance unchanged. Events
+// main.ts emits directly (shift, room_enter, ...) bump counters inline at
+// the call site instead, since they already know which counter applies.
+const sessionCounters = { catches: 0, shifts: 0, pillsUsed: 0 };
+// Reset per room in loadRoom(). keypadFails/distance have no session-level
+// equivalent requested by the spec, so they only live here.
+let roomCounters = { catches: 0, shifts: 0, pillsUsed: 0, keypadFails: 0, distance: 0 };
+// Last-seen player (x,z), used to accumulate roomCounters.distance frame by
+// frame. Reset to the spawn point in loadRoom, and resynced by
+// teleportPlayer (ctx, below) so a scripted teleport (e.g. the catch
+// penalty) is never miscounted as the player walking that distance.
+let lastPlayerX = player.x;
+let lastPlayerZ = player.z;
+// Wall-clock time of the room's current visit, diffed against
+// telemetry.activeMs to get idle-corrected active_s for room_complete.
+let roomActiveMsAtEnter = 0;
+
+const ctxTelemetry: Telemetry = new Proxy(telemetry, {
+  get(target, prop, _receiver) {
+    if (prop === 'event') {
+      return (name: string, data?: Record<string, unknown>) => {
+        if (name === 'orderly_caught') {
+          sessionCounters.catches++;
+          roomCounters.catches++;
+        } else if (name === 'keypad_denied') {
+          roomCounters.keypadFails++;
+        }
+        target.event(name, data);
+      };
+    }
+    // Force the receiver to `target` (not this Proxy) so any accessor
+    // relying on the real instance's internal state — e.g. the activeMs
+    // getter — runs correctly rather than throwing or reading garbage.
+    const value = Reflect.get(target, prop, target);
+    return typeof value === 'function' ? value.bind(target) : value;
+  },
+}) as Telemetry;
 
 function updatePills(): void {
   hud.setPills(state.pills, state.maxPills, state.canShift);
@@ -158,6 +216,10 @@ function shiftFx(): void {
 // audio layers. Reset whenever a fresh lucid stretch begins (state.onChange).
 let medicationWarned = false; // one-time "it's wearing thin." toast, per stretch
 let medicationTrapped = false; // true while empty but geometry is holding the revert off
+// Wall-clock start of the current lucid stretch (state.onChange, below) —
+// read by the medication_expired handler to report how long the player
+// actually got to spend lucid before it wore off (F8/F14).
+let lucidEnteredAt = 0;
 
 function updateMedication(dt: number): void {
   if (state.state !== 'lucid') {
@@ -183,10 +245,17 @@ function updateMedication(dt: number): void {
     const trapped = circleHitsSolidUnmed(player.x, player.z, TUNING.player.radius, world.colliders, player.level);
     if (!trapped) {
       medicationTrapped = false;
-      state.forceState('unmed');
+      // 'expiry' (not the generic 'forced' fallback) so the shift event
+      // this raises via onChange is distinguishable from a catch penalty
+      // or a scripted room beat — "the meter ran out" and "an orderly put
+      // you under" are different stories about the same transition.
+      state.forceState('unmed', 'expiry');
       hud.toast('the calm drains out of you.');
       audio.medicationExpiredCue();
-      telemetry.event('medication_expired');
+      telemetry.event('medication_expired', {
+        room: current.def.id,
+        lucid_duration_s: Math.round((performance.now() - lucidEnteredAt) / 100) / 10,
+      });
     } else if (!medicationTrapped) {
       medicationTrapped = true;
       hud.toast('wearing off — keep moving.');
@@ -200,7 +269,7 @@ const ctx: GameCtx = {
   state,
   hud,
   audio,
-  telemetry,
+  telemetry: ctxTelemetry,
   flags: flagStore,
   removeInteractable: (id) => world.removeInteractable(id),
   moveInteractable: (id, pos, rotY) => {
@@ -217,6 +286,11 @@ const ctx: GameCtx = {
     player.x = x;
     player.z = z;
     if (level !== undefined) player.level = level;
+    // Resync the distance tracker so this jump (e.g. an orderly's catch
+    // penalty) isn't counted as the player having walked it — see
+    // roomCounters.distance / lastPlayerX/Z above.
+    lastPlayerX = x;
+    lastPlayerZ = z;
   },
   updateScrawlText: (id, text) => world.updateScrawlText(id, text),
   isRoomDark: () => world.isDark(),
@@ -228,22 +302,54 @@ const ctx: GameCtx = {
   setGlowFade: (level) => world.setGlowFade(level),
 };
 
-state.onChange = (next) => {
+// True only for the duration of state.shift() inside input.onShift, below —
+// lets onChange tell "the player pressed Q" apart from every scripted
+// forceState (catch penalty, room13's forced-lucid entry, tutorial beats,
+// ...) without a second flag on StateSystem itself. input.onShift emits its
+// own 'shift' event (it already has `result` to hand-tailor the payload),
+// so onChange must not also log the manual case or every Q press would
+// double-count.
+let manualShiftInProgress = false;
+
+state.onChange = (next, prev, source) => {
   world.applyState(next);
   hud.setState(next);
   audio.setState(next);
   updatePills();
-  if (next === 'lucid') medicationWarned = false; // fresh stretch, fresh warning
+  if (next === 'lucid') {
+    medicationWarned = false; // fresh stretch, fresh warning
+    lucidEnteredAt = performance.now();
+  }
+  if (!manualShiftInProgress) {
+    // F13: log every scripted/imposed shift, not just the manual Q press,
+    // so total lucid time and "chosen vs imposed lucidity" can be
+    // reconstructed. `source` comes from StateSystem's forceState caller;
+    // most existing room-script call sites don't pass one yet, hence the
+    // 'forced' fallback.
+    telemetry.event('shift', { direction: `${prev}->${next}`, source: source ?? 'forced' });
+    sessionCounters.shifts++;
+    roomCounters.shifts++;
+  }
   current.script.onStateChange?.(next, ctx);
 };
 
 input.onShift = () => {
   if (!started || ended) return;
   const before = state.state;
+  manualShiftInProgress = true;
   const result = state.shift();
+  manualShiftInProgress = false;
   if (result === 'ok') {
     shiftFx();
-    telemetry.event('shift', { direction: `${before}->${state.state}` });
+    telemetry.event('shift', { direction: `${before}->${state.state}`, source: 'manual' });
+    sessionCounters.shifts++;
+    roomCounters.shifts++;
+    // Only unmed->lucid actually spends a pill (state.shift() decrements
+    // pills; forceState never does) — lucid->unmed is always free.
+    if (before === 'unmed') {
+      sessionCounters.pillsUsed++;
+      roomCounters.pillsUsed++;
+    }
   } else if (result === 'no-ability') {
     hud.toast('you have nothing to shift with. yet.');
   } else {
@@ -277,6 +383,12 @@ function loadRoom(id: string): void {
   player.spawn({ ...current.def.spawn, level: current.def.spawn.level ?? current.def.levels?.[0]?.id ?? '__flat' });
   activeTriggers.clear();
   roomEnteredAt = performance.now();
+  // Per-room telemetry rollup state (F12) — fresh for every visit,
+  // including a revisit of the same room id.
+  roomCounters = { catches: 0, shifts: 0, pillsUsed: 0, keypadFails: 0, distance: 0 };
+  roomActiveMsAtEnter = telemetry.activeMs;
+  lastPlayerX = player.x;
+  lastPlayerZ = player.z;
 }
 
 function enterRoom(id: string): void {
@@ -289,6 +401,26 @@ function enterRoom(id: string): void {
 function completeRoom(exitTo: string): void {
   telemetry.event('room_complete', {
     duration_s: Math.round((performance.now() - roomEnteredAt) / 100) / 10,
+    // Idle-corrected time actually spent in this room (F12) — diffed off
+    // Telemetry's own session-wide idle tracking rather than main.ts
+    // reimplementing idle detection.
+    active_s: Math.round((telemetry.activeMs - roomActiveMsAtEnter) / 100) / 10,
+    catches: roomCounters.catches,
+    shifts: roomCounters.shifts,
+    pills_used: roomCounters.pillsUsed,
+    keypad_fails: roomCounters.keypadFails,
+    distance_m: Math.round(roomCounters.distance * 10) / 10,
+    // Medication meter remaining at the moment of clearing the room (F14)
+    // — how much of the lucid stretch was left to spare, which is the
+    // difference between a tense finish and a trivial one.
+    //
+    // Gated on actually being lucid: StateSystem deliberately does NOT
+    // zero `medication` on the revert to unmed (see its header — nothing
+    // reads it while unmed, and re-entering lucid always refills it), so
+    // reading it raw here would report a stale value from whenever the
+    // last lucid stretch happened to end. Exiting unmed reports 0, which
+    // is the honest answer: there was no meter running.
+    med_left: state.state === 'lucid' ? Math.round(state.medication * 100) / 100 : 0,
   });
   current.script.onLeave?.(ctx);
   if (exitTo === 'END') {
@@ -303,6 +435,17 @@ function endOfBuild(): void {
   input.enabled = false;
   input.releasePointerLock();
   hud.setPrompt(null);
+  // F2: the single most important missing event — did this session
+  // actually finish the build? A whole-run rollup, mirroring
+  // room_complete's per-room shape at session scope.
+  telemetry.event('game_complete', {
+    duration_s: Math.round((performance.now() - gameStartedAt) / 100) / 10,
+    active_s: Math.round(telemetry.activeMs / 100) / 10,
+    catches: sessionCounters.catches,
+    shifts: sessionCounters.shifts,
+    pills_used: sessionCounters.pillsUsed,
+    run_index: telemetry.runIndex,
+  });
   telemetry.flush();
   hud.showEndCard(
     'END OF THE NEW WING',
@@ -332,13 +475,36 @@ hud.setState(state.state);
 loadRoom(startRoomId);
 updatePills(); // reflect the room-jump pill/ability grant (no-op for room1)
 
-hud.bindConfig(isRandomizeCodesEnabled, setRandomizeCodes);
+// F5: pageLoad() fires here — before the start overlay, at the same point
+// the scene itself becomes visible — not inside showStart's callback. A
+// player who loads the page and bounces without ever pressing ADMIT ME
+// previously logged nothing at all, not even the unload/beacon flush; on
+// itch that's the largest audience segment and was invisible. start()
+// stays gated behind ADMIT ME, below, since it marks the beginning of an
+// actual attempt.
+telemetry.pageLoad();
+
+hud.bindConfig(isRandomizeCodesEnabled, (on) => {
+  setRandomizeCodes(on);
+  // randomizeCodes is a live gameplay variable (keypad codes fixed vs
+  // random per playthrough) that previously wasn't recorded in any
+  // payload, so its effect on completion/frustration metrics couldn't be
+  // analysed. Logged on every toggle, not just at boot, since Tom can
+  // flip it mid-session from the config panel.
+  telemetry.event('settings_change', { key: 'randomizeCodes', value: on });
+});
+
+// Wall-clock start of the actual attempt (ADMIT ME), for game_complete's
+// duration_s — distinct from page load, which may sit idle at the start
+// overlay for an arbitrary amount of time first.
+let gameStartedAt = 0;
 
 hud.showStart(() => {
   started = true;
   input.enabled = true;
   audio.init();
   audio.setState(state.state);
+  gameStartedAt = performance.now();
   telemetry.start();
   telemetry.event('room_enter');
   current.script.onEnter(ctx);
@@ -359,6 +525,15 @@ function frame(): void {
     // the top/bottom of a stair run. No-op (stays '__flat') for every room
     // without `stairwells`.
     player.level = resolveLevel(player.level, player.x, player.z, world.stairwells);
+    // F12 distance_m — accumulated here, right after player.update's natural
+    // movement and before anything this frame can teleport the player (a
+    // room script's ctx.teleportPlayer call, further down in update/
+    // onTriggerEnter/onInteract), so a catch penalty's jump never gets
+    // counted as the player having walked it. teleportPlayer resyncs
+    // lastPlayerX/Z itself for exactly this reason.
+    roomCounters.distance += Math.hypot(player.x - lastPlayerX, player.z - lastPlayerZ);
+    lastPlayerX = player.x;
+    lastPlayerZ = player.z;
     // Verticality — collision above stays 2D/XZ; this snaps the player's
     // rendered floor height toward whatever floorHeightAt says for their new
     // (level, x, z), smoothed so ramps feel continuous and zone-boundary

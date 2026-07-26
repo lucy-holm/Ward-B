@@ -50,6 +50,11 @@ export class Interaction {
     switch (entry.def.type) {
       case 'dispenser': {
         if (state.pills >= state.maxPills) {
+          // A player mashing E on a full dispenser is a legible
+          // UI-confusion signal (F15) — they either don't trust the pill
+          // count on the HUD or don't know why the prompt still shows.
+          // Previously this branch only toasted and told telemetry nothing.
+          telemetry.event('dispenser_refused', { reason: 'full', pills: state.pills, maxPills: state.maxPills });
           hud.toast('the dispenser hums. you are already holding all it will give.');
           break;
         }
@@ -57,7 +62,7 @@ export class Interaction {
         const n = state.refill();
         const gained = n - before;
         audio.dispenserClunk();
-        telemetry.event('dispenser_used');
+        telemetry.event('dispenser_used', { reason: 'refill', gained, pills: n });
         hud.setPills(n, state.maxPills, state.canShift);
         hud.pillPopup(`+${gained} pill${gained === 1 ? '' : 's'}`);
         hud.toast('a single pill rattles into your palm.');

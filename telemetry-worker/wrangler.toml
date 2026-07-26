@@ -1,0 +1,17 @@
+name = "wardb-telemetry"
+main = "src/index.ts"
+compatibility_date = "2024-09-23"
+
+# D1 database binding — the system of record. Every event lands here,
+# unconditionally, regardless of whether the PostHog mirror succeeds.
+[[d1_databases]]
+binding = "DB"
+database_name = "wardb-telemetry"
+database_id = "00000000-0000-0000-0000-000000000000" # replace me — see README step 3
+
+# Secrets (do NOT put these here — set via `wrangler secret put`, see README):
+#   POSTHOG_KEY  — PostHog project API key. If unset, PostHog mirroring is
+#                  silently skipped (Worker still writes to D1).
+#   WRITE_KEY    — optional shared secret. If set, clients must send it in
+#                  the `X-Ward-Key` header or requests are rejected with 401.
+#                  If unset, the endpoint accepts all writes.

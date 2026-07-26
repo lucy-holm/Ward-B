@@ -1,0 +1,4 @@
+# Local pulls from fetch-room-telemetry.mjs — regenerable from D1 on
+# demand, and rows carry UA strings/referrers/coarse device info that
+# shouldn't sit in git history even though the identifiers are anonymous.
+data/

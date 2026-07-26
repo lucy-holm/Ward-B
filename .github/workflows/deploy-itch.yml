@@ -49,7 +49,24 @@ jobs:
 
       - name: Install butler
         run: |
-          curl -L -o butler.zip https://broth.itch.ovh/butler/linux-amd64/LATEST/archive/default
+          set -euo pipefail
+          # broth.itch.ZONE — itch's own docs point CI here precisely because
+          # these URLs are permanent (the itch.io download links expire).
+          # Note the TLD: broth.itch.OVH is NXDOMAIN and produced a
+          # "Could not resolve host" failure on the first release attempt.
+          # --fail turns an HTTP error into a non-zero exit instead of
+          # silently writing an error page to butler.zip and failing later
+          # at unzip with something unrelated-looking.
+          curl -fSL --retry 3 --retry-delay 5 \
+            -o butler.zip \
+            https://broth.itch.zone/butler/linux-amd64/LATEST/archive/default
+          # Sanity-check before unzipping so a future URL change fails here,
+          # with an obvious message, rather than three steps downstream.
+          file butler.zip | grep -q 'Zip archive' \
+            || { echo "::error::butler download was not a zip — has the broth URL changed?"; exit 1; }
+          # The archive is butler plus its sibling libs (7z.so, libc7zip.so);
+          # butler resolves those relative to its own path, so the whole
+          # directory goes on PATH, not just the binary.
           unzip -o butler.zip -d butler-bin
           chmod +x butler-bin/butler
           echo "$PWD/butler-bin" >> "$GITHUB_PATH"

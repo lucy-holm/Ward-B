@@ -7,7 +7,7 @@ compatibility_date = "2024-09-23"
 [[d1_databases]]
 binding = "DB"
 database_name = "wardb-telemetry"
-database_id = "00000000-0000-0000-0000-000000000000" # replace me — see README step 3
+database_id = "91e0d60d-18d0-455d-a164-121621241e1f"
 
 # Secrets (do NOT put these here — set via `wrangler secret put`, see README):
 #   POSTHOG_KEY  — PostHog project API key. If unset, PostHog mirroring is

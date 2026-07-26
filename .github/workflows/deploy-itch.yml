@@ -64,14 +64,11 @@ jobs:
           # (see the runbook for how to generate and add it).
           BUTLER_API_KEY: ${{ secrets.BUTLER_API_KEY }}
         run: |
-          # PLACEHOLDER — CONFIRM BEFORE FIRST RUN. "lucy-holm/ward-b"
-          # assumes the itch username is lucy-holm (matching the GitHub
-          # account) and the slug is ward-b (from the project name "Ward
-          # b"). itch usernames are independent of GitHub, so this is a
-          # guess, not a fact. Check the project's public page URL, which
-          # has the form
-          #     https://<username>.itch.io/<slug>
-          # butler's target is then "<username>/<slug>". Edit below if
-          # either part differs.
-          butler push dist lucy-holm/ward-b:html5 \
+          # Target confirmed by Tom 2026-07-26: the project page is
+          # https://Tommy-Holmes.itch.io/ward-b, so butler's target is
+          # tommy-holmes/ward-b. (itch usernames are independent of the
+          # GitHub account, which is lucy-holm — don't "correct" this to
+          # match the repo owner. Lowercased because itch canonicalises
+          # usernames that way; the display form preserves capitals.)
+          butler push dist tommy-holmes/ward-b:html5 \
             --userversion "$(git rev-parse --short HEAD)-${{ github.run_number }}"

@@ -7,17 +7,23 @@ record), and mirrors a filtered subset to PostHog for dashboards. Read
 §5.1 in the main repo for the "why" behind this shape.
 
 You have a Cloudflare account but haven't deployed a Worker before — this
-doc assumes that and spells out every command. Run all commands from this
-directory (`telemetry-worker/`).
+doc assumes that and spells out every command.
+
+> **⚠ Run every command in this file from `telemetry-worker/`, not the repo
+> root.** The `npm run db:*` scripts live in *this* directory's
+> `package.json`. Running them from the repo root fails with
+> `Missing script: db:schema`, because the root `package.json` only has the
+> game's own scripts (`dev`, `build`, `preview`, `check:rooms`).
 
 ## 0. Prerequisites
 
 - Node.js installed (any recent LTS).
 - A free Cloudflare account (dash.cloudflare.com).
 
-Install dependencies once:
+Get into the right directory and install dependencies once:
 
 ```
+cd telemetry-worker
 npm install
 ```
 
@@ -120,6 +126,15 @@ npx wrangler secret put WRITE_KEY
 > without the other.
 
 ## 6. Deploy
+
+> **One-time account step first.** A brand-new Cloudflare account has no
+> `workers.dev` subdomain, and the first deploy fails with
+> *"You need to register a workers.dev subdomain before publishing"*.
+> Wrangler can only offer to create one interactively, so it can't be
+> scripted. Open the onboarding page it prints — or
+> `dash.cloudflare.com` → **Workers & Pages** → **Compute (Workers)** —
+> and pick a subdomain. Any name; it becomes the middle part of your
+> Worker's URL. Then re-run the deploy.
 
 ```
 npm run deploy

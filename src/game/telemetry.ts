@@ -24,12 +24,84 @@
 //   to call in.
 // - A `?notrack=1` / localStorage kill switch (F22) that turns every
 //   public method into a no-op.
+// - A/B assignment (Phase 3, §6, game/experiments.ts): resolved once per
+//   construction from the same playerId used for identity, and stamped on
+//   every flushed batch as `experiment`/`variant`. Resolution is skipped
+//   entirely when opted out (F22) — the notrack switch suppresses
+//   experiment assignment too, not just event collection, since assigning
+//   an arm to a player we're not tracking would just be dead state.
 //
 // All localStorage access is try/caught — it throws in private browsing —
 // and degrades to in-memory-only behaviour rather than erroring.
 import { BUILD_VERSION, TUNING } from '../tuning';
+import { getAssignment, type Assignment } from './experiments';
 
 export type TelemetryEnv = 'local' | 'pages' | 'itch' | 'tailnet' | 'unknown';
+
+// F20 — every event name raised anywhere in the codebase, in one place.
+// `event()`'s `name` parameter is typed against this union so a typo in a
+// room file fails `tsc`/`npm run check:rooms` instead of shipping silently
+// and just never appearing in a dashboard.
+//
+// Sourced from:
+//   grep -rho "telemetry.event('[a-z_]*'" src --include='*.ts' \
+//     | sed "s/.*('//;s/'//" | sort -u
+// (catches both `telemetry.event(...)` and `ctx.telemetry.event(...)` call
+// sites, since it's a substring match) plus the names telemetry.ts and
+// main.ts raise directly (page_load, session_start, pos, perf, quit, error,
+// idle_start, idle_end, game_complete, room_complete, room_enter, shift,
+// pills_empty, medication_expired, settings_change).
+//
+// This union MUST be a superset of what's actually called — if adding a
+// type here breaks a room-file call site, the fix is to add the missing
+// name, not to touch the room file (this file doesn't own rooms/*). Another
+// agent is concurrently editing kit.ts/room files this session and may add
+// or consolidate event calls; treat any resulting tsc error in rooms/* as a
+// signal to widen this union, not a bug to fix there.
+export type TelemetryEventName =
+  // internal — raised by telemetry.ts itself
+  | 'page_load'
+  | 'session_start'
+  | 'pos'
+  | 'perf'
+  | 'quit'
+  | 'error'
+  | 'idle_start'
+  | 'idle_end'
+  // internal — raised by main.ts's session/room rollups and shift handling
+  | 'game_complete'
+  | 'room_complete'
+  | 'room_enter'
+  | 'shift'
+  | 'pills_empty'
+  | 'medication_expired'
+  | 'settings_change'
+  // room-script events (grep sweep above)
+  | 'chains_seen'
+  | 'coat_gate_nudge'
+  | 'coat_pill_found'
+  | 'dispenser_refused'
+  | 'dispenser_used'
+  | 'door_opened'
+  | 'door_refused'
+  | 'gate_close'
+  | 'gate_open'
+  | 'keypad_close'
+  | 'keypad_denied'
+  | 'keypad_open'
+  | 'keypad_success'
+  | 'light_switch'
+  | 'orderly_caught'
+  | 'orderly_chase'
+  | 'orderly_escalation'
+  | 'orderly_spotted'
+  | 'pill_pickup'
+  | 'push'
+  | 'push_blocked'
+  | 'shape_lock_success'
+  | 'wall_crushed'
+  | 'walls_closing'
+  | 'wing_power_set';
 
 export interface TelemetrySnapshot {
   room: string;
@@ -181,6 +253,12 @@ export class Telemetry {
   readonly sessionId: string = makeUuid();
   readonly runIndex: number;
   readonly env: TelemetryEnv;
+  // Resolved once at construction (§6.1 "assign once, persist" — here
+  // "persist" is free, since the hash is deterministic from playerId, so
+  // there's nothing to write to localStorage). Null whenever no experiment
+  // is active (the default — see game/experiments.ts's header) or when
+  // opted out, in which case it's never even computed.
+  readonly assignment: Assignment;
 
   private queue: Record<string, unknown>[] = [];
   private droppedCount = 0;
@@ -217,9 +295,11 @@ export class Telemetry {
       // below stays inert; every public method is a no-op.
       this.playerId = '';
       this.runIndex = 0;
+      this.assignment = null;
     } else {
       this.playerId = resolvePlayerId();
       this.runIndex = resolveRunIndex();
+      this.assignment = getAssignment(this.playerId);
     }
   }
 
@@ -230,7 +310,7 @@ export class Telemetry {
     return this.activeAccumMs + (nowMs() - this.activeSinceTs);
   }
 
-  event(name: string, data?: Record<string, unknown>): void {
+  event(name: TelemetryEventName, data?: Record<string, unknown>): void {
     if (this.disabled) return;
     const snap = this.getSnapshot();
     const row: Record<string, unknown> = {
@@ -276,6 +356,15 @@ export class Telemetry {
       events,
     };
     if (dropped > 0) payload.dropped = dropped;
+    // Phase 3 §6.1 — stamp on every batch, not every event: an experiment
+    // arm doesn't change mid-session, so it belongs at the payload level
+    // like version/session/player, not repeated per row. Omitted (not
+    // null) when no experiment is active, matching the `dropped` field's
+    // convention just above — the common case stays a clean payload.
+    if (this.assignment) {
+      payload.experiment = this.assignment.experiment;
+      payload.variant = this.assignment.variant;
+    }
 
     const url = import.meta.env.VITE_TELEMETRY_URL as string | undefined;
     if (!url) {

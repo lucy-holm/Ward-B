@@ -9,6 +9,7 @@ import {
   randomCode4,
   codeClueText,
   isRandomizeCodesEnabled,
+  orderlyTelemetryCallbacks,
 } from './kit';
 import type { ColliderDef, RoomDef, RoomScript } from './kit';
 import type { GameCtx } from '../game/context';
@@ -334,7 +335,6 @@ export const room11Script: Room11Script = (() => {
     ctx.shiftFx();
     ctx.teleportPlayer(room11.spawn.x, room11.spawn.z);
     ctx.hud.toast('hands. a needle. "up or down, you\'re still mine," he says.');
-    ctx.telemetry.event('orderly_caught');
     regenerateCode(ctx);
   }
 
@@ -345,34 +345,22 @@ export const room11Script: Room11Script = (() => {
       ctx.scene,
       WAYPOINTS_LOWER,
       [],
-      {
-        onWarn: () => {
-          ctx.hud.toast('he is looking at you.');
-          ctx.telemetry.event('orderly_spotted');
-        },
-        onChaseStart: () => {
-          ctx.hud.toast('run. or stop being visible.');
-          ctx.telemetry.event('orderly_chase');
-        },
-        onCaught: () => handleCaught(ctx),
-      },
+      orderlyTelemetryCallbacks(ctx, {
+        warnToast: 'he is looking at you.',
+        chaseToast: 'run. or stop being visible.',
+        onCaught: handleCaught,
+      }),
       { colliders: ORDERLY_COLLIDERS, floorHeightAt: localFloorHeightAt },
     );
     orderlyUpper = new Orderly(
       ctx.scene,
       WAYPOINTS_UPPER,
       [],
-      {
-        onWarn: () => {
-          ctx.hud.toast('the one above sees you.');
-          ctx.telemetry.event('orderly_spotted');
-        },
-        onChaseStart: () => {
-          ctx.hud.toast('nowhere to go but down.');
-          ctx.telemetry.event('orderly_chase');
-        },
-        onCaught: () => handleCaught(ctx),
-      },
+      orderlyTelemetryCallbacks(ctx, {
+        warnToast: 'the one above sees you.',
+        chaseToast: 'nowhere to go but down.',
+        onCaught: handleCaught,
+      }),
       { colliders: ORDERLY_COLLIDERS, floorHeightAt: localFloorHeightAt },
     );
     orderlyLower.setWardState(ctx.state.state);

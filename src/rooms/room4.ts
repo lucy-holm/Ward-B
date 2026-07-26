@@ -1,4 +1,5 @@
 import { RoomBuilder } from './build';
+import { orderlyTelemetryCallbacks } from './kit';
 import type { ColliderDef, RoomDef, RoomScript } from './types';
 import type { GameCtx } from '../game/context';
 import { Orderly, type OrderlyAABB } from '../game/orderly';
@@ -139,23 +140,16 @@ export const room4Script: Room4Script = (() => {
       ctx.scene,
       WAYPOINTS,
       [SHELF],
-      {
-        onWarn: () => {
-          ctx.hud.toast('he is looking at you.');
-          ctx.telemetry.event('orderly_spotted');
-        },
-        onChaseStart: () => {
-          ctx.hud.toast('run. or stop being visible.');
-          ctx.telemetry.event('orderly_chase');
-        },
+      orderlyTelemetryCallbacks(ctx, {
+        warnToast: 'he is looking at you.',
+        chaseToast: 'run. or stop being visible.',
         onCaught: () => {
           ctx.state.forceState('lucid');
           ctx.shiftFx();
           ctx.teleportPlayer(room4.spawn.x, room4.spawn.z);
           ctx.hud.toast('hands. a needle. "there you are," he says.');
-          ctx.telemetry.event('orderly_caught');
         },
-      },
+      }),
       { colliders: ORDERLY_COLLIDERS },
     );
     orderly.setWardState(ctx.state.state);

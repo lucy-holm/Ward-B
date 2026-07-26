@@ -28,11 +28,23 @@ jobs:
         run: npm run build
         env:
           # Build metadata baked into the bundle (see vite.config.ts).
-          # VITE_TELEMETRY_URL is a public endpoint URL, not a secret — it
-          # lives in a repo *variable*. If it's unset the game just logs
-          # telemetry to console instead of failing the build.
           VITE_BUILD_SHA: ${{ github.sha }}
-          VITE_TELEMETRY_URL: ${{ vars.TELEMETRY_URL }}
+          # NOTE: VITE_TELEMETRY_URL is deliberately NOT set here.
+          #
+          # Pages is the staging/playtest deployment — it's where Tom and
+          # anyone he shares the link with poke at half-finished work, use
+          # ?room= jumps, and replay rooms out of order. Telemetry is only
+          # wanted from the real audience, so it is wired ONLY in
+          # deploy-itch.yml (the release branch -> itch.io path).
+          #
+          # With the var unset, telemetry.ts falls back to console.log and
+          # sends nothing over the network — no endpoint, no collection.
+          # That's a stronger guarantee than tagging these sessions
+          # env:'pages' and filtering them out downstream, because it can't
+          # be forgotten in a query or a new insight.
+          #
+          # If you ever DO want Pages data, add the line back — the client
+          # already distinguishes env:'pages' from env:'itch' on its own.
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist

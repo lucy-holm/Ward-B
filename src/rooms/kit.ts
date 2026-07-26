@@ -1093,6 +1093,79 @@ function bearingTo(dx: number, dz: number, yaw: number): number {
   return Math.atan2(right, fwd);
 }
 
+// F21 (2026-07-26 telemetry design doc, §2/§8 Phase 4) — every orderly room
+// independently hand-rolled the same three ctx.telemetry.event('orderly_*')
+// calls inside its Orderly onWarn/onChaseStart/onCaught callbacks. This
+// factors out just the telemetry emission (event names and firing
+// conditions are unchanged — though see OrderlyTelemetryOpts.onCaught: the
+// emission POINT within the catch handler moved deliberately, which changed
+// the position/state stamped on orderly_caught for the better), leaving
+// each room's
+// own toast text and catch-time side effects (regenerateCode, crate
+// reset, crush-wall reset, multi-orderly shared handleCaught, etc.)
+// untouched. Used both by makeOrderlyRoomScript below (rooms 15-20) and by
+// every hand-rolled orderly room (rooms 4-14, 19, 20) whose per-orderly
+// waypoints/occluders/catch-penalty are too bespoke for the fixed-roster
+// factory.
+//
+// Deliberately does NOT try to own toast display for onCaught — every
+// hand-rolled room's catch handler interleaves the toast with
+// forceState/teleportPlayer/shiftFx/regenerateCode in an order that varies
+// room to room, so the room keeps writing that whole sequence itself and
+// just no longer duplicates the telemetry line at the end of it.
+export interface OrderlyTelemetryOpts {
+  // Toast shown on first sight / on chase start. Every room passes one
+  // (no room currently omits it) — required rather than optional so a
+  // future call site can't silently drop the toast while migrating.
+  warnToast: string;
+  chaseToast: string;
+  // The room's own catch handling: forceState / shiftFx / teleportPlayer /
+  // toast / regenerateCode / crate reset, in whatever order that room needs.
+  //
+  // ORDERING IS LOAD-BEARING, and deliberately changed from the pre-F21
+  // code — do not "restore" it. `orderly_caught` is now emitted BEFORE this
+  // runs, where every room previously emitted it at the END of its own
+  // handler.
+  //
+  // Why it matters: telemetry.ts stamps each event with the player's
+  // position and ward state *at emit time* (its getSnapshot closure in
+  // main.ts). Emitting after the handler meant sampling the player AFTER
+  // teleportPlayer had already moved them to the room's spawn point and
+  // forceState had flipped them to lucid — so every orderly_caught row in a
+  // given room reported identical spawn coordinates, and the catch-location
+  // heatmap the design doc calls for (§3.2 "catch markers", §5.1 path
+  // replay) was structurally impossible to build. Emitting first records
+  // where the player was actually caught, in the state they were caught in,
+  // which is the entire analytical value of the event.
+  //
+  // No gameplay consequence either way: event() only queues a row.
+  //
+  // Data discontinuity: orderly_caught rows collected before 2026-07-26
+  // carry post-teleport spawn coordinates. There are only a couple, from
+  // the launch smoke test, but don't pool them with later rows positionally.
+  onCaught: (ctx: GameCtx) => void;
+}
+
+export function orderlyTelemetryCallbacks(
+  ctx: GameCtx,
+  opts: OrderlyTelemetryOpts,
+): { onWarn(): void; onChaseStart(): void; onCaught(): void } {
+  return {
+    onWarn() {
+      ctx.hud.toast(opts.warnToast);
+      ctx.telemetry.event('orderly_spotted');
+    },
+    onChaseStart() {
+      ctx.hud.toast(opts.chaseToast);
+      ctx.telemetry.event('orderly_chase');
+    },
+    onCaught() {
+      ctx.telemetry.event('orderly_caught');
+      opts.onCaught(ctx);
+    },
+  };
+}
+
 export function makeOrderlyRoomScript(cfg: MakeOrderlyRoomScriptCfg): OrderlyRoomScript {
   const alwaysOnColliders = cfg.colliders.filter((c) => c.states === undefined || c.states === 'both');
   let orderlies: Orderly[] = [];
@@ -1106,24 +1179,17 @@ export function makeOrderlyRoomScript(cfg: MakeOrderlyRoomScriptCfg): OrderlyRoo
           ctx.scene,
           oc.waypoints,
           oc.occluders,
-          {
-            onWarn: () => {
-              ctx.hud.toast(oc.onWarnToast ?? 'he is looking at you.');
-              ctx.telemetry.event('orderly_spotted');
-            },
-            onChaseStart: () => {
-              ctx.hud.toast(oc.onChaseToast ?? 'run. or stop being visible.');
-              ctx.telemetry.event('orderly_chase');
-            },
-            onCaught: () => {
+          orderlyTelemetryCallbacks(ctx, {
+            warnToast: oc.onWarnToast ?? 'he is looking at you.',
+            chaseToast: oc.onChaseToast ?? 'run. or stop being visible.',
+            onCaught: (ctx) => {
               ctx.state.forceState('lucid', 'catch');
               ctx.shiftFx();
               ctx.teleportPlayer(cfg.spawn.x, cfg.spawn.z, cfg.spawn.level);
               ctx.hud.toast(oc.onCaughtToast ?? cfg.catchToast ?? 'hands. a needle. "not this time," he says.');
-              ctx.telemetry.event('orderly_caught');
               cfg.extraScript?.onCaught?.(ctx);
             },
-          },
+          }),
           { colliders: alwaysOnColliders, floorHeightAt: oc.floorHeightAt, level: oc.level },
         ),
     );

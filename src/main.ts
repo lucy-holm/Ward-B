@@ -10,7 +10,7 @@ import { TUNING } from './tuning';
 import { Player } from './game/player';
 import { World, resolveLevel } from './game/world';
 import { Interaction } from './game/interaction';
-import { Telemetry } from './game/telemetry';
+import { Telemetry, type TelemetryEventName } from './game/telemetry';
 import { isRandomizeCodesEnabled, setRandomizeCodes } from './game/settings';
 import { Hud } from './ui/hud';
 import type { GameCtx } from './game/context';
@@ -183,7 +183,7 @@ let roomActiveMsAtEnter = 0;
 const ctxTelemetry: Telemetry = new Proxy(telemetry, {
   get(target, prop, _receiver) {
     if (prop === 'event') {
-      return (name: string, data?: Record<string, unknown>) => {
+      return (name: TelemetryEventName, data?: Record<string, unknown>) => {
         if (name === 'orderly_caught') {
           sessionCounters.catches++;
           roomCounters.catches++;

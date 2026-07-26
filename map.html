@@ -19,6 +19,13 @@
     #room-select { width: 100%; margin-bottom: 12px; background: #1d221d; color: inherit; border: 1px solid #333a33; padding: 4px; font: inherit; }
     #level-select { width: 100%; margin-bottom: 12px; background: #1d221d; color: inherit; border: 1px solid #333a33; padding: 4px; font: inherit; }
     #layers label { display: block; margin: 2px 0; cursor: pointer; user-select: none; }
+    #telemetry { margin-top: 16px; padding-top: 12px; border-top: 1px solid #262b26; }
+    #telemetry h2 {
+      font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em;
+      color: #7c867e; margin-bottom: 8px; font-weight: normal;
+    }
+    #telemetry-file { width: 100%; font-size: 11px; color: inherit; margin-bottom: 6px; }
+    #telemetry-status { font-size: 10.5px; color: #7c867e; word-break: break-word; line-height: 1.4; }
     #error {
       margin-top: 12px; padding: 8px; border: 1px solid #7a3a34;
       color: #e0897f; white-space: pre-wrap; word-break: break-word; font-size: 11px;
@@ -34,8 +41,15 @@
     <select id="room-select"></select>
     <select id="level-select" hidden></select>
     <div id="layers"></div>
+    <div id="telemetry">
+      <h2>telemetry replay</h2>
+      <input type="file" id="telemetry-file" accept=".json,.jsonl,application/json" />
+      <div id="telemetry-status"></div>
+    </div>
     <div id="error" hidden></div>
-    <p id="hint">dev-only — not in the build.<br />edit a room .ts and save; this page reloads.</p>
+    <p id="hint">dev-only — not in the build.<br />edit a room .ts and save; this page reloads.<br />
+      telemetry: <code>node tools/fetch-room-telemetry.mjs --room &lt;id&gt;</code>, then load the
+      file above (or <code>?telemetry=tools/data/&lt;id&gt;.json</code>).</p>
   </aside>
   <main id="viewport"></main>
   <script type="module" src="/src/devtools/map.ts"></script>

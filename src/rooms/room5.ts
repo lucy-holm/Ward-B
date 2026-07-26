@@ -4,7 +4,7 @@ import type { GameCtx } from '../game/context';
 import { openKeypad } from '../ui/keypad';
 import { Orderly, type OrderlyAABB } from '../game/orderly';
 import type { DebugPatrol } from '../devtools/map-types';
-import { randomCode4, codeClueText, isRandomizeCodesEnabled } from './kit';
+import { randomCode4, codeClueText, isRandomizeCodesEnabled, orderlyTelemetryCallbacks } from './kit';
 
 // ROOM 5 — the Nurse Station. The capstone: every mechanic at once, in one
 // room, under threat. A central island — occluder, collider, and the only
@@ -187,24 +187,17 @@ export const room5Script: Room5Script = (() => {
       ctx.scene,
       WAYPOINTS,
       [ISLAND],
-      {
-        onWarn: () => {
-          ctx.hud.toast('he is looking at you.');
-          ctx.telemetry.event('orderly_spotted');
-        },
-        onChaseStart: () => {
-          ctx.hud.toast('run. or stop being visible.');
-          ctx.telemetry.event('orderly_chase');
-        },
+      orderlyTelemetryCallbacks(ctx, {
+        warnToast: 'he is looking at you.',
+        chaseToast: 'run. or stop being visible.',
         onCaught: () => {
           ctx.state.forceState('lucid');
           ctx.shiftFx();
           ctx.teleportPlayer(room5.spawn.x, room5.spawn.z);
           ctx.hud.toast('hands. a needle. "not this time," he says.');
-          ctx.telemetry.event('orderly_caught');
           regenerateCode(ctx);
         },
-      },
+      }),
       { colliders: ORDERLY_COLLIDERS },
     );
     orderly.setWardState(ctx.state.state);

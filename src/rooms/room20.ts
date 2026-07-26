@@ -1,4 +1,4 @@
-import { RoomBuilder, dispenser, scrawl, patrol, pressurePlate, inTrigger } from './kit';
+import { RoomBuilder, dispenser, scrawl, patrol, pressurePlate, inTrigger, orderlyTelemetryCallbacks } from './kit';
 import type { ColliderDef, RoomDef, RoomScript } from './types';
 import type { GameCtx } from '../game/context';
 import { Orderly, type OrderlyAABB } from '../game/orderly';
@@ -464,34 +464,22 @@ export const room20Script: Room20Script = (() => {
       ctx.scene,
       WAYPOINTS_A,
       [crateCollider, ISLAND_C],
-      {
-        onWarn: () => {
-          ctx.hud.toast('he is looking at you.');
-          ctx.telemetry.event('orderly_spotted');
-        },
-        onChaseStart: () => {
-          ctx.hud.toast('run. or stop being visible.');
-          ctx.telemetry.event('orderly_chase');
-        },
-        onCaught: () => handleCaught(ctx),
-      },
+      orderlyTelemetryCallbacks(ctx, {
+        warnToast: 'he is looking at you.',
+        chaseToast: 'run. or stop being visible.',
+        onCaught: handleCaught,
+      }),
       { colliders: ORDERLY_COLLIDERS },
     );
     orderlyB = new Orderly(
       ctx.scene,
       WAYPOINTS_B,
       [crateCollider, ISLAND_C],
-      {
-        onWarn: () => {
-          ctx.hud.toast('the other one sees you too.');
-          ctx.telemetry.event('orderly_spotted');
-        },
-        onChaseStart: () => {
-          ctx.hud.toast('run. or stop being visible.');
-          ctx.telemetry.event('orderly_chase');
-        },
-        onCaught: () => handleCaught(ctx),
-      },
+      orderlyTelemetryCallbacks(ctx, {
+        warnToast: 'the other one sees you too.',
+        chaseToast: 'run. or stop being visible.',
+        onCaught: handleCaught,
+      }),
       { colliders: ORDERLY_COLLIDERS, eyeTint: 0xffb347 }, // amber — two patrols in one space read as two enemies (room12/room13 precedent)
     );
     orderlyA.setWardState(ctx.state.state);
@@ -504,7 +492,6 @@ export const room20Script: Room20Script = (() => {
     ctx.teleportPlayer(room20.spawn.x, room20.spawn.z);
     resetCrate(ctx);
     ctx.hud.toast("hands. a needle. and when you're back on your feet, it's already back on its shelf.");
-    ctx.telemetry.event('orderly_caught');
   }
 
   const script: Room20Script = {

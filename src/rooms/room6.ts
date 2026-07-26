@@ -4,7 +4,7 @@ import type { GameCtx } from '../game/context';
 import { openKeypad } from '../ui/keypad';
 import { Orderly, type OrderlyAABB } from '../game/orderly';
 import type { DebugPatrol } from '../devtools/map-types';
-import { randomCode4, codeClueText, isRandomizeCodesEnabled } from './kit';
+import { randomCode4, codeClueText, isRandomizeCodesEnabled, orderlyTelemetryCallbacks } from './kit';
 
 // ROOM 6 — the West Corridor. First bend in the ward, first room where the
 // dispenser isn't waiting at the safe entrance: it sits in an alcove off the
@@ -205,24 +205,17 @@ export const room6Script: Room6Script = (() => {
       ctx.scene,
       WAYPOINTS,
       [ALCOVE_W, ALCOVE_E],
-      {
-        onWarn: () => {
-          ctx.hud.toast('he is looking at you.');
-          ctx.telemetry.event('orderly_spotted');
-        },
-        onChaseStart: () => {
-          ctx.hud.toast('run. or stop being visible.');
-          ctx.telemetry.event('orderly_chase');
-        },
+      orderlyTelemetryCallbacks(ctx, {
+        warnToast: 'he is looking at you.',
+        chaseToast: 'run. or stop being visible.',
         onCaught: () => {
           ctx.state.forceState('lucid');
           ctx.shiftFx();
           ctx.teleportPlayer(room6.spawn.x, room6.spawn.z);
           ctx.hud.toast('hands. a needle. "back to the start," he says.');
-          ctx.telemetry.event('orderly_caught');
           regenerateCode(ctx);
         },
-      },
+      }),
       { colliders: ORDERLY_COLLIDERS },
     );
     orderly.setWardState(ctx.state.state);

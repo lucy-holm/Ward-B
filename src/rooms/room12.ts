@@ -4,7 +4,7 @@ import type { GameCtx } from '../game/context';
 import { openKeypad } from '../ui/keypad';
 import { Orderly, type OrderlyAABB } from '../game/orderly';
 import type { DebugPatrol } from '../devtools/map-types';
-import { randomCode4, codeClueText, isRandomizeCodesEnabled } from './kit';
+import { randomCode4, codeClueText, isRandomizeCodesEnabled, orderlyTelemetryCallbacks } from './kit';
 
 // ROOM 12 — the Asylum Floor. The finale. Biggest footprint in the game
 // (roughly 20-24m wide, 74m north-south, versus room 10's 19.2x36). Pill
@@ -377,7 +377,6 @@ export const room12Script: Room12Script = (() => {
     ctx.shiftFx();
     ctx.teleportPlayer(room12.spawn.x, room12.spawn.z);
     ctx.hud.toast('hands. a needle. "the whole floor, and you still tried," he says.');
-    ctx.telemetry.event('orderly_caught');
     regenerateCode(ctx);
   }
 
@@ -389,34 +388,22 @@ export const room12Script: Room12Script = (() => {
       ctx.scene,
       WAYPOINTS_A,
       [NOOK_HALL, PILLAR_1, PILLAR_2],
-      {
-        onWarn: () => {
-          ctx.hud.toast('he sees you.');
-          ctx.telemetry.event('orderly_spotted');
-        },
-        onChaseStart: () => {
-          ctx.hud.toast('run. or stop being visible.');
-          ctx.telemetry.event('orderly_chase');
-        },
-        onCaught: () => handleCaught(ctx),
-      },
+      orderlyTelemetryCallbacks(ctx, {
+        warnToast: 'he sees you.',
+        chaseToast: 'run. or stop being visible.',
+        onCaught: handleCaught,
+      }),
       { colliders: ORDERLY_COLLIDERS },
     );
     orderlyB = new Orderly(
       ctx.scene,
       WAYPOINTS_B,
       [NOOK_HALL, PILLAR_1, PILLAR_2],
-      {
-        onWarn: () => {
-          ctx.hud.toast('so does the other one.');
-          ctx.telemetry.event('orderly_spotted');
-        },
-        onChaseStart: () => {
-          ctx.hud.toast('run. or stop being visible.');
-          ctx.telemetry.event('orderly_chase');
-        },
-        onCaught: () => handleCaught(ctx),
-      },
+      orderlyTelemetryCallbacks(ctx, {
+        warnToast: 'so does the other one.',
+        chaseToast: 'run. or stop being visible.',
+        onCaught: handleCaught,
+      }),
       // Distinct eye-glow tint — playtest 8: A and B's counter-rotating
       // patrols read as one enemy changing location rather than two, since
       // nothing but path shape told them apart. Amber vs. A's default white.
@@ -426,17 +413,11 @@ export const room12Script: Room12Script = (() => {
       ctx.scene,
       WAYPOINTS_C,
       [ISLAND_C, NOOK_C],
-      {
-        onWarn: () => {
-          ctx.hud.toast("he's alone with you now.");
-          ctx.telemetry.event('orderly_spotted');
-        },
-        onChaseStart: () => {
-          ctx.hud.toast('run. or stop being visible.');
-          ctx.telemetry.event('orderly_chase');
-        },
-        onCaught: () => handleCaught(ctx),
-      },
+      orderlyTelemetryCallbacks(ctx, {
+        warnToast: "he's alone with you now.",
+        chaseToast: 'run. or stop being visible.',
+        onCaught: handleCaught,
+      }),
       { colliders: ORDERLY_COLLIDERS },
     );
     orderlyA.setWardState(ctx.state.state);

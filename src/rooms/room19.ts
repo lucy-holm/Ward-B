@@ -1,4 +1,4 @@
-import { RoomBuilder, dispenser, scrawl, heightZone, ramp, patrol } from './kit';
+import { RoomBuilder, dispenser, scrawl, heightZone, ramp, patrol, orderlyTelemetryCallbacks } from './kit';
 import type { ColliderDef, RoomDef, RoomScript } from './types';
 import type { GameCtx } from '../game/context';
 import { Orderly, type OrderlyAABB } from '../game/orderly';
@@ -307,23 +307,16 @@ export const room19Script: Room19Script = (() => {
         ctx.scene,
         cfg.waypoints,
         cfg.occluders,
-        {
-          onWarn: () => {
-            ctx.hud.toast(cfg.warn);
-            ctx.telemetry.event('orderly_spotted');
-          },
-          onChaseStart: () => {
-            ctx.hud.toast(cfg.chase);
-            ctx.telemetry.event('orderly_chase');
-          },
+        orderlyTelemetryCallbacks(ctx, {
+          warnToast: cfg.warn,
+          chaseToast: cfg.chase,
           onCaught: () => {
             ctx.state.forceState('lucid');
             ctx.shiftFx();
             ctx.teleportPlayer(SPAWN.x, SPAWN.z);
             ctx.hud.toast('hands. a needle. "you don\'t get to pick twice," he says.');
-            ctx.telemetry.event('orderly_caught');
           },
-        },
+        }),
         { colliders: cfg.colliders },
       );
       orderly.setWardState(ctx.state.state);

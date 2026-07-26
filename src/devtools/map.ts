@@ -65,7 +65,11 @@ async function loadRoom(id: string): Promise<RoomSlot> {
 }
 
 // --- layers ----------------------------------------------------------------
-// Listed in draw order, bottom to top.
+// Listed in draw order, bottom to top. The telemetry-* layers are appended
+// last (drawn on top of everything else) — see "telemetry overlay" section
+// below for what feeds them. They're empty/no-op groups until a file is
+// loaded, so every room-geometry layer above is completely unaffected by
+// their presence (the "must degrade gracefully with no data" requirement).
 const LAYERS = [
   { id: 'grid', label: 'grid' },
   { id: 'height', label: 'height zones / ramps' },
@@ -79,6 +83,10 @@ const LAYERS = [
   { id: 'scrawls', label: 'scrawls' },
   { id: 'iconpanels', label: 'door icon panels' },
   { id: 'lights', label: 'lights' },
+  { id: 'telemetry-heatmap', label: 'telemetry: heatmap (dwell)' },
+  { id: 'telemetry-paths', label: 'telemetry: session paths' },
+  { id: 'telemetry-catches', label: 'telemetry: catches' },
+  { id: 'telemetry-quits', label: 'telemetry: quit markers' },
 ] as const;
 type LayerId = (typeof LAYERS)[number]['id'];
 
@@ -127,28 +135,32 @@ function levelGhostAttrs(itemLevel: string | undefined, selectedLevel: string | 
 }
 
 // --- URL state ---------------------------------------------------------------
-// ?room=<id>&layers=<csv>&level=<id> — survives Vite's full-page reload on
-// save, which is what makes the edit→save→look loop land back on the room
-// being edited. layers param omitted ⇒ all layers on. level param omitted ⇒
-// the room's first declared level (or ignored entirely for a room with no
-// `levels`).
-function readUrl(): { room: string; layers: Set<LayerId>; level: string | null } {
+// ?room=<id>&layers=<csv>&level=<id>&telemetry=<path> — survives Vite's
+// full-page reload on save, which is what makes the edit→save→look loop
+// land back on the room being edited. layers param omitted ⇒ all layers on.
+// level param omitted ⇒ the room's first declared level (or ignored
+// entirely for a room with no `levels`). telemetry param omitted ⇒ no
+// telemetry loaded at boot (use the file picker instead) — see "telemetry
+// overlay" section below for what it points at.
+function readUrl(): { room: string; layers: Set<LayerId>; level: string | null; telemetry: string | null } {
   const q = new URLSearchParams(location.search);
   const room = q.get('room') ?? 'room1';
   const raw = q.get('layers');
   const level = q.get('level');
+  const telemetry = q.get('telemetry');
   const layers =
     raw === null
       ? new Set(LAYERS.map((l) => l.id))
       : new Set(LAYERS.map((l) => l.id).filter((id) => new Set(raw.split(',')).has(id)));
-  return { room, layers, level };
+  return { room, layers, level, telemetry };
 }
 
-function writeUrl(room: string, layers: Set<LayerId>, level: string | null): void {
+function writeUrl(room: string, layers: Set<LayerId>, level: string | null, telemetry: string | null): void {
   const q = new URLSearchParams();
   q.set('room', room);
   if (layers.size !== LAYERS.length) q.set('layers', [...layers].join(','));
   if (level !== null) q.set('level', level);
+  if (telemetry !== null) q.set('telemetry', telemetry);
   history.replaceState(null, '', `?${q.toString()}`);
 }
 
@@ -552,12 +564,249 @@ function drawPatrols(g: SVGGElement, patrols: DebugPatrol[], selectedLevel: stri
   });
 }
 
+// --- telemetry overlay -----------------------------------------------------
+// Path-replay / heatmap overlay — the highest-value bespoke analysis tool in
+// the telemetry plan (docs/superpowers/specs/2026-07-26-telemetry-and-
+// measurement-design.md §5.1). Data comes from `tools/fetch-room-telemetry.mjs`
+// (pulls one room's rows out of the production D1 database into a local
+// JSON file); this viewer only ever reads that local file — no runtime
+// dependency on the live Worker, so the "dev tool with no build step" and
+// "never ships" invariants at the top of this file stay true.
+//
+// One TelemetryRow == one `data` blob from a D1 event row, with the
+// batch-level identity columns merged in (see the fetch script's header for
+// the exact shape). Every event carries name/t/room/x/z/yaw/level/pills/
+// state/med (src/game/telemetry.ts's event()), so `pos` rows drive the
+// heatmap/paths and `quit`/`orderly_caught` rows are just filtered by name
+// out of the same array — no per-event-type fetching needed.
+interface TelemetryRow {
+  session?: string;
+  player?: string;
+  run?: number;
+  env?: string;
+  debug?: boolean;
+  version?: string;
+  name: string;
+  t: number;
+  room: string;
+  x: number;
+  z: number;
+  yaw?: number;
+  level?: string;
+  pills?: number;
+  state?: string;
+  med?: number;
+  [key: string]: unknown;
+}
+
+// Accepts either a JSON array (what the fetch script writes) or JSONL (one
+// event object per line) — cheap to support both and someone will
+// eventually hand-edit or `jq`-pipe a file into the latter.
+function parseTelemetryText(text: string): TelemetryRow[] {
+  const trimmed = text.trim();
+  if (trimmed.length === 0) return [];
+  try {
+    const parsed = JSON.parse(trimmed);
+    if (Array.isArray(parsed)) return parsed as TelemetryRow[];
+  } catch {
+    // fall through to JSONL
+  }
+  return trimmed
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0)
+    .map((line) => JSON.parse(line) as TelemetryRow);
+}
+
+// Rows whose level doesn't match the room's selected floor are dropped
+// outright (not ghosted, unlike geometry's levelGhostAttrs) — a session's
+// path on the wrong floor isn't useful authoring context the way a
+// misaligned collider footprint is, it's just noise that would make
+// room17's two storeys read as one tangled mess. selectedLevel === null
+// (room has no `levels`) keeps everything, matching every other layer's
+// behavior for single-level rooms.
+function filterByLevel(rows: TelemetryRow[], selectedLevel: string | null): TelemetryRow[] {
+  if (selectedLevel === null) return rows;
+  return rows.filter((r) => (r.level ?? '__flat') === selectedLevel);
+}
+
+// --- heatmap ---------------------------------------------------------------
+// Density of `pos` samples in a coarse world-space grid — dwell time is the
+// "lost or thinking" signal per the design doc's §3.2. Sequential one-hue
+// ramp (5 stops, chosen via the dataviz skill against this file's dark
+// surface): an ember-orange that recedes toward invisible at low density
+// (correct behavior for a *sequential* density field, per the skill's own
+// palette doc — only an *ordinal* ramp needs its lightest step to clear the
+// surface on its own) and brightens toward a hot amber-gold at the busiest
+// cells. Distinct in both hue and material (flat filled cells, no stroke)
+// from every existing layer's palette so it reads as "overlay data", not
+// room geometry.
+const HEATMAP_CELL_M = 0.5;
+const HEATMAP_STOPS: [number, string][] = [
+  [0.0, '#3a2416'],
+  [0.25, '#7a3f1c'],
+  [0.5, '#c05a1e'],
+  [0.75, '#e8862a'],
+  [1.0, '#ffd166'],
+];
+function lerp(a: number, b: number, t: number): number {
+  return a + (b - a) * t;
+}
+function hexToRgb(hex: string): [number, number, number] {
+  const n = parseInt(hex.slice(1), 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+function rgbToHex(r: number, g: number, b: number): string {
+  const c = (v: number) => Math.round(Math.max(0, Math.min(255, v))).toString(16).padStart(2, '0');
+  return `#${c(r)}${c(g)}${c(b)}`;
+}
+function heatColor(t: number): string {
+  const clamped = Math.max(0, Math.min(1, t));
+  let lo = HEATMAP_STOPS[0];
+  let hi = HEATMAP_STOPS[HEATMAP_STOPS.length - 1];
+  for (let i = 0; i < HEATMAP_STOPS.length - 1; i++) {
+    if (clamped >= HEATMAP_STOPS[i][0] && clamped <= HEATMAP_STOPS[i + 1][0]) {
+      lo = HEATMAP_STOPS[i];
+      hi = HEATMAP_STOPS[i + 1];
+      break;
+    }
+  }
+  const span = hi[0] - lo[0] || 1;
+  const localT = (clamped - lo[0]) / span;
+  const [r1, g1, b1] = hexToRgb(lo[1]);
+  const [r2, g2, b2] = hexToRgb(hi[1]);
+  return rgbToHex(lerp(r1, r2, localT), lerp(g1, g2, localT), lerp(b1, b2, localT));
+}
+
+function drawTelemetryHeatmap(g: SVGGElement, rows: TelemetryRow[], selectedLevel: string | null): void {
+  const posRows = filterByLevel(rows.filter((r) => r.name === 'pos'), selectedLevel);
+  if (posRows.length === 0) return;
+  const counts = new Map<string, { cx: number; cz: number; n: number }>();
+  for (const r of posRows) {
+    const cx = Math.floor(r.x / HEATMAP_CELL_M);
+    const cz = Math.floor(r.z / HEATMAP_CELL_M);
+    const key = `${cx},${cz}`;
+    const cell = counts.get(key);
+    if (cell) cell.n++;
+    else counts.set(key, { cx, cz, n: 1 });
+  }
+  const maxN = Math.max(...[...counts.values()].map((c) => c.n));
+  for (const { cx, cz, n } of counts.values()) {
+    // sqrt compresses the range so one outlier cell doesn't wash out
+    // everything else to near-zero opacity — dwell clusters are the
+    // signal, not the single busiest pixel.
+    const t = Math.sqrt(n / maxN);
+    g.appendChild(
+      rect(
+        cx * HEATMAP_CELL_M, cz * HEATMAP_CELL_M,
+        (cx + 1) * HEATMAP_CELL_M, (cz + 1) * HEATMAP_CELL_M,
+        { fill: heatColor(t), 'fill-opacity': 0.15 + 0.7 * t, stroke: 'none' },
+        `${n} pos sample${n === 1 ? '' : 's'} in this ${HEATMAP_CELL_M}m cell`,
+      ),
+    );
+  }
+}
+
+// --- session paths -----------------------------------------------------------
+// One polyline per session through its `pos` samples, in time order. Colors
+// cycle through the dataviz skill's validated 8-hue dark-mode categorical
+// set (CVD-safe to the 8-12 ΔE floor band; the hover tooltip carrying the
+// session id is this layer's secondary encoding, same mitigation the skill
+// prescribes for that band). Assignment is by a stable hash of the session
+// id, not by array index, so a session keeps its color across room/level
+// switches and re-loads of the same file — important when eyeballing "does
+// this one session's route also show up stuck in the next room".
+const TELEMETRY_PATH_COLORS = [
+  '#3987e5', '#199e70', '#c98500', '#008300',
+  '#9085e9', '#e66767', '#d55181', '#d95926',
+];
+function hashString(s: string): number {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
+  return Math.abs(h);
+}
+function sessionColor(session: string | undefined): string {
+  if (!session) return TELEMETRY_PATH_COLORS[0];
+  return TELEMETRY_PATH_COLORS[hashString(session) % TELEMETRY_PATH_COLORS.length];
+}
+
+function drawTelemetryPaths(g: SVGGElement, rows: TelemetryRow[], selectedLevel: string | null): void {
+  const posRows = filterByLevel(rows.filter((r) => r.name === 'pos'), selectedLevel);
+  const bySession = new Map<string, TelemetryRow[]>();
+  for (const r of posRows) {
+    const key = r.session ?? 'unknown';
+    const list = bySession.get(key);
+    if (list) list.push(r);
+    else bySession.set(key, [r]);
+  }
+  for (const [session, samples] of bySession) {
+    samples.sort((a, b) => a.t - b.t);
+    if (samples.length === 0) continue;
+    const color = sessionColor(session);
+    const ptStr = samples.map((s) => `${s.x},${s.z}`).join(' ');
+    g.appendChild(
+      el('polyline', {
+        points: ptStr, fill: 'none', stroke: color,
+        'stroke-width': 0.07, 'stroke-opacity': 0.85,
+        'stroke-linecap': 'round', 'stroke-linejoin': 'round',
+      }, `session ${session.slice(0, 8)} — ${samples.length} samples`),
+    );
+    const first = samples[0];
+    g.appendChild(
+      el('circle', { cx: first.x, cy: first.z, r: 0.14, fill: color, stroke: '#14171a', 'stroke-width': 0.03 },
+        `session ${session.slice(0, 8)} — path start`),
+    );
+  }
+}
+
+// --- quit + catch markers ---------------------------------------------------
+// Fixed, never-themed status colors (dataviz skill) so their semantics stay
+// legible independent of whatever hue happens to land on a given session's
+// path: warning-amber for "session ended here" (§3.2 calls quit position
+// the single highest-value signal in the dataset — deliberately the most
+// visually prominent marker in the whole tool), critical-red for "an
+// orderly caught the player here".
+const QUIT_COLOR = '#fab219';
+const CATCH_COLOR = '#d03b3b';
+
+function drawTelemetryQuits(g: SVGGElement, rows: TelemetryRow[], selectedLevel: string | null): void {
+  const quits = filterByLevel(rows.filter((r) => r.name === 'quit'), selectedLevel);
+  for (const q of quits) {
+    const title = `quit — session ${(q.session ?? '?').slice(0, 8)}, ${q.state ?? '?'}, ` +
+      `${q.pills ?? '?'} pill(s), t=${new Date(q.t).toLocaleString()}`;
+    g.appendChild(
+      el('circle', { cx: q.x, cy: q.z, r: 0.5, fill: 'none', stroke: QUIT_COLOR, 'stroke-width': 0.1, 'stroke-opacity': 0.9 }, title),
+    );
+    g.appendChild(
+      el('circle', { cx: q.x, cy: q.z, r: 0.2, fill: QUIT_COLOR, stroke: '#14171a', 'stroke-width': 0.04 }, title),
+    );
+  }
+}
+
+function drawTelemetryCatches(g: SVGGElement, rows: TelemetryRow[], selectedLevel: string | null): void {
+  const catches = filterByLevel(rows.filter((r) => r.name === 'orderly_caught'), selectedLevel);
+  for (const c of catches) {
+    const title = `orderly_caught — session ${(c.session ?? '?').slice(0, 8)}, t=${new Date(c.t).toLocaleString()}`;
+    // Diamond (rotated square) so it doesn't read as a same-shape rerun of
+    // the quit marker's circle-in-circle at a glance.
+    g.appendChild(
+      el('rect', {
+        x: c.x - 0.2, y: c.z - 0.2, width: 0.4, height: 0.4,
+        fill: CATCH_COLOR, stroke: '#14171a', 'stroke-width': 0.04,
+        transform: `rotate(45 ${c.x} ${c.z})`,
+      }, title),
+    );
+  }
+}
+
 // --- render --------------------------------------------------------------------
 const viewport = document.getElementById('viewport')!;
 const errorBox = document.getElementById('error')!;
 const select = document.getElementById('room-select') as HTMLSelectElement;
 const levelSelect = document.getElementById('level-select') as HTMLSelectElement;
 const layersBox = document.getElementById('layers')!;
+const telemetryFile = document.getElementById('telemetry-file') as HTMLInputElement;
+const telemetryStatus = document.getElementById('telemetry-status')!;
 
 // Populates the level selector from the room's own `levels` (hidden/disabled
 // for every room without `levels` — today's single-view behavior, untouched)
@@ -581,7 +830,12 @@ function populateLevelSelect(def: RoomDef, requested: string | null): string | n
   return selected;
 }
 
-function render(slot: RoomSlot, layers: Set<LayerId>, requestedLevel: string | null): string | null {
+function render(
+  slot: RoomSlot,
+  layers: Set<LayerId>,
+  requestedLevel: string | null,
+  telemetryRows: TelemetryRow[] = [],
+): string | null {
   viewport.replaceChildren();
   if (!slot.room) {
     errorBox.hidden = false;
@@ -648,6 +902,15 @@ function render(slot: RoomSlot, layers: Set<LayerId>, requestedLevel: string | n
     drawIconPanels(groups.get('iconpanels')!, def);
     drawLights(groups.get('lights')!, def);
 
+    // Telemetry rows are pre-filtered to this room by the caller
+    // (renderNow in bootstrap), which is also what drives the loaded-file
+    // status line — filtering here too would silently duplicate that logic
+    // and let the two drift apart.
+    drawTelemetryHeatmap(groups.get('telemetry-heatmap')!, telemetryRows, selectedLevel);
+    drawTelemetryPaths(groups.get('telemetry-paths')!, telemetryRows, selectedLevel);
+    drawTelemetryCatches(groups.get('telemetry-catches')!, telemetryRows, selectedLevel);
+    drawTelemetryQuits(groups.get('telemetry-quits')!, telemetryRows, selectedLevel);
+
     viewport.appendChild(svg);
   } catch (e) {
     viewport.replaceChildren();
@@ -680,7 +943,7 @@ async function main(): Promise<void> {
     cb.addEventListener('change', () => {
       if (cb.checked) state.layers.add(l.id);
       else state.layers.delete(l.id);
-      writeUrl(select.value, state.layers, currentLevel);
+      writeUrl(select.value, state.layers, currentLevel, state.telemetry);
       document
         .getElementById(`layer-${l.id}`)
         ?.setAttribute('display', cb.checked ? 'inline' : 'none');
@@ -695,19 +958,100 @@ async function main(): Promise<void> {
   // writeUrl calls above can preserve it.
   let currentLevel: string | null = null;
 
+  // All loaded telemetry rows, unfiltered by room — a loaded file may span
+  // many rooms (nothing stops someone from concatenating fetch-script
+  // output), so filtering to "rows matching the room currently on screen"
+  // happens per-render, not per-load. telemetrySource is just the label
+  // shown in the status line (filename, or the ?telemetry= URL/path).
+  let telemetryRows: TelemetryRow[] = [];
+  let telemetrySource = '';
+
+  function telemetryRowsForCurrentRoom(): TelemetryRow[] {
+    const roomId = slots.get(select.value)?.room?.def.id ?? select.value;
+    return telemetryRows.filter((r) => r.room === roomId);
+  }
+
+  function updateTelemetryStatus(): void {
+    if (!telemetrySource) {
+      telemetryStatus.textContent = '';
+      return;
+    }
+    if (telemetryRows.length === 0) {
+      telemetryStatus.textContent = `${telemetrySource}: 0 rows`;
+      return;
+    }
+    const matched = telemetryRowsForCurrentRoom();
+    const sessions = new Set(matched.map((r) => r.session ?? '?')).size;
+    const quits = matched.filter((r) => r.name === 'quit').length;
+    const catches = matched.filter((r) => r.name === 'orderly_caught').length;
+    const mismatchNote = matched.length === telemetryRows.length
+      ? ''
+      : ` (${telemetryRows.length - matched.length} rows are other rooms)`;
+    telemetryStatus.textContent =
+      `${telemetrySource}: ${matched.length} rows, ${sessions} session(s), ` +
+      `${quits} quit(s), ${catches} catch(es) for ${select.value}${mismatchNote}`;
+  }
+
+  // Single re-render path so every trigger (room switch, level switch,
+  // telemetry load) stays in sync with the status line — see render()'s
+  // comment on why the room-filter lives here rather than being duplicated
+  // inside render() itself.
+  function renderNow(requestedLevel: string | null): void {
+    currentLevel = render(slots.get(select.value)!, state.layers, requestedLevel, telemetryRowsForCurrentRoom());
+    writeUrl(select.value, state.layers, currentLevel, state.telemetry);
+    updateTelemetryStatus();
+  }
+
   select.addEventListener('change', () => {
     // Switching rooms drops the previous room's level selection — the new
     // room's own level set may not even have a matching id.
-    currentLevel = render(slots.get(select.value)!, state.layers, null);
-    writeUrl(select.value, state.layers, currentLevel);
+    renderNow(null);
   });
 
   levelSelect.addEventListener('change', () => {
-    currentLevel = render(slots.get(select.value)!, state.layers, levelSelect.value);
-    writeUrl(select.value, state.layers, currentLevel);
+    renderNow(levelSelect.value);
+  });
+
+  // File picker — always available regardless of how the dev server is
+  // configured (FileReader works even if a file lives outside whatever
+  // Vite is willing to serve). This is the primary loading path; the
+  // ?telemetry= URL param below is a convenience for files Vite *is*
+  // serving (e.g. tools/data/roomN.json, which it does by default since
+  // that's just another file under the project root).
+  telemetryFile.addEventListener('change', async () => {
+    const file = telemetryFile.files?.[0];
+    if (!file) return;
+    try {
+      telemetryRows = parseTelemetryText(await file.text());
+      telemetrySource = file.name;
+    } catch (e) {
+      telemetryRows = [];
+      telemetrySource = '';
+      telemetryStatus.textContent =
+        `failed to parse ${file.name}: ${e instanceof Error ? e.message : String(e)}`;
+      return;
+    }
+    renderNow(currentLevel);
   });
 
   currentLevel = render(slots.get(state.room)!, state.layers, state.level);
+
+  // ?telemetry=<path> — fetched after the first (data-free) render so a
+  // slow/failed fetch never blocks the page from showing geometry, which
+  // is the primary use case and must never depend on this working.
+  if (state.telemetry) {
+    telemetryStatus.textContent = `loading ${state.telemetry}…`;
+    try {
+      const res = await fetch(state.telemetry);
+      if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+      telemetryRows = parseTelemetryText(await res.text());
+      telemetrySource = state.telemetry;
+      renderNow(currentLevel);
+    } catch (e) {
+      telemetryStatus.textContent =
+        `failed to load ?telemetry=${state.telemetry}: ${e instanceof Error ? e.message : String(e)}`;
+    }
+  }
 }
 
 void main();

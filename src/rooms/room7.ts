@@ -4,7 +4,7 @@ import type { GameCtx } from '../game/context';
 import { openKeypad } from '../ui/keypad';
 import { Orderly, type OrderlyAABB } from '../game/orderly';
 import type { DebugPatrol } from '../devtools/map-types';
-import { randomCode4, codeClueText, isRandomizeCodesEnabled } from './kit';
+import { randomCode4, codeClueText, isRandomizeCodesEnabled, orderlyTelemetryCallbacks } from './kit';
 
 // ROOM 7 — the Records Room. Three shelving rows still force a serpentine
 // crossing (east gap, west gap, east gap), but the beat is a forced
@@ -215,24 +215,17 @@ export const room7Script: Room7Script = (() => {
       ctx.scene,
       WAYPOINTS,
       [ROW_A, ROW_B, ROW_C],
-      {
-        onWarn: () => {
-          ctx.hud.toast('he is looking at you.');
-          ctx.telemetry.event('orderly_spotted');
-        },
-        onChaseStart: () => {
-          ctx.hud.toast('run. or stop being visible.');
-          ctx.telemetry.event('orderly_chase');
-        },
+      orderlyTelemetryCallbacks(ctx, {
+        warnToast: 'he is looking at you.',
+        chaseToast: 'run. or stop being visible.',
         onCaught: () => {
           ctx.state.forceState('lucid');
           ctx.shiftFx();
           ctx.teleportPlayer(room7.spawn.x, room7.spawn.z);
           ctx.hud.toast('hands. a needle. "you\'ll lose your place," he says.');
-          ctx.telemetry.event('orderly_caught');
           regenerateCode(ctx);
         },
-      },
+      }),
       { colliders: ORDERLY_COLLIDERS },
     );
     orderly.setWardState(ctx.state.state);

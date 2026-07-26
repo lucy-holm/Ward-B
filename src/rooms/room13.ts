@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { RoomBuilder, scrawl, patrol } from './kit';
+import { RoomBuilder, scrawl, patrol, orderlyTelemetryCallbacks } from './kit';
 import type { ColliderDef, RoomDef, RoomScript } from './kit';
 import type { GameCtx } from '../game/context';
 import { Orderly } from '../game/orderly';
@@ -292,7 +292,6 @@ export const room13Script: Room13Script = (() => {
     ctx.teleportPlayer(MOUTH.x, MOUTH.z);
     resetAttempt();
     ctx.hud.toast('hands. a needle. "there was never a safe way," he says.');
-    ctx.telemetry.event('orderly_caught');
   }
 
   function handleCrushed(ctx: GameCtx): void {
@@ -311,17 +310,11 @@ export const room13Script: Room13Script = (() => {
       ctx.scene,
       WAYPOINTS_A,
       [],
-      {
-        onWarn: () => {
-          ctx.hud.toast('he is looking at you.');
-          ctx.telemetry.event('orderly_spotted');
-        },
-        onChaseStart: () => {
-          ctx.hud.toast('run. or stop being visible.');
-          ctx.telemetry.event('orderly_chase');
-        },
-        onCaught: () => handleCaught(ctx),
-      },
+      orderlyTelemetryCallbacks(ctx, {
+        warnToast: 'he is looking at you.',
+        chaseToast: 'run. or stop being visible.',
+        onCaught: handleCaught,
+      }),
       {
         colliders: ORDERLY_COLLIDERS,
         sightRange: W.orderlySightRangeM,
@@ -332,17 +325,11 @@ export const room13Script: Room13Script = (() => {
       ctx.scene,
       WAYPOINTS_B,
       [],
-      {
-        onWarn: () => {
-          ctx.hud.toast('the other one sees you too.');
-          ctx.telemetry.event('orderly_spotted');
-        },
-        onChaseStart: () => {
-          ctx.hud.toast('run. or stop being visible.');
-          ctx.telemetry.event('orderly_chase');
-        },
-        onCaught: () => handleCaught(ctx),
-      },
+      orderlyTelemetryCallbacks(ctx, {
+        warnToast: 'the other one sees you too.',
+        chaseToast: 'run. or stop being visible.',
+        onCaught: handleCaught,
+      }),
       {
         colliders: ORDERLY_COLLIDERS,
         sightRange: W.orderlySightRangeM,

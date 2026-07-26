@@ -1,4 +1,4 @@
-import { RoomBuilder, scrawl, shapeLockDoor, patrol } from './kit';
+import { RoomBuilder, scrawl, shapeLockDoor, patrol, orderlyTelemetryCallbacks } from './kit';
 import type { ColliderDef, RoomDef, RoomScript } from './kit';
 import type { GameCtx } from '../game/context';
 import { Orderly, type OrderlyAABB } from '../game/orderly';
@@ -456,7 +456,6 @@ export const room15Script: Room15Script = (() => {
     ctx.shiftFx();
     ctx.teleportPlayer(room15.spawn.x, room15.spawn.z);
     ctx.hud.toast('hands. a needle. "you dropped something," he says — you didn\'t.');
-    ctx.telemetry.event('orderly_caught');
   }
 
   function spawnBaseOrderlies(ctx: GameCtx): void {
@@ -466,34 +465,22 @@ export const room15Script: Room15Script = (() => {
       ctx.scene,
       WAYPOINTS_B,
       ALL_OCCLUDERS,
-      {
-        onWarn: () => {
-          ctx.hud.toast('he sees you.');
-          ctx.telemetry.event('orderly_spotted');
-        },
-        onChaseStart: () => {
-          ctx.hud.toast('run. or stop being visible.');
-          ctx.telemetry.event('orderly_chase');
-        },
-        onCaught: () => handleCaught(ctx),
-      },
+      orderlyTelemetryCallbacks(ctx, {
+        warnToast: 'he sees you.',
+        chaseToast: 'run. or stop being visible.',
+        onCaught: handleCaught,
+      }),
       { colliders: ORDERLY_COLLIDERS },
     );
     orderlyC = new Orderly(
       ctx.scene,
       WAYPOINTS_C,
       ALL_OCCLUDERS,
-      {
-        onWarn: () => {
-          ctx.hud.toast('so does he.');
-          ctx.telemetry.event('orderly_spotted');
-        },
-        onChaseStart: () => {
-          ctx.hud.toast('run. or stop being visible.');
-          ctx.telemetry.event('orderly_chase');
-        },
-        onCaught: () => handleCaught(ctx),
-      },
+      orderlyTelemetryCallbacks(ctx, {
+        warnToast: 'so does he.',
+        chaseToast: 'run. or stop being visible.',
+        onCaught: handleCaught,
+      }),
       { colliders: ORDERLY_COLLIDERS, eyeTint: 0xffb347 },
     );
     orderlyB.setWardState(ctx.state.state);
@@ -509,17 +496,11 @@ export const room15Script: Room15Script = (() => {
       ctx.scene,
       cfg.waypoints,
       ALL_OCCLUDERS,
-      {
-        onWarn: () => {
-          ctx.hud.toast(cfg.onWarnToast);
-          ctx.telemetry.event('orderly_spotted');
-        },
-        onChaseStart: () => {
-          ctx.hud.toast('run. or stop being visible.');
-          ctx.telemetry.event('orderly_chase');
-        },
-        onCaught: () => handleCaught(ctx),
-      },
+      orderlyTelemetryCallbacks(ctx, {
+        warnToast: cfg.onWarnToast,
+        chaseToast: 'run. or stop being visible.',
+        onCaught: handleCaught,
+      }),
       { colliders: ORDERLY_COLLIDERS, eyeTint: cfg.eyeTint },
     );
     o.setWardState(ctx.state.state);

@@ -4,7 +4,7 @@ import type { GameCtx } from '../game/context';
 import { openKeypad } from '../ui/keypad';
 import { Orderly, type OrderlyAABB } from '../game/orderly';
 import type { DebugPatrol } from '../devtools/map-types';
-import { randomCode4, codeClueText, isRandomizeCodesEnabled } from './kit';
+import { randomCode4, codeClueText, isRandomizeCodesEnabled, orderlyTelemetryCallbacks } from './kit';
 
 // ROOM 8 — the East Ward. The finale: two of them. One keeps a tight orbit
 // around the central island; the other walks a wide figure-eight whose waist
@@ -231,7 +231,6 @@ export const room8Script: Room8Script = (() => {
     ctx.shiftFx();
     ctx.teleportPlayer(room8.spawn.x, room8.spawn.z);
     ctx.hud.toast('hands. a needle. "there are two of us now," he says.');
-    ctx.telemetry.event('orderly_caught');
     regenerateCode(ctx);
   }
 
@@ -242,34 +241,22 @@ export const room8Script: Room8Script = (() => {
       ctx.scene,
       WAYPOINTS_A,
       OCCLUDERS,
-      {
-        onWarn: () => {
-          ctx.hud.toast('he is looking at you.');
-          ctx.telemetry.event('orderly_spotted');
-        },
-        onChaseStart: () => {
-          ctx.hud.toast('run. or stop being visible.');
-          ctx.telemetry.event('orderly_chase');
-        },
-        onCaught: () => handleCaught(ctx),
-      },
+      orderlyTelemetryCallbacks(ctx, {
+        warnToast: 'he is looking at you.',
+        chaseToast: 'run. or stop being visible.',
+        onCaught: handleCaught,
+      }),
       { colliders: ORDERLY_COLLIDERS },
     );
     orderlyB = new Orderly(
       ctx.scene,
       WAYPOINTS_B,
       OCCLUDERS,
-      {
-        onWarn: () => {
-          ctx.hud.toast('the other one is looking at you too.');
-          ctx.telemetry.event('orderly_spotted');
-        },
-        onChaseStart: () => {
-          ctx.hud.toast('run. or stop being visible.');
-          ctx.telemetry.event('orderly_chase');
-        },
-        onCaught: () => handleCaught(ctx),
-      },
+      orderlyTelemetryCallbacks(ctx, {
+        warnToast: 'the other one is looking at you too.',
+        chaseToast: 'run. or stop being visible.',
+        onCaught: handleCaught,
+      }),
       { colliders: ORDERLY_COLLIDERS },
     );
     orderlyA.setWardState(ctx.state.state);

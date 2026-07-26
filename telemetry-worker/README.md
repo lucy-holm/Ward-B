@@ -1,5 +1,15 @@
 # Ward B telemetry collector — setup runbook
 
+> **Deployed 2026-07-26.** Live endpoint:
+> `https://wardb-telemetry.xmyysdxrjr.workers.dev`
+> — D1 database `wardb-telemetry`, schema applied, `POSTHOG_KEY` secret set,
+> `WRITE_KEY` deliberately unset (see step 5). Health check:
+> `curl https://wardb-telemetry.xmyysdxrjr.workers.dev/health`
+>
+> This is the value for the `TELEMETRY_URL` GitHub Actions *variable*.
+> The steps below are the from-scratch runbook, kept for rebuilding or
+> for standing up a second environment.
+
 This is a Cloudflare Worker that receives telemetry batches from the game
 client, writes every event to a D1 database (the permanent system of
 record), and mirrors a filtered subset to PostHog for dashboards. Read

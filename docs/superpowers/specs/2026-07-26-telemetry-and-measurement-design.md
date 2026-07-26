@@ -31,7 +31,7 @@ The gap is not "add tracking". The gap is four things:
    (main.ts:91) is unflagged in the payload. Tom's own playtests will
    silently pollute every metric.
 
-Recommended stack: **PostHog (EU cloud) for discrete gameplay events** —
+Recommended stack: **PostHog for discrete gameplay events** —
 gives funnels, drop-off, retention, and feature-flag-driven A/B with no
 dashboard-building — plus a **Cloudflare Worker → R2 JSONL sink for the
 high-volume position/perf firehose**, which feeds a path-replay overlay in
@@ -447,7 +447,7 @@ scheduler, so the sync job has a natural home.
 Position JSONL is highly repetitive and compresses ~10:1. Storage is a
 non-issue at any traffic level this prototype will plausibly see.
 
-**PostHog, specifically:** EU Cloud, free tier — 1M events/mo, 5k session
+**PostHog, specifically:** free tier — 1M events/mo, 5k session
 replays, 1M feature-flag requests, **no credit card required** (verified
 2026-07-26). *Do not add a card*: without one there is no billing surface at
 all, and ingestion simply stops at the ceiling rather than charging. Fed by
@@ -686,7 +686,7 @@ accumulates.
 |---|---|---|
 | itch project created, kind **HTML** | itch.io dashboard | butler target `lucy-holm/ward-b:html5` |
 | `BUTLER_API_KEY` | itch.io → Settings → API keys | GitHub Actions secret |
-| PostHog project API key + EU host | posthog.com (**no card**) | Worker's mirror step |
+| PostHog project API key + **the region it was created in** | posthog.com (**no card**) | Worker's mirror step |
 | Cloudflare account | dash.cloudflare.com | Worker + raw storage |
 
 Everything else — Worker source, client changes, workflow YAML — can be

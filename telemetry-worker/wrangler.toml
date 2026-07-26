@@ -9,6 +9,17 @@ binding = "DB"
 database_name = "wardb-telemetry"
 database_id = "91e0d60d-18d0-455d-a164-121621241e1f"
 
+# Non-secret config. POSTHOG_HOST must match the region the PostHog project
+# was created in — a US project key posted to the EU ingest host (or vice
+# versa) is silently discarded: nothing appears in PostHog and no error
+# surfaces anywhere, because the mirror swallows failures by design so a
+# PostHog problem can never cost us a D1 write. Check the region by looking
+# at the PostHog app URL in your browser:
+#   us.posthog.com -> https://us.i.posthog.com
+#   eu.posthog.com -> https://eu.i.posthog.com
+[vars]
+POSTHOG_HOST = "https://us.i.posthog.com"
+
 # Secrets (do NOT put these here — set via `wrangler secret put`, see README):
 #   POSTHOG_KEY  — PostHog project API key. If unset, PostHog mirroring is
 #                  silently skipped (Worker still writes to D1).

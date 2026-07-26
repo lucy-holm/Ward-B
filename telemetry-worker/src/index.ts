@@ -21,13 +21,26 @@ export interface Env {
   DB: D1Database;
   /** PostHog project API key. If unset, mirroring is silently skipped. */
   POSTHOG_KEY?: string;
+  /**
+   * PostHog ingest host, WITHOUT a trailing slash — must match the region
+   * the project was actually created in, or events are silently dropped:
+   *   US Cloud (app at us.posthog.com) -> https://us.i.posthog.com
+   *   EU Cloud (app at eu.posthog.com) -> https://eu.i.posthog.com
+   * Set in wrangler.toml [vars]. This bit us once: the project is on US
+   * Cloud but the host was hardcoded to EU, so every mirrored event was
+   * accepted-then-discarded with nothing visible in PostHog and no error
+   * anywhere (the mirror deliberately swallows failures so a PostHog
+   * problem can never cost us a D1 write). Configurable rather than
+   * hardcoded so a region move is a config change, not a code change.
+   */
+  POSTHOG_HOST?: string;
   /** Optional shared write secret. If unset, all writes are accepted. */
   WRITE_KEY?: string;
 }
 
 const MAX_BODY_BYTES = 256 * 1024; // 256 KB
 const MAX_EVENTS_PER_BATCH = 1000;
-const POSTHOG_BATCH_URL = 'https://eu.i.posthog.com/batch/';
+const DEFAULT_POSTHOG_HOST = 'https://us.i.posthog.com';
 const NEVER_MIRROR = new Set(['pos', 'perf']);
 
 const CORS_HEADERS: Record<string, string> = {
@@ -220,7 +233,8 @@ async function mirrorToPostHog(env: Env, payload: BatchPayload, events: RawEvent
     };
   });
 
-  const res = await fetch(POSTHOG_BATCH_URL, {
+  const host = (env.POSTHOG_HOST ?? DEFAULT_POSTHOG_HOST).replace(/\/+$/, '');
+  const res = await fetch(`${host}/batch/`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ api_key: env.POSTHOG_KEY, batch }),

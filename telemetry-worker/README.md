@@ -101,8 +101,8 @@ npx wrangler secret put POSTHOG_KEY
 ```
 
 Paste your PostHog **project API key** when prompted (from
-posthog.com → Project Settings → the EU Cloud project you created — see
-§5.1 of the design doc for why EU/no-card). Skip this step if you haven't
+posthog.com → Project Settings → the project you created — see §5.1 of
+the design doc for why no-card). Skip this step if you haven't
 set up PostHog yet; you can add it later without redeploying code.
 
 > **Filter `debug = false` on every PostHog insight you build.** Sessions
@@ -236,7 +236,7 @@ directory's ownership; hand this URL to whoever's wiring the client side.
 |---|---|---|
 | Cloudflare Workers | 100,000 requests/day | Requests beyond the cap are rejected by Cloudflare (not this code) until the next day. No card on file, no surprise charge. |
 | Cloudflare D1 | 5 GB storage, 5M rows read/day, 100k rows written/day (free tier, subject to Cloudflare's current published limits) | Writes beyond the daily cap start failing; the Worker returns 500 in that case and the game client's own retry/localStorage-buffer logic (client-side, not this Worker) holds the batch for next time. Storage is a non-issue at any traffic this prototype will plausibly see — see the design doc's storage math (~60KB/session raw). |
-| PostHog EU Cloud | 1,000,000 events/month, no card required | Ingestion past 1M/month simply stops — **dashboards go stale, but no data is lost**, because D1 already has 100% of every event regardless of whether PostHog mirroring succeeded. This is the whole point of the dual-write design (§5.1 in the design doc): PostHog is a dashboard, not a database. |
+| PostHog Cloud | 1,000,000 events/month, no card required | Ingestion past 1M/month simply stops — **dashboards go stale, but no data is lost**, because D1 already has 100% of every event regardless of whether PostHog mirroring succeeded. This is the whole point of the dual-write design (§5.1 in the design doc): PostHog is a dashboard, not a database. |
 
 If you ever add a payment method to any of these services, re-check their
 current pricing pages first — the point of this setup is that none of it
@@ -261,8 +261,16 @@ requires one.
 - **`/health` returns `"rows":null` with a note:** D1 itself errored on
   that request (rare/transient); check `npm run tail` for the logged
   error.
-- **Events aren't showing up in PostHog but are in D1:** confirm
-  `POSTHOG_KEY` is set (`npx wrangler secret list` shows names, not
-  values) and that you're looking at the **EU** PostHog project — this
-  Worker posts to `eu.i.posthog.com`, not `app.posthog.com`. Also
-  remember `pos`/`perf` events never mirror by design.
+- **Events aren't showing up in PostHog but are in D1:** almost always a
+  **region mismatch** — this is the failure mode that actually bit us on
+  2026-07-26. Look at the PostHog app URL in your browser: if it's
+  `us.posthog.com`, `POSTHOG_HOST` in `wrangler.toml` must be
+  `https://us.i.posthog.com`; if it's `eu.posthog.com`, it must be
+  `https://eu.i.posthog.com`. A key posted to the wrong region's ingest
+  host **returns HTTP 200 `{"status":"Ok"}` and silently discards the
+  events** — PostHog validates the key asynchronously, so there is no
+  error to find anywhere. Redeploy after changing it.
+
+  Failing that: confirm `POSTHOG_KEY` is set (`npx wrangler secret list`
+  shows names, not values), and remember `pos`/`perf` events never mirror
+  by design.

@@ -19,6 +19,32 @@ to lucid costs the player's one pill, refilled at wall dispensers.
 §4 invariants checklist, §2 coordinates). Design docs live in
 `docs/superpowers/specs/` (`YYYY-MM-DD-name-design.md`).
 
+## Architecture questions — query the graph first
+
+`graphify-out/graph.json` is a committed knowledge graph of the whole
+repo (976 nodes / 1782 edges, tree-sitter AST — no LLM, no API key).
+Query it BEFORE grepping when the question is structural: what calls
+what, what breaks if I change X, where does a symbol live, which
+module is the hub. It answers with `file:line`, so it points you at
+the right file instead of you opening ten.
+
+- `graphify query "how does a room get registered?"` — BFS traversal
+- `graphify affected "GameCtx"` — reverse traversal: what a change hits
+- `graphify explain "RoomBuilder"` — a node and its neighbours
+- `graphify path "room17" "Orderly"` — how two things connect
+- `graphify god-nodes` — the architectural hubs
+
+Today's hubs: `GameCtx` (50 edges), `ColliderDef`, `Orderly`,
+`RoomDef`/`RoomScript`, `RoomBuilder`. `GRAPH_REPORT.md` (same dir)
+is the human-readable summary.
+
+**The graph goes stale.** Its header records the commit it was built
+from — compare against `git rev-parse HEAD`, and if they differ treat
+`file:line` as approximate. Rerun `graphify update .` after room
+changes (local, free, ~seconds) and commit the refreshed `graph.json`.
+Needs the tool: `uv tool install graphifyy` (or `pipx`/`pip`). Without
+it `graph.json` is still plain JSON you can read directly.
+
 ## Commands
 
 - `npm run dev` — dev server; `/map.html?room=<id>` = top-down room viewer

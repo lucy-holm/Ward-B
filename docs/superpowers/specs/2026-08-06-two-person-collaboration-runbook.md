@@ -65,20 +65,43 @@ This needs **zero per-branch build config** because `vite.config.ts` sets
 `keep_files: true` in the workflow means each deploy overwrites only its own
 folder, so builds never clobber each other.
 
-## ONE-TIME setup (do these once, in order)
+## ONE-TIME setup — DONE 2026-08-06
 
-1. **Push the new `deploy.yml`.** Its first run creates the `gh-pages`
-   branch. (Pages will 404 until step 2.)
-2. **Switch the Pages source.** Repo Settings → Pages → Build and deployment
-   → Source = **"Deploy from a branch"**, Branch = **`gh-pages` / (root)**.
-   (It was previously "GitHub Actions"; sub-folder previews require the
-   branch source.)
-3. **Create the personal branches:** `git switch -c preview/tom` (and
-   `preview/edo`), push each. Confirm the preview URLs load, then check the
-   root hub links through to all three.
-4. Optional but recommended: protect `main` (Settings → Branches) to require
-   a PR + at least one review before merge — that's the "combine best ideas"
-   gate.
+Recorded for reference / disaster recovery; you should not need to redo these.
+
+1. ~~Push `deploy.yml`~~ — done; its first run created the `gh-pages` branch.
+2. ~~Switch the Pages source~~ — done. Pages is now **"Deploy from a branch"**,
+   Branch = **`gh-pages` / (root)** (it was previously "GitHub Actions", which
+   replaces the whole site each deploy and so cannot host sibling previews).
+   Set via `gh api -X PUT repos/lucy-holm/Ward-B/pages -f 'source[branch]=gh-pages'
+   -f 'source[path]=/'`; the UI equivalent is Settings → Pages.
+3. ~~Create `preview/tom` and `preview/edo`~~ — done, both pushed and deployed.
+4. Still optional: protect `main` (Settings → Branches) to require a PR + at
+   least one review before merge — that's the "combine best ideas" gate.
+
+Note the repo's default workflow token permission is **read**; `deploy.yml`
+declares `permissions: contents: write` at the workflow level, which
+successfully overrides it. Don't "fix" the repo-wide setting on account of
+this workflow — it doesn't need it.
+
+## If a push doesn't deploy
+
+`on: push` is the normal trigger, but GitHub drops webhooks during Actions
+incidents (this bit us on 2026-08-06 — a `major_outage` throttled webhooks to
+~15%, so pushes silently created no runs at all). The workflow also declares
+`workflow_dispatch`, so you can always deploy any branch by hand:
+
+```bash
+gh workflow run deploy.yml --ref preview/edo   # or main, preview/tom
+gh run list --workflow=deploy.yml --limit 3    # confirm it started
+```
+
+Before debugging config, check whether it's GitHub rather than you:
+
+```bash
+curl -s https://www.githubstatus.com/api/v2/components.json \
+  | grep -A2 '"name": *"Actions"'
+```
 
 ## Housekeeping notes
 

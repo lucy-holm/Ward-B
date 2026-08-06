@@ -63,6 +63,20 @@ needs world knowledge it does not have — see §2).
 16 orderly, 32 interactable, 64 trigger`. State-conditional geometry is
 filtered by *layer*, so a state change never rebuilds the collider cache.
 
+### Audio is synthesised, not sampled
+Ported from `engine/audio.ts` — no sound assets, same as the original. The
+original builds live WebAudio graphs; pushing samples from GDScript every
+frame via `AudioStreamGenerator` would be the literal translation and is far
+too expensive on a web export. Instead `core/audio_synth.gd` **bakes**
+`AudioStreamWAV` buffers once at startup (22050 Hz mono — nothing here
+exceeds ~1.7 kHz) and the engine mixer does the work. Continuous sounds are
+seamless loops driven by bus volume; rhythmic ones are one-shots on a timer.
+
+Bus layout is `Master → {Drone, SFX, Threat}`, created in code rather than
+shipped as a `.tres` so it cannot silently drift from what the code expects.
+The two state drones crossfade on `state_changed` over 0.6 s, matching the
+original's `setTargetAtTime(tau 0.6)`.
+
 ### Telemetry is wire-compatible
 Batch envelope and per-event row mirror `src/game/telemetry.ts`
 field-for-field, including 2dp rounding on `x`/`z`/`yaw`/`med` and omitting
@@ -119,7 +133,20 @@ used to beeline and scrape.
 The final step still resolves through the same AABB routine as the player,
 so he can never end up inside geometry the navmesh smoothed over.
 
-### 2.3 `gl_compatibility`, not Forward+
+### 2.3 Footsteps are spatial — more information than before
+His mesh is hidden while you are lucid, so footsteps are the *only* way to
+track him. The original attenuated by distance only (`1 - dist/8`), giving
+proximity but **no direction**.
+
+Footsteps now play from an `AudioStreamPlayer3D` on the Orderly, so they pan
+as well as attenuate. That is the native answer and the brief asked for
+`AudioStreamPlayer3D` — but it hands a lucid player *bearing* they never had
+in the Three.js build, which makes tracking him while invisible easier.
+Falloff is pinned to `max_distance = 8.0` to match the original radius.
+**Worth a playtest judgement**: revert to a non-positional
+`AudioStreamPlayer` if it deflates the "where is he?" tension.
+
+### 2.4 `gl_compatibility`, not Forward+
 Forward+ on web needs WebGPU, which is not broadly available; the brief
 requires "everyone can play it". **Cost: no volumetric fog.** The state-shift
 look is built from depth fog + glow + `Environment` adjustments, all of which
@@ -209,12 +236,6 @@ wire.
 
 ## 5. Open questions / not yet done
 
-- **Audio is not ported.** The original synthesises everything in WebAudio
-  (`engine/audio.ts`, 353 LOC) — drones, stingers, and critically
-  `setThreat()`'s footsteps, which are *the only way to track the Orderly
-  while lucid*, since his mesh is hidden. Attenuation radius is 8 m and
-  footsteps play regardless of ward state. This wants `AudioStreamPlayer3D`
-  plus a lucid/unmed bus crossfade and is the biggest remaining gap.
 - **Orderly presentation is greybox.** The marionette gait, the head-cock,
   the frozen anim clock while paused, and the translucent sight cone are not
   yet ported. The cone in particular is a real gameplay affordance while

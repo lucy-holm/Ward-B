@@ -76,7 +76,9 @@ func _ready() -> void:
 
 	StateManager.medication_depleted.connect(_on_medication_depleted)
 	StateManager.state_changed.connect(_on_state_changed)
-	StateManager.medication_warning.connect(func() -> void: hud_toast("it's wearing thin."))
+	StateManager.medication_warning.connect(func() -> void:
+		hud_toast("it's wearing thin.")
+		WardAudio.set_medication_warning(true))
 
 	Telemetry.event("page_load")
 	GameState.run_started_unix = int(Time.get_unix_time_from_system())
@@ -121,6 +123,7 @@ func _on_state_changed(next: StateManager.State, _prev: StateManager.State, _sou
 	if next != StateManager.State.LUCID:
 		_medication_trapped = false
 		_awaiting_revert = false
+		WardAudio.set_medication_warning(false)
 
 	# Rooms react last, exactly as the original fanned out (main.ts:314-334):
 	# the world/HUD/audio are already flipped by the time a room script runs.
@@ -152,6 +155,7 @@ func _update_revert_guard() -> void:
 	_awaiting_revert = false
 	StateManager.force_state(StateManager.State.UNMED, "expiry")
 	hud_toast("the calm drains out of you.")
+	WardAudio.medication_expired_cue()
 	Telemetry.event("medication_expired")
 
 
@@ -189,6 +193,7 @@ func shift_fx() -> void:
 	if _fov_tween != null and _fov_tween.is_valid():
 		_fov_tween.kill()
 	cam.fov = Tuning.CAMERA_SHIFT_FOV_KICK
+	WardAudio.shift_stinger()
 	_fov_tween = create_tween()
 	_fov_tween.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 	_fov_tween.tween_property(cam, "fov", Tuning.CAMERA_FOV, 0.55)
@@ -238,6 +243,7 @@ func _interact() -> void:
 				hud_toast("you're already carrying one.")
 			else:
 				GameState.refill()
+				WardAudio.dispenser_clunk()
 				Telemetry.event("dispenser_used")
 				hud_toast("one pill. that's all it gives.")
 		"pill_pickup":
@@ -383,5 +389,14 @@ func update_scrawl_text(id: String, text: String) -> void:
 
 
 ## Drives the directional threat indicator from an orderly room's update.
+## Also feeds the audio threat bus, so all four orderly rooms get the
+## heartbeat and chase whine without each having to wire it.
+##
+## `watching()` returns exactly 1.0 iff chasing, so the level doubles as the
+## chase flag and rooms don't need to pass it separately.
 func set_threat(level: float, bearing) -> void:
 	hud.set_threat(level, bearing)
+	if level <= 0.0 and bearing == null:
+		WardAudio.silence_threat()
+	else:
+		WardAudio.set_threat(level, level >= 1.0)

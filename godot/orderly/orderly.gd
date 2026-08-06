@@ -43,6 +43,19 @@ enum Mode { PATROL, CHASE, RETURNING }
 @onready var _nav: NavigationAgent3D = $NavigationAgent3D
 @onready var _occlusion_ray: RayCast3D = $OcclusionRay
 @onready var _body: Node3D = $Body
+@onready var _footsteps: AudioStreamPlayer3D = $Footsteps
+
+# Footsteps are THE lucid tell: his mesh is hidden while the player is
+# medicated, so the only way to know where he is, is to hear him. They play
+# regardless of ward state, on purpose.
+#
+# DEVIATION worth playtesting: the original attenuated by distance only, with
+# no direction. AudioStreamPlayer3D also pans, so a lucid player now gets
+# bearing as well as proximity. That is strictly more information than the
+# Three.js build gave — it should feel better, but it makes tracking him
+# while invisible easier. Flagged in MIGRATION_NOTES.
+var _step_accum := 0.0
+var _stepping := false
 
 var mode: Mode = Mode.PATROL
 var ramp := 0.0
@@ -69,6 +82,9 @@ func _ready() -> void:
 
 	_occlusion_ray.collision_mask = WardCollision.LAYER_WORLD_STATIC
 	_occlusion_ray.collide_with_areas = false
+
+	_footsteps.stream = WardAudio.footstep
+	_footsteps.max_distance = 8.0  # matches the original's 1 - dist/8 falloff
 
 	StateManager.state_changed.connect(_on_state_changed)
 	_apply_visibility(StateManager.state)
@@ -104,6 +120,7 @@ func _physics_process(delta: float) -> void:
 		return
 
 	# 1. move (sets `facing` when actually stepping)
+	_stepping = false
 	match mode:
 		Mode.PATROL:
 			_patrol_step(delta)
@@ -111,6 +128,7 @@ func _physics_process(delta: float) -> void:
 			_chase_step(delta)
 		Mode.RETURNING:
 			_return_step(delta)
+	_tick_footsteps(delta)
 
 	# visual yaw only; the cone uses `facing` directly
 	_body.rotation.y = atan2(-facing.x, -facing.y)
@@ -245,6 +263,7 @@ func _move_toward(target: Vector3, speed: float, delta: float) -> void:
 		return
 	dir /= len
 	facing = dir
+	_stepping = true
 
 	var move := dir * minf(step, len)
 	var from := Vector2(global_position.x, global_position.z)
@@ -258,6 +277,22 @@ func _move_toward(target: Vector3, speed: float, delta: float) -> void:
 
 	global_position.x = to.x
 	global_position.z = to.y
+
+
+# Steps only while he is actually walking — the cadence stops dead during a
+# waypoint pause, which is a real tell if you are listening for it.
+func _tick_footsteps(delta: float) -> void:
+	if not _stepping:
+		_step_accum = 0.0
+		return
+	# 0.62 s patrol; chasing is 1.8x faster (0.344 s).
+	var interval := 0.62 / 1.8 if mode == Mode.CHASE else 0.62
+	_step_accum += delta
+	if _step_accum < interval:
+		return
+	_step_accum = 0.0
+	if _footsteps.stream != null:
+		_footsteps.play()
 
 
 func _flat_distance(target: Vector3) -> float:

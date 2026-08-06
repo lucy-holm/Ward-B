@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>WARD B</title>
+  <script type="module" crossorigin src="./assets/index-CS-rMt38.js"></script>
+  <link rel="stylesheet" crossorigin href="./assets/index-CS3suQ04.css">
+</head>
+<body>
+  <div id="game"></div>
+  <!-- Fullscreen film-grain overlay — background-image (a runtime-generated
+       noise data URI) and background-position are driven from Renderer, not
+       set here. Sits between the canvas and the HUD in DOM order (default
+       z-index stacking is enough: no z-index needed). -->
+  <div id="grain"></div>
+
+  <div id="hud">
+    <div id="stateChip" class="unmed">UNMEDICATED</div>
+    <div id="roomLabel"></div>
+    <div id="objective"></div>
+    <div id="reticle"></div>
+    <div id="prompt"></div>
+    <div id="toast"></div>
+    <div id="pills" style="display:none"></div>
+    <div id="medMeter" style="display:none">
+      <span class="medMeterLabel">lucidity</span>
+      <div id="medMeterTrack"><div id="medMeterFill"></div></div>
+    </div>
+    <div id="pillPopup"></div>
+    <div id="threatLine">he sees you</div>
+  </div>
+  <div id="vignette" class="on"></div>
+  <div id="shiftFx"></div>
+  <div id="threatVignette"></div>
+  <div id="threatEdgeL"></div>
+  <div id="threatEdgeR"></div>
+
+  <div id="stick"><div id="nub"></div></div>
+  <button id="btnAct" class="tbtn"><span>◉</span>INTERACT</button>
+  <button id="btnShift" class="tbtn"><span>⇌</span>SHIFT</button>
+
+  <div id="startOverlay" class="overlay">
+    <h1>WARD <b>B</b></h1>
+    <div class="sub">GREYBOX PROTOTYPE — v0.2</div>
+    <div class="card">
+      You are a patient. What you see depends on what you've taken.<br /><br />
+      <em>DESKTOP</em> — WASD move · mouse look · <em>E</em> interact · <em>Q</em> shift state<br />
+      <em>MOBILE</em> — left stick move · drag right side to look · on-screen buttons<br /><br />
+      Some things only exist when you're <em>lucid</em>. Some only when you're <span class="u">not</span>.<br />
+      Neither state is lying to you. Neither is telling the truth.
+    </div>
+    <button class="btn" id="startBtn">ADMIT ME</button>
+    <button class="btn btnGhost" id="configBtn">CONFIGURATION</button>
+  </div>
+
+  <div id="settingsOverlay" class="overlay" style="display:none">
+    <h1>CONFIGURATION</h1>
+    <div class="sub">GAMEPLAY OPTIONS</div>
+    <div class="card">
+      <label class="toggleRow" for="randomizeCodesToggle">
+        <input type="checkbox" id="randomizeCodesToggle" />
+        <span>
+          randomize keypad codes
+          <br /><em>a fresh code — and a fresh wall clue — every time you enter a room or get caught.</em>
+        </span>
+      </label>
+    </div>
+    <button class="btn" id="settingsBackBtn">DONE</button>
+  </div>
+
+  <div id="genericOverlay" class="overlay" style="display:none">
+    <h1 id="ovTitle"></h1>
+    <div class="sub" id="ovSub"></div>
+    <div class="card" id="ovCard"></div>
+    <button class="btn" id="ovBtn">READMIT</button>
+  </div>
+
+</body>
+</html>

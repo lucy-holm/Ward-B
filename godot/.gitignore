@@ -1,0 +1,12 @@
+# Godot editor cache / import artifacts
+.godot/
+*.translation
+
+# Export output — rebuilt by `godot --headless --export-release "Web" build/index.html`
+build/
+
+# Verification screenshot from tools/verify_web.mjs
+tools/web-verify.png
+
+# playwright installed transiently for tools/verify_web.mjs
+node_modules/

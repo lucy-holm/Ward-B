@@ -19,6 +19,22 @@ to lucid costs the player's one pill, refilled at wall dispensers.
 §4 invariants checklist, §2 coordinates). Design docs live in
 `docs/superpowers/specs/` (`YYYY-MM-DD-name-design.md`).
 
+## Godot port (branch `godot-migration` only)
+
+`/godot/` holds a Godot 4.7 rebuild of **rooms 1–7**, side by side with the
+Three.js build, which is untouched and remains what ships. Read
+`godot/MIGRATION_NOTES.md` before touching it — it records three deliberate
+deviations from idiomatic Godot (ported axis-separated AABB movement instead
+of `move_and_slide`, `NavigationAgent3D` orderly movement, `gl_compatibility`
+renderer) plus a catalogue of ported quirks that look like bugs and are not.
+
+- `godot --headless --path godot tools/check_rooms.tscn` — wiring validator,
+  the analogue of `check:rooms`. Run after ANY room change.
+- `godot --headless --path godot tools/test_mechanics.tscn` — behavioural
+  assertions (state-conditional geometry, geometry-trap guard, pill economy).
+- `tools/gen_rooms.py` generated the seven room scenes from the TS geometry.
+  **The `.tscn` is now the source of truth** — author new rooms in the editor.
+
 ## Commands
 
 - `npm run dev` — dev server; `/map.html?room=<id>` = top-down room viewer

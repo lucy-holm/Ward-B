@@ -12,9 +12,16 @@ extends Node3D
 
 const ROOM_SCENES := {
 	"room1": "res://rooms/room1/room1.tscn",
+	"room2": "res://rooms/room2/room2.tscn",
+	"room3": "res://rooms/room3/room3.tscn",
+	"room4": "res://rooms/room4/room4.tscn",
+	"room5": "res://rooms/room5/room5.tscn",
+	"room6": "res://rooms/room6/room6.tscn",
+	"room7": "res://rooms/room7/room7.tscn",
 }
 
 const HUD_SCENE := preload("res://ui/hud.tscn")
+const KEYPAD_SCENE := preload("res://ui/keypad.tscn")
 
 # Environment mood targets, ported from renderer.ts:25-45.
 const MOOD := {
@@ -40,6 +47,7 @@ const MOOD := {
 
 var collision := WardCollision.new()
 var hud: CanvasLayer
+var keypad: CanvasLayer
 
 var current_room: Node = null
 var current_room_id := ""
@@ -58,6 +66,9 @@ func _ready() -> void:
 
 	hud = HUD_SCENE.instantiate()
 	add_child(hud)
+
+	keypad = KEYPAD_SCENE.instantiate()
+	add_child(keypad)
 
 	player.add_to_group("player")
 	player.world_collision = collision
@@ -307,3 +318,70 @@ func complete_room(to: String) -> void:
 
 func teleport_player(x: float, z: float, level := "") -> void:
 	player.teleport(x, z, level)
+
+
+# --- room-script API -------------------------------------------------------
+# Everything a room .gd is allowed to touch. Kept narrow on purpose: the
+# Three.js version's GameCtx was the same idea, and keeping the surface small
+# is what let rooms 1-20 survive engine changes.
+
+## Opens the modal keypad. The room supplies the code and its own handlers;
+## `on_denied` receives the attempted string.
+func open_keypad(code: String, on_success: Callable, on_denied := Callable()) -> void:
+	for sig in [keypad.success, keypad.denied, keypad.closed]:
+		for c in sig.get_connections():
+			sig.disconnect(c["callable"])
+
+	keypad.success.connect(func() -> void:
+		Telemetry.event("keypad_success")
+		on_success.call())
+
+	keypad.denied.connect(func(attempt: String) -> void:
+		Telemetry.event("keypad_denied", {"entered": attempt})
+		if on_denied.is_valid():
+			on_denied.call(attempt))
+
+	Telemetry.event("keypad_open")
+	keypad.open(code)
+
+
+## Swings a door open: reposition its mesh, then drop its collider so the
+## doorway is walkable. The TS version shoved the collider's x to 999; here we
+## clear the collision layer and rebuild the cache, which is the same idea
+## without the sentinel.
+func move_interactable(id: String, pos: Vector3, rot_y := 0.0) -> void:
+	var node := _find_interactable(current_room, id)
+	if node == null:
+		return
+	node.global_position = pos
+	node.rotation.y = rot_y
+
+
+func unlock_door(node_name: String) -> void:
+	var body := current_room.find_child(node_name, true, false)
+	if body == null:
+		push_warning("unlock_door: no node '%s' in %s" % [node_name, current_room_id])
+		return
+	if body is CollisionObject3D:
+		(body as CollisionObject3D).collision_layer = 0
+	rebuild_collision()
+	Telemetry.event("door_opened")
+
+
+## Rebuild the AABB cache. Required after any collider is enabled/disabled.
+func rebuild_collision() -> void:
+	if current_room != null:
+		collision.rebuild_from(current_room)
+
+
+## Rewrite a wall scrawl in place — used by the randomize-codes wiring so a
+## rerolled code shows up on the wall that leaks it.
+func update_scrawl_text(id: String, text: String) -> void:
+	var node := current_room.find_child(id, true, false)
+	if node is Label3D:
+		(node as Label3D).text = text
+
+
+## Drives the directional threat indicator from an orderly room's update.
+func set_threat(level: float, bearing) -> void:
+	hud.set_threat(level, bearing)

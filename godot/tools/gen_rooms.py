@@ -37,6 +37,18 @@ LAYER_UNMED = 8
 LAYER_INTERACTABLE = 32
 LAYER_TRIGGER = 64
 
+# Wall-mounted fixtures pin which way their faceplate points. A Node3D's
+# forward is -Z, and a yaw of theta maps forward to (-sin, -cos), so:
+#   nz -> 0, nx -> +pi/2, px -> -pi/2, pz -> pi
+# Two dispensers (room6, room7) MUST be pinned: room7's shipped a bug where
+# inferred facing pointed the MEDICATION plate straight into a wall.
+FACING_ROT = {
+    "nz": 0.0,
+    "nx": math.pi / 2,
+    "px": -math.pi / 2,
+    "pz": math.pi,
+}
+
 # --- materials -------------------------------------------------------------
 
 MATERIALS = {
@@ -96,7 +108,7 @@ class Room:
         self.spawn = spawn            # (x, z, yaw)
         self.exits = exits            # [(to, min_x, max_x, min_z, max_z)]
         self.script = script or "%s.gd" % rid
-        self.walls = []               # (mesh_size, mesh_pos, mat, state, collider|None)
+        self.walls = []               # (mesh_size, mesh_pos, mat, state, collider|None, name|None)
         self.props = []
         self.scrawls = []
         self.interactables = []
@@ -112,16 +124,17 @@ class Room:
         self._wall((0.24, WALL_H, z1 - z0), (x, WALL_Y, (z0 + z1) / 2.0), mat, state,
                    (x - WALL_HALF, x + WALL_HALF, z0, z1))
 
-    def _wall(self, size, pos, mat, state, collider):
-        self.walls.append((size, pos, mat, state, collider))
+    def _wall(self, size, pos, mat, state, collider, name=None):
+        self.walls.append((size, pos, mat, state, collider, name))
 
-    def block(self, size, pos, mat="wall", state=None, collider=None):
+    def block(self, size, pos, mat="wall", state=None, collider=None, name=None):
         """Mesh, optionally with its own collider footprint."""
-        self.walls.append((size, pos, mat, state, collider))
+        self.walls.append((size, pos, mat, state, collider, name))
 
-    def solid(self, min_x, max_x, min_z, max_z, state=None):
-        """Collider with no mesh."""
-        self.walls.append((None, None, None, state, (min_x, max_x, min_z, max_z)))
+    def solid(self, min_x, max_x, min_z, max_z, state=None, name=None):
+        """Collider with no mesh. `name` gives it a stable node name so a room
+        script can find it later (door colliders are unlocked by name)."""
+        self.walls.append((None, None, None, state, (min_x, max_x, min_z, max_z), name))
 
     # content --------------------------------------------------------------
     def scrawl(self, text, pos, rot_y, size, sid=None):
@@ -211,10 +224,10 @@ class Emitter:
         body.append('[node name="Geometry" type="Node3D" parent="."]')
         body.append("")
         wi = 0
-        for size, pos, mat, state, collider in r.walls:
+        for size, pos, mat, state, collider, cname in r.walls:
             wi += 1
             parent = "Geometry"
-            nm = "W%d" % wi
+            nm = cname if cname else "W%d" % wi
 
             if state in ("lucid", "unmed"):
                 # State-conditional geometry gets a StateObject wrapper so it
@@ -302,7 +315,7 @@ class Emitter:
                 sh = self.box_shape(size)
                 m = self.box_mesh(size, mat)
                 body.append('[node name="%s" type="Area3D" parent="%s"]' % (nm, parent))
-                body.append("transform = %s" % _xform(pos))
+                body.append("transform = %s" % _xform_yaw(FACING_ROT.get(facing, 0.0), pos))
                 body.append("collision_layer = %d" % LAYER_INTERACTABLE)
                 body.append("collision_mask = 0")
                 body.append('script = ExtResource("s_interactable")')
@@ -432,7 +445,7 @@ def room1():
     r.scrawl("don't\nswallow", (-2.85, 1.8, 4.7), math.pi / 2, 2.2)
     r.scrawl("there was a door\nhere once", (0, 1.9, 0.2), 0, 3.0)
 
-    r.interactable("cup", "pill_cup", (0.18, 0.16, 0.18), (-2.2, 0.92, 4.7),
+    r.interactable("cup", "pill_cup", (0.18, 0.22, 0.18), (-2.2, 0.92, 4.7),
                    "pill", "take the pill")
     r.interactable("dispenser1", "dispenser", (0.55, 0.75, 0.16), (2.2, 1.45, 0.14),
                    "dispenser", "MEDICATION")
@@ -442,7 +455,435 @@ def room1():
     return r
 
 
+# --- ROOM 2 — the Corridor -------------------------------------------------
+# Teaches the second half of the pill economy: LUCID is the state that reads
+# machinery (the keypad), UNMED is the state that reads the walls (the code).
+# The player must burn a pill to act on what they saw for free.
+
+def room2():
+    r = Room("room2", "the Corridor",
+             floor=(-1.6, 1.6, -11, 4.5),
+             spawn=(0, 4, 0),
+             exits=[("room3", -1, 1, -10.9, -9.8)])
+
+    # corridor shell, x [-1.6,1.6], z [-11,4.5] (south = entrance, north = staff door)
+    r.wall_x(-1.6, 1.6, 4.5)      # south cap, behind spawn
+    r.wall_z(-11, 4.5, -1.6)      # west wall
+    r.wall_z(-11, 4.5, 1.6)       # east wall
+
+    # partition wall at z=-9 with a doorway gap x[-0.9,0.9] for the staff door
+    r.wall_x(-1.6, -0.9, -9)
+    r.wall_x(0.9, 1.6, -9)
+
+    # far cap beyond the door
+    r.wall_x(-1.6, 1.6, -11)
+    r.block((1.6, 2.4, 0.06), (0, 1.35, -10.94), "glow")  # warm glow beyond the door
+
+    # staff door collider — locked until the code is entered; the room script
+    # disables it in place.
+    r.solid(-0.9, 0.9, -9.1, -8.9, name="DoorCollider")
+
+    # glow strips overhead
+    r.block((1.0, 0.06, 0.3), (0, 2.92, 1.2), "glow")
+    r.block((1.0, 0.06, 0.3), (0, 2.92, -3.8), "glow")
+    r.block((1.0, 0.06, 0.3), (0, 2.92, -7.4), "glow")
+
+    # alcove A — a boarded-over doorway to a broken side room, west wall
+    r.block((0.06, 2.2, 1.0), (-1.5, 1.4, 2.4), "wall2")
+    r.block((0.08, 0.3, 1.14), (-1.47, 2.55, 2.4), "wall2")
+    r.block((0.08, 0.3, 1.14), (-1.47, 0.32, 2.4), "wall2")
+
+    # alcove B — same idea, east wall, further down
+    r.block((0.06, 2.2, 1.0), (1.5, 1.4, -4.5), "wall2")
+    r.block((0.08, 0.3, 1.14), (1.47, 2.55, -4.5), "wall2")
+    r.block((0.08, 0.3, 1.14), (1.47, 0.32, -4.5), "wall2")
+
+    r.scrawl("4 1 1 8", (-1.45, 1.6, -5.5), math.pi / 2, 3.4, sid="codeScrawl")
+    r.scrawl("they lock it\nfrom the inside", (1.45, 1.7, -6.5), -math.pi / 2, 2.6)
+
+    r.interactable("keypad1", "keypad", (0.14, 0.5, 0.4), (1.41, 1.45, -8.3),
+                   "pad", "use the keypad")
+    r.interactable("staffdoor", "door", (1.8, 3, 0.2), (0, 1.5, -9),
+                   "door", "the staff door")
+    # Rooms are one-way, so the corridor needs its own pill source — with only
+    # the floor pickup, a player who skipped the cell dispenser can strand
+    # themselves unmed with no way back to lucid for the keypad.
+    r.interactable("dispenser2", "dispenser", (0.55, 0.75, 0.16), (-1.25, 1.45, -8.79),
+                   "dispenser", "use the dispenser")
+    r.interactable("pill1", "pill_pickup", (0.16, 0.2, 0.16), (-1.15, 0.9, -4.4),
+                   "pill", "take the pill")
+
+    r.light(0, 2)
+    r.light(0, -3)
+    r.light(0, -7.5)
+    return r
+
+
+# --- ROOM 3 — the Common Room ----------------------------------------------
+# Inverts Room 2's lesson: LUCID reads machinery, but here it's LUCID that
+# lies. The exit is chained shut only while medicated — the chains are a
+# symptom, not a fact. Trusting UNMED reality is the whole game, right at the
+# end.
+
+def room3():
+    r = Room("room3", "the Common Room",
+             floor=(-5, 5, -7, 4),
+             spawn=(0, 3, 0),
+             exits=[("room4", -1, 1, -6.9, -5.8)])
+
+    # common room shell, x [-5,5] z [-5,4]
+    r.wall_x(-5, 5, 4)            # south cap, behind spawn
+    r.wall_z(-5, 4, -5)           # west wall
+    r.wall_z(-5, 4, 5)            # east wall
+    r.wall_x(-5, -1, -5)          # north, west of the exit gap
+    r.wall_x(1, 5, -5)            # north, east of the exit gap
+
+    # small vestibule beyond the exit door, x [-1,1] z [-7,-5]
+    r.wall_z(-7, -5, -1)
+    r.wall_z(-7, -5, 1)
+    r.wall_x(-1, 1, -7)           # caps the vestibule
+    r.block((1.8, 2.6, 0.06), (0, 1.4, -6.94), "glow")  # warm glow beyond the exit
+
+    # exit door collider — always locked until the room script disables it
+    # (opening only works while UNMED; the chains never actually gate it).
+    r.solid(-1, 1, -5.12, -4.88, name="DoorCollider")
+
+    # chains + padlock — MESH ONLY, and only in the LUCID group, so it simply
+    # isn't there once the player shifts. Deliberately no collider: the chains
+    # are a hallucination, they never block anything.
+    r.block((0.06, 2.7, 0.06), (-0.7, 1.5, -4.95), "chain", "lucid")
+    r.block((0.06, 2.7, 0.06), (-0.25, 1.5, -4.95), "chain", "lucid")
+    r.block((0.06, 2.7, 0.06), (0.25, 1.5, -4.95), "chain", "lucid")
+    r.block((0.06, 2.7, 0.06), (0.7, 1.5, -4.95), "chain", "lucid")
+    r.block((0.22, 0.28, 0.14), (0, 1.05, -4.9), "chain", "lucid")
+
+    # props
+    r.block((1.4, 0.5, 1.4), (-2.5, 0.25, -1), "prop", collider=(-3.2, -1.8, -1.7, -0.3))
+    r.block((0.6, 0.9, 0.6), (-0.5, 0.45, 1.5), "prop", collider=(-0.8, -0.2, 1.2, 1.8))
+
+    r.scrawl("you weren't supposed\nto make it this far", (-4.85, 1.7, 2), math.pi / 2, 3)
+    r.scrawl("it only holds\nif you believe it", (4.85, 1.7, -3), -math.pi / 2, 3.4)
+
+    r.interactable("exitdoor", "door", (2, 3, 0.24), (0, 1.5, -5),
+                   "door", "open the door")
+
+    r.light(0, 2)
+    r.light(-2.5, -1)
+    r.light(1.5, -3)
+    r.light(0, -6)
+    return r
+
+
+# --- ROOM 4 — the Day Room -------------------------------------------------
+# The ward's first NPC. LUCID: he's completely invisible — you never know
+# where he is while medicated. UNMED: he's revealed, too tall, too still
+# between steps, and he sees YOU wrong — watched long enough, he gives chase,
+# and contact restrains you and forces medication. Shifting lucid is always
+# safe, even mid-chase (the escape costs the pill it always costs). This
+# inverts rooms 2-3's lesson: unmed shows the truth, but truth has a predator.
+# The staff door only exists while unmedicated — you have to cross his room,
+# in the state he hunts, to leave it.
+
+def room4():
+    r = Room("room4", "the Day Room",
+             floor=(-6, 6, -7, 5),
+             spawn=(0, 4, 0),
+             exits=[("room5", -1, 1, -6.9, -5.8)])
+
+    # day room shell, x [-6,6] z [-5,5]
+    r.wall_x(-6, 6, 5)            # south cap, behind spawn
+    r.wall_z(-5, 5, -6)           # west wall
+    r.wall_z(-5, 5, 6)            # east wall
+    r.wall_x(-6, -1, -5)          # north, west of the staff-door gap
+    r.wall_x(1, 6, -5)            # north, east of the staff-door gap
+
+    # vestibule beyond the staff door, x [-1,1] z [-7,-5]
+    r.wall_z(-7, -5, -1)
+    r.wall_z(-7, -5, 1)
+    r.wall_x(-1, 1, -7)           # caps the vestibule
+    r.block((1.8, 2.6, 0.06), (0, 1.4, -6.8), "glow")  # warm glow beyond the exit
+
+    # staff door — solid only while LUCID; simply not there while UNMED.
+    # INVERTED from room1's blocker (solid only while UNMED): here the truth
+    # is a way out.
+    r.block((2, 3, 0.26), (0, 1.5, -5), "wall", "lucid",
+            collider=(-1, 1, -5.13, -4.87))
+
+    # TV mounted high on the north wall, east of the gap — glow of endless static
+    r.block((1.3, 0.9, 0.1), (4, 2.25, -4.8), "glow")
+
+    # tables
+    r.block((1.5, 0.5, 0.9), (2, 0.25, 0.3), "prop", collider=(1.25, 2.75, -0.15, 0.75))
+    r.block((1.5, 0.5, 0.9), (3.2, 0.25, 2.6), "prop", collider=(2.45, 3.95, 2.15, 3.05))
+
+    # tall shelving unit — the occluder. Sits between the patrol loop and the
+    # west wall's safe lane, so hiding in its shadow actually works.
+    r.block((1.6, 2.9, 0.8), (-2.2, 1.45, -1), "wall2", collider=(-3.0, -1.4, -1.4, -0.6))
+
+    r.scrawl("he counts\nyour blinks", (-5.85, 1.7, 1.5), math.pi / 2, 2.8)
+    r.scrawl("the door is only there\nwhen you are honest", (-5.85, 1.7, -3), math.pi / 2, 3.4)
+    r.scrawl("stand still.\nhe forgets slow things", (5.85, 1.7, 3.5), -math.pi / 2, 2.6)
+
+    # Rooms are one-way and the catch penalty forces lucid, so the day room
+    # needs its own pill source, reachable without crossing the patrol loop
+    # (far west of the loop's x >= -0.5 footprint, close to the spawn point
+    # the player is teleported back to). West-wall mount: x-thin so the
+    # faceplate faces east into the room.
+    r.interactable("dispenser4", "dispenser", (0.16, 0.75, 0.55), (-5.86, 1.45, 4.2),
+                   "dispenser", "use the dispenser")
+
+    r.light(0, 3)
+    r.light(3.5, 0)
+    r.light(-3, -1)
+    r.light(3, -4)
+    r.light(0, -6)
+    return r
+
+
+# --- ROOM 5 — the Nurse Station --------------------------------------------
+# The capstone: every mechanic at once, in one room, under threat. A central
+# island — occluder, collider, and the only reliable shadow — sits inside the
+# orderly's patrol loop. The exit code is scrawled unmed-only, split in half,
+# on opposite sides of that loop, so reading either half means standing in
+# space he actually walks through. The keypad that spends the code only works
+# lucid. The player has to plan a route: scout blind-to-him first (lucid,
+# safe, useless), then unmed (dangerous, legible), then back to lucid to
+# cross and open the door.
+
+def room5():
+    r = Room("room5", "the Nurse Station",
+             floor=(-7, 7, -8, 5),
+             spawn=(0, 4.3, 0),
+             exits=[("room6", -1, 1, -7.9, -6.8)])
+
+    # main room shell, x [-7,7] z [-6,5] (south = entrance, north = staff door)
+    r.wall_x(-7, 7, 5)            # south cap, behind spawn
+    r.wall_z(-6, 5, -7)           # west wall
+    r.wall_z(-6, 5, 7)            # east wall
+    r.wall_x(-7, -1, -6)          # north, west of the staff-door gap
+    r.wall_x(1, 7, -6)            # north, east of the staff-door gap
+
+    # vestibule beyond the staff door, x [-1,1] z [-8,-6]
+    r.wall_z(-8, -6, -1)
+    r.wall_z(-8, -6, 1)
+    r.wall_x(-1, 1, -8)           # caps the vestibule
+    r.block((1.8, 2.6, 0.06), (0, 1.4, -7.8), "glow")  # warm glow beyond the exit
+
+    # staff door collider — locked until the code is entered; the room script
+    # disables it in place.
+    r.solid(-1, 1, -6.1, -5.9, name="DoorCollider")
+
+    # the nurse-station island: a tall central counter (real occluder +
+    # collider) ringed by a lower counter skirt. One solid footprint —
+    # nothing pathfinds around its interior, the orderly's loop just runs
+    # outside it.
+    r.solid(-2.2, 2.2, -1.3, 1.3)
+    r.block((1.8, 2.0, 0.9), (0, 1.0, 0), "wall2")        # raised core counter
+    r.block((4.4, 1.1, 0.5), (0, 0.55, 1.05), "prop")     # ring, south face
+    r.block((4.4, 1.1, 0.5), (0, 0.55, -1.05), "prop")    # ring, north face
+    r.block((0.5, 1.1, 1.3), (-1.95, 0.55, 0), "prop")    # ring, west face
+    r.block((0.5, 1.1, 1.3), (1.95, 0.55, 0), "prop")     # ring, east face
+
+    # seating, east corridor (between the patrol lane and the east wall) — a
+    # couch-ish block the second code half sits behind.
+    r.block((0.7, 0.5, 2.4), (5.3, 0.25, 0), "prop", collider=(4.95, 5.65, -1.2, 1.2))
+
+    # medication-window alcove, west corridor — shutter + glow strip, flush
+    # against the wall, first code half is scrawled beside it.
+    r.block((0.08, 1.3, 1.5), (-6.92, 1.5, -0.9), "pad")
+    r.block((0.08, 0.12, 1.6), (-6.92, 2.25, -0.9), "glow")
+
+    # wall TVs — endless static, dressing only
+    r.block((1.3, 0.9, 0.1), (-4, 2.25, 4.85), "glow")
+    r.block((1.1, 0.8, 0.1), (5.5, 2.2, -5.85), "glow")
+
+    r.scrawl("1 9 – –", (-6.85, 1.6, 0.6), math.pi / 2, 2.2, sid="codeScrawlA")
+    r.scrawl("– – 0 7", (6.85, 1.6, 0), -math.pi / 2, 2.2, sid="codeScrawlB")
+    r.scrawl("the coffee is always warm.\nno one drinks it.", (6.85, 1.6, 4.3), -math.pi / 2, 2.4)
+
+    # Own dispenser, reachable without ever entering the patrol loop — sits
+    # south of the loop's z <= 2.6 footprint, close to spawn/the teleport-back
+    # point after a catch. South-wall mount, z-thin, flush against the wall.
+    r.interactable("dispenser5", "dispenser", (0.55, 0.75, 0.16), (-6.3, 1.45, 4.86),
+                   "dispenser", "use the dispenser")
+    r.interactable("keypad5", "keypad", (0.4, 0.5, 0.14), (1.35, 1.45, -5.86),
+                   "pad", "use the keypad")
+    r.interactable("exitdoor", "door", (2, 3, 0.2), (0, 1.5, -6),
+                   "door", "the exit door")
+
+    r.light(0, 3.5)
+    r.light(-4.5, 0)
+    r.light(4.5, 0)
+    r.light(0, -2.5)
+    r.light(0, -5.5)
+    return r
+
+
+# --- ROOM 6 — the West Corridor --------------------------------------------
+# First bend in the ward, first room where the dispenser isn't waiting at the
+# safe entrance: it sits in an alcove off the long leg of the L, right where
+# his patrol runs. The exit code is scrawled unmed-only, further down the same
+# leg, past the alcove. Nothing here is individually new — you've read scrawls
+# unmed, you've fed a keypad lucid, you've shared a room with him — the room
+# just makes you leapfrog all three at once: dash unmed for the code, fall
+# back to the alcove to restock, cross lucid at the moment that actually
+# matters.
+#
+# NOTE: L-shaped, and the exit is on +X (east), not -Z.
+
+def room6():
+    r = Room("room6", "the West Corridor",
+             floor=(-1.8, 14, -6.3, 8),
+             spawn=(0, 7, 0),
+             exits=[("room7", 13.2, 14, -3.9, -1.9)])
+
+    # leg A (entrance leg, north-south), x [-1.6,1.6], z [-1.2,8]
+    r.wall_z(-4.6, 8, -1.6)       # west wall — leg A, the corner, and leg B's west edge, one run
+    r.wall_z(-1.2, 8, 1.6)        # leg A east wall (stops at the corner; leg B is open past it)
+    r.wall_x(-1.6, 1.6, 8)        # south cap, behind spawn
+
+    # leg B (long leg, east-west), z [-4.6,-1.2], x [-1.6,12]
+    r.wall_x(1.6, 12, -1.2)       # leg B north wall — starts east of the corner opening
+    r.wall_x(-1.6, 5.5, -4.6)     # leg B south wall, west of the alcove gap
+    r.wall_x(7.1, 12, -4.6)       # leg B south wall, east of the alcove gap
+
+    # east cap, with the exit doorway gap
+    r.wall_z(-4.6, -3.9, 12)
+    r.wall_z(-1.9, -1.2, 12)
+    r.solid(11.88, 12.12, -3.9, -1.9, name="DoorCollider")   # exit door collider, opened by the keypad
+
+    # vestibule beyond the exit door, x [12,14] z [-3.9,-1.9]
+    r.wall_x(12, 14, -3.9)
+    r.wall_x(12, 14, -1.9)
+    r.wall_z(-3.9, -1.9, 14)
+    r.block((0.06, 2.6, 1.6), (13.75, 1.4, -2.9), "glow")  # warm glow beyond the exit
+
+    # the alcove — a recess off leg B's south wall, mid-route, his loop passes
+    # its mouth without ever looking straight into it (his cone tracks his
+    # direction of travel, east-west; the alcove opens south).
+    r.wall_z(-6.1, -4.6, 5.5)     # alcove west wall
+    r.wall_z(-6.1, -4.6, 7.1)     # alcove east wall
+    r.wall_x(5.5, 7.1, -6.1)      # alcove end cap — the dispenser mounts here
+
+    r.scrawl("he learned this hallway\nbefore you did", (-1.45, 1.7, 3), math.pi / 2, 3)
+    r.scrawl("count his steps.\nthen move.", (6.3, 1.6, -1.45), math.pi, 2.6)
+    # Pulled a couple meters west of the keypad, deeper into the leg his
+    # patrol actually walks — widens the gap between "found the code" and
+    # "safe at the keypad".
+    r.scrawl("6 3 2 9", (8.3, 1.6, -4.35), 0, 2.4, sid="codeScrawl")
+
+    # Off the entrance, in the alcove his loop passes — the first dispenser
+    # you have to actually walk into his route to reach. Alcove end cap is at
+    # z=-6.1, mouth opens toward +z, so facing is PINNED 'pz' (inferFacing
+    # only lands on the right sign here by coincidence).
+    r.interactable("dispenser6", "dispenser", (0.55, 0.75, 0.16), (6.3, 1.45, -5.85),
+                   "dispenser", "use the dispenser", facing="pz")
+    r.interactable("keypad6", "keypad", (0.14, 0.5, 0.4), (11.75, 1.45, -2.9),
+                   "pad", "use the keypad")
+    r.interactable("exitdoor", "door", (0.2, 3, 2), (12, 1.5, -2.9),
+                   "door", "the exit door")
+
+    r.light(0, 6)
+    r.light(0, 1)
+    r.light(0, -2)
+    r.light(3, -2.9)
+    r.light(6.3, -2.9)
+    r.light(6.3, -5.3)
+    r.light(9.5, -2.9)
+    r.light(12.5, -2.9)
+    return r
+
+
+# --- ROOM 7 — the Records Room ---------------------------------------------
+# Three shelving rows still force a serpentine crossing (east gap, west gap,
+# east gap), but the beat is a forced backtrack, not a single crossing: the
+# exit keypad sits right past the maze, reachable lucid and blind with no code
+# in hand. The code — and the dispenser, still hidden behind a row — both live
+# in the back half, by the entrance you just walked away from. So the route is
+# keypad first (safe, useless), then unmed back through the maze to read the
+# code and refill, then unmed (or lucid, if you spend the pill right there)
+# forward through it again to actually open the door. His patrol lives in the
+# pocket between all three rows — the belt you cross both ways — with a row's
+# mass to duck behind on either approach.
+
+def room7():
+    r = Room("room7", "the Records Room",
+             floor=(-7.5, 6, -7, 5),
+             spawn=(0, 4, 0),
+             # room8+ are out of scope for this migration pass; room7 ends the
+             # build instead of chaining onward. Restore ("room8", ...) when
+             # the rest of the ward is ported.
+             exits=[("END", -1, 1, -6.9, -5.8)])
+
+    # shell, x [-6,6] z [-7,5] — reuses room4's exact footprint, different guts
+    r.wall_x(-6, 6, 5)            # south cap, behind spawn
+    r.wall_z(-5, 0.8, -6)         # west wall, south of the hidden nook's opening
+    r.wall_z(1.8, 5, -6)          # west wall, north of the nook's opening (toward spawn)
+    r.wall_z(-5, 5, 6)            # east wall
+    r.wall_x(-6, -1, -5)          # north, west of the staff-door gap
+    r.wall_x(1, 6, -5)            # north, east of the staff-door gap
+
+    # vestibule beyond the staff door, x [-1,1] z [-7,-5]
+    r.wall_z(-7, -5, -1)
+    r.wall_z(-7, -5, 1)
+    r.wall_x(-1, 1, -7)
+    r.block((1.8, 2.6, 0.06), (0, 1.4, -6.94), "glow")  # warm glow beyond the exit
+
+    # staff door collider — locked until the code is entered
+    r.solid(-1, 1, -5.13, -4.87, name="DoorCollider")
+
+    # three shelving rows, gaps alternating east/west/east — a proper
+    # serpentine between spawn and the door. Each is both a collider and a
+    # sight occluder.
+    r.block((4.5, 2.6, 0.8), (-3.75, 1.3, 2.2), "wall2", collider=(-6, -1.5, 1.8, 2.6))
+    r.block((4.5, 2.6, 0.8), (3.75, 1.3, 0), "wall2", collider=(1.5, 6, -0.4, 0.4))
+    r.block((4.5, 2.6, 0.8), (-3.75, 1.3, -2.2), "wall2", collider=(-6, -1.5, -2.6, -1.8))
+
+    # the hidden dispenser nook — carved into the west wall, tucked directly
+    # behind row A: its mass sits between the nook and spawn, so nothing about
+    # it is visible on the walk in. Reaching it means clearing row A's gap and
+    # doubling back west, into the same pocket he patrols.
+    r.wall_x(-7.4, -6, 0.8)       # nook south wall — the dispenser mounts here, deep end
+    r.wall_x(-7.4, -6, 1.8)       # nook north wall, toward the gap/room
+    r.wall_z(0.8, 1.8, -7.4)      # nook west end cap
+
+    # Dispenser hint, unmoved — still true, just points at a different row now.
+    r.scrawl("they keep the quiet\nbehind the files", (5.85, 1.7, 3.5), -math.pi / 2, 2.8)
+    # Orderly atmosphere, unmoved — it already sat right where his belt runs.
+    r.scrawl("the files don't forget.\nneither does he.", (-5.85, 1.7, -1), math.pi / 2, 2.8)
+    # The code, relocated to the back half, near the entrance.
+    r.scrawl("0 4 5 2", (-5.85, 1.7, 3.7), math.pi / 2, 2.4, sid="codeScrawl")
+    # Planted right where the code used to live, by the keypad.
+    r.scrawl("you walked right past it.\nback the way you came.", (5.85, 1.7, -4), -math.pi / 2, 2.6)
+
+    # Tucked behind row A, not visible from spawn or from the keypad.
+    # Mounted against the nook's south wall (z=0.8), thin in z; the nook's
+    # open interior is +z of that wall, so facing is PINNED 'pz' (inferFacing
+    # would point it -z, straight into the wall it's flush against).
+    r.interactable("dispenser7", "dispenser", (0.55, 0.75, 0.16), (-6.7, 1.45, 1.05),
+                   "dispenser", "use the dispenser", facing="pz")
+    r.interactable("keypad7", "keypad", (0.4, 0.5, 0.14), (1.35, 1.45, -4.75),
+                   "pad", "use the keypad")
+    r.interactable("exitdoor", "door", (2, 3, 0.2), (0, 1.5, -5),
+                   "door", "the exit door")
+
+    r.light(0, 4)
+    r.light(-3.75, 2.2)
+    r.light(3.75, 0)
+    r.light(-3.75, -2.2)
+    r.light(0, -3.5)
+    r.light(-6.5, 1.05)
+    r.light(0, -6)
+    return r
+
+
 if __name__ == "__main__":
     write_materials()
     write_room(room1())
+    write_room(room2())
+    write_room(room3())
+    write_room(room4())
+    write_room(room5())
+    write_room(room6())
+    write_room(room7())
     print("done")

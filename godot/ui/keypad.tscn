@@ -1,0 +1,121 @@
+[gd_scene load_steps=3 format=3 uid="uid://bwardbkeypad1"]
+
+[ext_resource type="Script" path="res://ui/keypad.gd" id="1_keypad"]
+
+[sub_resource type="StyleBoxFlat" id="SB_panel"]
+bg_color = Color(0.07, 0.08, 0.08, 0.96)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.35, 0.4, 0.38, 1)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+
+[node name="Keypad" type="CanvasLayer"]
+layer = 5
+script = ExtResource("1_keypad")
+
+[node name="Dim" type="ColorRect" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+color = Color(0, 0, 0, 0.55)
+
+[node name="Panel" type="PanelContainer" parent="."]
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -130.0
+offset_top = -190.0
+offset_right = 130.0
+offset_bottom = 190.0
+theme_override_styles/panel = SubResource("SB_panel")
+
+[node name="VBox" type="VBoxContainer" parent="Panel"]
+layout_mode = 2
+theme_override_constants/separation = 14
+
+[node name="Display" type="Label" parent="Panel/VBox"]
+layout_mode = 2
+text = "----"
+horizontal_alignment = 1
+theme_override_colors/font_color = Color(0.85, 0.93, 0.9, 1)
+theme_override_font_sizes/font_size = 40
+
+[node name="Grid" type="GridContainer" parent="Panel/VBox"]
+layout_mode = 2
+columns = 3
+theme_override_constants/h_separation = 8
+theme_override_constants/v_separation = 8
+
+[node name="B1" type="Button" parent="Panel/VBox/Grid"]
+custom_minimum_size = Vector2(72, 62)
+layout_mode = 2
+text = "1"
+
+[node name="B2" type="Button" parent="Panel/VBox/Grid"]
+custom_minimum_size = Vector2(72, 62)
+layout_mode = 2
+text = "2"
+
+[node name="B3" type="Button" parent="Panel/VBox/Grid"]
+custom_minimum_size = Vector2(72, 62)
+layout_mode = 2
+text = "3"
+
+[node name="B4" type="Button" parent="Panel/VBox/Grid"]
+custom_minimum_size = Vector2(72, 62)
+layout_mode = 2
+text = "4"
+
+[node name="B5" type="Button" parent="Panel/VBox/Grid"]
+custom_minimum_size = Vector2(72, 62)
+layout_mode = 2
+text = "5"
+
+[node name="B6" type="Button" parent="Panel/VBox/Grid"]
+custom_minimum_size = Vector2(72, 62)
+layout_mode = 2
+text = "6"
+
+[node name="B7" type="Button" parent="Panel/VBox/Grid"]
+custom_minimum_size = Vector2(72, 62)
+layout_mode = 2
+text = "7"
+
+[node name="B8" type="Button" parent="Panel/VBox/Grid"]
+custom_minimum_size = Vector2(72, 62)
+layout_mode = 2
+text = "8"
+
+[node name="B9" type="Button" parent="Panel/VBox/Grid"]
+custom_minimum_size = Vector2(72, 62)
+layout_mode = 2
+text = "9"
+
+[node name="BC" type="Button" parent="Panel/VBox/Grid"]
+custom_minimum_size = Vector2(72, 62)
+layout_mode = 2
+text = "CLR"
+
+[node name="B0" type="Button" parent="Panel/VBox/Grid"]
+custom_minimum_size = Vector2(72, 62)
+layout_mode = 2
+text = "0"
+
+[node name="BX" type="Button" parent="Panel/VBox/Grid"]
+custom_minimum_size = Vector2(72, 62)
+layout_mode = 2
+text = "ESC"
+
+[node name="Hint" type="Label" parent="Panel/VBox"]
+layout_mode = 2
+text = "four digits"
+horizontal_alignment = 1
+theme_override_colors/font_color = Color(0.6, 0.65, 0.63, 0.8)
+theme_override_font_sizes/font_size = 13

@@ -8,8 +8,11 @@ extends CanvasLayer
 @onready var reticle: Panel = $Center/Reticle
 @onready var pills_label: Label = $Margin/Root/Bottom/Pills
 @onready var med_bar: ProgressBar = $Margin/Root/Bottom/Medication
+@onready var vignette: ColorRect = $Vignette
+@onready var threat_label: Label = $Margin/Root/Threat
 
 var _toast_tween: Tween
+var _threat_shown := 0.0
 
 
 func _ready() -> void:
@@ -60,3 +63,39 @@ func _on_medication_changed(fraction: float) -> void:
 
 func _on_state_changed(next: StateManager.State, _prev: StateManager.State, _source: String) -> void:
 	med_bar.visible = next == StateManager.State.LUCID
+
+
+## Directional threat. `level` is the aggregate watch ramp (0..1); `bearing`
+## is yaw-relative radians (0 = ahead, + = right) or null when there is no
+## orderly to point at.
+##
+## Ported quirk worth keeping: level <= 0 with a null bearing is a HARD
+## snap-to-zero (used on room leave), while every other update eases. Without
+## the snap the vignette bleeds into the next room.
+func set_threat(level: float, bearing) -> void:
+	if level <= 0.0 and bearing == null:
+		_threat_shown = 0.0
+	else:
+		_threat_shown = lerpf(_threat_shown, level, 0.25)
+		if absf(_threat_shown - level) < 0.002:
+			_threat_shown = level
+
+	vignette.modulate.a = _threat_shown * 0.55
+
+	# Hysteresis on the "he sees you" line: 0.5 on, 0.45 off, so a ramp
+	# oscillating at the threshold doesn't strobe it.
+	if _threat_shown >= 0.5:
+		threat_label.visible = true
+	elif _threat_shown < 0.45:
+		threat_label.visible = false
+
+	if threat_label.visible and bearing != null:
+		var b := float(bearing)
+		var side := "ahead"
+		if absf(b) > 2.4:
+			side = "behind you"
+		elif b > 0.7:
+			side = "to your right"
+		elif b < -0.7:
+			side = "to your left"
+		threat_label.text = "he sees you — %s" % side

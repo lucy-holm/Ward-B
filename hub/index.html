@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WARD B — ADMISSIONS</title>
+  <!--
+    Staging hub / chooser. This page is NOT part of the game.
+
+    It is published ONLY by .github/workflows/deploy.yml (the GitHub Pages
+    staging deploy), to the site root. It is never bundled by Vite
+    (`npm run build` uses index.html as its only input) and never reaches
+    the itch.io release. So the "debug chooser" is present on the public
+    playtest site and absent from the real-audience build — purely a
+    deploy-config difference, no runtime flag in the game.
+
+    Links are relative to the site root:
+      ./beta/            -> merged build from `main`
+      ./previews/tom/    -> Tom's `preview/tom` branch
+      ./previews/edo/    -> Edo's `preview/edo` branch
+  -->
+  <style>
+    :root {
+      --ink: #cdd2cc;
+      --dim: #6f7671;
+      --line: #2a2e2b;
+      --panel: #14171500;
+      --accent: #9fb8a8;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; }
+    body {
+      background: #0a0c0b;
+      color: var(--ink);
+      font-family: "SFMono-Regular", ui-monospace, Menlo, Consolas, monospace;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      min-height: 100vh; padding: 6vh 5vw;
+      letter-spacing: 0.02em;
+      /* faint clinical grain */
+      background-image:
+        radial-gradient(circle at 50% 0%, #121614 0%, #0a0c0b 60%),
+        repeating-linear-gradient(0deg, rgba(255,255,255,0.012) 0 1px, transparent 1px 3px);
+    }
+    header { text-align: center; margin-bottom: 3.2rem; }
+    h1 {
+      font-size: clamp(2.2rem, 7vw, 4rem);
+      margin: 0; font-weight: 400; letter-spacing: 0.16em;
+    }
+    h1 b { color: var(--accent); font-weight: 600; }
+    .kicker {
+      color: var(--dim); font-size: 0.72rem; letter-spacing: 0.34em;
+      margin-bottom: 0.9rem; text-transform: uppercase;
+    }
+    .sub {
+      color: var(--dim); font-size: 0.82rem; margin-top: 1rem;
+      max-width: 30rem; line-height: 1.5;
+    }
+    .wards {
+      display: grid; gap: 1rem; width: 100%; max-width: 34rem;
+    }
+    a.ward {
+      display: flex; align-items: center; gap: 1rem;
+      text-decoration: none; color: var(--ink);
+      border: 1px solid var(--line); background: rgba(255,255,255,0.015);
+      padding: 1.1rem 1.3rem; border-radius: 2px;
+      transition: border-color 0.18s, background 0.18s, transform 0.18s;
+    }
+    a.ward:hover {
+      border-color: var(--accent);
+      background: rgba(159,184,168,0.06);
+      transform: translateX(3px);
+    }
+    .tag {
+      font-size: 0.62rem; letter-spacing: 0.28em; color: var(--dim);
+      border: 1px solid var(--line); padding: 0.28rem 0.5rem; border-radius: 2px;
+      white-space: nowrap;
+    }
+    .ward.primary .tag { color: var(--accent); border-color: var(--accent); }
+    .ward .body { flex: 1; }
+    .ward .name { font-size: 1.05rem; letter-spacing: 0.06em; }
+    .ward .note { color: var(--dim); font-size: 0.74rem; margin-top: 0.25rem; }
+    .ward .arrow { color: var(--dim); font-size: 1.2rem; }
+    a.ward:hover .arrow { color: var(--accent); }
+    footer {
+      margin-top: 3rem; color: var(--dim); font-size: 0.66rem;
+      letter-spacing: 0.18em; text-align: center; text-transform: uppercase;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="kicker">Admissions · Staging</div>
+    <h1>WARD <b>B</b></h1>
+    <div class="sub">
+      Intake directory. Choose a ward to enter. The merged beta is the
+      combined build; the named wards are each author's work in progress.
+    </div>
+  </header>
+
+  <nav class="wards">
+    <a class="ward primary" href="./beta/">
+      <span class="tag">MERGED</span>
+      <span class="body">
+        <span class="name">Ward B — Beta</span>
+        <span class="note">Combined build from <code>main</code>. Both authors' ideas, integrated.</span>
+      </span>
+      <span class="arrow">→</span>
+    </a>
+
+    <a class="ward" href="./previews/tom/">
+      <span class="tag">AUTHOR</span>
+      <span class="body">
+        <span class="name">Ward B — Tom</span>
+        <span class="note">Tom's <code>preview/tom</code> branch.</span>
+      </span>
+      <span class="arrow">→</span>
+    </a>
+
+    <a class="ward" href="./previews/edo/">
+      <span class="tag">AUTHOR</span>
+      <span class="body">
+        <span class="name">Ward B — Edo</span>
+        <span class="note">Edo's <code>preview/edo</code> branch.</span>
+      </span>
+      <span class="arrow">→</span>
+    </a>
+  </nav>
+
+  <footer>Staging directory — not the public release</footer>
+</body>
+</html>

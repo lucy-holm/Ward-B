@@ -5,9 +5,12 @@ Core mechanic: shift (Q) between **LUCID** and **UNMEDICATED** reality —
 lucid reads machinery but costs a pill and drains a medication meter; unmed
 reads the walls but is visible to the orderlies.
 
-- Play (public build): https://lucy-holm.github.io/Ward-B/
+- Play (public release): https://tommy-holmes.itch.io/ward-b
+- Staging hub (all branch builds): https://lucy-holm.github.io/Ward-B/
 - Room authoring guide: [ROOM_AUTHORING.md](ROOM_AUTHORING.md)
 - Design specs & plans: `docs/superpowers/`
+- Collaboration & deploy runbook:
+  [`docs/superpowers/specs/2026-08-06-two-person-collaboration-runbook.md`](docs/superpowers/specs/2026-08-06-two-person-collaboration-runbook.md)
 
 ## Commands
 
@@ -18,7 +21,40 @@ reads the walls but is visible to the orderlies.
 | `npm run build` | Type-check + production bundle into `dist/` (the map viewer is **excluded** automatically) |
 | `npm run preview` | Serve the built `dist/` locally to sanity-check it |
 
-Pushing to `main` auto-deploys `dist/` to GitHub Pages — **push = publish**.
+## Collaboration & deployment
+
+Two authors — **Tom** and **Edo** — each work on their own branch; `main` is
+the shared integration branch; `release` is the one-way door to the public
+audience. Full details in the
+[collaboration runbook](docs/superpowers/specs/2026-08-06-two-person-collaboration-runbook.md).
+
+```
+preview/tom  ─┐
+               ├─► main (merged beta + playtest) ──► release ──► itch.io (public)
+preview/edo  ─┘
+```
+
+| Branch          | Auto-deploys to                                   | Audience              |
+| --------------- | ------------------------------------------------- | --------------------- |
+| `preview/tom`   | `…/Ward-B/previews/tom/`                           | Tom's WIP             |
+| `preview/edo`   | `…/Ward-B/previews/edo/`                           | Edo's WIP             |
+| `main`          | `…/Ward-B/beta/` (merged staging)                 | shared playtest       |
+| `release`       | https://tommy-holmes.itch.io/ward-b (with telemetry) | real audience      |
+
+The GitHub Pages **site root** (`…/Ward-B/`) is a static "admissions" chooser
+([`hub/index.html`](hub/index.html)) linking to the merged beta and each
+author's preview. It exists on staging only — it is never bundled into the
+itch release.
+
+**Rules of the road:**
+
+- **Work on your own `preview/<name>` branch.** Never commit straight to
+  `main` — open a **Pull Request** into it so the other author can review.
+- **Never push `main` or `release` without an explicit go-ahead.** Merging to
+  `release` publishes the game to the public. `main` alone never touches itch;
+  publishing is always the deliberate `git checkout release && git merge main
+  && git push` second step (see the
+  [itch release runbook](docs/superpowers/specs/2026-07-26-itch-release-runbook.md)).
 
 ---
 

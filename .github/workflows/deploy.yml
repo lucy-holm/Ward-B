@@ -1,18 +1,45 @@
 name: Deploy to GitHub Pages
 
+# Pages is the staging/playtest deployment (NOT the real audience — that's
+# itch.io via deploy-itch.yml on the `release` branch). One Pages site hosts
+# several builds by writing to different folders of the `gh-pages` branch:
+#
+#   hub (this repo's hub/)  -> site root   https://lucy-holm.github.io/Ward-B/
+#   main                    -> beta/       https://lucy-holm.github.io/Ward-B/beta/
+#   preview/<name>          -> previews/<name>  .../Ward-B/previews/<name>/
+#
+# The site ROOT is a static "admissions" chooser (hub/index.html) that links
+# to the merged beta and each author's preview. It is published ONLY here, so
+# it exists on staging and never on the itch release — the "debug screen" is
+# purely a deploy-config difference, no runtime flag in the game.
+#
+# This works with ZERO per-branch rebuild config because vite.config.ts sets
+# `base: './'` (relative asset paths), so one build runs from any URL depth.
+#
+# Coexistence relies on `keep_files: true`: each deploy overwrites only its
+# OWN folder and leaves every sibling folder untouched. A main deploy does
+# not wipe previews/, and one preview does not wipe another.
+#
+# ONE-TIME MANUAL SETUP (cannot be done from CI):
+#   Repo Settings -> Pages -> Build and deployment -> Source = "Deploy from a
+#   branch", Branch = "gh-pages" / "(root)". The first run of this workflow
+#   creates the gh-pages branch; select it once it exists.
+
 on:
   push:
-    branches: [main]
+    branches: [main, 'preview/**']
   workflow_dispatch:
 
 permissions:
-  contents: read
-  pages: write
-  id-token: write
+  contents: write # peaceiris commits the built site to the gh-pages branch
 
 concurrency:
-  group: pages
-  cancel-in-progress: true
+  # ALL deploys serialize through one group so concurrent pushes to different
+  # branches can't race on the single gh-pages branch (git push conflicts).
+  # cancel-in-progress:false -> a preview push queues behind a main deploy
+  # instead of cancelling it.
+  group: gh-pages-deploy
+  cancel-in-progress: false
 
 jobs:
   build:
@@ -29,32 +56,43 @@ jobs:
         env:
           # Build metadata baked into the bundle (see vite.config.ts).
           VITE_BUILD_SHA: ${{ github.sha }}
-          # NOTE: VITE_TELEMETRY_URL is deliberately NOT set here.
-          #
-          # Pages is the staging/playtest deployment — it's where Tom and
-          # anyone he shares the link with poke at half-finished work, use
-          # ?room= jumps, and replay rooms out of order. Telemetry is only
-          # wanted from the real audience, so it is wired ONLY in
-          # deploy-itch.yml (the release branch -> itch.io path).
-          #
-          # With the var unset, telemetry.ts falls back to console.log and
-          # sends nothing over the network — no endpoint, no collection.
-          # That's a stronger guarantee than tagging these sessions
-          # env:'pages' and filtering them out downstream, because it can't
-          # be forgotten in a query or a new insight.
-          #
-          # If you ever DO want Pages data, add the line back — the client
-          # already distinguishes env:'pages' from env:'itch' on its own.
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: dist
+          # VITE_TELEMETRY_URL deliberately unset — Pages is staging/playtest.
+          # Telemetry is wired ONLY in deploy-itch.yml. See that file's long
+          # comment for the full rationale.
 
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - id: deployment
-        uses: actions/deploy-pages@v4
+      - name: Compute deploy folder
+        id: target
+        run: |
+          set -euo pipefail
+          if [ "${GITHUB_REF_NAME}" = "main" ]; then
+            # merged build -> /beta/ (root is the hub, published separately below)
+            echo "dir=beta" >> "$GITHUB_OUTPUT"
+          else
+            # preview/tom -> previews/tom ; preview/tom/room-x -> previews/tom-room-x
+            slug="${GITHUB_REF_NAME#preview/}"
+            slug="${slug//\//-}"
+            echo "dir=previews/${slug}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Publish game build
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./dist
+          destination_dir: ${{ steps.target.outputs.dir }}
+          keep_files: true # preserve sibling folders (hub root + other builds)
+          user_name: github-actions[bot]
+          user_email: github-actions[bot]@users.noreply.github.com
+          commit_message: "deploy ${{ github.ref_name }} -> ${{ steps.target.outputs.dir }} @ ${{ github.sha }}"
+
+      - name: Publish hub to site root (main only)
+        if: github.ref_name == 'main'
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./hub
+          destination_dir: "" # site root
+          keep_files: true # never wipe beta/ or previews/
+          user_name: github-actions[bot]
+          user_email: github-actions[bot]@users.noreply.github.com
+          commit_message: "deploy hub (root) @ ${{ github.sha }}"

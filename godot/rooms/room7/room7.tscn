@@ -1,4 +1,4 @@
-[gd_scene load_steps=41 format=3 uid="uid://wardbroom181f2c"]
+[gd_scene load_steps=42 format=3 uid="uid://wardbroom181f2c"]
 
 [ext_resource type="Script" path="res://rooms/room7/room7.gd" id="s_room"]
 [ext_resource type="Material" uid="uid://wardbmatd0cabd0" path="res://materials/floor.tres" id="m_floor"]
@@ -7,6 +7,7 @@
 [ext_resource type="Material" uid="uid://wardbmat5fba6a4" path="res://materials/wall2.tres" id="m_wall2"]
 [ext_resource type="Material" uid="uid://wardbmatde9ba6d" path="res://materials/glow.tres" id="m_glow"]
 [ext_resource type="Script" path="res://core/state_object.gd" id="s_stateobj"]
+[ext_resource type="FontFile" path="res://fonts/RockSalt-Regular.ttf" id="f_scrawl"]
 [ext_resource type="PackedScene" path="res://fixtures/dispenser.tscn" id="fx_dispenser"]
 [ext_resource type="PackedScene" path="res://fixtures/keypad.tscn" id="fx_keypad"]
 [ext_resource type="PackedScene" path="res://fixtures/door.tscn" id="fx_door"]
@@ -325,48 +326,60 @@ script = ExtResource("s_stateobj")
 visible_in_state = 2
 
 [node name="Scrawl0" type="Label3D" parent="Scrawls"]
-transform = Transform3D(0.000000, 0, -1.000000, 0, 1, 0, 1.000000, 0, 0.000000, 5.8500, 1.7000, 3.5000)
+transform = Transform3D(0.000000, 0.000000, -1.000000, -0.181377, 0.983414, 0.000000, 0.983414, 0.181377, 0.000000, 5.8500, 1.7000, 3.5000)
 pixel_size = 0.0036
 text = "they keep the quiet\nbehind the files"
+font = ExtResource("f_scrawl")
 font_size = 128
-outline_size = 0
-modulate = Color(0.85, 0.28, 0.22, 1)
+outline_size = 14
+outline_modulate = Color(0.18, 0.05, 0.04, 0.85)
+modulate = Color(0.62, 0.16, 0.12, 0.92)
+texture_filter = 0
 billboard = 0
 shaded = false
 double_sided = false
 no_depth_test = false
 
 [node name="Scrawl1" type="Label3D" parent="Scrawls"]
-transform = Transform3D(0.000000, 0, 1.000000, 0, 1, 0, -1.000000, 0, 0.000000, -5.8500, 1.7000, -1.0000)
+transform = Transform3D(0.000000, -0.000000, 1.000000, 0.105570, 0.994412, 0.000000, -0.994412, 0.105570, 0.000000, -5.8500, 1.7000, -1.0000)
 pixel_size = 0.0036
 text = "the files don't forget.\nneither does he."
+font = ExtResource("f_scrawl")
 font_size = 128
-outline_size = 0
-modulate = Color(0.85, 0.28, 0.22, 1)
+outline_size = 14
+outline_modulate = Color(0.18, 0.05, 0.04, 0.85)
+modulate = Color(0.62, 0.16, 0.12, 0.92)
+texture_filter = 0
 billboard = 0
 shaded = false
 double_sided = false
 no_depth_test = false
 
 [node name="codeScrawl" type="Label3D" parent="Scrawls"]
-transform = Transform3D(0.000000, 0, 1.000000, 0, 1, 0, -1.000000, 0, 0.000000, -5.8500, 1.7000, 3.7000)
+transform = Transform3D(0.000000, 0.000000, 1.000000, -0.171757, 0.985139, 0.000000, -0.985139, -0.171757, 0.000000, -5.8500, 1.7000, 3.7000)
 pixel_size = 0.0031
 text = "0 4 5 2"
+font = ExtResource("f_scrawl")
 font_size = 128
-outline_size = 0
-modulate = Color(0.85, 0.28, 0.22, 1)
+outline_size = 14
+outline_modulate = Color(0.18, 0.05, 0.04, 0.85)
+modulate = Color(0.62, 0.16, 0.12, 0.92)
+texture_filter = 0
 billboard = 0
 shaded = false
 double_sided = false
 no_depth_test = false
 
 [node name="Scrawl3" type="Label3D" parent="Scrawls"]
-transform = Transform3D(0.000000, 0, -1.000000, 0, 1, 0, 1.000000, 0, 0.000000, 5.8500, 1.7000, -4.0000)
+transform = Transform3D(0.000000, -0.000000, -1.000000, 0.072890, 0.997340, 0.000000, 0.997340, -0.072890, 0.000000, 5.8500, 1.7000, -4.0000)
 pixel_size = 0.0034
 text = "you walked right past it.\nback the way you came."
+font = ExtResource("f_scrawl")
 font_size = 128
-outline_size = 0
-modulate = Color(0.85, 0.28, 0.22, 1)
+outline_size = 14
+outline_modulate = Color(0.18, 0.05, 0.04, 0.85)
+modulate = Color(0.62, 0.16, 0.12, 0.92)
+texture_filter = 0
 billboard = 0
 shaded = false
 double_sided = false

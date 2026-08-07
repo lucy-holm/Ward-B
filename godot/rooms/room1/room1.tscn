@@ -1,4 +1,4 @@
-[gd_scene load_steps=33 format=3 uid="uid://wardbroom181f26"]
+[gd_scene load_steps=34 format=3 uid="uid://wardbroom181f26"]
 
 [ext_resource type="Script" path="res://rooms/room1/room1.gd" id="s_room"]
 [ext_resource type="Material" uid="uid://wardbmatd0cabd0" path="res://materials/floor.tres" id="m_floor"]
@@ -9,6 +9,7 @@
 [ext_resource type="Material" uid="uid://wardbmatde9ba6d" path="res://materials/glow.tres" id="m_glow"]
 [ext_resource type="Material" uid="uid://wardbmat19dd85" path="res://materials/bed.tres" id="m_bed"]
 [ext_resource type="Material" uid="uid://wardbmatf20070f" path="res://materials/prop.tres" id="m_prop"]
+[ext_resource type="FontFile" path="res://fonts/RockSalt-Regular.ttf" id="f_scrawl"]
 [ext_resource type="PackedScene" path="res://fixtures/pill_cup.tscn" id="fx_pill_cup"]
 [ext_resource type="PackedScene" path="res://fixtures/dispenser.tscn" id="fx_dispenser"]
 [ext_resource type="Script" path="res://core/interactable.gd" id="s_interactable"]
@@ -244,24 +245,30 @@ script = ExtResource("s_stateobj")
 visible_in_state = 2
 
 [node name="Scrawl0" type="Label3D" parent="Scrawls"]
-transform = Transform3D(0.000000, 0, 1.000000, 0, 1, 0, -1.000000, 0, 0.000000, -2.8500, 1.8000, 4.7000)
+transform = Transform3D(0.000000, -0.000000, 1.000000, 0.152641, 0.988282, 0.000000, -0.988282, 0.152641, 0.000000, -2.8500, 1.8000, 4.7000)
 pixel_size = 0.0029
 text = "don't\nswallow"
+font = ExtResource("f_scrawl")
 font_size = 128
-outline_size = 0
-modulate = Color(0.85, 0.28, 0.22, 1)
+outline_size = 14
+outline_modulate = Color(0.18, 0.05, 0.04, 0.85)
+modulate = Color(0.62, 0.16, 0.12, 0.92)
+texture_filter = 0
 billboard = 0
 shaded = false
 double_sided = false
 no_depth_test = false
 
 [node name="Scrawl1" type="Label3D" parent="Scrawls"]
-transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, 0.0000, 1.9000, 0.2000)
+transform = Transform3D(0.998890, -0.047106, 0.000000, 0.047106, 0.998890, 0.000000, -0.000000, 0.000000, 1.000000, 0.0000, 1.9000, 0.2000)
 pixel_size = 0.0039
 text = "there was a door\nhere once"
+font = ExtResource("f_scrawl")
 font_size = 128
-outline_size = 0
-modulate = Color(0.85, 0.28, 0.22, 1)
+outline_size = 14
+outline_modulate = Color(0.18, 0.05, 0.04, 0.85)
+modulate = Color(0.62, 0.16, 0.12, 0.92)
+texture_filter = 0
 billboard = 0
 shaded = false
 double_sided = false

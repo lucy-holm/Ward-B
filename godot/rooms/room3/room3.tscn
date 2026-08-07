@@ -1,4 +1,4 @@
-[gd_scene load_steps=33 format=3 uid="uid://wardbroom181f28"]
+[gd_scene load_steps=34 format=3 uid="uid://wardbroom181f28"]
 
 [ext_resource type="Script" path="res://rooms/room3/room3.gd" id="s_room"]
 [ext_resource type="Material" uid="uid://wardbmatd0cabd0" path="res://materials/floor.tres" id="m_floor"]
@@ -9,6 +9,7 @@
 [ext_resource type="Script" path="res://core/state_object.gd" id="s_stateobj"]
 [ext_resource type="Material" uid="uid://wardbmat7d6a4dd" path="res://materials/chain.tres" id="m_chain"]
 [ext_resource type="Material" uid="uid://wardbmatf20070f" path="res://materials/prop.tres" id="m_prop"]
+[ext_resource type="FontFile" path="res://fonts/RockSalt-Regular.ttf" id="f_scrawl"]
 [ext_resource type="PackedScene" path="res://fixtures/door.tscn" id="fx_door"]
 [ext_resource type="Script" path="res://core/interactable.gd" id="s_interactable"]
 [ext_resource type="Script" path="res://core/room_exit.gd" id="s_exit"]
@@ -280,24 +281,30 @@ script = ExtResource("s_stateobj")
 visible_in_state = 2
 
 [node name="Scrawl0" type="Label3D" parent="Scrawls"]
-transform = Transform3D(0.000000, 0, 1.000000, 0, 1, 0, -1.000000, 0, 0.000000, -4.8500, 1.7000, 2.0000)
+transform = Transform3D(0.000000, -0.000000, 1.000000, 0.066622, 0.997778, 0.000000, -0.997778, 0.066622, 0.000000, -4.8500, 1.7000, 2.0000)
 pixel_size = 0.0039
 text = "you weren't supposed\nto make it this far"
+font = ExtResource("f_scrawl")
 font_size = 128
-outline_size = 0
-modulate = Color(0.85, 0.28, 0.22, 1)
+outline_size = 14
+outline_modulate = Color(0.18, 0.05, 0.04, 0.85)
+modulate = Color(0.62, 0.16, 0.12, 0.92)
+texture_filter = 0
 billboard = 0
 shaded = false
 double_sided = false
 no_depth_test = false
 
 [node name="Scrawl1" type="Label3D" parent="Scrawls"]
-transform = Transform3D(0.000000, 0, -1.000000, 0, 1, 0, 1.000000, 0, 0.000000, 4.8500, 1.7000, -3.0000)
+transform = Transform3D(0.000000, -0.000000, -1.000000, 0.070105, 0.997540, 0.000000, 0.997540, -0.070105, 0.000000, 4.8500, 1.7000, -3.0000)
 pixel_size = 0.0044
 text = "it only holds\nif you believe it"
+font = ExtResource("f_scrawl")
 font_size = 128
-outline_size = 0
-modulate = Color(0.85, 0.28, 0.22, 1)
+outline_size = 14
+outline_modulate = Color(0.18, 0.05, 0.04, 0.85)
+modulate = Color(0.62, 0.16, 0.12, 0.92)
+texture_filter = 0
 billboard = 0
 shaded = false
 double_sided = false

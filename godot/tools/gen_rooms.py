@@ -328,7 +328,7 @@ class Emitter:
             for i, (text, pos, rot_y, size, sid) in enumerate(r.scrawls):
                 nm = sid if sid else "Scrawl%d" % i
                 body.append('[node name="%s" type="Label3D" parent="Scrawls"]' % nm)
-                body.append("transform = %s" % _xform_yaw(rot_y, pos))
+                body.append("transform = %s" % _xform_yaw_roll(rot_y, _scrawl_tilt(text, pos), pos))
                 # ScrawlDef.size was a canvas-texture scale in the TS build, not
                 # a world measurement, so it does not port directly. At the
                 # first-guess 0.0035 a size-3.4 scrawl rendered 1.5m PER LINE —
@@ -337,9 +337,20 @@ class Emitter:
                 # room.
                 body.append("pixel_size = %.4f" % (size * 0.0013))
                 body.append('text = "%s"' % text.replace('"', '\\"').replace("\n", "\\n"))
+                body.append('font = ExtResource("%s")' % self.scrawl_font())
                 body.append("font_size = 128")
-                body.append("outline_size = 0")
-                body.append("modulate = Color(0.85, 0.28, 0.22, 1)")
+                # A dark ragged outline breaks up the clean vector edge of the
+                # default font and reads as paint bleeding into plaster. It is
+                # not a substitute for a proper hand-scrawled typeface, but it
+                # takes a lot of the "computery" look off.
+                body.append("outline_size = 14")
+                body.append("outline_modulate = Color(0.18, 0.05, 0.04, 0.85)")
+                # Duller and less saturated than the old near-pure red, which
+                # read as UI rather than something smeared on a wall.
+                body.append("modulate = Color(0.62, 0.16, 0.12, 0.92)")
+                # NEAREST filtering roughens the glyph edge instead of letting
+                # it resolve to a crisp anti-aliased curve.
+                body.append("texture_filter = 0")
                 body.append("billboard = 0")
                 body.append("shaded = false")
                 body.append("double_sided = false")
@@ -459,6 +470,12 @@ class Emitter:
 
         return self._header() + "\n".join(body) + "\n"
 
+    def scrawl_font(self):
+        if not any(e[2] == "f_scrawl" for e in self.ext):
+            self.ext.append(("FontFile", "res://fonts/RockSalt-Regular.ttf",
+                             "f_scrawl", None))
+        return "f_scrawl"
+
     def _ensure_state_script(self):
         if not any(e[2] == "s_stateobj" for e in self.ext):
             self.ext.append(("Script", "res://core/state_object.gd", "s_stateobj", None))
@@ -494,6 +511,39 @@ def _xform(pos):
 def _xform_scaled(scale, pos):
     return "Transform3D(%.5f, 0, 0, 0, %.5f, 0, 0, 0, %.5f, %.4f, %.4f, %.4f)" % (
         scale[0], scale[1], scale[2], pos[0], pos[1], pos[2])
+
+
+def _scrawl_tilt(text, pos):
+    """A small deterministic roll per scrawl, in radians.
+
+    Perfectly horizontal text is the single most "computery" thing about the
+    scrawls — nobody writes level on a wall, least of all whoever wrote these.
+    Derived from a hash of the content and position so it is stable across
+    regenerates (a random tilt that moved every build would be maddening) and
+    so no two scrawls in a room share an angle.
+    """
+    h = 0
+    for ch in (text + str(pos)):
+        h = (h * 131 + ord(ch)) & 0xFFFFFFF
+    # -7..+7 degrees, avoiding near-zero so every scrawl is visibly off-level.
+    deg = (h % 1000) / 1000.0 * 10.0 + 2.0
+    if h & 1:
+        deg = -deg
+    return math.radians(deg)
+
+
+def _xform_yaw_roll(yaw, roll, pos):
+    """Yaw about world Y (which wall it is on) composed with a roll about the
+    text's own facing axis (how crooked it is). R = Ry(yaw) . Rz(roll),
+    emitted row-major to match Godot's 12-arg Transform3D."""
+    cy, sy = math.cos(yaw), math.sin(yaw)
+    cr, sr = math.cos(roll), math.sin(roll)
+    return ("Transform3D(%.6f, %.6f, %.6f, %.6f, %.6f, %.6f, %.6f, %.6f, %.6f, "
+            "%.4f, %.4f, %.4f)") % (
+        cy * cr, -cy * sr, sy,
+        sr, cr, 0.0,
+        -sy * cr, sy * sr, cy,
+        pos[0], pos[1], pos[2])
 
 
 def _xform_yaw(yaw, pos):

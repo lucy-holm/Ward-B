@@ -1,4 +1,4 @@
-[gd_scene load_steps=42 format=3 uid="uid://wardbroom181f2a"]
+[gd_scene load_steps=43 format=3 uid="uid://wardbroom181f2a"]
 
 [ext_resource type="Script" path="res://rooms/room5/room5.gd" id="s_room"]
 [ext_resource type="Material" uid="uid://wardbmatd0cabd0" path="res://materials/floor.tres" id="m_floor"]
@@ -9,6 +9,7 @@
 [ext_resource type="Material" uid="uid://wardbmatf20070f" path="res://materials/prop.tres" id="m_prop"]
 [ext_resource type="Material" uid="uid://wardbmat1d85f7" path="res://materials/pad.tres" id="m_pad"]
 [ext_resource type="Script" path="res://core/state_object.gd" id="s_stateobj"]
+[ext_resource type="FontFile" path="res://fonts/RockSalt-Regular.ttf" id="f_scrawl"]
 [ext_resource type="PackedScene" path="res://fixtures/dispenser.tscn" id="fx_dispenser"]
 [ext_resource type="PackedScene" path="res://fixtures/keypad.tscn" id="fx_keypad"]
 [ext_resource type="PackedScene" path="res://fixtures/door.tscn" id="fx_door"]
@@ -299,36 +300,45 @@ script = ExtResource("s_stateobj")
 visible_in_state = 2
 
 [node name="codeScrawlA" type="Label3D" parent="Scrawls"]
-transform = Transform3D(0.000000, 0, 1.000000, 0, 1, 0, -1.000000, 0, 0.000000, -6.8500, 1.6000, 0.6000)
+transform = Transform3D(0.000000, -0.000000, 1.000000, 0.036295, 0.999341, 0.000000, -0.999341, 0.036295, 0.000000, -6.8500, 1.6000, 0.6000)
 pixel_size = 0.0029
 text = "1 9 – –"
+font = ExtResource("f_scrawl")
 font_size = 128
-outline_size = 0
-modulate = Color(0.85, 0.28, 0.22, 1)
+outline_size = 14
+outline_modulate = Color(0.18, 0.05, 0.04, 0.85)
+modulate = Color(0.62, 0.16, 0.12, 0.92)
+texture_filter = 0
 billboard = 0
 shaded = false
 double_sided = false
 no_depth_test = false
 
 [node name="codeScrawlB" type="Label3D" parent="Scrawls"]
-transform = Transform3D(0.000000, 0, -1.000000, 0, 1, 0, 1.000000, 0, 0.000000, 6.8500, 1.6000, 0.0000)
+transform = Transform3D(0.000000, -0.000000, -1.000000, 0.077763, 0.996972, 0.000000, 0.996972, -0.077763, 0.000000, 6.8500, 1.6000, 0.0000)
 pixel_size = 0.0029
 text = "– – 0 7"
+font = ExtResource("f_scrawl")
 font_size = 128
-outline_size = 0
-modulate = Color(0.85, 0.28, 0.22, 1)
+outline_size = 14
+outline_modulate = Color(0.18, 0.05, 0.04, 0.85)
+modulate = Color(0.62, 0.16, 0.12, 0.92)
+texture_filter = 0
 billboard = 0
 shaded = false
 double_sided = false
 no_depth_test = false
 
 [node name="Scrawl2" type="Label3D" parent="Scrawls"]
-transform = Transform3D(0.000000, 0, -1.000000, 0, 1, 0, 1.000000, 0, 0.000000, 6.8500, 1.6000, 4.3000)
+transform = Transform3D(0.000000, -0.000000, -1.000000, 0.072890, 0.997340, 0.000000, 0.997340, -0.072890, 0.000000, 6.8500, 1.6000, 4.3000)
 pixel_size = 0.0031
 text = "the coffee is always warm.\nno one drinks it."
+font = ExtResource("f_scrawl")
 font_size = 128
-outline_size = 0
-modulate = Color(0.85, 0.28, 0.22, 1)
+outline_size = 14
+outline_modulate = Color(0.18, 0.05, 0.04, 0.85)
+modulate = Color(0.62, 0.16, 0.12, 0.92)
+texture_filter = 0
 billboard = 0
 shaded = false
 double_sided = false

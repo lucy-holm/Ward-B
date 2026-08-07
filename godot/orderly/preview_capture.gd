@@ -40,6 +40,12 @@ var _t := 0.0
 var _shots_taken: Dictionary = {}
 var _chase_freeze_done := false
 
+# THROWAWAY frame-time sampler (polygon-budget verification only — see the
+# design brief this was added for). Accumulates Engine.get_frames_per_second()
+# once he's actually on screen and printed a few frames in, through the end
+# of the timeline, then prints mean/min/max frame time in ms on quit.
+var _fps_samples: Array[float] = []
+
 
 # Replaces preview.tscn's baked-in Environment sub-resource (stale values —
 # ambient 0.13, no tonemap, no glow) with one built from main.gd's own MOOD
@@ -199,7 +205,23 @@ func _process(delta: float) -> void:
 	_burst_capture("walk", WALK_BURST_START)
 	_burst_capture("chase", CHASE_BURST_START)
 
+	# Sample once he's actually on screen and the initial load/compile spike
+	# has passed (t > 0.5), through the end of the timeline.
+	if _t > 0.5:
+		_fps_samples.append(Engine.get_frames_per_second())
+
 	if _t > 7.5:
+		if not _fps_samples.is_empty():
+			var sum := 0.0
+			var lo := INF
+			var hi := 0.0
+			for f in _fps_samples:
+				sum += f
+				lo = minf(lo, f)
+				hi = maxf(hi, f)
+			var mean_fps: float = sum / _fps_samples.size()
+			print("FRAME-TIME SAMPLE: n=%d mean_fps=%.1f (%.3f ms) min_fps=%.1f max_fps=%.1f" % [
+				_fps_samples.size(), mean_fps, 1000.0 / mean_fps, lo, hi])
 		get_tree().quit()
 
 

@@ -51,10 +51,15 @@ const MESH_LEG_THIGH := preload("res://orderly/meshes/leg_thigh.tres")
 const MESH_LEG_SHIN := preload("res://orderly/meshes/leg_shin.tres")
 const MESH_ARM_UPPER := preload("res://orderly/meshes/arm_upper.tres")
 const MESH_ARM_CUFF := preload("res://orderly/meshes/arm_cuff.tres")
+const MESH_CUFF_TURNBACK := preload("res://orderly/meshes/cuff_turnback.tres")
 const MESH_TORSO := preload("res://orderly/meshes/torso.tres")
+const MESH_COLLAR := preload("res://orderly/meshes/collar.tres")
+const MESH_BACK_VENT := preload("res://orderly/meshes/back_vent.tres")
+const MESH_HALF_BELT := preload("res://orderly/meshes/half_belt.tres")
 const MESH_PALM := preload("res://orderly/meshes/palm.tres")
 const MESH_FINGER := preload("res://orderly/meshes/finger.tres")
 const MESH_SHOE := preload("res://orderly/meshes/shoe.tres")
+const MESH_HEAD := preload("res://orderly/meshes/head.tres")
 
 # --- proportions ------------------------------------------------------------
 # Pushed further than a naturalistic figure on purpose: very long straight
@@ -241,6 +246,16 @@ func _build_body() -> void:
 	var orderly := get_parent()
 
 	var cloth_clean := _make_material(UNIFORM_BASE, UNIFORM_GRIME, 0.05, 0.86, 0.9, 0.0, 0.0, TORSO_W * 0.5)
+	# Lower rim than cloth_clean's 0.9: on a small, strongly convex sphere
+	# (the shoulder caps) nearly the whole visible hemisphere sits at a
+	# grazing view/light angle, so a rim tuned for the torso's much gentler
+	# curvature pushed almost the entire cap into the rim term and starved
+	# the flatter, low-fresnel centre of any other cue, reading as a near-
+	# black disc under this preview's very low ambient (0.022) — found while
+	# looking at the front-rest screenshot per the brief's "look at him every
+	# angle" note, not a change in geometry (found with the SAME SphereMesh,
+	# just now easier to spot with more segments to look at).
+	var cloth_shoulder := _make_material(UNIFORM_BASE, UNIFORM_GRIME, 0.05, 0.86, 0.32, 0.0, 0.0, TORSO_W * 0.22)
 	var cloth_body := _make_material(UNIFORM_BASE, UNIFORM_GRIME, 0.16, 0.86, 0.9, 1.0, 0.0, TORSO_W * 0.5)
 	var cloth_hem := _make_material(UNIFORM_BASE, UNIFORM_GRIME, 0.55, 0.86, 0.9, 0.0, 0.0, TORSO_W * 0.5)
 	var cloth_upper_arm := _make_material(UNIFORM_BASE, UNIFORM_GRIME, 0.10, 0.86, 0.85, 0.0, 0.0, ARM_W)
@@ -299,7 +314,7 @@ func _build_body() -> void:
 	_torso.position.y = LEG_H + TORSO_H * 0.5
 	_torso.rotation.x = HUNCH_TILT
 	add_child(_torso)
-	_build_torso_trim(_torso, cloth_clean, cloth_hem, badge_mat, button_mat)
+	_build_torso_trim(_torso, cloth_clean, cloth_shoulder, cloth_hem, badge_mat, button_mat)
 
 	# neck + head, chained off the top of the torso so both inherit its pitch
 	_neck_pivot = Node3D.new()
@@ -312,19 +327,19 @@ func _build_body() -> void:
 	neck_mesh.top_radius = NECK_R * 0.9
 	neck_mesh.bottom_radius = NECK_R
 	neck_mesh.height = NECK_LEN
-	neck_mesh.radial_segments = 14
+	neck_mesh.radial_segments = 20
 	neck.mesh = neck_mesh
 	neck.position.y = NECK_LEN * 0.5
 	neck.material_override = skin_neck
 	_neck_pivot.add_child(neck)
 
+	# Lofted mandarin collar (MESH_COLLAR, see gen_orderly_meshes.gd's
+	# _build_collar) — a short tube standing off the neck with a front
+	# opening, replacing the old plain CylinderMesh (which had no gap and
+	# read as a closed ring, not a jacket collar). Same position the old
+	# cylinder used.
 	var collar := MeshInstance3D.new()
-	var collar_mesh := CylinderMesh.new()
-	collar_mesh.top_radius = NECK_R * 1.35
-	collar_mesh.bottom_radius = NECK_R * 1.35
-	collar_mesh.height = 0.045
-	collar_mesh.radial_segments = 14
-	collar.mesh = collar_mesh
+	collar.mesh = MESH_COLLAR
 	collar.position.y = 0.02
 	collar.material_override = cloth_clean
 	_neck_pivot.add_child(collar)
@@ -334,13 +349,16 @@ func _build_body() -> void:
 	_head_group.position = Vector3(0, NECK_LEN + 0.02, 0)
 	_neck_pivot.add_child(_head_group)
 
+	# Lofted head (MESH_HEAD, see gen_orderly_meshes.gd's _build_head) — a
+	# latitude-swept sphere with SUGGESTED facial detail (brow ridge, sunken
+	# sockets, nose ridge, cheekbone planes, closed mouth, hollow temples)
+	# baked in as subtle radial displacement, replacing the old plain
+	# SphereMesh. Same non-uniform HEAD_SCALE stretch as before — Godot's
+	# renderer applies the correct normal-matrix correction for non-uniform
+	# scale, so the baked-in facial displacement stretches consistently with
+	# the gaunt ovoid shape instead of distorting.
 	var head := MeshInstance3D.new()
-	var head_mesh := SphereMesh.new()
-	head_mesh.radius = HEAD_R
-	head_mesh.height = HEAD_R * 2.0
-	head_mesh.radial_segments = 28
-	head_mesh.rings = 16
-	head.mesh = head_mesh
+	head.mesh = MESH_HEAD
 	head.scale = HEAD_SCALE
 	head.material_override = skin_head
 	_head_group.add_child(head)
@@ -363,6 +381,14 @@ func _build_body() -> void:
 		cuff.mesh = MESH_ARM_CUFF
 		cuff.material_override = cloth_cuff
 		pivot.add_child(cuff)
+
+		# Turned-back cuff lip (MESH_CUFF_TURNBACK, see gen_orderly_meshes.gd)
+		# — baked in the same absolute pivot-local space as the cuff itself,
+		# so it needs no offset here, same as every other limb mesh.
+		var turnback := MeshInstance3D.new()
+		turnback.mesh = MESH_CUFF_TURNBACK
+		turnback.material_override = cloth_cuff
+		pivot.add_child(turnback)
 
 		var hand := _build_hand(skin_hand)
 		hand.position.y = -ARM_LEN
@@ -414,13 +440,15 @@ func _build_hand(mat: Material) -> Node3D:
 
 
 # Richer uniform detail from the revised reference: mandarin collar (built in
-# _build_body alongside the neck), button placket, chest pocket + hanging ID
-# badge, rounded slumped shoulder caps, a dirty hem band, and a back
-# half-belt with buttons. The back seam/centre-vent itself needs no extra
-# geometry — it's the torso material's own seam_strength, which the shader
-# confines to the +Z (rear) face.
-func _build_torso_trim(torso: MeshInstance3D, cloth_clean: Material, cloth_hem: Material,
-		badge_mat: Material, button_mat: Material) -> void:
+# _build_body alongside the neck), a back centre vent, button placket, chest
+# pocket + hanging ID badge, rounded slumped shoulder caps, and a back
+# half-belt with buttons — all real lofted geometry now (see
+# gen_orderly_meshes.gd), not flat trim. The seam LINE itself (the crease
+# either side of the vent ridge) is still the torso material's own
+# seam_strength, which the shader confines to the +Z (rear) face — the vent
+# mesh added here is the raised fold, the shader still draws the crease.
+func _build_torso_trim(torso: MeshInstance3D, cloth_clean: Material, cloth_shoulder: Material,
+		cloth_hem: Material, badge_mat: Material, button_mat: Material) -> void:
 	# MESH_TORSO (see gen_orderly_meshes.gd's _build_torso) bulges out at the
 	# chest and flares at the hem rather than sitting flush like the old
 	# flat box, so the trim below is offset to those rings' actual
@@ -439,17 +467,27 @@ func _build_torso_trim(torso: MeshInstance3D, cloth_clean: Material, cloth_hem: 
 	# concentrates its grime there, so the dirty-hem read survives without it.
 	# (cloth_hem is still used by the limb meshes.)
 
+	# NEW — back centre vent (MESH_BACK_VENT, see gen_orderly_meshes.gd's
+	# _build_back_vent): a slim ridge standing proud of the lower back,
+	# real geometry rather than the flat trim the header above warns about.
+	# Baked in absolute torso-local metres already (own cz per ring), so it
+	# needs no offset here — same convention as every limb mesh.
+	var vent := MeshInstance3D.new()
+	vent.mesh = MESH_BACK_VENT
+	vent.material_override = cloth_clean
+	torso.add_child(vent)
+
 	# rounded, narrow, slumped shoulder caps
 	for side in [-1.0, 1.0]:
 		var cap := MeshInstance3D.new()
 		var cap_mesh := SphereMesh.new()
 		cap_mesh.radius = TORSO_W * 0.22
 		cap_mesh.height = TORSO_W * 0.34
-		cap_mesh.radial_segments = 16
-		cap_mesh.rings = 8
+		cap_mesh.radial_segments = 20
+		cap_mesh.rings = 10
 		cap.mesh = cap_mesh
 		cap.position = Vector3(side * TORSO_W * 0.42, TORSO_H * 0.44, 0)
-		cap.material_override = cloth_clean
+		cap.material_override = cloth_shoulder
 		torso.add_child(cap)
 
 	# front button placket
@@ -468,8 +506,8 @@ func _build_torso_trim(torso: MeshInstance3D, cloth_clean: Material, cloth_hem: 
 		var btn_mesh := SphereMesh.new()
 		btn_mesh.radius = 0.011
 		btn_mesh.height = 0.022
-		btn_mesh.radial_segments = 8
-		btn_mesh.rings = 4
+		btn_mesh.radial_segments = 10
+		btn_mesh.rings = 6
 		btn.mesh = btn_mesh
 		btn.position = Vector3(0, t * TORSO_H * 0.8, -(CHEST_HALF_DEPTH + 0.014))
 		btn.material_override = button_mat
@@ -493,13 +531,15 @@ func _build_torso_trim(torso: MeshInstance3D, cloth_clean: Material, cloth_hem: 
 	badge.material_override = badge_mat
 	torso.add_child(badge)
 
-	# back half-belt with buttons (front-of-back seam/vent is the shader's
-	# own seam_strength on the main torso material)
+	# back half-belt (MESH_HALF_BELT, see gen_orderly_meshes.gd's
+	# _build_half_belt) — real curved geometry across the back only, not a
+	# flat box wrapped over what is now a curved torso surface (see this
+	# function's header for why the old BoxMesh belt broke). Baked already
+	# centred on local +Z at the belt's own arc radius, so it only needs the
+	# same vertical offset the old box belt used.
 	var belt := MeshInstance3D.new()
-	var belt_mesh := BoxMesh.new()
-	belt_mesh.size = Vector3(TORSO_W * 0.68, 0.045, 0.018)
-	belt.mesh = belt_mesh
-	belt.position = Vector3(0, -TORSO_H * 0.05, CHEST_HALF_DEPTH + 0.008)
+	belt.mesh = MESH_HALF_BELT
+	belt.position = Vector3(0, -TORSO_H * 0.05, 0)
 	belt.material_override = cloth_clean
 	torso.add_child(belt)
 
@@ -508,8 +548,8 @@ func _build_torso_trim(torso: MeshInstance3D, cloth_clean: Material, cloth_hem: 
 		var bb_mesh := SphereMesh.new()
 		bb_mesh.radius = 0.011
 		bb_mesh.height = 0.022
-		bb_mesh.radial_segments = 8
-		bb_mesh.rings = 4
+		bb_mesh.radial_segments = 10
+		bb_mesh.rings = 6
 		bb.mesh = bb_mesh
 		bb.position = Vector3(side * TORSO_W * 0.2, -TORSO_H * 0.05, CHEST_HALF_DEPTH + 0.02)
 		bb.material_override = button_mat

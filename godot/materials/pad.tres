@@ -1,5 +1,52 @@
-[gd_resource type="StandardMaterial3D" format=3 uid="uid://wardbmat1d85f7"]
+[gd_resource type="ShaderMaterial" load_steps=6 format=3 uid="uid://wardbmat1d85f7"]
+
+[ext_resource type="Shader" path="res://materials/shaders/triplanar_worn.gdshader" id="1_shader"]
+
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_pad_mottle"]
+noise_type = 3
+seed = 621
+frequency = 0.06
+fractal_octaves = 3
+fractal_gain = 0.55
+
+[sub_resource type="NoiseTexture2D" id="NoiseTexture2D_pad_mottle"]
+generate_mipmaps = true
+seamless = true
+seamless_blend_skirt = 0.2
+width = 192
+height = 192
+noise = SubResource("FastNoiseLite_pad_mottle")
+
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_pad_normal"]
+noise_type = 2
+seed = 622
+frequency = 0.4
+cellular_jitter = 1.0
+cellular_return_type = 1
+
+[sub_resource type="NoiseTexture2D" id="NoiseTexture2D_pad_normal"]
+generate_mipmaps = true
+seamless = true
+seamless_blend_skirt = 0.2
+width = 192
+height = 192
+as_normal_map = true
+bump_strength = 4.0
+noise = SubResource("FastNoiseLite_pad_normal")
 
 [resource]
-albedo_color = Color(0.604, 0.639, 0.627, 1)
-roughness = 0.9
+render_priority = 0
+shader = ExtResource("1_shader")
+shader_parameter/base_color = Color(0.604, 0.639, 0.627, 1)
+shader_parameter/mottle_tex = SubResource("NoiseTexture2D_pad_mottle")
+shader_parameter/normal_tex = SubResource("NoiseTexture2D_pad_normal")
+shader_parameter/mottle_scale = 1.8
+shader_parameter/normal_scale = 6.5
+shader_parameter/stretch_y = 1.0
+shader_parameter/mottle_strength = 0.26
+shader_parameter/normal_strength = 0.55
+shader_parameter/roughness_base = 0.45
+shader_parameter/metallic_base = 0.08
+shader_parameter/floor_grime = 0.0
+shader_parameter/floor_grime_height = 0.4
+shader_parameter/emission_strength = 0.0

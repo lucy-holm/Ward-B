@@ -77,6 +77,38 @@ shipped as a `.tres` so it cannot silently drift from what the code expects.
 The two state drones crossfade on `state_changed` over 0.6 s, matching the
 original's `setTargetAtTime(tau 0.6)`.
 
+### Materials are world-space triplanar shaders
+All 13 materials are driven by three shaders in `materials/shaders/`
+(plaster, tile, worn). **Nothing reads UV at all** — everything projects from
+world position, because room geometry is `BoxMesh` of wildly varying sizes
+and a 0.45m cube and a 3m slab share materials. UV0..1 per face would give
+wildly different texel density; world-space triplanar makes them identical.
+Frequencies are authored in cycles per metre, with albedo blotch and surface
+bump on independent scales.
+
+Two findings worth keeping:
+
+- **Metallic is unusable in this project.** `main.tscn` has no sky and no
+  reflection probes (background + ambient colour only), so metallic kills the
+  diffuse term and gets no environment specular back — `chain` at
+  `metallic 0.8` rendered as a flat black slab. Steel is sold via roughness +
+  normal detail instead, metallic pinned at 0–0.1. Noted in the shader so it
+  does not get "fixed" later.
+- **`glow` must be unshaded** (`shading_mode = 0`). The original used
+  three.js `MeshBasicMaterial` precisely so a light panel reads at full
+  brightness regardless of room lighting; the first port made it a lit
+  StandardMaterial3D and glow panels dimmed with the room.
+
+Cost: **+7.1 KB gzipped** total (noise is generated at load from
+FastNoiseLite parameters, so effectively only shader source ships).
+Measured frame cost on an emulated phone at 1081x2202 is **~20%**
+(14.3 -> 11.5 fps) — but that is under SwiftShader CPU rasterisation, which
+penalises fragment shaders far more than a real phone GPU would. Treat it as
+a worst case, not a prediction. `tools/measure_fps.mjs` exists to A/B this.
+If it ever does bite on real hardware, the cheapest fix is selecting one
+planar projection instead of blending three; near-identical here since all
+geometry is axis-aligned.
+
 ### Atmosphere is a separate live layer
 `main.gd` owns the `Environment` crossfade between the two states;
 `core/atmosphere.gd` adds the per-frame motion on top — fluorescent flicker

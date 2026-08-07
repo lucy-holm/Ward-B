@@ -23,6 +23,11 @@ const ROOM_SCENES := {
 const HUD_SCENE := preload("res://ui/hud.tscn")
 const KEYPAD_SCENE := preload("res://ui/keypad.tscn")
 const TOUCH_SCENE := preload("res://ui/touch_controls.tscn")
+const GRAIN_SCENE := preload("res://ui/grain.tscn")
+
+# Film grain opacity per state — the ward is grainier unmedicated.
+const GRAIN_LUCID := 0.025
+const GRAIN_UNMED := 0.04
 
 # Environment mood targets, ported from renderer.ts:25-45.
 const MOOD := {
@@ -50,6 +55,8 @@ var collision := WardCollision.new()
 var hud: CanvasLayer
 var keypad: CanvasLayer
 var touch_controls: CanvasLayer
+var grain: CanvasLayer
+var atmosphere: Atmosphere
 
 var current_room: Node = null
 var current_room_id := ""
@@ -80,6 +87,14 @@ func _ready() -> void:
 	touch_controls.player = player
 	touch_controls.interact_pressed.connect(_interact)
 	touch_controls.shift_pressed.connect(_try_shift)
+
+	grain = GRAIN_SCENE.instantiate()
+	add_child(grain)
+
+	atmosphere = Atmosphere.new()
+	atmosphere.name = "Atmosphere"
+	add_child(atmosphere)
+	atmosphere.bind_environment(world_environment.environment)
 
 	player.add_to_group("player")
 	player.world_collision = collision
@@ -179,6 +194,12 @@ func _apply_mood(state: int, instant: bool) -> void:
 	if _mood_tween != null and _mood_tween.is_valid():
 		_mood_tween.kill()
 
+	# Hand the target fog to Atmosphere so its "breathing" oscillates around
+	# the new base rather than the old one.
+	if atmosphere != null:
+		atmosphere.set_fog_base(m["fog_begin"], m["fog_end"])
+	_set_grain(GRAIN_LUCID if state == StateManager.State.LUCID else GRAIN_UNMED, instant)
+
 	if instant:
 		env.fog_light_color = m["fog"]
 		env.fog_depth_begin = m["fog_begin"]
@@ -197,6 +218,21 @@ func _apply_mood(state: int, instant: bool) -> void:
 	_mood_tween.tween_property(env, "fog_depth_begin", m["fog_begin"], 0.45)
 	_mood_tween.tween_property(env, "fog_depth_end", m["fog_end"], 0.45)
 	_mood_tween.tween_property(env, "ambient_light_energy", m["ambient"], 0.45)
+
+
+func _set_grain(strength: float, instant: bool) -> void:
+	if grain == null:
+		return
+	var rect: ColorRect = grain.get_node_or_null("Rect")
+	if rect == null or rect.material == null:
+		return
+	var mat := rect.material as ShaderMaterial
+	if instant:
+		mat.set_shader_parameter("strength", strength)
+		return
+	create_tween().tween_method(
+		func(v: float) -> void: mat.set_shader_parameter("strength", v),
+		float(mat.get_shader_parameter("strength")), strength, 0.45)
 
 
 func shift_fx() -> void:
@@ -308,6 +344,10 @@ func load_room(id: String) -> void:
 	# load; state-conditional colliders are filtered at query time by their
 	# layer, so a state change never needs a rebuild.
 	collision.rebuild_from(current_room)
+
+	# Fluorescents are per-room, so the flicker set has to be rebuilt on load.
+	if atmosphere != null:
+		atmosphere.collect_lights(current_room)
 
 	GameState.enter_room(id)
 

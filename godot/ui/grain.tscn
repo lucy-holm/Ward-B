@@ -1,0 +1,22 @@
+[gd_scene load_steps=3 format=3 uid="uid://bwardbgrain01"]
+
+[ext_resource type="Shader" path="res://ui/shaders/grain.gdshader" id="1_grain"]
+
+[sub_resource type="ShaderMaterial" id="Mat_grain"]
+shader = ExtResource("1_grain")
+shader_parameter/strength = 0.04
+shader_parameter/grain_px = 1.6
+shader_parameter/time_scale = 24.0
+
+; layer -1 puts the grain above the 3D viewport but BELOW every UI layer, so
+; HUD text and the touch buttons stay crisp instead of being fuzzed.
+[node name="Grain" type="CanvasLayer"]
+layer = -1
+
+[node name="Rect" type="ColorRect" parent="."]
+material = SubResource("Mat_grain")
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+mouse_filter = 2
+color = Color(1, 1, 1, 1)

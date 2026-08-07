@@ -30,19 +30,39 @@ const GRAIN_LUCID := 0.025
 const GRAIN_UNMED := 0.04
 
 # Environment mood targets, ported from renderer.ts:25-45.
+#
+# NOTE: these values OVERRIDE whatever main.tscn's Environment carries, from
+# the first _apply_mood in _ready onwards. Editing the .tscn alone does
+# nothing at runtime — this dict is the real source of truth for per-state
+# lighting.
+#
+# The gap between the two states is deliberately extreme. UNMEDICATED is meant
+# to be barely navigable: near-zero ambient, fog closing to 7m, lights at 45%
+# and flickering. LUCID is clinically over-lit by contrast. Shifting should
+# feel like the building itself changes, not like a colour filter.
+#
+# This is only safe because the things you MUST see are unshaded and so are
+# untouched by any of it: wall scrawls (shaded = false), the pill, the glow
+# panels, and the fixtures' amber/cyan accent strips. In the dark the red
+# scrawls and the pill burn through an almost black room — which is the
+# intended read, not a compromise.
 const MOOD := {
 	StateManager.State.LUCID: {
 		"fog": Color(0.843, 0.894, 0.875),
-		"fog_begin": 9.0,
-		"fog_end": 30.0,
-		"ambient": 0.28,
+		"fog_begin": 12.0,
+		"fog_end": 40.0,
+		"ambient": 0.34,
+		"exposure": 0.95,
+		"light_scale": 1.0,
 		"light": Color(0.949, 1.0, 0.984),
 	},
 	StateManager.State.UNMED: {
 		"fog": Color(0.090, 0.043, 0.039),
-		"fog_begin": 2.6,
-		"fog_end": 13.0,
-		"ambient": 0.13,
+		"fog_begin": 1.6,
+		"fog_end": 7.5,
+		"ambient": 0.022,
+		"exposure": 0.60,
+		"light_scale": 0.45,
 		"light": Color(1.0, 0.2, 0.141),
 	},
 }
@@ -198,6 +218,11 @@ func _apply_mood(state: int, instant: bool) -> void:
 	# the new base rather than the old one.
 	if atmosphere != null:
 		atmosphere.set_fog_base(m["fog_begin"], m["fog_end"])
+		# The fittings themselves dim in unmed, on top of the ambient drop.
+		# Ambient alone cannot get dark enough without flattening the light
+		# pools too, which is what makes a room read as unlit rather than
+		# merely dim.
+		atmosphere.set_light_scale(m["light_scale"], instant)
 	_set_grain(GRAIN_LUCID if state == StateManager.State.LUCID else GRAIN_UNMED, instant)
 
 	if instant:
@@ -205,6 +230,7 @@ func _apply_mood(state: int, instant: bool) -> void:
 		env.fog_depth_begin = m["fog_begin"]
 		env.fog_depth_end = m["fog_end"]
 		env.ambient_light_energy = m["ambient"]
+		env.tonemap_exposure = m["exposure"]
 		env.background_color = m["fog"]
 		return
 
@@ -218,6 +244,7 @@ func _apply_mood(state: int, instant: bool) -> void:
 	_mood_tween.tween_property(env, "fog_depth_begin", m["fog_begin"], 0.45)
 	_mood_tween.tween_property(env, "fog_depth_end", m["fog_end"], 0.45)
 	_mood_tween.tween_property(env, "ambient_light_energy", m["ambient"], 0.45)
+	_mood_tween.tween_property(env, "tonemap_exposure", m["exposure"], 0.45)
 
 
 func _set_grain(strength: float, instant: bool) -> void:

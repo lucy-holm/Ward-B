@@ -43,6 +43,13 @@ var _env: Environment = null
 var _fog_begin_base := 0.0
 var _fog_end_base := 0.0
 
+# Per-state multiplier on every fitting's base energy. Ambient alone cannot
+# make a room read as unlit — drop it far enough and the light POOLS stay
+# bright, which looks like a dim room rather than a failing one. Dimming the
+# fittings too is what sells "barely visible".
+var _light_scale := 1.0
+var _light_scale_target := 1.0
+
 
 func bind_environment(env: Environment) -> void:
 	_env = env
@@ -68,8 +75,18 @@ func _collect(node: Node) -> void:
 		_collect(child)
 
 
+## Set by main.gd from the MOOD table on every state change.
+func set_light_scale(scale: float, instant: bool) -> void:
+	_light_scale_target = scale
+	if instant:
+		_light_scale = scale
+
+
 func _process(delta: float) -> void:
 	_clock += delta
+	# Ease toward the target so the fittings dim/brighten with the mood tween
+	# rather than snapping a frame before it.
+	_light_scale = lerpf(_light_scale, _light_scale_target, minf(1.0, delta * 3.0))
 	var unmed := not StateManager.is_lucid()
 	_tick_flicker(delta, unmed)
 	_tick_fog(unmed)
@@ -80,7 +97,7 @@ func _tick_flicker(delta: float, unmed: bool) -> void:
 		var l := _lights[i]
 		if not is_instance_valid(l):
 			continue
-		var base := _base_energy[i]
+		var base := _base_energy[i] * _light_scale
 
 		if unmed:
 			# Poisson-ish: probability of a dip starting this frame, scaled by

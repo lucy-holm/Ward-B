@@ -66,7 +66,9 @@ func _ready() -> void:
 	# Let the lights recover first. Switching to lucid mid-dip leaves them
 	# ramping back to base, and sampling immediately measures that transient
 	# rather than the steady state we actually care about.
-	for f in 90:
+	# 3s: the per-state light-scale ramp (0.45x -> 1.0x) is much larger
+	# than the old flicker recovery, so it needs a longer settle.
+	for f in 180:
 		await get_tree().process_frame
 	var lucid_traces := await _sample(lights)
 	var lucid: Array = lucid_traces[0]

@@ -14,6 +14,8 @@ extends Node
 
 const SETTLE_FRAMES := 40
 
+var _light_scale := 1.0
+
 
 func _ready() -> void:
 	var args := OS.get_cmdline_user_args()
@@ -48,14 +50,25 @@ func _ready() -> void:
 		env.background_color = Color(0.090, 0.043, 0.039)
 		env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 		env.ambient_light_color = Color(0.8, 0.85, 0.83)
-		env.ambient_light_energy = float(args[8]) if args.size() > 8 else 0.045
+		# Pull the per-state values straight out of main.gd's MOOD table rather
+		# than keeping a second copy here. Two separate bugs came from this
+		# harness drifting from the real game — first missing tonemapping and
+		# glow entirely, then using a stale ambient that main.gd overwrites at
+		# runtime anyway. Reading the source of truth makes drift impossible.
+		# Pass "lucid" as arg 9 to shoot the medicated state.
+		var mood: Dictionary = (load("res://main.gd") as GDScript).MOOD
+		var want_lucid: bool = args.size() > 9 and str(args[9]).begins_with("l")
+		var m: Dictionary = mood[1 if want_lucid else 0]
+		env.ambient_light_energy = float(args[8]) if args.size() > 8 else float(m["ambient"])
 		env.fog_enabled = true
 		env.fog_mode = Environment.FOG_MODE_DEPTH
-		env.fog_light_color = Color(0.090, 0.043, 0.039)
-		env.fog_depth_begin = 2.6
-		env.fog_depth_end = 13.0
+		env.fog_light_color = m["fog"]
+		env.background_color = m["fog"]
+		env.fog_depth_begin = float(m["fog_begin"])
+		env.fog_depth_end = float(m["fog_end"])
 		env.tonemap_mode = Environment.TONE_MAPPER_ACES
-		env.tonemap_exposure = 0.72
+		env.tonemap_exposure = float(m["exposure"])
+		_light_scale = float(m["light_scale"])
 		env.tonemap_white = 4.0
 		env.glow_enabled = true
 		env.glow_intensity = 0.55
@@ -82,6 +95,11 @@ func _ready() -> void:
 			cam.look_at(Vector3.ZERO, Vector3.UP)
 		cam.make_current()
 
+	# Fittings dim per state exactly as Atmosphere does at runtime.
+	if _light_scale != 1.0:
+		for l in _all_lights(inst):
+			l.light_energy *= _light_scale
+
 	# Let the scene run: shaders compile on first draw, and anything driven by
 	# _process (idle bobs, gait, glow pulses) needs a few frames to look real.
 	for i in SETTLE_FRAMES:
@@ -103,3 +121,12 @@ func _find_camera(node: Node) -> Camera3D:
 		if c != null:
 			return c
 	return null
+
+
+func _all_lights(node: Node) -> Array:
+	var out: Array = []
+	if node is OmniLight3D:
+		out.append(node)
+	for child in node.get_children():
+		out.append_array(_all_lights(child))
+	return out

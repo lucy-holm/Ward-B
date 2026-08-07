@@ -410,11 +410,32 @@ class Emitter:
             body.append('[node name="Lights" type="Node3D" parent="."]')
             body.append("")
             for i, (x, y, z) in enumerate(r.lights):
+                # Shadows are the single biggest realism lever available in the
+                # Compatibility renderer — without them nothing is occluded, so
+                # every object floats and the whole ward reads flat and
+                # cartoonish regardless of material quality.
+                #
+                # Range is tightened 12 -> 7m and energy raised 0.7 -> 0.95 to
+                # get the concept art's look: a bright pool under each fitting
+                # falling off to near-black, rather than a uniform wash. Ambient
+                # was dropped to 0.08 to match, so the lights do the work.
                 body.append('[node name="L%d" type="OmniLight3D" parent="Lights"]' % i)
                 body.append("transform = %s" % _xform((x, y, z)))
                 body.append("light_color = Color(0.949, 1.0, 0.98, 1)")
-                body.append("light_energy = 0.7")
-                body.append("omni_range = 12.0")
+                body.append("light_energy = 0.95")
+                body.append("omni_range = 7.0")
+                body.append("omni_attenuation = 1.4")
+                # Shadows on EVERY light cost 40% frame time (10.9 -> 6.5 fps
+                # measured): an omni shadow is a 6-face cube render, and rooms
+                # carry up to 8 lights. Only every third fitting casts, which is
+                # both affordable and closer to the concept art — those rooms are
+                # lit by one dominant source with the rest as fill, not by an
+                # even grid of shadow-casters.
+                body.append("shadow_enabled = %s" % ("true" if i % 3 == 0 else "false"))
+                # Omni shadows are a cube render per light; bias tuned to kill
+                # acne on the 0.24m-thick walls without visible peter-panning.
+                body.append("shadow_bias = 0.04")
+                body.append("shadow_normal_bias = 1.4")
                 body.append("")
 
         # exits

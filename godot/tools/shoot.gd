@@ -38,17 +38,33 @@ func _ready() -> void:
 	# main.tscn — so supply both when shooting one directly. Without the
 	# environment the shot is lit nothing like the game and tells you nothing.
 	if _find_camera(inst) == null:
+		# MUST mirror main.tscn's Environment. An earlier version omitted
+		# tonemapping and glow, so every screenshot check was lit differently
+		# from the actual game — which makes the check actively misleading
+		# rather than merely incomplete. If you change main.tscn's Environment,
+		# change this too.
 		var env := Environment.new()
 		env.background_mode = Environment.BG_COLOR
 		env.background_color = Color(0.090, 0.043, 0.039)
 		env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 		env.ambient_light_color = Color(0.8, 0.85, 0.83)
-		env.ambient_light_energy = float(args[8]) if args.size() > 8 else 0.13
+		env.ambient_light_energy = float(args[8]) if args.size() > 8 else 0.08
 		env.fog_enabled = true
 		env.fog_mode = Environment.FOG_MODE_DEPTH
 		env.fog_light_color = Color(0.090, 0.043, 0.039)
 		env.fog_depth_begin = 2.6
 		env.fog_depth_end = 13.0
+		env.tonemap_mode = Environment.TONE_MAPPER_ACES
+		env.tonemap_exposure = 0.85
+		env.tonemap_white = 4.0
+		env.glow_enabled = true
+		env.glow_intensity = 0.55
+		env.glow_bloom = 0.12
+		env.glow_blend_mode = Environment.GLOW_BLEND_MODE_SCREEN
+		env.glow_hdr_threshold = 0.85
+		env.adjustment_enabled = true
+		env.adjustment_contrast = 1.08
+		env.adjustment_saturation = 0.88
 		var we := WorldEnvironment.new()
 		we.environment = env
 		add_child(we)

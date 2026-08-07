@@ -103,6 +103,8 @@ common/physics_ticks_per_second=60
 
 [rendering]
 
+lights_and_shadows/positional_shadow/atlas_size=2048
+
 renderer/rendering_method="gl_compatibility"
 renderer/rendering_method.mobile="gl_compatibility"
 textures/vram_compression/import_etc2_astc=true

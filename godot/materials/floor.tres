@@ -1,4 +1,4 @@
-[gd_resource type="ShaderMaterial" load_steps=6 format=3 uid="uid://wardbmatd0cabd0"]
+[gd_resource type="ShaderMaterial" load_steps=8 format=3 uid="uid://wardbmatd0cabd0"]
 
 [ext_resource type="Shader" path="res://materials/shaders/triplanar_tile.gdshader" id="1_shader"]
 
@@ -35,20 +35,52 @@ as_normal_map = true
 bump_strength = 4.0
 noise = SubResource("FastNoiseLite_floor_normal")
 
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_floor_stain"]
+noise_type = 3
+seed = 303
+frequency = 0.008
+fractal_octaves = 3
+fractal_lacunarity = 2.0
+fractal_gain = 0.5
+
+[sub_resource type="NoiseTexture2D" id="NoiseTexture2D_floor_stain"]
+generate_mipmaps = true
+seamless = true
+seamless_blend_skirt = 0.2
+width = 256
+height = 256
+noise = SubResource("FastNoiseLite_floor_stain")
+
 [resource]
 render_priority = 0
 shader = ExtResource("1_shader")
-shader_parameter/base_color = Color(0.315, 0.328, 0.318, 1)
-shader_parameter/grout_color = Color(0.115, 0.128, 0.122, 1)
+shader_parameter/decay = 0.35
+shader_parameter/base_color = Color(0.58, 0.545, 0.46, 1)
+shader_parameter/decay_color = Color(0.09, 0.1, 0.075, 1)
+shader_parameter/grout_color = Color(0.09, 0.085, 0.07, 1)
+shader_parameter/stain_color = Color(0.26, 0.17, 0.12, 1)
 shader_parameter/tile_size = 0.5
 shader_parameter/grout_width = 0.022
 shader_parameter/tile_jitter = 0.11
-shader_parameter/bevel_strength = 0.1
+shader_parameter/is_ceiling = false
+shader_parameter/groove_depth = 0.012
+shader_parameter/groove_reach = 0.32
+shader_parameter/groove_normal_strength = 7.0
+shader_parameter/ceil_sag_strength = 0.0
+shader_parameter/parallax_strength = 0.6
 shader_parameter/mottle_tex = SubResource("NoiseTexture2D_floor_mottle")
+shader_parameter/stain_tex = SubResource("NoiseTexture2D_floor_stain")
 shader_parameter/normal_tex = SubResource("NoiseTexture2D_floor_normal")
 shader_parameter/mottle_scale = 0.4
+shader_parameter/wear_freq_mult = 3.2
+shader_parameter/stain_scale = 0.14
 shader_parameter/normal_scale = 2.2
 shader_parameter/mottle_strength = 0.32
-shader_parameter/grime_strength = 0.4
-shader_parameter/normal_strength = 0.5
-shader_parameter/roughness_base = 0.78
+shader_parameter/wear_strength = 0.32
+shader_parameter/wear_threshold = 0.58
+shader_parameter/stain_strength = 0.65
+shader_parameter/stain_threshold = 0.5
+shader_parameter/ao_strength = 0.4
+shader_parameter/normal_strength = 0.55
+shader_parameter/roughness_base = 0.72
+shader_parameter/roughness_wet = 0.16

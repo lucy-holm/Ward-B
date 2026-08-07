@@ -1,4 +1,4 @@
-[gd_scene load_steps=9 format=3 uid="uid://wardbfixkeypad001"]
+[gd_scene load_steps=12 format=3 uid="uid://wardbfixkeypad001"]
 
 ; Wall-mounted staff-access keypad. Canonical size 0.40W x 0.50H x 0.14D,
 ; origin at the centre of the volume, faceplate faces -Z. Composite so it
@@ -11,6 +11,14 @@
 ; vs the dispenser's single slot+tray) so the two are never confused at a
 ; glance.
 ;
+; Realism pass (see godot/fixtures/_gen/gen_bevel_meshes.gd): body, backing
+; and every key are baked chamfered-box meshes (44-tri bevelled box, same
+; mesh reused for all 12 keys — one asset, twelve instances). A lock
+; escutcheon disc sits above the display strip and four corner screws stud
+; the body (fixtures/hardware_mat, metallic pinned low per MIGRATION_NOTES).
+; Each key gets a small hand-authored position/rotation jitter instead of a
+; perfect grid — a worn membrane keypad's buttons never sit dead level.
+;
 ; Visuals only — no collision, no gameplay script. The room generator supplies
 ; the Area3D + CollisionShape3D this gets instanced under.
 
@@ -18,87 +26,134 @@
 [ext_resource type="Material" uid="uid://wardbfxka01" path="res://fixtures/keypad_backing_mat.tres" id="m_backing"]
 [ext_resource type="Material" uid="uid://wardbfxkk01" path="res://fixtures/keypad_key_mat.tres" id="m_key"]
 [ext_resource type="Material" uid="uid://wardbfxkg01" path="res://fixtures/keypad_glow_mat.tres" id="m_glow"]
-
-[sub_resource type="BoxMesh" id="bm_body"]
-size = Vector3(0.4, 0.5, 0.14)
-material = ExtResource("m_body")
-
-[sub_resource type="BoxMesh" id="bm_backing"]
-size = Vector3(0.32, 0.42, 0.02)
-material = ExtResource("m_backing")
-
-[sub_resource type="BoxMesh" id="bm_key"]
-size = Vector3(0.066, 0.038, 0.012)
-material = ExtResource("m_key")
+[ext_resource type="Material" uid="uid://wardbfxhw01" path="res://fixtures/hardware_mat.tres" id="m_hw"]
+[ext_resource type="ArrayMesh" path="res://fixtures/meshes/kp_body.tres" id="am_body"]
+[ext_resource type="ArrayMesh" path="res://fixtures/meshes/kp_backing.tres" id="am_backing"]
+[ext_resource type="ArrayMesh" path="res://fixtures/meshes/kp_key.tres" id="am_key"]
+[ext_resource type="FontFile" path="res://fonts/SpecialElite-Regular.ttf" id="f_sign"]
 
 [sub_resource type="BoxMesh" id="bm_strip"]
 size = Vector3(0.22, 0.03, 0.012)
 material = ExtResource("m_glow")
 
+[sub_resource type="CylinderMesh" id="cm_escutcheon"]
+top_radius = 0.024
+bottom_radius = 0.024
+height = 0.008
+radial_segments = 14
+
+[sub_resource type="CylinderMesh" id="cm_screw"]
+top_radius = 0.005
+bottom_radius = 0.005
+height = 0.006
+radial_segments = 8
+
 [node name="Keypad" type="Node3D"]
 
 [node name="Body" type="MeshInstance3D" parent="."]
-mesh = SubResource("bm_body")
+mesh = ExtResource("am_body")
+surface_material_override/0 = ExtResource("m_body")
 
 [node name="Backing" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.01, -0.08)
-mesh = SubResource("bm_backing")
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.008, -0.01, -0.08)
+mesh = ExtResource("am_backing")
+surface_material_override/0 = ExtResource("m_backing")
 
 [node name="Keys" type="Node3D" parent="."]
 
+; Small per-key jitter (±2mm position, ±3deg roll) so the grid reads as a
+; worn membrane keypad rather than an array-copied primitive.
 [node name="Key_r0_c0" type="MeshInstance3D" parent="Keys"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.09, 0.08, -0.096)
-mesh = SubResource("bm_key")
+transform = Transform3D(0.9994, 0.0349, 0, -0.0349, 0.9994, 0, 0, 0, 1, -0.091, 0.081, -0.096)
+mesh = ExtResource("am_key")
+surface_material_override/0 = ExtResource("m_key")
 
 [node name="Key_r0_c1" type="MeshInstance3D" parent="Keys"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.08, -0.096)
-mesh = SubResource("bm_key")
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.001, 0.079, -0.097)
+mesh = ExtResource("am_key")
+surface_material_override/0 = ExtResource("m_key")
 
 [node name="Key_r0_c2" type="MeshInstance3D" parent="Keys"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.09, 0.08, -0.096)
-mesh = SubResource("bm_key")
+transform = Transform3D(0.9986, -0.0523, 0, 0.0523, 0.9986, 0, 0, 0, 1, 0.088, 0.081, -0.096)
+mesh = ExtResource("am_key")
+surface_material_override/0 = ExtResource("m_key")
 
 [node name="Key_r1_c0" type="MeshInstance3D" parent="Keys"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.09, 0.02, -0.096)
-mesh = SubResource("bm_key")
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.089, 0.021, -0.097)
+mesh = ExtResource("am_key")
+surface_material_override/0 = ExtResource("m_key")
 
 [node name="Key_r1_c1" type="MeshInstance3D" parent="Keys"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.02, -0.096)
-mesh = SubResource("bm_key")
+transform = Transform3D(0.9994, -0.0349, 0, 0.0349, 0.9994, 0, 0, 0, 1, -0.002, 0.019, -0.096)
+mesh = ExtResource("am_key")
+surface_material_override/0 = ExtResource("m_key")
 
 [node name="Key_r1_c2" type="MeshInstance3D" parent="Keys"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.09, 0.02, -0.096)
-mesh = SubResource("bm_key")
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.091, 0.021, -0.097)
+mesh = ExtResource("am_key")
+surface_material_override/0 = ExtResource("m_key")
 
 [node name="Key_r2_c0" type="MeshInstance3D" parent="Keys"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.09, -0.04, -0.096)
-mesh = SubResource("bm_key")
+transform = Transform3D(0.9986, 0.0523, 0, -0.0523, 0.9986, 0, 0, 0, 1, -0.092, -0.038, -0.096)
+mesh = ExtResource("am_key")
+surface_material_override/0 = ExtResource("m_key")
 
 [node name="Key_r2_c1" type="MeshInstance3D" parent="Keys"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.04, -0.096)
-mesh = SubResource("bm_key")
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0, -0.041, -0.097)
+mesh = ExtResource("am_key")
+surface_material_override/0 = ExtResource("m_key")
 
 [node name="Key_r2_c2" type="MeshInstance3D" parent="Keys"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.09, -0.04, -0.096)
-mesh = SubResource("bm_key")
+transform = Transform3D(0.9994, 0.0349, 0, -0.0349, 0.9994, 0, 0, 0, 1, 0.089, -0.039, -0.096)
+mesh = ExtResource("am_key")
+surface_material_override/0 = ExtResource("m_key")
 
 [node name="Key_r3_c0" type="MeshInstance3D" parent="Keys"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.09, -0.1, -0.096)
-mesh = SubResource("bm_key")
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.091, -0.099, -0.097)
+mesh = ExtResource("am_key")
+surface_material_override/0 = ExtResource("m_key")
 
 [node name="Key_r3_c1" type="MeshInstance3D" parent="Keys"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.1, -0.096)
-mesh = SubResource("bm_key")
+transform = Transform3D(0.9998, -0.0175, 0, 0.0175, 0.9998, 0, 0, 0, 1, 0.002, -0.101, -0.096)
+mesh = ExtResource("am_key")
+surface_material_override/0 = ExtResource("m_key")
 
 [node name="Key_r3_c2" type="MeshInstance3D" parent="Keys"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.09, -0.1, -0.096)
-mesh = SubResource("bm_key")
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.09, -0.098, -0.097)
+mesh = ExtResource("am_key")
+surface_material_override/0 = ExtResource("m_key")
 
 [node name="Strip" type="MeshInstance3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.155, -0.096)
 mesh = SubResource("bm_strip")
 
+[node name="Escutcheon" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0.135, 0.21, -0.073)
+mesh = SubResource("cm_escutcheon")
+surface_material_override/0 = ExtResource("m_hw")
+
+[node name="ScrewTL" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, -0.165, 0.215, -0.071)
+mesh = SubResource("cm_screw")
+surface_material_override/0 = ExtResource("m_hw")
+
+[node name="ScrewTR" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0.168, 0.213, -0.071)
+mesh = SubResource("cm_screw")
+surface_material_override/0 = ExtResource("m_hw")
+
+[node name="ScrewBL" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, -0.166, -0.22, -0.071)
+mesh = SubResource("cm_screw")
+surface_material_override/0 = ExtResource("m_hw")
+
+[node name="ScrewBR" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0.166, -0.218, -0.071)
+mesh = SubResource("cm_screw")
+surface_material_override/0 = ExtResource("m_hw")
+
 [node name="Label" type="Label3D" parent="."]
+font = ExtResource("f_sign")
 transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0, 0.19, -0.096)
 text = "STAFF ACCESS"
 modulate = Color(0.6, 0.85, 0.9, 1)

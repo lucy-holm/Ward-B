@@ -1,4 +1,4 @@
-[gd_scene load_steps=15 format=3 uid="uid://wardbfixdoor001"]
+[gd_scene load_steps=23 format=3 uid="uid://wardbfixdoor001"]
 
 ; Institutional ward door — composite so it reads as "openable" against the
 ; now-textured triplanar walls, not as another wall panel. Canonical frame:
@@ -16,10 +16,32 @@
 ; look — metallic stays nailed near 0 per MIGRATION_NOTES, sold with
 ; roughness/normal instead since there's no reflection probe to catch a
 ; metallic surface).
+;
+; Realism pass (see godot/fixtures/_gen/gen_bevel_meshes.gd): every jamb,
+; rail, stile, panel, kick plate, push bar and ID plate is now a baked
+; chamfered-box mesh instead of a plain BoxMesh — real bevelled edges. Added
+; per the corridor reference photo: a glazed vision light set into the
+; upper panel (proud steel frame + low-roughness dark pane), three hinge
+; barrel+leaf pairs on the jamb-left edge (opposite the push bar), and a
+; lock cylinder protruding near the push bar. Hardware reuses chain.tres so
+; it matches the kick plate/push bar metal already established here.
 
 [ext_resource type="Material" uid="uid://wardbmatd839ab2" path="res://materials/door.tres" id="m_door"]
 [ext_resource type="Material" uid="uid://wardbmat5fba6a4" path="res://materials/wall2.tres" id="m_wall2"]
 [ext_resource type="Material" uid="uid://wardbmat7d6a4dd" path="res://materials/chain.tres" id="m_chain"]
+[ext_resource type="Material" uid="uid://wardbfxdglass01" path="res://fixtures/door_glass_mat.tres" id="m_glass"]
+[ext_resource type="ArrayMesh" path="res://fixtures/meshes/door_jamb_side.tres" id="am_jamb_side"]
+[ext_resource type="ArrayMesh" path="res://fixtures/meshes/door_jamb_top.tres" id="am_jamb_top"]
+[ext_resource type="ArrayMesh" path="res://fixtures/meshes/door_rail_h.tres" id="am_rail_h"]
+[ext_resource type="ArrayMesh" path="res://fixtures/meshes/door_rail_mid.tres" id="am_rail_mid"]
+[ext_resource type="ArrayMesh" path="res://fixtures/meshes/door_rail_bottom.tres" id="am_rail_bottom"]
+[ext_resource type="ArrayMesh" path="res://fixtures/meshes/door_stile.tres" id="am_stile"]
+[ext_resource type="ArrayMesh" path="res://fixtures/meshes/door_panel_upper.tres" id="am_panel_upper"]
+[ext_resource type="ArrayMesh" path="res://fixtures/meshes/door_panel_lower.tres" id="am_panel_lower"]
+[ext_resource type="ArrayMesh" path="res://fixtures/meshes/door_kick.tres" id="am_kick"]
+[ext_resource type="ArrayMesh" path="res://fixtures/meshes/door_bar.tres" id="am_bar"]
+[ext_resource type="ArrayMesh" path="res://fixtures/meshes/door_plate.tres" id="am_plate"]
+[ext_resource type="FontFile" path="res://fonts/SpecialElite-Regular.ttf" id="f_sign"]
 
 [sub_resource type="StandardMaterial3D" id="m_plate"]
 albedo_color = Color(0.906, 0.925, 0.914, 1)
@@ -38,110 +60,148 @@ albedo_color = Color(0.155, 0.185, 0.205, 1)
 roughness = 0.8
 metallic = 0.0
 
-[sub_resource type="BoxMesh" id="bm_jamb_side"]
-size = Vector3(0.10, 3.0, 0.16)
-material = ExtResource("m_wall2")
+[sub_resource type="BoxMesh" id="bm_vision_frame"]
+size = Vector3(0.34, 0.44, 0.02)
 
-[sub_resource type="BoxMesh" id="bm_jamb_top"]
-size = Vector3(2.0, 0.10, 0.16)
-material = ExtResource("m_wall2")
+[sub_resource type="BoxMesh" id="bm_vision_glass"]
+size = Vector3(0.28, 0.38, 0.008)
 
-; Leaf is NOT one solid slab — a solid box here would occlude the recessed
-; panels behind it entirely (a box has no interior visibility; the panels
-; would sit geometrically "behind" it but never actually be seen). Instead
-; the leaf is rails + stiles with real gaps, and the panels below fill
-; those gaps at a set-back Z, like an actual panel door.
-[sub_resource type="BoxMesh" id="bm_rail_h"]
-size = Vector3(1.80, 0.15, 0.06)
-material = ExtResource("m_door")
+[sub_resource type="CylinderMesh" id="cm_hinge_barrel"]
+top_radius = 0.018
+bottom_radius = 0.018
+height = 0.14
+radial_segments = 10
 
-[sub_resource type="BoxMesh" id="bm_rail_mid"]
-size = Vector3(1.80, 0.18, 0.06)
-material = ExtResource("m_door")
+[sub_resource type="BoxMesh" id="bm_hinge_leaf"]
+size = Vector3(0.05, 0.12, 0.012)
 
-[sub_resource type="BoxMesh" id="bm_rail_bottom"]
-size = Vector3(1.80, 0.45, 0.06)
-material = ExtResource("m_door")
-
-[sub_resource type="BoxMesh" id="bm_stile"]
-size = Vector3(0.15, 2.28, 0.06)
-material = ExtResource("m_door")
-
-[sub_resource type="BoxMesh" id="bm_panel_upper"]
-size = Vector3(1.50, 0.95, 0.03)
-material = SubResource("m_panel")
-
-[sub_resource type="BoxMesh" id="bm_panel_lower"]
-size = Vector3(1.50, 1.15, 0.03)
-material = SubResource("m_panel")
-
-[sub_resource type="BoxMesh" id="bm_kick"]
-size = Vector3(1.50, 0.40, 0.03)
-material = ExtResource("m_chain")
-
-[sub_resource type="BoxMesh" id="bm_bar"]
-size = Vector3(0.55, 0.05, 0.045)
-material = ExtResource("m_chain")
-
-[sub_resource type="BoxMesh" id="bm_plate"]
-size = Vector3(0.70, 0.16, 0.012)
-material = SubResource("m_plate")
+[sub_resource type="CylinderMesh" id="cm_lock"]
+top_radius = 0.028
+bottom_radius = 0.028
+height = 0.04
+radial_segments = 12
 
 [node name="Door" type="Node3D"]
 
 [node name="JambLeft" type="MeshInstance3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.95, 0.0, 0.02)
-mesh = SubResource("bm_jamb_side")
+mesh = ExtResource("am_jamb_side")
+surface_material_override/0 = ExtResource("m_wall2")
 
 [node name="JambRight" type="MeshInstance3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.95, 0.0, 0.02)
-mesh = SubResource("bm_jamb_side")
+mesh = ExtResource("am_jamb_side")
+surface_material_override/0 = ExtResource("m_wall2")
 
 [node name="JambTop" type="MeshInstance3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0, 1.45, 0.02)
-mesh = SubResource("bm_jamb_top")
+mesh = ExtResource("am_jamb_top")
+surface_material_override/0 = ExtResource("m_wall2")
 
 [node name="TopRail" type="MeshInstance3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0, 1.305, -0.06)
-mesh = SubResource("bm_rail_h")
+mesh = ExtResource("am_rail_h")
+surface_material_override/0 = ExtResource("m_door")
 
 [node name="MidRail" type="MeshInstance3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0, 0.19, -0.06)
-mesh = SubResource("bm_rail_mid")
+mesh = ExtResource("am_rail_mid")
+surface_material_override/0 = ExtResource("m_door")
 
 [node name="BottomRail" type="MeshInstance3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0, -1.275, -0.06)
-mesh = SubResource("bm_rail_bottom")
+mesh = ExtResource("am_rail_bottom")
+surface_material_override/0 = ExtResource("m_door")
 
 [node name="LeftStile" type="MeshInstance3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.825, 0.09, -0.06)
-mesh = SubResource("bm_stile")
+mesh = ExtResource("am_stile")
+surface_material_override/0 = ExtResource("m_door")
 
 [node name="RightStile" type="MeshInstance3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.825, 0.09, -0.06)
-mesh = SubResource("bm_stile")
+mesh = ExtResource("am_stile")
+surface_material_override/0 = ExtResource("m_door")
 
 [node name="PanelUpper" type="MeshInstance3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0, 0.755, -0.015)
-mesh = SubResource("bm_panel_upper")
+mesh = ExtResource("am_panel_upper")
+surface_material_override/0 = SubResource("m_panel")
 
 [node name="PanelLower" type="MeshInstance3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0, -0.475, -0.015)
-mesh = SubResource("bm_panel_lower")
+mesh = ExtResource("am_panel_lower")
+surface_material_override/0 = SubResource("m_panel")
+
+; Vision light set into the upper panel, per the corridor reference photo —
+; proud steel frame with a low-roughness dark pane, offset a couple cm off
+; panel-centre so it doesn't read as machine-perfect. Centred at y=0.6 in
+; the panel's clear vertical band (0.28-0.92) so it sits well clear of the
+; ID plate above (bottom edge 0.92) and the mid rail below (top edge 0.28).
+[node name="VisionFrame" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.015, 0.6, -0.04)
+mesh = SubResource("bm_vision_frame")
+surface_material_override/0 = ExtResource("m_door")
+
+[node name="VisionGlass" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.015, 0.6, -0.036)
+mesh = SubResource("bm_vision_glass")
+surface_material_override/0 = ExtResource("m_glass")
 
 [node name="KickPlate" type="MeshInstance3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0, -1.27, -0.085)
-mesh = SubResource("bm_kick")
+mesh = ExtResource("am_kick")
+surface_material_override/0 = ExtResource("m_chain")
 
 [node name="PushBar" type="MeshInstance3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.55, -0.5, -0.0825)
-mesh = SubResource("bm_bar")
+mesh = ExtResource("am_bar")
+surface_material_override/0 = ExtResource("m_chain")
+
+[node name="Lock" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0.72, -0.2, -0.078)
+mesh = SubResource("cm_lock")
+surface_material_override/0 = ExtResource("m_chain")
+
+; Hinge barrel+leaf pairs on the jamb-left edge, opposite the push bar —
+; three, top/mid/bottom, matching a real panel door's hardware count.
+[node name="HingeBarrelTop" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.9, 1.0, 0.03)
+mesh = SubResource("cm_hinge_barrel")
+surface_material_override/0 = ExtResource("m_chain")
+
+[node name="HingeLeafTop" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.855, 1.0, -0.03)
+mesh = SubResource("bm_hinge_leaf")
+surface_material_override/0 = ExtResource("m_chain")
+
+[node name="HingeBarrelMid" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.9, 0.0, 0.03)
+mesh = SubResource("cm_hinge_barrel")
+surface_material_override/0 = ExtResource("m_chain")
+
+[node name="HingeLeafMid" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.855, 0.0, -0.03)
+mesh = SubResource("bm_hinge_leaf")
+surface_material_override/0 = ExtResource("m_chain")
+
+[node name="HingeBarrelBottom" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.9, -1.0, 0.03)
+mesh = SubResource("cm_hinge_barrel")
+surface_material_override/0 = ExtResource("m_chain")
+
+[node name="HingeLeafBottom" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.855, -1.0, -0.03)
+mesh = SubResource("bm_hinge_leaf")
+surface_material_override/0 = ExtResource("m_chain")
 
 [node name="Plate" type="MeshInstance3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0, 1.0, -0.096)
-mesh = SubResource("bm_plate")
+mesh = ExtResource("am_plate")
+surface_material_override/0 = SubResource("m_plate")
 
 [node name="PlateLabel" type="Label3D" parent="."]
+font = ExtResource("f_sign")
 transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0.0, 1.0, -0.103)
 pixel_size = 0.0016
 text = "WARD B"

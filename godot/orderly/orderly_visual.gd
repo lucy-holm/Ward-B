@@ -42,6 +42,20 @@ extends Node3D
 
 const BODY_SHADER := preload("res://orderly/orderly_body.gdshader")
 
+# Curved/tapered body-part meshes baked once by
+# orderly/_gen/gen_orderly_meshes.gd (read that file's header for the loft
+# technique: smooth-shaded rounded-rectangle cross-sections swept along the
+# limb/torso/shoe). Regenerate after changing the proportions below with:
+#   godot --headless --path . --script res://orderly/_gen/gen_orderly_meshes.gd
+const MESH_LEG_THIGH := preload("res://orderly/meshes/leg_thigh.tres")
+const MESH_LEG_SHIN := preload("res://orderly/meshes/leg_shin.tres")
+const MESH_ARM_UPPER := preload("res://orderly/meshes/arm_upper.tres")
+const MESH_ARM_CUFF := preload("res://orderly/meshes/arm_cuff.tres")
+const MESH_TORSO := preload("res://orderly/meshes/torso.tres")
+const MESH_PALM := preload("res://orderly/meshes/palm.tres")
+const MESH_FINGER := preload("res://orderly/meshes/finger.tres")
+const MESH_SHOE := preload("res://orderly/meshes/shoe.tres")
+
 # --- proportions ------------------------------------------------------------
 # Pushed further than a naturalistic figure on purpose: very long straight
 # legs, a small head relative to the body, narrow torso.
@@ -240,15 +254,39 @@ func _build_body() -> void:
 	var badge_mat := _make_material(BADGE_BASE, SKIN_GRIME, 0.03, 0.5, 0.2, 0.0, 0.0, 0.03)
 	var button_mat := _make_material(BUTTON_BASE, SKIN_GRIME, 0.1, 0.55, 0.15, 0.0, 0.0, 0.02)
 
-	# legs — hip-pivoted so the gait swing rotates from the joint
+	# legs — hip-pivoted so the gait swing rotates from the joint. Thigh/shin
+	# are separate baked lofts (MESH_LEG_*) that share an exact knee
+	# cross-section so they join with no visible step; kept as two meshes
+	# (not fused into one) so the clean-thigh/dirty-shin material split from
+	# the original box build survives the switch to curved geometry.
 	var leg_offset_x := LEG_W * 0.42
 	for side in [-1.0, 1.0]:
 		var pivot := Node3D.new()
 		pivot.position = Vector3(side * leg_offset_x, LEG_H, 0)
-		var leg := _build_tapered_limb(LEG_W * 0.62, LEG_D * 0.95, LEG_W * 0.46, LEG_D * 0.7, LEG_H, cloth_thigh, cloth_shin)
-		leg.position.y = -LEG_H * 0.5
-		pivot.add_child(leg)
-		pivot.add_child(_build_shoe(shoe_mat))
+
+		var thigh := MeshInstance3D.new()
+		thigh.mesh = MESH_LEG_THIGH
+		thigh.material_override = cloth_thigh
+		pivot.add_child(thigh)
+
+		var shin := MeshInstance3D.new()
+		shin.mesh = MESH_LEG_SHIN
+		shin.material_override = cloth_shin
+		pivot.add_child(shin)
+
+		var shoe := MeshInstance3D.new()
+		shoe.mesh = MESH_SHOE
+		shoe.material_override = shoe_mat
+		# The leg loft's ankle end is baked at pivot-local y = -LEG_H; the
+		# shoe centres there with a small extra drop so its sole (not its
+		# ankle collar) reads as ground contact.
+		# FIX (found while rebuilding this part): the old box-shoe was left
+		# at y=-0.04 — its own docstring said "-LEG_H" but the code never
+		# matched, stranding it up near the hip pivot instead of the ankle.
+		# Small and dim in every preview shot, so it was never caught.
+		shoe.position = Vector3(0.0, -LEG_H - 0.015, -0.055)
+		pivot.add_child(shoe)
+
 		add_child(pivot)
 		_leg_pivots.append(pivot)
 
@@ -256,9 +294,7 @@ func _build_body() -> void:
 	# badge/belt/shoulder caps) is parented to it so it inherits the same
 	# hunch/chase-pitch rotation automatically.
 	_torso = MeshInstance3D.new()
-	var torso_mesh := BoxMesh.new()
-	torso_mesh.size = Vector3(TORSO_W, TORSO_H, TORSO_D)
-	_torso.mesh = torso_mesh
+	_torso.mesh = MESH_TORSO
 	_torso.material_override = cloth_body
 	_torso.position.y = LEG_H + TORSO_H * 0.5
 	_torso.rotation.x = HUNCH_TILT
@@ -276,6 +312,7 @@ func _build_body() -> void:
 	neck_mesh.top_radius = NECK_R * 0.9
 	neck_mesh.bottom_radius = NECK_R
 	neck_mesh.height = NECK_LEN
+	neck_mesh.radial_segments = 14
 	neck.mesh = neck_mesh
 	neck.position.y = NECK_LEN * 0.5
 	neck.material_override = skin_neck
@@ -286,6 +323,7 @@ func _build_body() -> void:
 	collar_mesh.top_radius = NECK_R * 1.35
 	collar_mesh.bottom_radius = NECK_R * 1.35
 	collar_mesh.height = 0.045
+	collar_mesh.radial_segments = 14
 	collar.mesh = collar_mesh
 	collar.position.y = 0.02
 	collar.material_override = cloth_clean
@@ -300,6 +338,8 @@ func _build_body() -> void:
 	var head_mesh := SphereMesh.new()
 	head_mesh.radius = HEAD_R
 	head_mesh.height = HEAD_R * 2.0
+	head_mesh.radial_segments = 28
+	head_mesh.rings = 16
 	head.mesh = head_mesh
 	head.scale = HEAD_SCALE
 	head.material_override = skin_head
@@ -313,9 +353,17 @@ func _build_body() -> void:
 		var pivot := Node3D.new()
 		pivot.position = Vector3(side * arm_x, shoulder_y, 0)
 		pivot.rotation.x = HUNCH_TILT * 0.5
-		var arm := _build_tapered_limb(ARM_W * 1.15, ARM_D * 1.15, ARM_W * 0.7, ARM_D * 0.7, ARM_LEN, cloth_upper_arm, cloth_cuff)
-		arm.position.y = -ARM_LEN * 0.5
-		pivot.add_child(arm)
+
+		var upper := MeshInstance3D.new()
+		upper.mesh = MESH_ARM_UPPER
+		upper.material_override = cloth_upper_arm
+		pivot.add_child(upper)
+
+		var cuff := MeshInstance3D.new()
+		cuff.mesh = MESH_ARM_CUFF
+		cuff.material_override = cloth_cuff
+		pivot.add_child(cuff)
+
 		var hand := _build_hand(skin_hand)
 		hand.position.y = -ARM_LEN
 		pivot.add_child(hand)
@@ -327,47 +375,17 @@ func _build_body() -> void:
 	add_child(cone)
 
 
-# Two boxes stacked along Y (wider segment toward the joint, narrower toward
-# the extremity) — cheap taper using only primitives. Returned group's local
-# origin is the limb's vertical midpoint, so a caller hangs it from a pivot
-# with `limb.position.y = -length / 2`. Top and bottom segments take separate
-# materials so grime can be concentrated toward the extremity (cuff/knee)
-# and kept clean toward the joint (shoulder/hip).
-func _build_tapered_limb(top_w: float, top_d: float, bottom_w: float, bottom_d: float,
-		length: float, top_mat: Material, bottom_mat: Material) -> Node3D:
-	var grp := Node3D.new()
-	var seg_len := length * 0.5
-
-	var top := MeshInstance3D.new()
-	var top_mesh := BoxMesh.new()
-	top_mesh.size = Vector3(top_w, seg_len, top_d)
-	top.mesh = top_mesh
-	top.position.y = seg_len * 0.5
-	top.material_override = top_mat
-	grp.add_child(top)
-
-	var bottom := MeshInstance3D.new()
-	var bottom_mesh := BoxMesh.new()
-	bottom_mesh.size = Vector3(bottom_w, seg_len, bottom_d)
-	bottom.mesh = bottom_mesh
-	bottom.position.y = -seg_len * 0.5
-	bottom.material_override = bottom_mat
-	grp.add_child(bottom)
-
-	return grp
-
-
-# Palm + four long, thin, slightly splayed fingers. Attached directly under
-# an arm pivot at y = -ARM_LEN (the wrist), independent of the tapered-limb
-# internals above.
+# Palm (a short rounded loft, MESH_PALM) plus four long, slightly splayed
+# tapered fingers and a thumb (all MESH_FINGER, mirrored/rotated per digit)
+# — "long bony hands with individually visible fingers" off the character
+# sheet. Attached directly under an arm pivot at y = -ARM_LEN (the wrist);
+# MESH_PALM's own baked origin is already the wrist, so it needs no extra
+# offset here.
 func _build_hand(mat: Material) -> Node3D:
 	var hand := Node3D.new()
 
 	var palm := MeshInstance3D.new()
-	var palm_mesh := BoxMesh.new()
-	palm_mesh.size = Vector3(0.07, HAND_LEN, 0.03)
-	palm.mesh = palm_mesh
-	palm.position.y = -HAND_LEN * 0.5
+	palm.mesh = MESH_PALM
 	palm.material_override = mat
 	hand.add_child(palm)
 
@@ -375,28 +393,24 @@ func _build_hand(mat: Material) -> Node3D:
 	for i in finger_count:
 		var t := (float(i) / float(finger_count - 1)) - 0.5  # -0.5..0.5
 		var finger := MeshInstance3D.new()
-		var finger_mesh := BoxMesh.new()
-		finger_mesh.size = Vector3(0.015, FINGER_LEN, 0.015)
-		finger.mesh = finger_mesh
-		finger.position = Vector3(t * 0.065, -HAND_LEN - FINGER_LEN * 0.42, 0.0)
+		finger.mesh = MESH_FINGER
+		finger.position = Vector3(t * 0.068, -HAND_LEN, 0.0)
 		finger.rotation.z = t * 0.5    # slightly splayed
-		finger.rotation.x = 0.12
+		finger.rotation.x = 0.14
 		finger.material_override = mat
 		hand.add_child(finger)
 
+	# Thumb — shorter, thicker (reuses MESH_FINGER non-uniformly scaled),
+	# angled out from the base of the palm rather than the knuckle row.
+	var thumb := MeshInstance3D.new()
+	thumb.mesh = MESH_FINGER
+	thumb.scale = Vector3(1.3, 0.72, 1.3)
+	thumb.position = Vector3(0.042, -HAND_LEN * 0.35, 0.012)
+	thumb.rotation = Vector3(0.35, 0.0, 1.05)
+	thumb.material_override = mat
+	hand.add_child(thumb)
+
 	return hand
-
-
-# Worn shoe block. Attached directly under a leg pivot at y = -LEG_H (the
-# foot), independent of the tapered-limb internals.
-func _build_shoe(mat: Material) -> MeshInstance3D:
-	var shoe := MeshInstance3D.new()
-	var shoe_mesh := BoxMesh.new()
-	shoe_mesh.size = Vector3(0.11, 0.08, 0.25)
-	shoe.mesh = shoe_mesh
-	shoe.position = Vector3(0.0, -0.04, -0.055)
-	shoe.material_override = mat
-	return shoe
 
 
 # Richer uniform detail from the revised reference: mandarin collar (built in
@@ -407,14 +421,23 @@ func _build_shoe(mat: Material) -> MeshInstance3D:
 # confines to the +Z (rear) face.
 func _build_torso_trim(torso: MeshInstance3D, cloth_clean: Material, cloth_hem: Material,
 		badge_mat: Material, button_mat: Material) -> void:
-	# hem band — dirtiest part of the tunic, bottom edge
-	var hem := MeshInstance3D.new()
-	var hem_mesh := BoxMesh.new()
-	hem_mesh.size = Vector3(TORSO_W * 1.06, TORSO_H * 0.16, TORSO_D * 1.06)
-	hem.mesh = hem_mesh
-	hem.position = Vector3(0, -TORSO_H * 0.5 + TORSO_H * 0.08, 0)
-	hem.material_override = cloth_hem
-	torso.add_child(hem)
+	# MESH_TORSO (see gen_orderly_meshes.gd's _build_torso) bulges out at the
+	# chest and flares at the hem rather than sitting flush like the old
+	# flat box, so the trim below is offset to those rings' actual
+	# half-extents (hardcoded here to match — keep in sync if the generator
+	# ring values change) instead of a flat TORSO_D/TORSO_W multiple, or it
+	# sinks into (or floats off) the new curved surface.
+	const CHEST_HALF_DEPTH := 0.125    # torso ring "chest"
+	const HEM_HALF_WIDTH := 0.215      # torso ring "hem-flare"
+	const HEM_HALF_DEPTH := 0.130      # torso ring "hem-flare"
+
+	# NO separate hem band. It used to be a BoxMesh wrapped around the torso,
+	# which was fine when the torso was itself a box — but the torso is now a
+	# smooth tapered loft, so a box's corners punched straight out through the
+	# curved surface and read as a black slab floating at the waist. It is also
+	# redundant: the loft already flares at the hem ring, and the cloth material
+	# concentrates its grime there, so the dirty-hem read survives without it.
+	# (cloth_hem is still used by the limb meshes.)
 
 	# rounded, narrow, slumped shoulder caps
 	for side in [-1.0, 1.0]:
@@ -422,6 +445,8 @@ func _build_torso_trim(torso: MeshInstance3D, cloth_clean: Material, cloth_hem: 
 		var cap_mesh := SphereMesh.new()
 		cap_mesh.radius = TORSO_W * 0.22
 		cap_mesh.height = TORSO_W * 0.34
+		cap_mesh.radial_segments = 16
+		cap_mesh.rings = 8
 		cap.mesh = cap_mesh
 		cap.position = Vector3(side * TORSO_W * 0.42, TORSO_H * 0.44, 0)
 		cap.material_override = cloth_clean
@@ -432,7 +457,7 @@ func _build_torso_trim(torso: MeshInstance3D, cloth_clean: Material, cloth_hem: 
 	var placket_mesh := BoxMesh.new()
 	placket_mesh.size = Vector3(0.028, TORSO_H * 0.92, 0.01)
 	placket.mesh = placket_mesh
-	placket.position = Vector3(0, 0, -(TORSO_D * 0.5 + 0.006))
+	placket.position = Vector3(0, 0, -(CHEST_HALF_DEPTH + 0.006))
 	placket.material_override = cloth_clean
 	torso.add_child(placket)
 
@@ -443,8 +468,10 @@ func _build_torso_trim(torso: MeshInstance3D, cloth_clean: Material, cloth_hem: 
 		var btn_mesh := SphereMesh.new()
 		btn_mesh.radius = 0.011
 		btn_mesh.height = 0.022
+		btn_mesh.radial_segments = 8
+		btn_mesh.rings = 4
 		btn.mesh = btn_mesh
-		btn.position = Vector3(0, t * TORSO_H * 0.8, -(TORSO_D * 0.5 + 0.014))
+		btn.position = Vector3(0, t * TORSO_H * 0.8, -(CHEST_HALF_DEPTH + 0.014))
 		btn.material_override = button_mat
 		torso.add_child(btn)
 
@@ -453,7 +480,7 @@ func _build_torso_trim(torso: MeshInstance3D, cloth_clean: Material, cloth_hem: 
 	var pocket_mesh := BoxMesh.new()
 	pocket_mesh.size = Vector3(0.08, 0.09, 0.01)
 	pocket.mesh = pocket_mesh
-	pocket.position = Vector3(TORSO_W * 0.24, TORSO_H * 0.16, -(TORSO_D * 0.5 + 0.006))
+	pocket.position = Vector3(TORSO_W * 0.24, TORSO_H * 0.16, -(CHEST_HALF_DEPTH + 0.006))
 	pocket.material_override = cloth_clean
 	torso.add_child(pocket)
 
@@ -461,7 +488,7 @@ func _build_torso_trim(torso: MeshInstance3D, cloth_clean: Material, cloth_hem: 
 	var badge_mesh := BoxMesh.new()
 	badge_mesh.size = Vector3(0.045, 0.06, 0.005)
 	badge.mesh = badge_mesh
-	badge.position = Vector3(TORSO_W * 0.24, TORSO_H * 0.16 - 0.07, -(TORSO_D * 0.5 + 0.01))
+	badge.position = Vector3(TORSO_W * 0.24, TORSO_H * 0.16 - 0.07, -(CHEST_HALF_DEPTH + 0.01))
 	badge.rotation.z = 0.16
 	badge.material_override = badge_mat
 	torso.add_child(badge)
@@ -472,7 +499,7 @@ func _build_torso_trim(torso: MeshInstance3D, cloth_clean: Material, cloth_hem: 
 	var belt_mesh := BoxMesh.new()
 	belt_mesh.size = Vector3(TORSO_W * 0.68, 0.045, 0.018)
 	belt.mesh = belt_mesh
-	belt.position = Vector3(0, -TORSO_H * 0.05, TORSO_D * 0.5 + 0.008)
+	belt.position = Vector3(0, -TORSO_H * 0.05, CHEST_HALF_DEPTH + 0.008)
 	belt.material_override = cloth_clean
 	torso.add_child(belt)
 
@@ -481,8 +508,10 @@ func _build_torso_trim(torso: MeshInstance3D, cloth_clean: Material, cloth_hem: 
 		var bb_mesh := SphereMesh.new()
 		bb_mesh.radius = 0.011
 		bb_mesh.height = 0.022
+		bb_mesh.radial_segments = 8
+		bb_mesh.rings = 4
 		bb.mesh = bb_mesh
-		bb.position = Vector3(side * TORSO_W * 0.2, -TORSO_H * 0.05, TORSO_D * 0.5 + 0.02)
+		bb.position = Vector3(side * TORSO_W * 0.2, -TORSO_H * 0.05, CHEST_HALF_DEPTH + 0.02)
 		bb.material_override = button_mat
 		torso.add_child(bb)
 

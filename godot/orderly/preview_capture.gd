@@ -24,6 +24,9 @@ const BURST_INTERVAL := 0.09
 const WALK_BURST_START := 1.0
 const CHASE_BURST_START := 3.7
 
+@onready var _world_env: WorldEnvironment = $WorldEnvironment
+@onready var _light0: OmniLight3D = $L0
+@onready var _light1: OmniLight3D = $L1
 @onready var _camera: Camera3D = $Camera3D
 @onready var _front_camera: Camera3D = $FrontCamera
 @onready var _side_camera: Camera3D = $SideCamera
@@ -38,7 +41,54 @@ var _shots_taken: Dictionary = {}
 var _chase_freeze_done := false
 
 
+# Replaces preview.tscn's baked-in Environment sub-resource (stale values —
+# ambient 0.13, no tonemap, no glow) with one built from main.gd's own MOOD
+# table for StateManager.State.UNMED, the same way tools/shoot.gd does it.
+# The Orderly only ever exists in UNMED (see orderly.gd's header), and the
+# real game there is MUCH darker (ambient 0.022 vs the old harness's 0.13)
+# and runs ACES tonemapping + glow, neither of which the old Environment
+# had. Reading the source of truth here means this harness can't silently
+# drift from the real game's mood again and show him brighter/flatter than
+# he'll actually look in a room.
+func _apply_real_unmed_environment() -> void:
+	var mood: Dictionary = (load("res://main.gd") as GDScript).MOOD
+	var m: Dictionary = mood[StateManager.State.UNMED]
+
+	var env := Environment.new()
+	env.background_mode = Environment.BG_COLOR
+	env.background_color = m["fog"]
+	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+	env.ambient_light_color = Color(0.8, 0.85, 0.83)
+	env.ambient_light_energy = m["ambient"]
+	env.fog_enabled = true
+	env.fog_mode = Environment.FOG_MODE_DEPTH
+	env.fog_light_color = m["fog"]
+	env.fog_depth_begin = m["fog_begin"]
+	env.fog_depth_end = m["fog_end"]
+	env.tonemap_mode = Environment.TONE_MAPPER_ACES
+	env.tonemap_exposure = m["exposure"]
+	env.tonemap_white = 4.0
+	env.glow_enabled = true
+	env.glow_intensity = 0.55
+	env.glow_bloom = 0.12
+	env.glow_blend_mode = Environment.GLOW_BLEND_MODE_SCREEN
+	env.glow_hdr_threshold = 0.85
+	env.adjustment_enabled = true
+	env.adjustment_contrast = 1.08
+	env.adjustment_saturation = 0.88
+	_world_env.environment = env
+
+	# main.gd dims the room's own light fittings by light_scale on top of
+	# the ambient drop (see its header comment) — mirror that on this
+	# harness's two omni lights or they'd stay at full brightness and wash
+	# out exactly the dim, pale-uniform-in-the-dark read this exists to check.
+	var scale: float = m["light_scale"]
+	_light0.light_energy = 0.7 * scale
+	_light1.light_energy = 0.7 * scale
+
+
 func _ready() -> void:
+	_apply_real_unmed_environment()
 	DirAccess.make_dir_recursive_absolute("res://.artifacts")
 
 	# orderly.gd moves via NavigationAgent3D — without a baked NavigationRegion3D

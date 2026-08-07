@@ -77,6 +77,18 @@ shipped as a `.tres` so it cannot silently drift from what the code expects.
 The two state drones crossfade on `state_changed` over 0.6 s, matching the
 original's `setTargetAtTime(tau 0.6)`.
 
+### Atmosphere is a separate live layer
+`main.gd` owns the `Environment` crossfade between the two states;
+`core/atmosphere.gd` adds the per-frame motion on top — fluorescent flicker
+and fog "breathing", both **unmedicated-only**, because lucid is meant to
+feel clinically steady and the contrast is the point. Film grain
+(`ui/grain.*`) is a `canvas_item` shader with no texture, on `CanvasLayer -1`
+so it sits over the 3D but under the HUD.
+
+Deliberate correction while porting: the original rolled its flicker as a
+per-**frame** probability, so the ward visibly flickered faster at 144fps
+than at 60. It is a per-second rate here.
+
 ### Telemetry is wire-compatible
 Batch envelope and per-event row mirror `src/game/telemetry.ts`
 field-for-field, including 2dp rounding on `x`/`z`/`yaw`/`med` and omitting
@@ -235,6 +247,9 @@ node tools/verify_web.mjs
 ```
 
 ```bash
+# desktop input: keyboard walk/strafe (catches an unmapped InputMap)
+node tools/verify_desktop.mjs
+
 # mobile: touch-emulated phone, asserts LOOK / MOVE / ACTION against the
 # game's own pos telemetry
 node tools/verify_touch.mjs
@@ -242,6 +257,18 @@ node tools/verify_touch.mjs
 
 `check_rooms.tscn` is the analogue of `npm run check:rooms` and should be run
 after **any** room change, same rule as the TS side.
+
+### `project.godot` comments must use `;`, never `#`
+Godot's config format only accepts `;`. A `#` comment makes the parser drop
+**everything after it** — in our case the entire `[input]` section, silently
+unmapping every keyboard action for several commits
+(`The InputMap action "move_forward" doesn't exist`).
+
+It survived because nothing exercised the keyboard: `verify_web.mjs` only
+checks the build boots, and `verify_touch.mjs` passes without the InputMap
+because touch drives the player directly rather than through actions. That
+gap is why `verify_desktop.mjs` exists, and why it treats any
+`InputMap action ... doesn't exist` console line as a hard failure.
 
 ### Four bugs `verify_touch.mjs` caught that desktop testing could not
 Worth recording, because every one of them was invisible on a dev machine:

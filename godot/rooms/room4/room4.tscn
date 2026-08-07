@@ -94,7 +94,7 @@ size = Vector3(2.0000, 3.0000, 1.1000)
 script = ExtResource("s_room")
 
 [node name="Spawn" type="Marker3D" parent="."]
-transform = Transform3D(1.000000, 0, -0.000000, 0, 1, 0, 0.000000, 0, 1.000000, 0.0000, 0.0000, 4.0000)
+transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, 0.0000, 0.0000, 4.0000)
 
 [node name="Shell" type="Node3D" parent="."]
 
@@ -269,8 +269,8 @@ script = ExtResource("s_stateobj")
 visible_in_state = 2
 
 [node name="Scrawl0" type="Label3D" parent="Scrawls"]
-transform = Transform3D(0.000000, 0, -1.000000, 0, 1, 0, 1.000000, 0, 0.000000, -5.8500, 1.7000, 1.5000)
-pixel_size = 0.0098
+transform = Transform3D(0.000000, 0, 1.000000, 0, 1, 0, -1.000000, 0, 0.000000, -5.8500, 1.7000, 1.5000)
+pixel_size = 0.0036
 text = "he counts\nyour blinks"
 font_size = 128
 outline_size = 0
@@ -281,8 +281,8 @@ double_sided = false
 no_depth_test = false
 
 [node name="Scrawl1" type="Label3D" parent="Scrawls"]
-transform = Transform3D(0.000000, 0, -1.000000, 0, 1, 0, 1.000000, 0, 0.000000, -5.8500, 1.7000, -3.0000)
-pixel_size = 0.0119
+transform = Transform3D(0.000000, 0, 1.000000, 0, 1, 0, -1.000000, 0, 0.000000, -5.8500, 1.7000, -3.0000)
+pixel_size = 0.0044
 text = "the door is only there\nwhen you are honest"
 font_size = 128
 outline_size = 0
@@ -293,8 +293,8 @@ double_sided = false
 no_depth_test = false
 
 [node name="Scrawl2" type="Label3D" parent="Scrawls"]
-transform = Transform3D(0.000000, 0, 1.000000, 0, 1, 0, -1.000000, 0, 0.000000, 5.8500, 1.7000, 3.5000)
-pixel_size = 0.0091
+transform = Transform3D(0.000000, 0, -1.000000, 0, 1, 0, 1.000000, 0, 0.000000, 5.8500, 1.7000, 3.5000)
+pixel_size = 0.0034
 text = "stand still.\nhe forgets slow things"
 font_size = 128
 outline_size = 0
@@ -307,7 +307,7 @@ no_depth_test = false
 [node name="Interactables" type="Node3D" parent="."]
 
 [node name="dispenser4" type="Area3D" parent="Interactables"]
-transform = Transform3D(0.000000, 0, 1.000000, 0, 1, 0, -1.000000, 0, 0.000000, -5.8600, 1.4500, 4.2000)
+transform = Transform3D(0.000000, 0, -1.000000, 0, 1, 0, 1.000000, 0, 0.000000, -5.8600, 1.4500, 4.2000)
 collision_layer = 32
 collision_mask = 0
 script = ExtResource("s_interactable")

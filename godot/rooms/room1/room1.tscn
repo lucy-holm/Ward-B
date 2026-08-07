@@ -1,4 +1,4 @@
-[gd_scene load_steps=34 format=3 uid="uid://wardbroom181f26"]
+[gd_scene load_steps=33 format=3 uid="uid://wardbroom181f26"]
 
 [ext_resource type="Script" path="res://rooms/room1/room1.gd" id="s_room"]
 [ext_resource type="Material" uid="uid://wardbmatd0cabd0" path="res://materials/floor.tres" id="m_floor"]
@@ -9,7 +9,7 @@
 [ext_resource type="Material" uid="uid://wardbmatde9ba6d" path="res://materials/glow.tres" id="m_glow"]
 [ext_resource type="Material" uid="uid://wardbmat19dd85" path="res://materials/bed.tres" id="m_bed"]
 [ext_resource type="Material" uid="uid://wardbmatf20070f" path="res://materials/prop.tres" id="m_prop"]
-[ext_resource type="Material" uid="uid://wardbmatf1daa31" path="res://materials/pill.tres" id="m_pill"]
+[ext_resource type="PackedScene" path="res://fixtures/pill_cup.tscn" id="fx_pill_cup"]
 [ext_resource type="PackedScene" path="res://fixtures/dispenser.tscn" id="fx_dispenser"]
 [ext_resource type="Script" path="res://core/interactable.gd" id="s_interactable"]
 [ext_resource type="Script" path="res://core/room_exit.gd" id="s_exit"]
@@ -78,10 +78,6 @@ material = ExtResource("m_prop")
 [sub_resource type="BoxShape3D" id="bs_7"]
 size = Vector3(0.1800, 0.2200, 0.1800)
 
-[sub_resource type="BoxMesh" id="bm_10"]
-size = Vector3(0.1800, 0.2200, 0.1800)
-material = ExtResource("m_pill")
-
 [sub_resource type="BoxShape3D" id="bs_8"]
 size = Vector3(0.5500, 0.7500, 0.1600)
 
@@ -89,7 +85,7 @@ size = Vector3(0.5500, 0.7500, 0.1600)
 script = ExtResource("s_room")
 
 [node name="Spawn" type="Marker3D" parent="."]
-transform = Transform3D(-1.000000, 0, -0.000000, 0, 1, 0, 0.000000, 0, -1.000000, 0.0000, 0.0000, 4.0000)
+transform = Transform3D(-1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, -1.000000, 0.0000, 0.0000, 4.0000)
 
 [node name="Shell" type="Node3D" parent="."]
 
@@ -248,8 +244,8 @@ script = ExtResource("s_stateobj")
 visible_in_state = 2
 
 [node name="Scrawl0" type="Label3D" parent="Scrawls"]
-transform = Transform3D(0.000000, 0, -1.000000, 0, 1, 0, 1.000000, 0, 0.000000, -2.8500, 1.8000, 4.7000)
-pixel_size = 0.0077
+transform = Transform3D(0.000000, 0, 1.000000, 0, 1, 0, -1.000000, 0, 0.000000, -2.8500, 1.8000, 4.7000)
+pixel_size = 0.0029
 text = "don't\nswallow"
 font_size = 128
 outline_size = 0
@@ -260,8 +256,8 @@ double_sided = false
 no_depth_test = false
 
 [node name="Scrawl1" type="Label3D" parent="Scrawls"]
-transform = Transform3D(1.000000, 0, -0.000000, 0, 1, 0, 0.000000, 0, 1.000000, 0.0000, 1.9000, 0.2000)
-pixel_size = 0.0105
+transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, 0.0000, 1.9000, 0.2000)
+pixel_size = 0.0039
 text = "there was a door\nhere once"
 font_size = 128
 outline_size = 0
@@ -274,7 +270,7 @@ no_depth_test = false
 [node name="Interactables" type="Node3D" parent="."]
 
 [node name="cup" type="Area3D" parent="Interactables"]
-transform = Transform3D(1.000000, 0, -0.000000, 0, 1, 0, 0.000000, 0, 1.000000, -2.2000, 0.9200, 4.7000)
+transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, -2.2000, 0.9200, 4.7000)
 collision_layer = 32
 collision_mask = 0
 script = ExtResource("s_interactable")
@@ -285,11 +281,11 @@ label = "take the pill"
 [node name="Shape" type="CollisionShape3D" parent="Interactables/cup"]
 shape = SubResource("bs_7")
 
-[node name="Mesh" type="MeshInstance3D" parent="Interactables/cup"]
-mesh = SubResource("bm_10")
+[node name="Model" parent="Interactables/cup" instance=ExtResource("fx_pill_cup")]
+transform = Transform3D(1.00000, 0, 0, 0, 1.00000, 0, 0, 0, 1.00000, 0.0000, 0.0000, 0.0000)
 
 [node name="dispenser1" type="Area3D" parent="Interactables"]
-transform = Transform3D(-1.000000, 0, -0.000000, 0, 1, 0, 0.000000, 0, -1.000000, 2.2000, 1.4500, 0.1400)
+transform = Transform3D(-1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, -1.000000, 2.2000, 1.4500, 0.1400)
 collision_layer = 32
 collision_mask = 0
 script = ExtResource("s_interactable")

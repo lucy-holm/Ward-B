@@ -335,7 +335,13 @@ class Emitter:
                 nm = sid if sid else "Scrawl%d" % i
                 body.append('[node name="%s" type="Label3D" parent="Scrawls"]' % nm)
                 body.append("transform = %s" % _xform_yaw(rot_y, pos))
-                body.append("pixel_size = %.4f" % (size * 0.0035))
+                # ScrawlDef.size was a canvas-texture scale in the TS build, not
+                # a world measurement, so it does not port directly. At the
+                # first-guess 0.0035 a size-3.4 scrawl rendered 1.5m PER LINE —
+                # a two-line scrawl ran floor to ceiling. 0.0013 puts a line at
+                # ~0.55m, which reads as graffiti and is still legible across a
+                # room.
+                body.append("pixel_size = %.4f" % (size * 0.0013))
                 body.append('text = "%s"' % text.replace('"', '\\"').replace("\n", "\\n"))
                 body.append("font_size = 128")
                 body.append("outline_size = 0")
@@ -476,9 +482,16 @@ def _xform_scaled(scale, pos):
 
 
 def _xform_yaw(yaw, pos):
+    # Godot's 12-arg Transform3D takes the basis TRANSPOSED from the obvious
+    # reading: the first three numbers are not the world-space X axis.
+    # Getting this backwards silently rotates every asymmetric fixture by 180
+    # degrees, which is invisible for the 0 and pi cases (a box is symmetric)
+    # and only shows up at +-pi/2 — room 2's keypad rendered as a featureless
+    # slab because its keys were pointing into the wall. Side-wall scrawls
+    # have the same failure mode, and they are the unmedicated clue text.
     c, s = math.cos(yaw), math.sin(yaw)
     return "Transform3D(%.6f, 0, %.6f, 0, 1, 0, %.6f, 0, %.6f, %.4f, %.4f, %.4f)" % (
-        c, -s, s, c, pos[0], pos[1], pos[2])
+        c, s, -s, c, pos[0], pos[1], pos[2])
 
 
 def write_room(room):

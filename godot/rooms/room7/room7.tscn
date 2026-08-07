@@ -1,4 +1,4 @@
-[gd_scene load_steps=42 format=3 uid="uid://wardbroom181f2c"]
+[gd_scene load_steps=41 format=3 uid="uid://wardbroom181f2c"]
 
 [ext_resource type="Script" path="res://rooms/room7/room7.gd" id="s_room"]
 [ext_resource type="Material" uid="uid://wardbmatd0cabd0" path="res://materials/floor.tres" id="m_floor"]
@@ -9,7 +9,7 @@
 [ext_resource type="Script" path="res://core/state_object.gd" id="s_stateobj"]
 [ext_resource type="PackedScene" path="res://fixtures/dispenser.tscn" id="fx_dispenser"]
 [ext_resource type="PackedScene" path="res://fixtures/keypad.tscn" id="fx_keypad"]
-[ext_resource type="Material" uid="uid://wardbmatd839ab2" path="res://materials/door.tres" id="m_door"]
+[ext_resource type="PackedScene" path="res://fixtures/door.tscn" id="fx_door"]
 [ext_resource type="Script" path="res://core/interactable.gd" id="s_interactable"]
 [ext_resource type="Script" path="res://core/room_exit.gd" id="s_exit"]
 
@@ -107,10 +107,6 @@ size = Vector3(0.4000, 0.5000, 0.1400)
 [sub_resource type="BoxShape3D" id="bs_13"]
 size = Vector3(2.0000, 3.0000, 0.2000)
 
-[sub_resource type="BoxMesh" id="bm_13"]
-size = Vector3(2.0000, 3.0000, 0.2000)
-material = ExtResource("m_door")
-
 [sub_resource type="BoxShape3D" id="bs_14"]
 size = Vector3(2.0000, 3.0000, 1.1000)
 
@@ -118,7 +114,7 @@ size = Vector3(2.0000, 3.0000, 1.1000)
 script = ExtResource("s_room")
 
 [node name="Spawn" type="Marker3D" parent="."]
-transform = Transform3D(1.000000, 0, -0.000000, 0, 1, 0, 0.000000, 0, 1.000000, 0.0000, 0.0000, 4.0000)
+transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, 0.0000, 0.0000, 4.0000)
 
 [node name="Shell" type="Node3D" parent="."]
 
@@ -329,8 +325,8 @@ script = ExtResource("s_stateobj")
 visible_in_state = 2
 
 [node name="Scrawl0" type="Label3D" parent="Scrawls"]
-transform = Transform3D(0.000000, 0, 1.000000, 0, 1, 0, -1.000000, 0, 0.000000, 5.8500, 1.7000, 3.5000)
-pixel_size = 0.0098
+transform = Transform3D(0.000000, 0, -1.000000, 0, 1, 0, 1.000000, 0, 0.000000, 5.8500, 1.7000, 3.5000)
+pixel_size = 0.0036
 text = "they keep the quiet\nbehind the files"
 font_size = 128
 outline_size = 0
@@ -341,8 +337,8 @@ double_sided = false
 no_depth_test = false
 
 [node name="Scrawl1" type="Label3D" parent="Scrawls"]
-transform = Transform3D(0.000000, 0, -1.000000, 0, 1, 0, 1.000000, 0, 0.000000, -5.8500, 1.7000, -1.0000)
-pixel_size = 0.0098
+transform = Transform3D(0.000000, 0, 1.000000, 0, 1, 0, -1.000000, 0, 0.000000, -5.8500, 1.7000, -1.0000)
+pixel_size = 0.0036
 text = "the files don't forget.\nneither does he."
 font_size = 128
 outline_size = 0
@@ -353,8 +349,8 @@ double_sided = false
 no_depth_test = false
 
 [node name="codeScrawl" type="Label3D" parent="Scrawls"]
-transform = Transform3D(0.000000, 0, -1.000000, 0, 1, 0, 1.000000, 0, 0.000000, -5.8500, 1.7000, 3.7000)
-pixel_size = 0.0084
+transform = Transform3D(0.000000, 0, 1.000000, 0, 1, 0, -1.000000, 0, 0.000000, -5.8500, 1.7000, 3.7000)
+pixel_size = 0.0031
 text = "0 4 5 2"
 font_size = 128
 outline_size = 0
@@ -365,8 +361,8 @@ double_sided = false
 no_depth_test = false
 
 [node name="Scrawl3" type="Label3D" parent="Scrawls"]
-transform = Transform3D(0.000000, 0, 1.000000, 0, 1, 0, -1.000000, 0, 0.000000, 5.8500, 1.7000, -4.0000)
-pixel_size = 0.0091
+transform = Transform3D(0.000000, 0, -1.000000, 0, 1, 0, 1.000000, 0, 0.000000, 5.8500, 1.7000, -4.0000)
+pixel_size = 0.0034
 text = "you walked right past it.\nback the way you came."
 font_size = 128
 outline_size = 0
@@ -379,7 +375,7 @@ no_depth_test = false
 [node name="Interactables" type="Node3D" parent="."]
 
 [node name="dispenser7" type="Area3D" parent="Interactables"]
-transform = Transform3D(-1.000000, 0, -0.000000, 0, 1, 0, 0.000000, 0, -1.000000, -6.7000, 1.4500, 1.0500)
+transform = Transform3D(-1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, -1.000000, -6.7000, 1.4500, 1.0500)
 collision_layer = 32
 collision_mask = 0
 script = ExtResource("s_interactable")
@@ -394,7 +390,7 @@ shape = SubResource("bs_11")
 transform = Transform3D(1.00000, 0, 0, 0, 1.00000, 0, 0, 0, 1.00000, 0.0000, 0.0000, 0.0000)
 
 [node name="keypad7" type="Area3D" parent="Interactables"]
-transform = Transform3D(-1.000000, 0, -0.000000, 0, 1, 0, 0.000000, 0, -1.000000, 1.3500, 1.4500, -4.7500)
+transform = Transform3D(-1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, -1.000000, 1.3500, 1.4500, -4.7500)
 collision_layer = 32
 collision_mask = 0
 script = ExtResource("s_interactable")
@@ -409,7 +405,7 @@ shape = SubResource("bs_12")
 transform = Transform3D(1.00000, 0, 0, 0, 1.00000, 0, 0, 0, 1.00000, 0.0000, 0.0000, 0.0000)
 
 [node name="exitdoor" type="Area3D" parent="Interactables"]
-transform = Transform3D(-1.000000, 0, -0.000000, 0, 1, 0, 0.000000, 0, -1.000000, 0.0000, 1.5000, -5.0000)
+transform = Transform3D(-1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, -1.000000, 0.0000, 1.5000, -5.0000)
 collision_layer = 32
 collision_mask = 0
 script = ExtResource("s_interactable")
@@ -420,8 +416,8 @@ label = "the exit door"
 [node name="Shape" type="CollisionShape3D" parent="Interactables/exitdoor"]
 shape = SubResource("bs_13")
 
-[node name="Mesh" type="MeshInstance3D" parent="Interactables/exitdoor"]
-mesh = SubResource("bm_13")
+[node name="Model" parent="Interactables/exitdoor" instance=ExtResource("fx_door")]
+transform = Transform3D(1.00000, 0, 0, 0, 1.00000, 0, 0, 0, 1.00000, 0.0000, 0.0000, 0.0000)
 
 [node name="Lights" type="Node3D" parent="."]
 

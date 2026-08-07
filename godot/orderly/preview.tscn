@@ -39,6 +39,21 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4.5, 1.4, 0)
 fov = 50.0
 current = false
 
+[node name="BackCamera" type="Camera3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.4, 6.0)
+fov = 50.0
+current = false
+
+[node name="FarCamera" type="Camera3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4.24, 1.6, 4.24)
+fov = 50.0
+current = false
+
+[node name="HeadCamera" type="Camera3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.62, -0.55)
+fov = 35.0
+current = false
+
 [node name="L0" type="OmniLight3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.7, 0)
 light_color = Color(0.949, 1.0, 0.98, 1)

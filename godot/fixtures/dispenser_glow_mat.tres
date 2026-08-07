@@ -1,0 +1,15 @@
+[gd_resource type="StandardMaterial3D" format=3 uid="uid://wardbfxdg01"]
+
+; Recessed dispensing-slot glow. Unshaded (see materials/glow.tres) so the
+; slot reads at full brightness in dim UNMEDICATED light instead of dimming
+; with the room — this is the primary long-range "there is a dispenser here"
+; cue. Warm amber, deliberately the opposite hue from the keypad's cool cyan
+; strip so the two fixtures never read as the same thing from across a room.
+
+[resource]
+shading_mode = 0
+albedo_color = Color(1.0, 0.78, 0.4, 1)
+roughness = 0.9
+emission_enabled = true
+emission = Color(1.0, 0.72, 0.32, 1)
+emission_energy_multiplier = 2.2

@@ -1,4 +1,4 @@
-[gd_scene load_steps=35 format=3 uid="uid://wardbroom181f26"]
+[gd_scene load_steps=34 format=3 uid="uid://wardbroom181f26"]
 
 [ext_resource type="Script" path="res://rooms/room1/room1.gd" id="s_room"]
 [ext_resource type="Material" uid="uid://wardbmatd0cabd0" path="res://materials/floor.tres" id="m_floor"]
@@ -10,7 +10,7 @@
 [ext_resource type="Material" uid="uid://wardbmat19dd85" path="res://materials/bed.tres" id="m_bed"]
 [ext_resource type="Material" uid="uid://wardbmatf20070f" path="res://materials/prop.tres" id="m_prop"]
 [ext_resource type="Material" uid="uid://wardbmatf1daa31" path="res://materials/pill.tres" id="m_pill"]
-[ext_resource type="Material" uid="uid://wardbmat55c93ed" path="res://materials/dispenser.tres" id="m_dispenser"]
+[ext_resource type="PackedScene" path="res://fixtures/dispenser.tscn" id="fx_dispenser"]
 [ext_resource type="Script" path="res://core/interactable.gd" id="s_interactable"]
 [ext_resource type="Script" path="res://core/room_exit.gd" id="s_exit"]
 
@@ -84,10 +84,6 @@ material = ExtResource("m_pill")
 
 [sub_resource type="BoxShape3D" id="bs_8"]
 size = Vector3(0.5500, 0.7500, 0.1600)
-
-[sub_resource type="BoxMesh" id="bm_11"]
-size = Vector3(0.5500, 0.7500, 0.1600)
-material = ExtResource("m_dispenser")
 
 [node name="Room" type="Node3D"]
 script = ExtResource("s_room")
@@ -304,8 +300,8 @@ label = "MEDICATION"
 [node name="Shape" type="CollisionShape3D" parent="Interactables/dispenser1"]
 shape = SubResource("bs_8")
 
-[node name="Mesh" type="MeshInstance3D" parent="Interactables/dispenser1"]
-mesh = SubResource("bm_11")
+[node name="Model" parent="Interactables/dispenser1" instance=ExtResource("fx_dispenser")]
+transform = Transform3D(1.00000, 0, 0, 0, 1.00000, 0, 0, 0, 1.00000, 0.0000, 0.0000, 0.0000)
 
 [node name="Lights" type="Node3D" parent="."]
 

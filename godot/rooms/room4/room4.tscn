@@ -1,4 +1,4 @@
-[gd_scene load_steps=35 format=3 uid="uid://wardbroom181f29"]
+[gd_scene load_steps=34 format=3 uid="uid://wardbroom181f29"]
 
 [ext_resource type="Script" path="res://rooms/room4/room4.gd" id="s_room"]
 [ext_resource type="Material" uid="uid://wardbmatd0cabd0" path="res://materials/floor.tres" id="m_floor"]
@@ -8,7 +8,7 @@
 [ext_resource type="Material" uid="uid://wardbmatde9ba6d" path="res://materials/glow.tres" id="m_glow"]
 [ext_resource type="Script" path="res://core/state_object.gd" id="s_stateobj"]
 [ext_resource type="Material" uid="uid://wardbmatf20070f" path="res://materials/prop.tres" id="m_prop"]
-[ext_resource type="Material" uid="uid://wardbmat55c93ed" path="res://materials/dispenser.tres" id="m_dispenser"]
+[ext_resource type="PackedScene" path="res://fixtures/dispenser.tscn" id="fx_dispenser"]
 [ext_resource type="Script" path="res://core/interactable.gd" id="s_interactable"]
 [ext_resource type="Script" path="res://core/room_exit.gd" id="s_exit"]
 
@@ -86,10 +86,6 @@ material = ExtResource("m_wall2")
 
 [sub_resource type="BoxShape3D" id="bs_8"]
 size = Vector3(0.5500, 0.7500, 0.1600)
-
-[sub_resource type="BoxMesh" id="bm_12"]
-size = Vector3(0.5500, 0.7500, 0.1600)
-material = ExtResource("m_dispenser")
 
 [sub_resource type="BoxShape3D" id="bs_9"]
 size = Vector3(2.0000, 3.0000, 1.1000)
@@ -322,8 +318,8 @@ label = "use the dispenser"
 [node name="Shape" type="CollisionShape3D" parent="Interactables/dispenser4"]
 shape = SubResource("bs_8")
 
-[node name="Mesh" type="MeshInstance3D" parent="Interactables/dispenser4"]
-mesh = SubResource("bm_12")
+[node name="Model" parent="Interactables/dispenser4" instance=ExtResource("fx_dispenser")]
+transform = Transform3D(1.00000, 0, 0, 0, 1.00000, 0, 0, 0, 1.00000, 0.0000, 0.0000, 0.0000)
 
 [node name="Lights" type="Node3D" parent="."]
 

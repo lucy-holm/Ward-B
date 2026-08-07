@@ -1,0 +1,86 @@
+[gd_scene load_steps=12 format=3 uid="uid://wardbfixdisp001"]
+
+; Wall-mounted medication dispenser. Canonical size 0.55W x 0.75H x 0.16D,
+; origin at the centre of the volume, faceplate faces -Z. Composite so it
+; reads as a fixture rather than a flat wall panel (see godot/MIGRATION_NOTES.md
+; and src/game/world.ts:637 for why a plain box fails against the plaster
+; shaders): dark body, a cream faceplate with a cross + MEDICATION text, a
+; recessed amber-glow dispensing slot, and a tray lip below it. Warm amber is
+; the dispenser's accent colour, distinct from the keypad's cool cyan, so the
+; two never read as the same fixture from across a dim room.
+;
+; Visuals only — no collision, no gameplay script. The room generator supplies
+; the Area3D + CollisionShape3D this gets instanced under.
+
+[ext_resource type="Material" uid="uid://wardbfxdb01" path="res://fixtures/dispenser_body_mat.tres" id="m_body"]
+[ext_resource type="Material" uid="uid://wardbfxdp01" path="res://fixtures/dispenser_plate_mat.tres" id="m_plate"]
+[ext_resource type="Material" uid="uid://wardbfxds01" path="res://fixtures/dispenser_symbol_mat.tres" id="m_symbol"]
+[ext_resource type="Material" uid="uid://wardbfxdg01" path="res://fixtures/dispenser_glow_mat.tres" id="m_glow"]
+[ext_resource type="Material" uid="uid://wardbfxdt01" path="res://fixtures/dispenser_tray_mat.tres" id="m_tray"]
+
+[sub_resource type="BoxMesh" id="bm_body"]
+size = Vector3(0.55, 0.75, 0.16)
+material = ExtResource("m_body")
+
+[sub_resource type="BoxMesh" id="bm_plate"]
+size = Vector3(0.46, 0.22, 0.03)
+material = ExtResource("m_plate")
+
+[sub_resource type="BoxMesh" id="bm_cross_h"]
+size = Vector3(0.09, 0.018, 0.012)
+material = ExtResource("m_symbol")
+
+[sub_resource type="BoxMesh" id="bm_cross_v"]
+size = Vector3(0.018, 0.09, 0.012)
+material = ExtResource("m_symbol")
+
+[sub_resource type="BoxMesh" id="bm_slot"]
+size = Vector3(0.34, 0.09, 0.03)
+material = ExtResource("m_glow")
+
+[sub_resource type="BoxMesh" id="bm_tray"]
+size = Vector3(0.46, 0.055, 0.1)
+material = ExtResource("m_tray")
+
+[node name="Dispenser" type="Node3D"]
+
+[node name="Body" type="MeshInstance3D" parent="."]
+mesh = SubResource("bm_body")
+
+[node name="Faceplate" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.2, -0.095)
+mesh = SubResource("bm_plate")
+
+[node name="CrossH" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.15, 0.2, -0.116)
+mesh = SubResource("bm_cross_h")
+
+[node name="CrossV" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.15, 0.2, -0.116)
+mesh = SubResource("bm_cross_v")
+
+; Yaw-180 so the readable face points -Z into the room, which MIRRORS local X
+; relative to the rest of the fixture: the cross at local x=-0.15 renders on
+; the viewer's RIGHT, so the text must sit at POSITIVE local x to land beside
+; it rather than through it. At the original 0.0016 pixel_size the word was
+; wide enough to overlap the cross entirely.
+[node name="Label" type="Label3D" parent="."]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0.105, 0.2, -0.116)
+text = "MEDICATION"
+modulate = Color(0.09, 0.27, 0.2, 1)
+outline_modulate = Color(0.83, 0.87, 0.83, 1)
+font_size = 34
+outline_size = 4
+pixel_size = 0.0012
+billboard = 0
+no_depth_test = false
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="Slot" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.15, -0.095)
+mesh = SubResource("bm_slot")
+
+[node name="Tray" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.29, -0.13)
+mesh = SubResource("bm_tray")

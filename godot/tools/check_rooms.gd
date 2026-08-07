@@ -32,7 +32,51 @@ func _ready() -> void:
 		_check_room(id, registry[id], registry)
 
 	_check_chain(registry)
+	_check_materials()
 	_finish()
+
+
+# Materials must stay ShaderMaterial. This exists because gen_rooms.py used to
+# rewrite every .tres as a flat StandardMaterial3D on each run, which silently
+# reverted the procedural shaders for four commits — the .gdshader files stayed
+# on disk with nothing referencing them, so the ward rendered flat while every
+# other check still passed. Nothing else in this suite looks at a pixel, so
+# without this assertion the same class of regression is invisible.
+const EXPECTED_MATERIAL_TYPE := {
+	"wall": "ShaderMaterial", "wall2": "ShaderMaterial",
+	"floor": "ShaderMaterial", "ceil": "ShaderMaterial",
+	"prop": "ShaderMaterial", "bed": "ShaderMaterial",
+	"door": "ShaderMaterial", "chain": "ShaderMaterial",
+	"dispenser": "ShaderMaterial", "pad": "ShaderMaterial",
+	"keypad": "ShaderMaterial",
+	# Deliberately NOT shaders: glow is unshaded so a light panel reads at full
+	# brightness regardless of room lighting, and pill is kept clean/ungrimed
+	# because it is a gameplay-readable affordance.
+	"glow": "StandardMaterial3D", "pill": "StandardMaterial3D",
+}
+
+
+func _check_materials() -> void:
+	for name: String in EXPECTED_MATERIAL_TYPE:
+		var path := "res://materials/%s.tres" % name
+		if not ResourceLoader.exists(path):
+			_fail("material %s.tres is missing" % name)
+			continue
+		var res: Resource = load(path)
+		if res == null:
+			_fail("material %s.tres failed to load" % name)
+			continue
+
+		var want: String = EXPECTED_MATERIAL_TYPE[name]
+		var got := "ShaderMaterial" if res is ShaderMaterial else \
+			("StandardMaterial3D" if res is StandardMaterial3D else res.get_class())
+		if got != want:
+			_fail("material %s.tres is %s, expected %s — the procedural shader "
+				% [name, got, want] + "wiring has been reverted")
+			continue
+
+		if res is ShaderMaterial and (res as ShaderMaterial).shader == null:
+			_fail("material %s.tres is a ShaderMaterial with no shader assigned" % name)
 
 
 func _parse_registry() -> Dictionary:

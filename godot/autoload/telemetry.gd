@@ -30,6 +30,7 @@ var _env := "unknown"
 var _queue: Array[Dictionary] = []
 var _dropped := 0
 var _flush_accum := 0.0
+var _pos_accum := 0.0
 var _http: HTTPRequest
 
 # Supplies the per-event snapshot (room/x/z/yaw/level/pills/state/med).
@@ -51,6 +52,19 @@ func _ready() -> void:
 func _process(delta: float) -> void:
 	if disabled:
 		return
+
+	# Positional sampling, matching the original's positionSampleMs. Drives
+	# movement heat-maps, and is the only event that fires without the player
+	# doing anything — which also makes it the instrument tools/verify_touch.mjs
+	# uses to prove touch input actually reaches the player.
+	if not snapshot_provider.is_valid():
+		pass
+	else:
+		_pos_accum += delta
+		if _pos_accum >= Tuning.TELEMETRY_POSITION_SAMPLE_MS / 1000.0:
+			_pos_accum = 0.0
+			event("pos")
+
 	_flush_accum += delta
 	if _flush_accum >= Tuning.TELEMETRY_FLUSH_MS / 1000.0:
 		_flush_accum = 0.0

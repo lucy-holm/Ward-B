@@ -28,8 +28,22 @@ WardAudio="*res://autoload/ward_audio.gd"
 
 window/size/viewport_width=1280
 window/size/viewport_height=720
-window/stretch/mode="canvas_items"
-window/stretch/aspect="expand"
+# Stretch is DISABLED on purpose. With "canvas_items" the UI is laid out in
+# 1280x720 base units and scaled to the window, which means InputEventScreen*
+# positions also arrive in base units — on a 412px-wide phone that is ~3.1
+# base units per CSS pixel. Consequences on mobile: look was ~3x too fast,
+# and the 48-unit virtual stick saturated after ~15px of thumb travel, so
+# movement was full-speed-or-nothing with no analog control.
+# With stretch disabled, Control coords and touch positions are both real
+# pixels, so the tuning values port across from the Three.js build unchanged
+# and touch targets keep a sane physical size on any screen.
+window/stretch/mode="disabled"
+# NOTE: display/window/dpi/allow_hidpi has NO EFFECT on the web export —
+# verified: the canvas drawing buffer stays CSS x devicePixelRatio (1081x2202
+# on a 2.6x phone vs 411x838 CSS). So the UI coordinate space is device
+# pixels and varies with DPI, and nothing in project settings changes that.
+# Touch sizing and sensitivity are therefore normalised against the live
+# viewport size at runtime instead — see player.gd and ui/touch_controls.gd.
 
 [input]
 

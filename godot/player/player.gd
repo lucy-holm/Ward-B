@@ -35,7 +35,21 @@ var _touch_stick_origin := Vector2.ZERO
 var _touch_stick_vec := Vector2.ZERO
 var _touch_look_id := -1
 
-const TOUCH_STICK_RADIUS := 48.0
+# Touch is normalised against the live viewport, NOT measured in pixels.
+#
+# The Three.js build used a fixed radians-per-CSS-pixel. That does not
+# survive the port: on web, Godot's UI coordinate space is the canvas drawing
+# buffer, which is CSS x devicePixelRatio and cannot be changed from project
+# settings (allow_hidpi is ignored on web). On a 2.6x phone that made look
+# ~2.6x too fast and saturated a fixed 48px virtual stick after ~18px of
+# thumb travel — full speed or nothing, no analog control.
+#
+# Normalising by viewport width means a swipe across a given FRACTION of the
+# screen always turns the same amount, on any resolution or DPI. Calibrated
+# so a full-width swipe matches the original on a 412px-wide phone
+# (412 * 0.0024 * 1.9 = 1.88 rad).
+const TOUCH_FULL_SWEEP_RAD := 1.88
+const TOUCH_STICK_FRACTION := 0.115
 
 
 func _ready() -> void:
@@ -103,11 +117,25 @@ func _handle_touch(e: InputEventScreenTouch) -> void:
 func _handle_drag(e: InputEventScreenDrag) -> void:
 	if e.index == _touch_stick_id:
 		var d := e.position - _touch_stick_origin
-		_touch_stick_vec = d / TOUCH_STICK_RADIUS
+		_touch_stick_vec = d / stick_radius()
 		if _touch_stick_vec.length() > 1.0:
 			_touch_stick_vec = _touch_stick_vec.normalized()
 	elif e.index == _touch_look_id:
-		_look_accum += e.relative * Tuning.TOUCH_LOOK_SCALE
+		# Convert the viewport-unit delta into the equivalent number of
+		# "sensitivity pixels" so _apply_look stays a single code path.
+		_look_accum += e.relative * (_touch_rad_per_unit() / Tuning.LOOK_SENSITIVITY)
+
+
+func viewport_width() -> float:
+	return maxf(1.0, get_viewport().get_visible_rect().size.x)
+
+
+func _touch_rad_per_unit() -> float:
+	return TOUCH_FULL_SWEEP_RAD / viewport_width()
+
+
+func stick_radius() -> float:
+	return TOUCH_STICK_FRACTION * viewport_width()
 
 
 # Movement runs on the physics tick so it is frame-rate independent, unlike
@@ -187,6 +215,16 @@ func _process(delta: float) -> void:
 	var sway := sin(Time.get_ticks_msec() * 0.0007) * 0.02 if not StateManager.is_lucid() else 0.0
 	camera.position.y = Tuning.PLAYER_EYE_HEIGHT + bob
 	camera.rotation.z = sway
+
+
+## Virtual-stick state, for the on-screen touch UI to draw itself.
+func get_touch_stick() -> Dictionary:
+	return {
+		"active": _touch_stick_id != -1,
+		"origin": _touch_stick_origin,
+		"vec": _touch_stick_vec,
+		"radius": stick_radius(),
+	}
 
 
 func get_snapshot() -> Dictionary:

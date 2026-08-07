@@ -22,6 +22,7 @@ const ROOM_SCENES := {
 
 const HUD_SCENE := preload("res://ui/hud.tscn")
 const KEYPAD_SCENE := preload("res://ui/keypad.tscn")
+const TOUCH_SCENE := preload("res://ui/touch_controls.tscn")
 
 # Environment mood targets, ported from renderer.ts:25-45.
 const MOOD := {
@@ -48,6 +49,7 @@ const MOOD := {
 var collision := WardCollision.new()
 var hud: CanvasLayer
 var keypad: CanvasLayer
+var touch_controls: CanvasLayer
 
 var current_room: Node = null
 var current_room_id := ""
@@ -69,6 +71,15 @@ func _ready() -> void:
 
 	keypad = KEYPAD_SCENE.instantiate()
 	add_child(keypad)
+
+	# Touch controls hide themselves on non-touch devices. Without these a
+	# phone player can look and walk but can never interact or shift, which
+	# makes the game unfinishable from Room 1's pill onward.
+	touch_controls = TOUCH_SCENE.instantiate()
+	add_child(touch_controls)
+	touch_controls.player = player
+	touch_controls.interact_pressed.connect(_interact)
+	touch_controls.shift_pressed.connect(_try_shift)
 
 	player.add_to_group("player")
 	player.world_collision = collision

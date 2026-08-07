@@ -146,7 +146,21 @@ Falloff is pinned to `max_distance = 8.0` to match the original radius.
 **Worth a playtest judgement**: revert to a non-positional
 `AudioStreamPlayer` if it deflates the "where is he?" tension.
 
-### 2.4 `gl_compatibility`, not Forward+
+### 2.4 Touch is normalised to the viewport, not measured in pixels
+The original used a fixed radians-per-CSS-pixel. That does not survive the
+port. On web, Godot's UI coordinate space is the canvas **drawing buffer**,
+which is `CSS x devicePixelRatio` — 1081x2202 on a 2.6x phone against 411x838
+CSS — and **`display/window/dpi/allow_hidpi` has no effect on the web export**
+(verified). Nothing in project settings changes it.
+
+So touch sizing and sensitivity are derived from the live viewport instead:
+a swipe across a given *fraction* of the screen always turns the same amount,
+and touch targets are a fraction of viewport width. Calibrated so a full-width
+swipe matches the original on a 412px-wide phone (`412 * 0.0024 * 1.9 = 1.88`
+rad). This is resolution- and DPI-independent, and strictly better than the
+original's behaviour.
+
+### 2.5 `gl_compatibility`, not Forward+
 Forward+ on web needs WebGPU, which is not broadly available; the brief
 requires "everyone can play it". **Cost: no volumetric fog.** The state-shift
 look is built from depth fog + glow + `Environment` adjustments, all of which
@@ -220,8 +234,38 @@ python3 -m http.server 8899 --directory build &
 node tools/verify_web.mjs
 ```
 
+```bash
+# mobile: touch-emulated phone, asserts LOOK / MOVE / ACTION against the
+# game's own pos telemetry
+node tools/verify_touch.mjs
+```
+
 `check_rooms.tscn` is the analogue of `npm run check:rooms` and should be run
-after **any** room change, same rule as the TS side. It reads the room
+after **any** room change, same rule as the TS side.
+
+### Four bugs `verify_touch.mjs` caught that desktop testing could not
+Worth recording, because every one of them was invisible on a dev machine:
+
+1. **A full-screen HUD `Spacer`** (`size_flags_vertical = expand`, left at the
+   default `MOUSE_FILTER_STOP`) swallowed every touch. The build was totally
+   unplayable on a phone — no look, no move, no interact — while desktop was
+   fine, because a **captured mouse bypasses GUI picking entirely**. The HUD
+   now forces `MOUSE_FILTER_IGNORE` on every child in code so a future HUD
+   tweak cannot reintroduce it.
+2. **No action buttons.** Touch look/move worked, but interact and shift
+   existed only as keyboard actions, so a phone player could walk around
+   Room 1 and never take the pill. Touch drag handling is necessary and not
+   sufficient — a phone needs a button for every verb.
+3. **Device-pixel coordinate space** (§2.4) made look ~2.6x too fast and
+   saturated the virtual stick after ~18px of thumb travel.
+4. **Buttons positioned off-screen** — absolute viewport coordinates assigned
+   to children of a container anchored to the bottom-right corner.
+
+An earlier version of that script "passed" against a build with no buttons at
+all, because it diffed **PNG bytes**: compression means one changed pixel
+cascades through the whole stream, so any change reads as ~99% different. It
+measured nothing. It now asserts on `pos` telemetry — the game's own state.
+Don't reintroduce screenshot diffing here. It reads the room
 registry straight out of `main.gd`, so a room can never be validated while
 unregistered.
 

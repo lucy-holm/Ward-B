@@ -16,6 +16,20 @@ var _threat_shown := 0.0
 
 
 func _ready() -> void:
+	# The HUD is purely informational — nothing in it is clickable. Any
+	# Control left at the default MOUSE_FILTER_STOP silently swallows touch
+	# input before it reaches the player.
+	#
+	# This is not hypothetical: the VBox "Spacer" (size_flags_vertical =
+	# expand) covered the middle of the screen and made the first mobile
+	# build completely unplayable — you could not look, move, or interact.
+	# Desktop was fine throughout, because a CAPTURED mouse bypasses GUI
+	# picking entirely, so the bug is invisible on a dev machine.
+	#
+	# Enforced in code rather than per-node in the .tscn so that adding a
+	# label to the HUD later cannot quietly break mobile again.
+	_ignore_mouse(self)
+
 	StateManager.medication_changed.connect(_on_medication_changed)
 	StateManager.shift_ability_changed.connect(_on_shift_ability_changed)
 	StateManager.state_changed.connect(_on_state_changed)
@@ -24,6 +38,13 @@ func _ready() -> void:
 	toast_label.modulate.a = 0.0
 	med_bar.visible = false
 	_on_pills_changed(GameState.pills)
+
+
+func _ignore_mouse(node: Node) -> void:
+	if node is Control:
+		(node as Control).mouse_filter = Control.MOUSE_FILTER_IGNORE
+	for child in node.get_children():
+		_ignore_mouse(child)
 
 
 func set_objective(text: String) -> void:

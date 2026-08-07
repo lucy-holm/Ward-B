@@ -48,14 +48,14 @@ func _ready() -> void:
 		env.background_color = Color(0.090, 0.043, 0.039)
 		env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 		env.ambient_light_color = Color(0.8, 0.85, 0.83)
-		env.ambient_light_energy = float(args[8]) if args.size() > 8 else 0.08
+		env.ambient_light_energy = float(args[8]) if args.size() > 8 else 0.045
 		env.fog_enabled = true
 		env.fog_mode = Environment.FOG_MODE_DEPTH
 		env.fog_light_color = Color(0.090, 0.043, 0.039)
 		env.fog_depth_begin = 2.6
 		env.fog_depth_end = 13.0
 		env.tonemap_mode = Environment.TONE_MAPPER_ACES
-		env.tonemap_exposure = 0.85
+		env.tonemap_exposure = 0.72
 		env.tonemap_white = 4.0
 		env.glow_enabled = true
 		env.glow_intensity = 0.55

@@ -15,9 +15,21 @@ extends Node
 
 # Chance per second that a given fluorescent dips. The original's 6%-per-frame
 # at ~60fps works out near this.
-const FLICKER_RATE_HZ := 3.2
-const FLICKER_DIP := 0.25
-const FLICKER_RECOVER := 8.0   # how fast intensity eases back to base
+const FLICKER_RATE_HZ := 2.6
+const FLICKER_DIP := 0.10        # how far a dip drops (was 0.25 — too polite)
+const FLICKER_RECOVER := 14.0    # snap back fast; a tube does not fade in
+
+# Occasional full dropout: a failing tube cuts out for a beat rather than just
+# stuttering. Rare enough to stay unsettling instead of strobing.
+const DROPOUT_RATE_HZ := 0.22
+const DROPOUT_MIN_SEC := 0.12
+const DROPOUT_MAX_SEC := 0.45
+
+# Constant low-level flutter so a tube is never perfectly still even between
+# dips — this is what sells "failing fluorescent" rather than "lamp with an
+# effect on it".
+const BUZZ_AMOUNT := 0.10
+const BUZZ_HZ := 17.0
 
 const FOG_BREATH_HZ := 0.5
 const FOG_BREATH_AMOUNT := 0.05
@@ -75,14 +87,19 @@ func _tick_flicker(delta: float, unmed: bool) -> void:
 			# dt so the rate is per-second rather than per-frame.
 			if _dip[i] <= 0.0 and randf() < FLICKER_RATE_HZ * delta:
 				_dip[i] = randf_range(0.04, 0.10)
+			# A rarer, longer cut — reuses the same latch with a bigger value.
+			if _dip[i] <= 0.0 and randf() < DROPOUT_RATE_HZ * delta:
+				_dip[i] = randf_range(DROPOUT_MIN_SEC, DROPOUT_MAX_SEC)
 			if _dip[i] > 0.0:
 				_dip[i] -= delta
 
 		var target := base
 		if unmed:
-			# A slow wobble under the dips, offset per-light so a corridor of
-			# tubes never pulses in unison.
-			target *= 0.8 + 0.2 * sin(_clock * 13.0 + i * 7.0)
+			# Mains buzz: a fast, shallow flutter, phase-offset per light so a
+			# corridor of tubes never pulses in unison.
+			target *= 1.0 - BUZZ_AMOUNT * (0.5 + 0.5 * sin(_clock * BUZZ_HZ + i * 2.4))
+			# Slow wobble underneath, so the flutter rides on a drifting level.
+			target *= 0.85 + 0.15 * sin(_clock * 1.7 + i * 7.0)
 			if _dip[i] > 0.0:
 				target *= FLICKER_DIP
 		l.light_energy = lerpf(l.light_energy, target, minf(1.0, delta * FLICKER_RECOVER))

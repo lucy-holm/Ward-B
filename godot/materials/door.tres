@@ -1,52 +1,5 @@
-[gd_resource type="ShaderMaterial" load_steps=6 format=3 uid="uid://wardbmatd839ab2"]
-
-[ext_resource type="Shader" path="res://materials/shaders/triplanar_worn.gdshader" id="1_shader"]
-
-[sub_resource type="FastNoiseLite" id="FastNoiseLite_door_mottle"]
-noise_type = 3
-seed = 521
-frequency = 0.05
-fractal_octaves = 4
-fractal_gain = 0.6
-
-[sub_resource type="NoiseTexture2D" id="NoiseTexture2D_door_mottle"]
-generate_mipmaps = true
-seamless = true
-seamless_blend_skirt = 0.2
-width = 192
-height = 192
-noise = SubResource("FastNoiseLite_door_mottle")
-
-[sub_resource type="FastNoiseLite" id="FastNoiseLite_door_normal"]
-noise_type = 3
-seed = 522
-frequency = 0.2
-fractal_octaves = 3
-fractal_gain = 0.6
-
-[sub_resource type="NoiseTexture2D" id="NoiseTexture2D_door_normal"]
-generate_mipmaps = true
-seamless = true
-seamless_blend_skirt = 0.2
-width = 192
-height = 192
-as_normal_map = true
-bump_strength = 3.0
-noise = SubResource("FastNoiseLite_door_normal")
+[gd_resource type="StandardMaterial3D" format=3 uid="uid://wardbmatd839ab2"]
 
 [resource]
-render_priority = 0
-shader = ExtResource("1_shader")
-shader_parameter/base_color = Color(0.322, 0.372, 0.408, 1)
-shader_parameter/mottle_tex = SubResource("NoiseTexture2D_door_mottle")
-shader_parameter/normal_tex = SubResource("NoiseTexture2D_door_normal")
-shader_parameter/mottle_scale = 1.1
-shader_parameter/normal_scale = 4.0
-shader_parameter/stretch_y = 0.28
-shader_parameter/mottle_strength = 0.2
-shader_parameter/normal_strength = 0.45
-shader_parameter/roughness_base = 0.62
-shader_parameter/metallic_base = 0.0
-shader_parameter/floor_grime = 0.5
-shader_parameter/floor_grime_height = 0.5
-shader_parameter/emission_strength = 0.0
+albedo_color = Color(0.306, 0.353, 0.388, 1)
+roughness = 0.9

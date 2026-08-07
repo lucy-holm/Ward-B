@@ -1,56 +1,5 @@
-[gd_resource type="ShaderMaterial" load_steps=6 format=3 uid="uid://wardbmatbb126"]
-
-[ext_resource type="Shader" path="res://materials/shaders/triplanar_plaster.gdshader" id="1_shader"]
-
-[sub_resource type="FastNoiseLite" id="FastNoiseLite_wall_mottle"]
-noise_type = 3
-seed = 101
-frequency = 0.011
-fractal_octaves = 5
-fractal_lacunarity = 2.0
-fractal_gain = 0.55
-
-[sub_resource type="NoiseTexture2D" id="NoiseTexture2D_wall_mottle"]
-generate_mipmaps = true
-seamless = true
-seamless_blend_skirt = 0.2
-width = 256
-height = 256
-noise = SubResource("FastNoiseLite_wall_mottle")
-
-[sub_resource type="FastNoiseLite" id="FastNoiseLite_wall_normal"]
-noise_type = 3
-seed = 202
-frequency = 0.05
-fractal_octaves = 4
-fractal_lacunarity = 2.2
-fractal_gain = 0.6
-
-[sub_resource type="NoiseTexture2D" id="NoiseTexture2D_wall_normal"]
-generate_mipmaps = true
-seamless = true
-seamless_blend_skirt = 0.2
-width = 256
-height = 256
-as_normal_map = true
-bump_strength = 6.0
-noise = SubResource("FastNoiseLite_wall_normal")
+[gd_resource type="StandardMaterial3D" format=3 uid="uid://wardbmatbb126"]
 
 [resource]
-render_priority = 0
-shader = ExtResource("1_shader")
-shader_parameter/base_color = Color(0.44, 0.455, 0.44, 1)
-shader_parameter/band_color = Color(0.255, 0.278, 0.268, 1)
-shader_parameter/band_height = 0.95
-shader_parameter/band_softness = 0.25
-shader_parameter/rail_width = 0.025
-shader_parameter/mottle_tex = SubResource("NoiseTexture2D_wall_mottle")
-shader_parameter/normal_tex = SubResource("NoiseTexture2D_wall_normal")
-shader_parameter/mottle_scale = 0.22
-shader_parameter/normal_scale = 1.1
-shader_parameter/streak_scale = 0.5
-shader_parameter/streak_squash = 0.08
-shader_parameter/mottle_strength = 0.42
-shader_parameter/streak_strength = 0.38
-shader_parameter/normal_strength = 0.7
-shader_parameter/roughness_base = 0.9
+albedo_color = Color(0.42, 0.435, 0.425, 1)
+roughness = 0.9

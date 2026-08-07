@@ -1,20 +1,8 @@
 [gd_resource type="StandardMaterial3D" format=3 uid="uid://wardbmatde9ba6d"]
 
-; Gameplay-readable affordance (exit panels, ceiling strips, "the way out"),
-; NOT a surface-detail material — left ungrimed for the same reason as
-; pill.tres.
-;
-; One change: shading_mode = 0 (unshaded). The original used a three.js
-; MeshBasicMaterial for every glow block precisely so a light panel reads at
-; full brightness regardless of the room's own lighting; the ported
-; StandardMaterial3D was lit, so a glow panel in an unlit corridor dimmed
-; along with everything around it. Unshaded restores the original behaviour
-; and is what keeps the exit glow legible in close UNMEDICATED fog.
-
 [resource]
-shading_mode = 0
 albedo_color = Color(1.0, 0.914, 0.769, 1)
 roughness = 0.9
 emission_enabled = true
 emission = Color(1.0, 0.914, 0.769, 1)
-emission_energy_multiplier = 0.9
+emission_energy_multiplier = 0.90

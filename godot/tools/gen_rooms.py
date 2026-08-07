@@ -49,6 +49,49 @@ FACING_ROT = {
     "pz": math.pi,
 }
 
+# Composite fixture models, authored in CANONICAL orientation (width X,
+# height Y, depth Z, faceplate toward -Z) at the base size below. The
+# generator instances one per interactable and scales it to whatever the room
+# authored, so a 1.8m door and a 2.0m door share one scene.
+#
+# A type with no entry here (or whose scene is missing) falls back to a plain
+# box, so this file still generates before the fixture scenes exist.
+FIXTURES = {
+    "dispenser":   {"path": "res://fixtures/dispenser.tscn",   "size": (0.55, 0.75, 0.16)},
+    "keypad":      {"path": "res://fixtures/keypad.tscn",      "size": (0.40, 0.50, 0.14)},
+    "door":        {"path": "res://fixtures/door.tscn",        "size": (2.00, 3.00, 0.20)},
+    "pill_cup":    {"path": "res://fixtures/pill_cup.tscn",    "size": (0.18, 0.22, 0.18)},
+    "pill_pickup": {"path": "res://fixtures/pill_pickup.tscn", "size": (0.18, 0.18, 0.18)},
+}
+# Drop any fixture whose scene has not been authored yet.
+FIXTURES = {
+    k: v for k, v in FIXTURES.items()
+    if os.path.exists(os.path.join(OUT_ROOT, v["path"].replace("res://", "")))
+}
+
+
+def _resolve_facing(size, pos, floor, explicit):
+    """Which way the faceplate points. Ported from world.ts inferFacing():
+    a wall-mounted fixture is thin on the axis it hangs off, and faces the
+    room centre. An authored `facing` always wins — the heuristic misfires on
+    alcove/nook mounts, which is a shipped bug the TS build hit in room 7
+    (the MEDICATION plate ended up pointing into a wall)."""
+    if explicit:
+        return explicit
+    sx, _sy, sz = size
+    min_x, max_x, min_z, max_z = floor
+    if sx < sz:
+        return "nx" if pos[0] > (min_x + max_x) / 2.0 else "px"
+    return "nz" if pos[2] > (min_z + max_z) / 2.0 else "pz"
+
+
+def _canonical_size(size, face):
+    """Authored size is in world axes; swap to canonical (thin in Z) when the
+    fixture hangs off an X-facing wall, since the node itself gets rotated."""
+    if face in ("px", "nx"):
+        return (size[2], size[1], size[0])
+    return size
+
 # --- materials -------------------------------------------------------------
 
 MATERIALS = {
@@ -166,6 +209,12 @@ class Emitter:
                              "uid://wardbmat%s" % _uid_frag(name)))
             self._mat_ids[name] = rid
         return self._mat_ids[name]
+
+    def fixture(self, itype):
+        rid = "fx_%s" % itype
+        if not any(e[2] == rid for e in self.ext):
+            self.ext.append(("PackedScene", FIXTURES[itype]["path"], rid, None))
+        return rid
 
     def box_mesh(self, size, mat):
         key = (round(size[0], 4), round(size[1], 4), round(size[2], 4), mat)
@@ -312,10 +361,18 @@ class Emitter:
                     body.append("visible_in_state = %d" % aff)
                     body.append("")
                     parent = "Interactables/%s_state" % iid
-                sh = self.box_shape(size)
-                m = self.box_mesh(size, mat)
+
+                # Resolve which way the faceplate points, then author the
+                # fixture in CANONICAL orientation (width X, height Y, depth Z,
+                # face toward -Z) and rotate the whole node. The authored size
+                # tuple encodes orientation — a wall-mounted fixture is thin on
+                # whichever axis it hangs off — so it has to be swapped back to
+                # canonical before use, or the rotation double-counts.
+                face = _resolve_facing(size, pos, r.floor, facing)
+                canon = _canonical_size(size, face)
+                sh = self.box_shape(canon)
                 body.append('[node name="%s" type="Area3D" parent="%s"]' % (nm, parent))
-                body.append("transform = %s" % _xform_yaw(FACING_ROT.get(facing, 0.0), pos))
+                body.append("transform = %s" % _xform_yaw(FACING_ROT[face], pos))
                 body.append("collision_layer = %d" % LAYER_INTERACTABLE)
                 body.append("collision_mask = 0")
                 body.append('script = ExtResource("s_interactable")')
@@ -326,9 +383,26 @@ class Emitter:
                 body.append('[node name="Shape" type="CollisionShape3D" parent="%s/%s"]' % (parent, nm))
                 body.append('shape = SubResource("%s")' % sh)
                 body.append("")
-                body.append('[node name="Mesh" type="MeshInstance3D" parent="%s/%s"]' % (parent, nm))
-                body.append('mesh = SubResource("%s")' % m)
-                body.append("")
+                # Real fixture model if one exists for this type, else fall
+                # back to a plain box. The composite models are the whole
+                # reason fixtures are identifiable against a textured wall —
+                # a flat box reads as wall panelling, which is exactly the
+                # complaint the three.js build's buildDispenser() comment
+                # warns about.
+                fx = FIXTURES.get(itype)
+                if fx is not None:
+                    rid = self.fixture(itype)
+                    base = fx["size"]
+                    sc = (canon[0] / base[0], canon[1] / base[1], canon[2] / base[2])
+                    body.append('[node name="Model" parent="%s/%s" instance=ExtResource("%s")]'
+                                % (parent, nm, rid))
+                    body.append("transform = %s" % _xform_scaled(sc, (0.0, 0.0, 0.0)))
+                    body.append("")
+                else:
+                    m = self.box_mesh(canon, mat)
+                    body.append('[node name="Mesh" type="MeshInstance3D" parent="%s/%s"]' % (parent, nm))
+                    body.append('mesh = SubResource("%s")' % m)
+                    body.append("")
             self._ensure_interactable_script()
 
         # lights
@@ -394,6 +468,11 @@ class Emitter:
 
 def _xform(pos):
     return "Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, %.4f, %.4f, %.4f)" % pos
+
+
+def _xform_scaled(scale, pos):
+    return "Transform3D(%.5f, 0, 0, 0, %.5f, 0, 0, 0, %.5f, %.4f, %.4f, %.4f)" % (
+        scale[0], scale[1], scale[2], pos[0], pos[1], pos[2])
 
 
 def _xform_yaw(yaw, pos):

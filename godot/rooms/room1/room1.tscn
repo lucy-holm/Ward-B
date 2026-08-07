@@ -293,7 +293,7 @@ shape = SubResource("bs_7")
 mesh = SubResource("bm_10")
 
 [node name="dispenser1" type="Area3D" parent="Interactables"]
-transform = Transform3D(1.000000, 0, -0.000000, 0, 1, 0, 0.000000, 0, 1.000000, 2.2000, 1.4500, 0.1400)
+transform = Transform3D(-1.000000, 0, -0.000000, 0, 1, 0, 0.000000, 0, -1.000000, 2.2000, 1.4500, 0.1400)
 collision_layer = 32
 collision_mask = 0
 script = ExtResource("s_interactable")

@@ -85,10 +85,10 @@ size = Vector3(1.6000, 2.9000, 0.8000)
 material = ExtResource("m_wall2")
 
 [sub_resource type="BoxShape3D" id="bs_8"]
-size = Vector3(0.1600, 0.7500, 0.5500)
+size = Vector3(0.5500, 0.7500, 0.1600)
 
 [sub_resource type="BoxMesh" id="bm_12"]
-size = Vector3(0.1600, 0.7500, 0.5500)
+size = Vector3(0.5500, 0.7500, 0.1600)
 material = ExtResource("m_dispenser")
 
 [sub_resource type="BoxShape3D" id="bs_9"]
@@ -311,7 +311,7 @@ no_depth_test = false
 [node name="Interactables" type="Node3D" parent="."]
 
 [node name="dispenser4" type="Area3D" parent="Interactables"]
-transform = Transform3D(1.000000, 0, -0.000000, 0, 1, 0, 0.000000, 0, 1.000000, -5.8600, 1.4500, 4.2000)
+transform = Transform3D(0.000000, 0, 1.000000, 0, 1, 0, -1.000000, 0, 0.000000, -5.8600, 1.4500, 4.2000)
 collision_layer = 32
 collision_mask = 0
 script = ExtResource("s_interactable")

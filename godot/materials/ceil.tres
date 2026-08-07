@@ -1,54 +1,5 @@
-[gd_resource type="ShaderMaterial" load_steps=6 format=3 uid="uid://wardbmatd5eaba5"]
-
-[ext_resource type="Shader" path="res://materials/shaders/triplanar_tile.gdshader" id="1_shader"]
-
-[sub_resource type="FastNoiseLite" id="FastNoiseLite_ceil_mottle"]
-noise_type = 3
-seed = 401
-frequency = 0.025
-fractal_octaves = 5
-fractal_lacunarity = 2.1
-fractal_gain = 0.6
-
-[sub_resource type="NoiseTexture2D" id="NoiseTexture2D_ceil_mottle"]
-generate_mipmaps = true
-seamless = true
-seamless_blend_skirt = 0.2
-width = 256
-height = 256
-noise = SubResource("FastNoiseLite_ceil_mottle")
-
-[sub_resource type="FastNoiseLite" id="FastNoiseLite_ceil_normal"]
-noise_type = 2
-seed = 402
-frequency = 0.4
-cellular_jitter = 1.0
-cellular_return_type = 1
-
-[sub_resource type="NoiseTexture2D" id="NoiseTexture2D_ceil_normal"]
-generate_mipmaps = true
-seamless = true
-seamless_blend_skirt = 0.2
-width = 256
-height = 256
-as_normal_map = true
-bump_strength = 3.0
-noise = SubResource("FastNoiseLite_ceil_normal")
+[gd_resource type="StandardMaterial3D" format=3 uid="uid://wardbmatd5eaba5"]
 
 [resource]
-render_priority = 0
-shader = ExtResource("1_shader")
-shader_parameter/base_color = Color(0.352, 0.362, 0.35, 1)
-shader_parameter/grout_color = Color(0.168, 0.178, 0.17, 1)
-shader_parameter/tile_size = 0.6
-shader_parameter/grout_width = 0.018
-shader_parameter/tile_jitter = 0.07
-shader_parameter/bevel_strength = 0.06
-shader_parameter/mottle_tex = SubResource("NoiseTexture2D_ceil_mottle")
-shader_parameter/normal_tex = SubResource("NoiseTexture2D_ceil_normal")
-shader_parameter/mottle_scale = 0.5
-shader_parameter/normal_scale = 6.0
-shader_parameter/mottle_strength = 0.34
-shader_parameter/grime_strength = 0.3
-shader_parameter/normal_strength = 0.35
-shader_parameter/roughness_base = 0.95
+albedo_color = Color(0.337, 0.349, 0.341, 1)
+roughness = 0.9

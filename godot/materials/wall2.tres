@@ -18,39 +18,54 @@ width = 256
 height = 256
 noise = SubResource("FastNoiseLite_wall2_mottle")
 
-[sub_resource type="FastNoiseLite" id="FastNoiseLite_wall2_normal"]
-noise_type = 3
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_wall2_island"]
+noise_type = 1
 seed = 878
-frequency = 0.055
-fractal_octaves = 4
-fractal_lacunarity = 2.2
-fractal_gain = 0.6
+frequency = 0.017
+fractal_octaves = 2
+fractal_lacunarity = 2.0
+fractal_gain = 0.3
 
-[sub_resource type="NoiseTexture2D" id="NoiseTexture2D_wall2_normal"]
+[sub_resource type="NoiseTexture2D" id="NoiseTexture2D_wall2_island"]
 generate_mipmaps = true
 seamless = true
-seamless_blend_skirt = 0.2
+seamless_blend_skirt = 0.25
 width = 256
 height = 256
-as_normal_map = true
-bump_strength = 6.0
-noise = SubResource("FastNoiseLite_wall2_normal")
+noise = SubResource("FastNoiseLite_wall2_island")
 
 [resource]
 render_priority = 0
 shader = ExtResource("1_shader")
-shader_parameter/base_color = Color(0.39, 0.41, 0.395, 1)
+shader_parameter/decay = 0.28
+shader_parameter/paint_clean_color = Color(0.78, 0.759, 0.686, 1)
+shader_parameter/paint_soiled_color = Color(0.62, 0.575, 0.517, 1)
+shader_parameter/plaster_color = Color(0.58, 0.542, 0.472, 1)
+shader_parameter/lath_color = Color(0.27, 0.25, 0.207, 1)
+shader_parameter/green_cast_color = Color(0.41, 0.435, 0.32, 1)
+shader_parameter/shadow_color = Color(0.33, 0.35, 0.284, 1)
+shader_parameter/rust_color = Color(0.64, 0.34, 0.278, 1)
+shader_parameter/grime_color = Color(0.41, 0.275, 0.207, 1)
 shader_parameter/band_color = Color(0.215, 0.238, 0.228, 1)
-shader_parameter/band_height = 0.95
-shader_parameter/band_softness = 0.25
+shader_parameter/band_height = 1.1
+shader_parameter/band_softness = 0.22
 shader_parameter/rail_width = 0.025
 shader_parameter/mottle_tex = SubResource("NoiseTexture2D_wall2_mottle")
-shader_parameter/normal_tex = SubResource("NoiseTexture2D_wall2_normal")
+shader_parameter/island_tex = SubResource("NoiseTexture2D_wall2_island")
 shader_parameter/mottle_scale = 0.26
-shader_parameter/normal_scale = 1.2
+shader_parameter/island_scale = 1.5
 shader_parameter/streak_scale = 0.62
 shader_parameter/streak_squash = 0.07
-shader_parameter/mottle_strength = 0.46
+shader_parameter/mottle_strength = 0.4
 shader_parameter/streak_strength = 0.44
-shader_parameter/normal_strength = 0.7
-shader_parameter/roughness_base = 0.9
+shader_parameter/normal_strength = 1.1
+shader_parameter/roughness_paint = 0.55
+shader_parameter/roughness_plaster = 0.95
+shader_parameter/ao_strength = 0.22
+shader_parameter/parallax_strength = 0.12
+shader_parameter/peel_threshold_min = 0.09
+shader_parameter/peel_threshold_max = 0.68
+shader_parameter/edge_width_near = 0.045
+shader_parameter/edge_width_far = 0.12
+shader_parameter/dist_fade_near = 5.0
+shader_parameter/dist_fade_far = 18.0

@@ -246,16 +246,6 @@ func _build_body() -> void:
 	var orderly := get_parent()
 
 	var cloth_clean := _make_material(UNIFORM_BASE, UNIFORM_GRIME, 0.05, 0.86, 0.9, 0.0, 0.0, TORSO_W * 0.5)
-	# Lower rim than cloth_clean's 0.9: on a small, strongly convex sphere
-	# (the shoulder caps) nearly the whole visible hemisphere sits at a
-	# grazing view/light angle, so a rim tuned for the torso's much gentler
-	# curvature pushed almost the entire cap into the rim term and starved
-	# the flatter, low-fresnel centre of any other cue, reading as a near-
-	# black disc under this preview's very low ambient (0.022) — found while
-	# looking at the front-rest screenshot per the brief's "look at him every
-	# angle" note, not a change in geometry (found with the SAME SphereMesh,
-	# just now easier to spot with more segments to look at).
-	var cloth_shoulder := _make_material(UNIFORM_BASE, UNIFORM_GRIME, 0.05, 0.86, 0.32, 0.0, 0.0, TORSO_W * 0.22)
 	var cloth_body := _make_material(UNIFORM_BASE, UNIFORM_GRIME, 0.16, 0.86, 0.9, 1.0, 0.0, TORSO_W * 0.5)
 	var cloth_hem := _make_material(UNIFORM_BASE, UNIFORM_GRIME, 0.55, 0.86, 0.9, 0.0, 0.0, TORSO_W * 0.5)
 	var cloth_upper_arm := _make_material(UNIFORM_BASE, UNIFORM_GRIME, 0.10, 0.86, 0.85, 0.0, 0.0, ARM_W)
@@ -314,7 +304,7 @@ func _build_body() -> void:
 	_torso.position.y = LEG_H + TORSO_H * 0.5
 	_torso.rotation.x = HUNCH_TILT
 	add_child(_torso)
-	_build_torso_trim(_torso, cloth_clean, cloth_shoulder, cloth_hem, badge_mat, button_mat)
+	_build_torso_trim(_torso, cloth_clean, cloth_hem, badge_mat, button_mat)
 
 	# neck + head, chained off the top of the torso so both inherit its pitch
 	_neck_pivot = Node3D.new()
@@ -447,8 +437,8 @@ func _build_hand(mat: Material) -> Node3D:
 # either side of the vent ridge) is still the torso material's own
 # seam_strength, which the shader confines to the +Z (rear) face — the vent
 # mesh added here is the raised fold, the shader still draws the crease.
-func _build_torso_trim(torso: MeshInstance3D, cloth_clean: Material, cloth_shoulder: Material,
-		cloth_hem: Material, badge_mat: Material, button_mat: Material) -> void:
+func _build_torso_trim(torso: MeshInstance3D, cloth_clean: Material, cloth_hem: Material,
+		badge_mat: Material, button_mat: Material) -> void:
 	# MESH_TORSO (see gen_orderly_meshes.gd's _build_torso) bulges out at the
 	# chest and flares at the hem rather than sitting flush like the old
 	# flat box, so the trim below is offset to those rings' actual
@@ -487,7 +477,7 @@ func _build_torso_trim(torso: MeshInstance3D, cloth_clean: Material, cloth_shoul
 		cap_mesh.rings = 10
 		cap.mesh = cap_mesh
 		cap.position = Vector3(side * TORSO_W * 0.42, TORSO_H * 0.44, 0)
-		cap.material_override = cloth_shoulder
+		cap.material_override = cloth_clean
 		torso.add_child(cap)
 
 	# front button placket

@@ -21,10 +21,17 @@
 #      This is what makes the surface smooth-shaded (the single biggest
 #      fidelity win per the brief) without needing more triangles than a
 #      boxy version would.
-#   3. Per-triangle winding is resolved the same way gen_bevel_meshes.gd's
-#      add_tri does: build the triangle, check whether its geometric normal
-#      agrees with the intended outward normal, and flip vertex order if
-#      not. That means callers never have to reason about winding by hand.
+#   3. Per-triangle winding is resolved automatically: build the triangle,
+#      compare its geometric normal against the intended outward normal,
+#      and flip the vertex order so the result matches GODOT'S front-face
+#      convention. That means callers never have to reason about winding by
+#      hand. NOTE the convention is the opposite of what reads as intuitive
+#      — see the long comment in _emit_tri. gen_bevel_meshes.gd's add_tri
+#      still uses the intuitive-but-inverted test, so the fixture meshes it
+#      bakes are inside-out too; harmless there for the same reason it was
+#      harmless here (closed convex shapes, no front/back-dependent
+#      shading), but worth fixing if a fixture ever grows a face-like
+#      material.
 #
 # FIDELITY PASS (polygon-density budget spend, see the design brief this was
 # written against): three additions on top of the technique above, all
@@ -132,8 +139,24 @@ static func _emit_tri(st: SurfaceTool, p0: Vector3, p1: Vector3, p2: Vector3,
 		n0: Vector3, n1: Vector3, n2: Vector3, ref_n: Vector3) -> void:
 	var pts := [p0, p1, p2]
 	var nrms := [n0, n1, n2]
+	# WINDING CONVENTION — do not "fix" this comparison back to `< 0.0`.
+	# Godot treats a triangle as FRONT-facing when (p1-p0)x(p2-p0) points
+	# INWARD by this test (clockwise as seen from outside). Measured
+	# directly against the engine's own primitives: SphereMesh,
+	# CylinderMesh and BoxMesh all come out 0% "outward" under exactly this
+	# cross-product test. So winding the geometric normal to AGREE with the
+	# outward vertex normal — which is what this did originally — is
+	# precisely backwards, and gets the surface facing the camera culled.
+	#
+	# That bug was invisible for a long time because an inside-out CLOSED
+	# CONVEX loft still rasterises its far inner wall, so the limbs, torso
+	# and shoe looked plausible. The head is the only part with
+	# FRONT/BACK-dependent shading (suggested face on -Z vs cranial seam on
+	# +Z), so when it stopped being a Godot SphereMesh and became a loft
+	# like everything else, it was the first part where culling the near
+	# surface actually showed: a blank, seamed dome where the face belongs.
 	var geo_n := (p1 - p0).cross(p2 - p0)
-	if geo_n.dot(ref_n) < 0.0:
+	if geo_n.dot(ref_n) > 0.0:
 		pts = [p0, p2, p1]
 		nrms = [n0, n2, n1]
 	for i in 3:

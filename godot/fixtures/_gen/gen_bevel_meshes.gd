@@ -53,7 +53,18 @@ func _initialize() -> void:
 func add_tri(st: SurfaceTool, a: Vector3, b: Vector3, c: Vector3, n: Vector3) -> void:
 	var pts := [a, b, c]
 	var computed := (b - a).cross(c - a)
-	if computed.dot(n) < 0.0:
+	# WINDING CONVENTION — do not "fix" this back to `< 0.0`.
+	# Godot treats a triangle as FRONT-facing when (b-a)x(c-a) points INWARD
+	# by this test. Winding to AGREE with the outward normal (the intuitive
+	# reading, and what this used to do) builds every mesh inside-out, so the
+	# near surface is back-face culled and you see the lit far inner wall.
+	# Measured against the engine's own primitives: SphereMesh, CylinderMesh
+	# and BoxMesh all score 0% "outward" by this test; these lofts scored 100%
+	# before the flip. It stayed hidden on closed convex shapes because the far
+	# inner wall still rasterises and looks plausible — it only became obvious
+	# on the Orderly's head, the one part with front/back-dependent shading,
+	# where the face was being culled and read as a blank dome.
+	if computed.dot(n) > 0.0:
 		pts = [a, c, b]
 	for p in pts:
 		st.set_normal(n)

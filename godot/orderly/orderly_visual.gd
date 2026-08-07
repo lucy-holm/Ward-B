@@ -100,9 +100,12 @@ const WHIP_POWER := 3.2          # >1 = hold at extremes, whip through the middl
 # is ~20-25 deg per leg. The wrongness should come from the judder and the
 # arm/leg desync, not from limbs going somewhere anatomically impossible.
 const LEG_SWING_AMP := 0.46      # rad — past a natural hip arc on purpose,
-const ARM_SWING_AMP := 0.46      # but short of the legs visibly scissoring
+# 0.46 (26 deg) plus the 1.25x chase overextend and a 23 deg outward lift read
+# as scarecrow arms held out sideways from a three-quarter angle — the axes are
+# right, the magnitudes were not. Arms should hang and swing, not semaphore.
+const ARM_SWING_AMP := 0.28      # but short of the legs visibly scissoring
 const CHASE_OVEREXTEND := 1.25   # extra amplitude while chasing
-const CHASE_ARM_LIFT := 0.4
+const CHASE_ARM_LIFT := 0.12
 const HITCH_AMP := 0.055
 const TORSO_CHASE_PITCH := HUNCH_TILT * 2.1
 

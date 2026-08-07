@@ -105,6 +105,9 @@ console.log('canvas buffer', geom.bw + 'x' + geom.bh, 'dpr', geom.dpr,
 // 0.92 m on a table, so a purely horizontal sweep passes clean OVER it. Pitch
 // down ~17 deg (atan(0.7/2.3)) first, then sweep. Getting this wrong made an
 // earlier run report a dead button when the button was fine.
+// Touch look is normalised to viewport width (see player.gd), calibrated so
+// a full-width swipe on a 412px phone matches the three.js build. On this
+// emulated device that works out to the original's rad-per-CSS-pixel.
 const RAD_PER_PX = 0.0024 * 1.9; // lookSensitivity * touchLookScale
 
 // Pitch down to the tabletop.
@@ -142,7 +145,7 @@ await drag(size.width * 0.22, size.height * 0.72, size.width * 0.22, size.height
 
 // Wait out the 15 s timed flush so the pos batch reaches the console.
 await page.waitForTimeout(17000);
-await page.screenshot({ path: 'tools/touch-verify.png' });
+await page.screenshot({ path: '.artifacts/touch-verify.png' });
 await browser.close();
 
 const pos = posEvents.filter((e) => e.name === 'pos');

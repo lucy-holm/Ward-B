@@ -5,8 +5,10 @@
 # Export output — rebuilt by `godot --headless --export-release "Web" build/index.html`
 build/
 
-# Verification screenshot from tools/verify_web.mjs
-tools/web-verify.png
+# Verification screenshots. Kept in a dot-directory on purpose: anything
+# under res:// gets an .import sidecar generated for it, and those were
+# getting committed alongside the PNGs. Godot skips dot-directories.
+.artifacts/
 
 # playwright installed transiently for tools/verify_web.mjs
 node_modules/

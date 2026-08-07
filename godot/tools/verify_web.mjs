@@ -45,7 +45,7 @@ const started = await page
 // Give the first frames time to run _ready on the autoloads + main scene.
 await page.waitForTimeout(12000);
 
-await page.screenshot({ path: 'tools/web-verify.png' });
+await page.screenshot({ path: '.artifacts/web-verify.png' });
 
 const canvasInfo = await page.evaluate(() => {
   const c = document.querySelector('canvas');

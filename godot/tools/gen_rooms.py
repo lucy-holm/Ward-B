@@ -112,26 +112,20 @@ MATERIALS = {
 
 
 def write_materials():
-    d = os.path.join(OUT_ROOT, "materials")
-    os.makedirs(d, exist_ok=True)
-    for name, (rgb, emission) in MATERIALS.items():
-        r, g, b = rgb.split()
-        lines = [
-            '[gd_resource type="StandardMaterial3D" format=3 uid="uid://wardbmat%s"]' % _uid_frag(name),
-            "",
-            "[resource]",
-            "albedo_color = Color(%s, %s, %s, 1)" % (r, g, b),
-            "roughness = 0.9",
-        ]
-        if emission > 0:
-            lines += [
-                "emission_enabled = true",
-                "emission = Color(%s, %s, %s, 1)" % (r, g, b),
-                "emission_energy_multiplier = %.2f" % emission,
-            ]
-        lines.append("")
-        with open(os.path.join(d, "%s.tres" % name), "w") as f:
-            f.write("\n".join(lines))
+    """DO NOT CALL. Kept only as a record of the original flat placeholders.
+
+    This used to run on every generate and rewrite all 13 .tres files as flat
+    StandardMaterial3D. After the materials were rebuilt as ShaderMaterials
+    (world-space triplanar plaster/tile/worn), every subsequent `gen_rooms.py`
+    run silently reverted them — the shaders were still on disk but nothing
+    referenced them, so the ward rendered flat for four commits before anyone
+    noticed. Materials are now authored by hand and are their own source of
+    truth; the generator owns rooms only.
+    """
+    raise RuntimeError(
+        "write_materials() would overwrite the authored ShaderMaterials in "
+        "godot/materials/ with flat placeholders. It is intentionally disabled."
+    )
 
 
 def _uid_frag(name):
@@ -970,7 +964,7 @@ def room7():
 
 
 if __name__ == "__main__":
-    write_materials()
+    # write_materials() is DELIBERATELY NOT CALLED — see its definition.
     write_room(room1())
     write_room(room2())
     write_room(room3())

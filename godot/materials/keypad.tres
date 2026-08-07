@@ -1,8 +1,53 @@
-[gd_resource type="StandardMaterial3D" format=3 uid="uid://wardbmatd88ab40"]
+[gd_resource type="ShaderMaterial" load_steps=6 format=3 uid="uid://wardbmatd88ab40"]
+
+[ext_resource type="Shader" path="res://materials/shaders/triplanar_worn.gdshader" id="1_shader"]
+
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_keypad_mottle"]
+noise_type = 3
+seed = 631
+frequency = 0.07
+fractal_octaves = 3
+fractal_gain = 0.55
+
+[sub_resource type="NoiseTexture2D" id="NoiseTexture2D_keypad_mottle"]
+generate_mipmaps = true
+seamless = true
+seamless_blend_skirt = 0.2
+width = 128
+height = 128
+noise = SubResource("FastNoiseLite_keypad_mottle")
+
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_keypad_normal"]
+noise_type = 2
+seed = 632
+frequency = 0.45
+cellular_jitter = 1.0
+cellular_return_type = 1
+
+[sub_resource type="NoiseTexture2D" id="NoiseTexture2D_keypad_normal"]
+generate_mipmaps = true
+seamless = true
+seamless_blend_skirt = 0.2
+width = 128
+height = 128
+as_normal_map = true
+bump_strength = 4.0
+noise = SubResource("FastNoiseLite_keypad_normal")
 
 [resource]
-albedo_color = Color(0.263, 0.29, 0.31, 1)
-roughness = 0.9
-emission_enabled = true
-emission = Color(0.263, 0.29, 0.31, 1)
-emission_energy_multiplier = 0.15
+render_priority = 0
+shader = ExtResource("1_shader")
+shader_parameter/base_color = Color(0.263, 0.29, 0.31, 1)
+shader_parameter/mottle_tex = SubResource("NoiseTexture2D_keypad_mottle")
+shader_parameter/normal_tex = SubResource("NoiseTexture2D_keypad_normal")
+shader_parameter/mottle_scale = 2.2
+shader_parameter/normal_scale = 8.0
+shader_parameter/stretch_y = 1.0
+shader_parameter/mottle_strength = 0.24
+shader_parameter/normal_strength = 0.5
+shader_parameter/roughness_base = 0.42
+shader_parameter/metallic_base = 0.1
+shader_parameter/floor_grime = 0.0
+shader_parameter/floor_grime_height = 0.4
+shader_parameter/emission_color = Color(0.624, 0.847, 0.796, 1)
+shader_parameter/emission_strength = 0.18

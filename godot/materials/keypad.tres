@@ -1,4 +1,4 @@
-[gd_resource type="ShaderMaterial" load_steps=6 format=3 uid="uid://wardbmatd88ab40"]
+[gd_resource type="ShaderMaterial" load_steps=8 format=3 uid="uid://wardbmatd88ab40"]
 
 [ext_resource type="Shader" path="res://materials/shaders/triplanar_worn.gdshader" id="1_shader"]
 
@@ -34,19 +34,49 @@ as_normal_map = true
 bump_strength = 4.0
 noise = SubResource("FastNoiseLite_keypad_normal")
 
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_keypad_chip"]
+noise_type = 2
+seed = 633
+frequency = 0.32
+cellular_jitter = 1.0
+cellular_return_type = 0
+
+[sub_resource type="NoiseTexture2D" id="NoiseTexture2D_keypad_chip"]
+generate_mipmaps = true
+seamless = true
+seamless_blend_skirt = 0.2
+width = 128
+height = 128
+noise = SubResource("FastNoiseLite_keypad_chip")
+
 [resource]
 render_priority = 0
 shader = ExtResource("1_shader")
+; Small painted-steel casing: mostly intact, occasional dings, faint rust
+; — same family as dispenser but tighter scale and a duller casing colour.
+shader_parameter/decay = 0.35
 shader_parameter/base_color = Color(0.263, 0.29, 0.31, 1)
+shader_parameter/substrate_color = Color(0.16, 0.15, 0.14, 1)
+shader_parameter/rust_bleed_color = Color(0.5, 0.3, 0.24, 1)
 shader_parameter/mottle_tex = SubResource("NoiseTexture2D_keypad_mottle")
 shader_parameter/normal_tex = SubResource("NoiseTexture2D_keypad_normal")
+shader_parameter/chip_tex = SubResource("NoiseTexture2D_keypad_chip")
 shader_parameter/mottle_scale = 2.2
 shader_parameter/normal_scale = 8.0
+shader_parameter/chip_scale = 6.0
 shader_parameter/stretch_y = 1.0
 shader_parameter/mottle_strength = 0.24
 shader_parameter/normal_strength = 0.5
-shader_parameter/roughness_base = 0.42
+shader_parameter/roughness_base = 0.35
+shader_parameter/roughness_substrate = 0.8
 shader_parameter/metallic_base = 0.1
+shader_parameter/chip_coverage = 0.82
+shader_parameter/chip_edge_width = 0.018
+shader_parameter/chip_lip_strength = 1.2
+shader_parameter/chip_ao_strength = 0.3
+shader_parameter/rust_bleed_strength = 0.25
+shader_parameter/rust_bleed_reach = 0.1
+shader_parameter/rust_bleed_distance = 0.05
 shader_parameter/floor_grime = 0.0
 shader_parameter/floor_grime_height = 0.4
 shader_parameter/emission_color = Color(0.624, 0.847, 0.796, 1)

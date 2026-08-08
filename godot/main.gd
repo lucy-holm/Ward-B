@@ -24,6 +24,7 @@ const HUD_SCENE := preload("res://ui/hud.tscn")
 const KEYPAD_SCENE := preload("res://ui/keypad.tscn")
 const TOUCH_SCENE := preload("res://ui/touch_controls.tscn")
 const GRAIN_SCENE := preload("res://ui/grain.tscn")
+const START_OVERLAY_SCENE := preload("res://ui/start_overlay.tscn")
 
 # Film grain opacity per state — the ward is grainier unmedicated.
 const GRAIN_LUCID := 0.025
@@ -78,6 +79,12 @@ const GRAIN_UNMED := 0.04
 #
 # Use tools/shoot_game.tscn (real main.tscn) or tools/shoot_web.mjs (real
 # browser) for any judgement about how dark the ward actually is.
+#
+# EXPOSURE IS NOT THE WHOLE STORY EITHER. `exposure` below is the baseline at
+# a brightness setting of 1.0; _apply_mood multiplies it by the player's
+# display-calibration setting (WardSettings.get_brightness()). The setting is
+# a single multiplier applied to BOTH states so calibrating for a dim screen
+# cannot flatten the gap between them. See _target_exposure().
 const MOOD := {
 	StateManager.State.LUCID: {
 		"fog": Color(0.843, 0.894, 0.875),
@@ -108,6 +115,7 @@ var hud: CanvasLayer
 var keypad: CanvasLayer
 var touch_controls: CanvasLayer
 var grain: CanvasLayer
+var start_overlay: CanvasLayer
 var atmosphere: Atmosphere
 
 var current_room: Node = null
@@ -127,6 +135,16 @@ func _ready() -> void:
 
 	hud = HUD_SCENE.instantiate()
 	add_child(hud)
+	# Hidden until ADMIT ME. The ward itself is meant to render behind the
+	# start screen, but the HUD is not part of that picture, and two defects
+	# were visible in the very first render of the start overlay: the room-1
+	# objective line ran straight through the WARD B title, and the reticle
+	# dot sat in the middle of the CONFIGURATION panel looking like a stuck
+	# pixel. The TS build gets away with leaving its HUD up only because its
+	# start overlay is fully opaque; the config panel here is deliberately
+	# see-through so the player can calibrate brightness against the real
+	# ward, which puts the HUD back on screen.
+	hud.visible = false
 
 	keypad = KEYPAD_SCENE.instantiate()
 	add_child(keypad)
@@ -142,6 +160,20 @@ func _ready() -> void:
 
 	grain = GRAIN_SCENE.instantiate()
 	add_child(grain)
+
+	# Gates play behind ADMIT ME and is the only route to the randomize-codes
+	# config panel — the Godot analogue of index.html's #startOverlay /
+	# #settingsOverlay + hud.ts's showStart()/bindConfig(). Added last among
+	# the UI layers so its CanvasLayer.layer (10) reliably sits above all of
+	# them (keypad=5, touch=3, hud/grain lower) regardless of add order, but
+	# instantiation order doesn't actually matter for that — layer does.
+	start_overlay = START_OVERLAY_SCENE.instantiate()
+	add_child(start_overlay)
+	start_overlay.admit_pressed.connect(_on_admit_pressed)
+	# Live display calibration: the config panel deliberately renders over the
+	# real, already-loaded ward (see start_overlay.gd), so dragging the slider
+	# has to write through to the frame behind it on the same tick.
+	start_overlay.brightness_changed.connect(apply_brightness_now)
 
 	atmosphere = Atmosphere.new()
 	atmosphere.name = "Atmosphere"
@@ -163,7 +195,26 @@ func _ready() -> void:
 
 	_apply_mood(StateManager.state, true)
 	load_room("room1")
+	# Deliberately does NOT call player.set_input_enabled(true) here — the
+	# scene is meant to be visible as a backdrop behind the start overlay
+	# ("initial presentation: scene visible behind the start overlay",
+	# main.ts), but play stays gated until ADMIT ME. See _on_admit_pressed.
+
+
+func _on_admit_pressed() -> void:
+	hud.visible = true
 	player.set_input_enabled(true)
+	# CLICK TO CAPTURE, but fired from the ADMIT ME button itself rather than
+	# waiting for player.gd's own first-click handler: a Button's `pressed`
+	# signal already consumes the click as GUI input, so it never reaches
+	# player._unhandled_input, and without this the player would need an
+	# extra, unexplained click after admission just to get mouse-look. The
+	# button press is itself a real user gesture, so requesting capture here
+	# is still inside the one place a browser will actually grant it — see
+	# player.gd's own "CLICK TO CAPTURE" comment for why capture can't just
+	# be requested unconditionally at startup.
+	if not DisplayServer.is_touchscreen_available():
+		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -239,6 +290,45 @@ func _update_revert_guard() -> void:
 
 # --- presentation ----------------------------------------------------------
 
+## The ONLY expression of the brightness setting anywhere in the game.
+##
+## MOOD's per-state `exposure` is the baseline at a setting of 1.0; the
+## player's display calibration is a single multiplier on top. Deliberately
+## one multiplier shared by both states rather than a per-state offset: how
+## dark a screen renders is a property of the screen, not of the ward, and
+## scaling both by the same factor leaves the LUCID:UNMED exposure ratio
+## (0.95 : 0.42) exactly as tuned. A player calibrating for a dim laptop
+## therefore cannot accidentally flatten the difference between the two
+## states, which is the one thing the whole game is built on.
+##
+## tonemap_exposure is also the right knob rather than ambient or light_scale:
+## it is a post-tonemap gain on the finished frame, so it cannot change which
+## objects are lit, how far fog reaches, or anything the player reasons about.
+func _target_exposure(state: int) -> float:
+	return float(MOOD[state]["exposure"]) * WardSettings.get_brightness()
+
+
+## Re-applies the brightness setting to the ward RIGHT NOW, without waiting
+## for the next state change. Called live while the config panel's slider is
+## being dragged, which is the only way a player can judge the setting: the
+## start overlay renders over the real, already-loaded room, so this writes
+## through to the frame behind the panel as they drag.
+##
+## Writes tonemap_exposure directly instead of going through _apply_mood: a
+## re-run of the full mood would restart the 0.45 s crossfade tween on every
+## slider step and the ward would visibly lag the slider.
+func apply_brightness_now() -> void:
+	if _mood_tween != null and _mood_tween.is_valid():
+		# A state crossfade is mid-flight, animating tonemap_exposure toward
+		# a target computed from the OLD brightness. Writing the property
+		# directly here would be overwritten by the tween on the next frame,
+		# so restart the mood instantly instead — it recomputes every target,
+		# exposure included, from the new setting.
+		_apply_mood(StateManager.state, true)
+		return
+	world_environment.environment.tonemap_exposure = _target_exposure(StateManager.state)
+
+
 func _apply_mood(state: int, instant: bool) -> void:
 	var env: Environment = world_environment.environment
 	var m: Dictionary = MOOD[state]
@@ -262,7 +352,7 @@ func _apply_mood(state: int, instant: bool) -> void:
 		env.fog_depth_begin = m["fog_begin"]
 		env.fog_depth_end = m["fog_end"]
 		env.ambient_light_energy = m["ambient"]
-		env.tonemap_exposure = m["exposure"]
+		env.tonemap_exposure = _target_exposure(state)
 		env.background_color = m["fog"]
 		return
 
@@ -276,7 +366,7 @@ func _apply_mood(state: int, instant: bool) -> void:
 	_mood_tween.tween_property(env, "fog_depth_begin", m["fog_begin"], 0.45)
 	_mood_tween.tween_property(env, "fog_depth_end", m["fog_end"], 0.45)
 	_mood_tween.tween_property(env, "ambient_light_energy", m["ambient"], 0.45)
-	_mood_tween.tween_property(env, "tonemap_exposure", m["exposure"], 0.45)
+	_mood_tween.tween_property(env, "tonemap_exposure", _target_exposure(state), 0.45)
 
 
 func _set_grain(strength: float, instant: bool) -> void:

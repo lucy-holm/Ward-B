@@ -30,6 +30,20 @@ func _ready() -> void:
 
 	var game: Node = load("res://main.tscn").instantiate()
 	add_child(game)
+
+	# Dismiss the start overlay, exactly as pressing ADMIT ME does.
+	#
+	# main.tscn now gates play behind a start screen, and that overlay is a
+	# near-opaque full-screen CanvasLayer — without this every shot from here
+	# would be a photograph of the title card, and this is the harness the
+	# lighting work is judged with. Driving the real button rather than
+	# hiding the layer keeps the shot honest: it is the state the player is
+	# actually in one click into the game.
+	#
+	# Use tools/shoot_overlay.tscn when the OVERLAY is the subject.
+	if game.get("start_overlay") != null and game.start_overlay.has_method("_on_admit_pressed"):
+		game.start_overlay._on_admit_pressed()
+
 	await get_tree().create_timer(seconds).timeout
 
 	if not room_id.is_empty() and game.has_method("load_room"):

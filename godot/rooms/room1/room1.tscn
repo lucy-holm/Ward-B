@@ -318,6 +318,14 @@ shadow_enabled = true
 shadow_bias = 0.04
 shadow_normal_bias = 1.4
 
+[node name="L0_bounce" type="OmniLight3D" parent="Lights"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0000, 0.2200, 2.0000)
+light_color = Color(1.0, 0.79, 0.6, 1)
+light_energy = 0.3
+omni_range = 2.6
+omni_attenuation = 1.1
+shadow_enabled = false
+
 [node name="L1" type="OmniLight3D" parent="Lights"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0000, 2.7000, 5.0000)
 light_color = Color(0.949, 1.0, 0.98, 1)
@@ -327,6 +335,14 @@ omni_attenuation = 1.7
 shadow_enabled = false
 shadow_bias = 0.04
 shadow_normal_bias = 1.4
+
+[node name="L1_bounce" type="OmniLight3D" parent="Lights"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0000, 0.2200, 5.0000)
+light_color = Color(1.0, 0.79, 0.6, 1)
+light_energy = 0.3
+omni_range = 2.6
+omni_attenuation = 1.1
+shadow_enabled = false
 
 [node name="Exits" type="Node3D" parent="."]
 

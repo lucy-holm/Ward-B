@@ -82,5 +82,21 @@ shader_parameter/stain_strength = 0.65
 shader_parameter/stain_threshold = 0.5
 shader_parameter/ao_strength = 0.4
 shader_parameter/normal_strength = 0.55
-shader_parameter/roughness_base = 0.72
-shader_parameter/roughness_wet = 0.16
+; Reflectivity pass (2026-08): roughness_base 0.72 -> 0.4, roughness_wet
+; 0.16 -> 0.1. Measured in-engine (tools/shoot_states.tscn against the REAL
+; main.tscn, not tools/shoot.gd) that 0.72 never produced a visible specular
+; response anywhere a level FPS camera actually looks — the GGX lobe was too
+; wide to read as a highlight, only as a faint diffuse-like brightening. The
+; decay-gated roughness_wet pooling this shader already had (see header) is
+; correct but was gated behind decay, which nothing in the game currently
+; varies per room (every material sits at its .tres default), so it almost
+; never engaged. Lowering the BASELINE is what makes fittings read as
+; bouncing off the floor at all; the wet-pool mechanic still layers on top
+; of it. Confirmed with before/after screenshots: room2 and room4 in LUCID
+; go from a flat matte tile grid to visible glossy highlight patches on the
+; nearest floor tiles. Do not raise this back toward 0.72 without shooting
+; room2 and room4 LUCID again — a flat average over the floor barely moves
+; even when the visible change is large, because a specular hotspot is
+; spatially small; judge by eye against these two rooms, not by the mean.
+shader_parameter/roughness_base = 0.4
+shader_parameter/roughness_wet = 0.1

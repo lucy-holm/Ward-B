@@ -97,6 +97,24 @@ const eBtn = {
 console.log('canvas buffer', geom.bw + 'x' + geom.bh, 'dpr', geom.dpr,
   '-> E button at css', Math.round(eBtn.x) + ',' + Math.round(eBtn.y));
 
+// ADMIT ME, by touch. Play is gated behind the start overlay, so without this
+// the player has no input at all and LOOK/MOVE/ACTION would all read as dead.
+//
+// This tap is also the mobile half of the mouse-filter rule ui/hud.gd warns
+// about, and the reason this file is the right place to check it: it only
+// lands if the overlay's buttons genuinely receive touch (they are the one
+// part of the UI that must NOT be MOUSE_FILTER_IGNORE), and everything
+// measured after it only works if the overlay stops consuming touch the
+// moment it is dismissed. Get either half wrong and this run fails.
+//
+// Same drawing-buffer-to-CSS conversion as the E button: start_overlay.gd
+// lays out in buffer pixels, CDP wants CSS. ADMIT ME is centred horizontally
+// at ~65% of viewport height.
+const admitCss = { x: geom.bw * 0.5 / geom.dpr, y: geom.bh * 0.65 / geom.dpr };
+console.log('tapping ADMIT ME at css', Math.round(admitCss.x) + ',' + Math.round(admitCss.y));
+await tap(admitCss.x, admitCss.y);
+await page.waitForTimeout(1500);
+
 // --- LOOK + ACTION ---
 // Room 1 spawns at (0,4) facing +Z. The cup is at (-2.2, 0.92, 4.7) — 2.3 m
 // away, inside the 2.7 m interact range.

@@ -1,0 +1,205 @@
+[gd_scene load_steps=2 format=3 uid="uid://bwardbstartov1"]
+
+[ext_resource type="Script" path="res://ui/start_overlay.gd" id="1_start"]
+
+[node name="StartOverlay" type="CanvasLayer"]
+layer = 10
+script = ExtResource("1_start")
+
+[node name="StartPanel" type="Control" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+mouse_filter = 2
+
+[node name="Dim" type="ColorRect" parent="StartPanel"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+mouse_filter = 0
+color = Color(0.012, 0.02, 0.02, 0.92)
+
+[node name="CenterContainer" type="CenterContainer" parent="StartPanel"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+mouse_filter = 2
+
+[node name="Center" type="VBoxContainer" parent="StartPanel/CenterContainer"]
+layout_mode = 2
+mouse_filter = 2
+alignment = 1
+theme_override_constants/separation = 20
+
+[node name="Title" type="HBoxContainer" parent="StartPanel/CenterContainer/Center"]
+layout_mode = 2
+size_flags_horizontal = 4
+mouse_filter = 2
+alignment = 1
+
+[node name="WARD" type="Label" parent="StartPanel/CenterContainer/Center/Title"]
+layout_mode = 2
+mouse_filter = 2
+text = "WARD "
+theme_override_colors/font_color = Color(0.914, 0.949, 0.937, 1)
+theme_override_font_sizes/font_size = 34
+
+[node name="B" type="Label" parent="StartPanel/CenterContainer/Center/Title"]
+layout_mode = 2
+mouse_filter = 2
+text = "B"
+theme_override_colors/font_color = Color(0.624, 0.847, 0.796, 1)
+theme_override_font_sizes/font_size = 34
+
+[node name="Sub" type="Label" parent="StartPanel/CenterContainer/Center"]
+layout_mode = 2
+size_flags_horizontal = 4
+mouse_filter = 2
+text = "GREYBOX PROTOTYPE — v0.2"
+horizontal_alignment = 1
+theme_override_colors/font_color = Color(0.914, 0.949, 0.937, 0.55)
+theme_override_font_sizes/font_size = 11
+
+[node name="Card" type="PanelContainer" parent="StartPanel/CenterContainer/Center"]
+layout_mode = 2
+size_flags_horizontal = 4
+mouse_filter = 2
+
+[node name="Intro" type="RichTextLabel" parent="StartPanel/CenterContainer/Center/Card"]
+layout_mode = 2
+mouse_filter = 2
+bbcode_enabled = true
+fit_content = true
+scroll_active = false
+theme_override_colors/default_color = Color(0.914, 0.949, 0.937, 0.9)
+theme_override_font_sizes/normal_font_size = 13
+
+[node name="AdmitBtn" type="Button" parent="StartPanel/CenterContainer/Center"]
+layout_mode = 2
+size_flags_horizontal = 4
+text = "ADMIT ME"
+
+[node name="ConfigBtn" type="Button" parent="StartPanel/CenterContainer/Center"]
+layout_mode = 2
+size_flags_horizontal = 4
+text = "CONFIGURATION"
+
+[node name="SettingsPanel" type="Control" parent="."]
+visible = false
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+mouse_filter = 2
+
+[node name="Dim" type="ColorRect" parent="SettingsPanel"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+mouse_filter = 0
+color = Color(0.012, 0.02, 0.02, 0.32)
+
+[node name="Center" type="VBoxContainer" parent="SettingsPanel"]
+anchor_left = 0.5
+anchor_top = 1.0
+anchor_right = 0.5
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 0
+mouse_filter = 2
+alignment = 2
+theme_override_constants/separation = 20
+
+[node name="Title" type="Label" parent="SettingsPanel/Center"]
+layout_mode = 2
+size_flags_horizontal = 4
+mouse_filter = 2
+text = "CONFIGURATION"
+horizontal_alignment = 1
+theme_override_colors/font_color = Color(0.914, 0.949, 0.937, 1)
+theme_override_font_sizes/font_size = 34
+
+[node name="Sub" type="Label" parent="SettingsPanel/Center"]
+layout_mode = 2
+size_flags_horizontal = 4
+mouse_filter = 2
+text = "GAMEPLAY OPTIONS"
+horizontal_alignment = 1
+theme_override_colors/font_color = Color(0.914, 0.949, 0.937, 0.55)
+theme_override_font_sizes/font_size = 11
+
+[node name="Card" type="PanelContainer" parent="SettingsPanel/Center"]
+layout_mode = 2
+size_flags_horizontal = 4
+mouse_filter = 2
+
+[node name="Rows" type="VBoxContainer" parent="SettingsPanel/Center/Card"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 16
+
+[node name="BrightnessRow" type="VBoxContainer" parent="SettingsPanel/Center/Card/Rows"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 8
+
+[node name="Label" type="RichTextLabel" parent="SettingsPanel/Center/Card/Rows/BrightnessRow"]
+layout_mode = 2
+mouse_filter = 2
+bbcode_enabled = true
+fit_content = true
+scroll_active = false
+theme_override_colors/default_color = Color(0.914, 0.949, 0.937, 0.9)
+theme_override_font_sizes/normal_font_size = 13
+
+[node name="SliderRow" type="HBoxContainer" parent="SettingsPanel/Center/Card/Rows/BrightnessRow"]
+layout_mode = 2
+theme_override_constants/separation = 14
+
+[node name="Slider" type="HSlider" parent="SettingsPanel/Center/Card/Rows/BrightnessRow/SliderRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+min_value = 0.6
+max_value = 2.0
+step = 0.05
+value = 1.25
+
+[node name="Value" type="Label" parent="SettingsPanel/Center/Card/Rows/BrightnessRow/SliderRow"]
+layout_mode = 2
+size_flags_vertical = 4
+mouse_filter = 2
+text = "125%"
+horizontal_alignment = 2
+theme_override_colors/font_color = Color(0.624, 0.847, 0.796, 1)
+theme_override_font_sizes/font_size = 13
+
+[node name="Rule" type="HSeparator" parent="SettingsPanel/Center/Card/Rows"]
+layout_mode = 2
+mouse_filter = 2
+
+[node name="ToggleRow" type="HBoxContainer" parent="SettingsPanel/Center/Card/Rows"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 14
+
+[node name="Toggle" type="Button" parent="SettingsPanel/Center/Card/Rows/ToggleRow"]
+layout_mode = 2
+size_flags_vertical = 0
+toggle_mode = true
+text = "[  ]"
+
+[node name="Label" type="RichTextLabel" parent="SettingsPanel/Center/Card/Rows/ToggleRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+mouse_filter = 2
+bbcode_enabled = true
+fit_content = true
+scroll_active = false
+theme_override_colors/default_color = Color(0.914, 0.949, 0.937, 0.9)
+theme_override_font_sizes/normal_font_size = 13
+
+[node name="DoneBtn" type="Button" parent="SettingsPanel/Center"]
+layout_mode = 2
+size_flags_horizontal = 4
+text = "DONE"

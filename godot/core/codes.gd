@@ -4,20 +4,23 @@
 # toggle silently skips that room. A room wires it by calling
 # `regenerate_code()` in on_enter AND again in its catch handler — being
 # caught rerolls the code so a player cannot memorise it across a reset.
+#
+# PERSISTENCE LIVES IN core/settings.gd (WardSettings), not here — that file
+# holds the ConfigFile at user://settings.cfg and the write-up of why
+# ProjectSettings was the wrong API for it. The two functions below are kept
+# as thin forwarders purely so the four keypad rooms keep calling the name
+# they already call: room2/5/6/7 needed no edit for any of this, and neither
+# will a future room that follows the pattern in the header above.
 class_name WardCodes
 extends RefCounted
 
-const SETTING_KEY := "wardb/randomize_codes"
-
 
 static func is_randomize_codes_enabled() -> bool:
-	if ProjectSettings.has_setting(SETTING_KEY):
-		return bool(ProjectSettings.get_setting(SETTING_KEY))
-	return false
+	return WardSettings.is_randomize_codes_enabled()
 
 
 static func set_randomize_codes(enabled: bool) -> void:
-	ProjectSettings.set_setting(SETTING_KEY, enabled)
+	WardSettings.set_randomize_codes(enabled)
 
 
 static func random_code_4() -> String:

@@ -374,11 +374,98 @@ wire.
 - **No map viewer.** `/map.html?room=<id>` has no Godot equivalent; the
   editor partly covers it, but patrol paths and sight envelopes are not
   visualised.
-- **Randomize-codes** is wired per-room but the start-screen toggle that
-  drives `WardCodes.is_randomize_codes_enabled()` has no UI yet.
+- ~~**Randomize-codes** is wired per-room but the start-screen toggle that
+  drives `WardCodes.is_randomize_codes_enabled()` has no UI yet.~~ Done — see
+  §6.
 - **`big: true` on scrawls** is not expressed by the generator — affects
   relative scrawl sizing in rooms 2–7.
 - **Rooms 8–20 are not ported.** Room 7 exits to `END`; restore the
   `("room8", ...)` exit in `gen_rooms.py` when the rest of the ward lands.
   Rooms 8+ need the kit features this pass skipped: triggers, shape locks,
   light switches, verticality and stacked levels.
+
+---
+
+## 6. Settings: the start screen and the CONFIGURATION panel
+
+`ui/start_overlay.tscn` gates play behind **ADMIT ME** and is the only route
+to **CONFIGURATION**, mirroring `index.html`'s `#startOverlay`/
+`#settingsOverlay` and `src/ui/hud.ts`'s `showStart()`/`bindConfig()`. Copy is
+verbatim from the TS where the TS has authored copy. `main.gd` no longer
+enables player input in `_ready`; the ward renders behind the overlay and
+`_on_admit_pressed` starts the run.
+
+### Persistence is a ConfigFile, and ProjectSettings was a real bug
+
+`WardCodes.is_randomize_codes_enabled()` was backed by
+`ProjectSettings.set_setting()`. That could not work: `ProjectSettings` is
+project/editor configuration, nothing is written without an explicit
+`ProjectSettings.save()`, and an exported build has no writable
+`project.godot` to save into. The setting could never survive a reload.
+
+Storage now lives in `core/settings.gd` (`WardSettings`) as a `ConfigFile` at
+`user://settings.cfg` — a real per-project directory on desktop, IndexedDB on
+web, i.e. the analogue of `settings.ts`'s `localStorage`. Load once, cache,
+write through on change; a write failure warns and keeps the in-memory value,
+so a locked-down filesystem degrades to session-only exactly as the TS
+`try/catch` does. `WardCodes` keeps its two function names as forwarders, so
+**rooms 2/5/6/7 needed no edit**.
+
+Proven across a real process restart, not just a round trip:
+`tools/test_settings_persist_write.tscn` writes in one headless process and
+`tools/test_settings_persist_read.tscn` reads in a second. A same-process
+round trip proves nothing here — the static cache alone would satisfy it,
+which is precisely how the ProjectSettings version looked correct.
+
+### Brightness
+
+New; the Three.js build has no equivalent. A single multiplier on
+`Environment.tonemap_exposure`, applied in `main.gd._target_exposure()` to
+**both** ward states, so calibrating for a dim screen cannot flatten the
+LUCID:UNMED contrast the game is built on. `MOOD`'s `exposure` values are
+untouched and remain the baseline at 1.0.
+
+Default **1.25**, chosen by measuring the real game (`tools/shoot_game.tscn`),
+not by eye: mean frame luminance at the room-4 centre goes 9.43 → 10.27 →
+10.54 for 1.00 → 1.25 → 1.40. The ACES curve rolls off, so 1.25 is the knee —
++8.9% for the first quarter, only +2.6% for the next. Note that single-frame
+comparisons in UNMED are noisy because the fluorescent flicker is live;
+average several frames or the numbers come out non-monotonic.
+
+**The config panel is deliberately see-through and bottom-weighted** (scrim
+0.32 vs the start screen's 0.92) so the live ward shows above it and the
+slider can be judged before starting. It does not preview brightness with grey
+swatches, the usual idiom: `tonemap_exposure` is a 3D post-process, so 2D
+CanvasLayer swatches would not respond at all and would mislead. There is
+deliberately no mid-game config route — that would mean pausing and restoring
+mouse capture, this project's most bug-prone area, for a setting that can now
+be judged properly up front.
+
+### Things that bit, worth not re-learning
+
+- **`tools/shoot_game.gd` now dismisses the start overlay** before shooting.
+  Without that, every "how dark is the ward" screenshot is a photograph of the
+  title card — and that is the harness the lighting work is judged with.
+  `tools/shoot_overlay.tscn` is the one to use when the overlay is the subject.
+- **The HUD is hidden until ADMIT ME.** The TS build leaves its HUD up because
+  its start overlay is opaque; ours is not, and the first render showed the
+  room-1 objective line running through the WARD B title and the reticle dot
+  sitting in the middle of the CONFIGURATION panel.
+- **The randomize-codes control is a Button, not a CheckBox.** `CheckBox`
+  draws its tick from a fixed-size theme icon that `custom_minimum_size` does
+  not scale, so it rendered tiny next to 1.4x type at 1728x1080 — the "UI is
+  too small" complaint again. It is a `[  ]`/`[X]` text toggle, which scales
+  with `font_size` like everything else and is a far larger touch target.
+- **A GDScript runtime error aborts only the enclosing function**, so the
+  remaining assertions in a test silently never run and the suite still prints
+  OK. A `RefCounted` test double passed to room2's `on_enter(main: Node)` did
+  exactly that and hid both randomize-codes tests while exiting 0.
+  `tools/test_settings.gd` asserts an expected assertion count to catch it;
+  the guard was confirmed to fail against the broken version.
+- **`print()` does not reach the browser console** in this web export;
+  `Telemetry.event()` does. Use telemetry to instrument a web-only problem.
+- **Serve YOUR OWN build directory.** Port 8899 already had a server from
+  another worktree bound to it, so a rebuild appeared to change nothing and
+  cost a long detour chasing a non-existent stale-export bug. Always compare
+  `shasum` of the served `index.pck` against the local one before believing a
+  web result.

@@ -466,6 +466,33 @@ class Emitter:
                 body.append("shadow_normal_bias = 1.4")
                 body.append("")
 
+                # Faked bounce: a small, dim, warm OmniLight3D sitting just off
+                # the floor directly under the fitting. Real GI is not
+                # available here (see the shader headers: no sky, no probes;
+                # AreaLight3D's shadow_enabled is a silent no-op in
+                # Compatibility, so it was rejected for the fittings
+                # themselves). This is the cheap substitute the brief calls
+                # for: it does not simulate light bouncing off the floor, it
+                # just plants a second, low, warm source that READS as if the
+                # floor were kicking light back up — which is what sells
+                # "pooled light" at this fidelity. Warm-shifted relative to
+                # the cool-white fitting colour so it reads as bounced/
+                # absorbed light, not a second ceiling lamp. No shadow (a
+                # shadow-casting light at floor height would self-shadow into
+                # every nearby leg/prop) and a short, soft range so it stays a
+                # local pool and never lights a whole room on its own —
+                # light_scale/flicker still apply (it is just another
+                # OmniLight3D under "Lights"), so it dims and buzzes with the
+                # fitting above it instead of staying eerily constant.
+                body.append('[node name="L%d_bounce" type="OmniLight3D" parent="Lights"]' % i)
+                body.append("transform = %s" % _xform((x, 0.22, z)))
+                body.append("light_color = Color(1.0, 0.79, 0.6, 1)")
+                body.append("light_energy = 0.3")
+                body.append("omni_range = 2.6")
+                body.append("omni_attenuation = 1.1")
+                body.append("shadow_enabled = false")
+                body.append("")
+
         # exits
         body.append('[node name="Exits" type="Node3D" parent="."]')
         body.append("")

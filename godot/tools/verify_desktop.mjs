@@ -45,9 +45,20 @@ await page
   .catch(() => {});
 await page.waitForTimeout(12000);
 
-// Click the canvas so it has focus and pointer lock can engage.
-await page.locator('canvas').click({ force: true }).catch(() => {});
-await page.waitForTimeout(600);
+// ADMIT ME. Play is gated behind the start overlay, so without this the
+// player's input stays disabled and every assertion below fails — which is
+// the correct behaviour, not a bug to route around.
+//
+// Clicked by POSITION rather than by a selector: the overlay is Godot
+// Control nodes drawn into the canvas, so there is no DOM node to target.
+// The button is centred horizontally and sits at ~65% of viewport height at
+// the 1280x720 this harness uses (start_overlay.gd lays out from viewport
+// height against a 720p baseline). Asserted below via `admitted`, so a
+// layout change that moves the button fails loudly here instead of silently
+// turning this file into a test of nothing.
+const admit = { x: 640, y: 468 };
+await page.mouse.click(admit.x, admit.y);
+await page.waitForTimeout(1200);
 
 // WALK: hold W.
 await page.keyboard.down('KeyW');
@@ -87,12 +98,19 @@ if (pos.length) {
 }
 const yaws = new Set(pos.map((e) => e.yaw)).size;
 
+// The overlay hands input to the player only on ADMIT ME, so any movement at
+// all proves the click landed on the button. Reported separately from
+// WALK/STRAFE so "the start screen swallowed everything" is distinguishable
+// from "keyboard input is broken".
+const admitted = moved > 1;
+
 console.log('\n--- desktop input ---');
+console.log(`ADMIT ME accepted the click    : ${admitted}   ${admitted ? 'OK' : 'STILL GATED'}`);
 console.log(`WALK/STRAFE distinct positions : ${moved}   ${moved > 1 ? 'OK' : 'NO RESPONSE'}`);
 console.log(`pointer lock engaged on click  : ${locked}   ${locked ? 'OK' : 'NOT LOCKED'}`);
 console.log(`LOOK distinct yaw values       : ${yaws}   ${yaws > 1 ? 'OK' : 'NO RESPONSE'}`);
 console.log(`errors                         : ${errors.length ? errors.join('\n') : 'none'}`);
 
-const ok = pos.length > 0 && moved > 1 && yaws > 1 && errors.length === 0;
+const ok = pos.length > 0 && admitted && moved > 1 && yaws > 1 && errors.length === 0;
 console.log(ok ? '\nDESKTOP VERIFY: PASS' : '\nDESKTOP VERIFY: FAIL');
 process.exit(ok ? 0 : 1);

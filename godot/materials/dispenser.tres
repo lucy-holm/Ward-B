@@ -54,8 +54,11 @@ render_priority = 0
 shader = ExtResource("1_shader")
 ; Institutional enamel/steel cabinet: chipped but not rotten — mostly
 ; intact, glossy where uncut, modest rust and no fabric-style tearing.
+;
+; Palette pass (2026-08, matB): small warm-bone nudge to match the board's
+; "CHIPPED ENAMEL SINK" panel and cohere with the retuned wall palette.
 shader_parameter/decay = 0.35
-shader_parameter/base_color = Color(0.72, 0.69, 0.6, 1)
+shader_parameter/base_color = Color(0.70, 0.665, 0.57, 1)
 shader_parameter/substrate_color = Color(0.29, 0.267, 0.22, 1)
 shader_parameter/rust_bleed_color = Color(0.55, 0.32, 0.24, 1)
 shader_parameter/mottle_tex = SubResource("NoiseTexture2D_disp_mottle")

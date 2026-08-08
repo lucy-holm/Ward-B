@@ -55,10 +55,16 @@ shader = ExtResource("1_shader")
 ; Bare dark iron, no paint layer to speak of — chip_coverage stays low so
 ; the pitted near-black substrate dominates, same dorm-reference darkness
 ; as the bed, at chain-link scale (higher chip_scale, short bleed reach).
+;
+; Palette pass (2026-08, matB): same rust-family retune as bed.tres (see its
+; header) — warmed base/substrate toward dark rust-brown instead of neutral
+; iron-grey, matched rust_bleed_color to the board's rust swatch, widened
+; the bleed halo. Kept chain's own darker base (it reads as thinner, more
+; oxidized stock than the bed's tube frame).
 shader_parameter/decay = 0.35
-shader_parameter/base_color = Color(0.2, 0.185, 0.165, 1)
-shader_parameter/substrate_color = Color(0.17, 0.15, 0.13, 1)
-shader_parameter/rust_bleed_color = Color(0.44, 0.28, 0.21, 1)
+shader_parameter/base_color = Color(0.22, 0.18, 0.15, 1)
+shader_parameter/substrate_color = Color(0.22, 0.155, 0.115, 1)
+shader_parameter/rust_bleed_color = Color(0.52, 0.30, 0.23, 1)
 shader_parameter/mottle_tex = SubResource("NoiseTexture2D_chain_mottle")
 shader_parameter/normal_tex = SubResource("NoiseTexture2D_chain_normal")
 shader_parameter/chip_tex = SubResource("NoiseTexture2D_chain_chip")
@@ -75,8 +81,8 @@ shader_parameter/chip_coverage = 0.22
 shader_parameter/chip_edge_width = 0.03
 shader_parameter/chip_lip_strength = 1.0
 shader_parameter/chip_ao_strength = 0.35
-shader_parameter/rust_bleed_strength = 0.42
-shader_parameter/rust_bleed_reach = 0.2
+shader_parameter/rust_bleed_strength = 0.5
+shader_parameter/rust_bleed_reach = 0.28
 shader_parameter/rust_bleed_distance = 0.08
 shader_parameter/floor_grime = 0.3
 shader_parameter/floor_grime_height = 0.25

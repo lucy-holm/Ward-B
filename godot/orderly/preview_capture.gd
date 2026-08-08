@@ -231,8 +231,8 @@ func _maybe_shot(tag: String, at_time: float) -> void:
 	_shots_taken[tag] = true
 	await RenderingServer.frame_post_draw
 	var img := get_viewport().get_texture().get_image()
-	img.save_png("res://.artifacts/orderly_%s.png" % tag)
-	print("saved orderly_%s.png (watching=%.2f chasing=%s)" % [tag, _orderly.watching(), _orderly.is_chasing()])
+	img.save_png("res://.artifacts/orderlyA_%s.png" % tag)
+	print("saved orderlyA_%s.png (watching=%.2f chasing=%s)" % [tag, _orderly.watching(), _orderly.is_chasing()])
 
 
 func _maybe_shot_cam(tag: String, at_time: float, cam: Camera3D) -> void:
@@ -242,9 +242,9 @@ func _maybe_shot_cam(tag: String, at_time: float, cam: Camera3D) -> void:
 	cam.current = true
 	await RenderingServer.frame_post_draw
 	var img := get_viewport().get_texture().get_image()
-	img.save_png("res://.artifacts/orderly_%s.png" % tag)
+	img.save_png("res://.artifacts/orderlyA_%s.png" % tag)
 	_camera.current = true
-	print("saved orderly_%s.png" % tag)
+	print("saved orderlyA_%s.png" % tag)
 
 
 # Fires BURST_COUNT shots spaced BURST_INTERVAL apart starting at start_at,
@@ -259,5 +259,5 @@ func _burst_capture(tag: String, start_at: float) -> void:
 		_shots_taken[key] = true
 		await RenderingServer.frame_post_draw
 		var img := get_viewport().get_texture().get_image()
-		img.save_png("res://.artifacts/orderly_%s.png" % key)
-		print("saved orderly_%s.png (t=%.3f watching=%.2f chasing=%s)" % [key, _t, _orderly.watching(), _orderly.is_chasing()])
+		img.save_png("res://.artifacts/orderlyA_%s.png" % key)
+		print("saved orderlyA_%s.png (t=%.3f watching=%.2f chasing=%s)" % [key, _t, _orderly.watching(), _orderly.is_chasing()])

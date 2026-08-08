@@ -36,6 +36,7 @@ const FOG_BREATH_AMOUNT := 0.05
 
 var _lights: Array[OmniLight3D] = []
 var _base_energy: Array[float] = []
+var _base_color: Array[Color] = []
 var _dip: Array[float] = []
 var _clock := 0.0
 
@@ -50,6 +51,16 @@ var _fog_end_base := 0.0
 var _light_scale := 1.0
 var _light_scale_target := 1.0
 
+# Per-state multiplier on every fitting's base COLOR (Color * Color,
+# component-wise), same ease-toward-target treatment as _light_scale. This is
+# what actually makes UNMED fixtures read as sickly rather than merely dim —
+# a light dimmed but left neutral-white just looks like a dimmer version of
+# the same clean bulb. Applied on top of each fitting's own authored color, so
+# the warm amber floor "bounce" fixtures and the cool-white ceiling tubes tint
+# together but keep their relative difference (2026-08 lighting pass).
+var _light_tint := Color(1, 1, 1)
+var _light_tint_target := Color(1, 1, 1)
+
 
 func bind_environment(env: Environment) -> void:
 	_env = env
@@ -59,6 +70,7 @@ func bind_environment(env: Environment) -> void:
 func collect_lights(room: Node) -> void:
 	_lights.clear()
 	_base_energy.clear()
+	_base_color.clear()
 	_dip.clear()
 	if room == null:
 		return
@@ -70,6 +82,7 @@ func _collect(node: Node) -> void:
 		var l := node as OmniLight3D
 		_lights.append(l)
 		_base_energy.append(l.light_energy)
+		_base_color.append(l.light_color)
 		_dip.append(0.0)
 	for child in node.get_children():
 		_collect(child)
@@ -80,6 +93,16 @@ func set_light_scale(scale: float, instant: bool) -> void:
 	_light_scale_target = scale
 	if instant:
 		_light_scale = scale
+
+
+## Set by main.gd from the MOOD table on every state change. `tint` multiplies
+## each fitting's own authored light_color component-wise every frame in
+## _tick_flicker, so a room reload (which re-reads _base_color from the fresh
+## nodes) can never lose the tint.
+func set_light_color(tint: Color, instant: bool) -> void:
+	_light_tint_target = tint
+	if instant:
+		_light_tint = tint
 
 
 func _process(delta: float) -> void:
@@ -97,6 +120,10 @@ func _process(delta: float) -> void:
 	# transition, not a hard cut, and matches the ~0.45s mood crossfade
 	# without lagging behind it.
 	_light_scale = lerpf(_light_scale, _light_scale_target, minf(1.0, delta * 12.0))
+	# Same rate as _light_scale so the colour cast and the brightness settle
+	# together — a tint arriving after the energy already has would read as a
+	# visible second event instead of one crossfade.
+	_light_tint = _light_tint.lerp(_light_tint_target, minf(1.0, delta * 12.0))
 	var unmed := not StateManager.is_lucid()
 	_tick_flicker(delta, unmed)
 	_tick_fog(unmed)
@@ -130,6 +157,15 @@ func _tick_flicker(delta: float, unmed: bool) -> void:
 			if _dip[i] > 0.0:
 				target *= FLICKER_DIP
 		l.light_energy = lerpf(l.light_energy, target, minf(1.0, delta * FLICKER_RECOVER))
+
+		# Tint every frame, not just on state change: _light_tint is itself
+		# still easing toward _light_tint_target most frames (see _process),
+		# so this is what makes the colour crossfade smooth instead of a hard
+		# cut. Multiplied against the fitting's OWN authored colour (captured
+		# in collect_lights), not overwritten — a warm amber floor bounce and
+		# a cool ceiling tube stay distinct fixtures, they just both pick up
+		# the state's cast.
+		l.light_color = _base_color[i] * _light_tint
 
 
 func _tick_fog(unmed: bool) -> void:

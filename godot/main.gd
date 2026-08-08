@@ -85,24 +85,50 @@ const GRAIN_UNMED := 0.04
 # display-calibration setting (WardSettings.get_brightness()). The setting is
 # a single multiplier applied to BOTH states so calibrating for a dim screen
 # cannot flatten the gap between them. See _target_exposure().
+#
+# `light_tint` (2026-08 concept-art pass): multiplies every fitting's own
+# authored light_color in Atmosphere._tick_flicker — see set_light_color().
+# This field existed in the dict since the TS port but was DEAD: nothing ever
+# read MOOD[state]["light"], so both states left every fixture at whatever
+# near-white colour was authored in the room .tscn. Renamed light -> light_tint
+# and wired up because "sickly failing ward" needs a colour cast, not just a
+# dimmer switch — a dim neutral-white bulb reads as "dark room", not "sick
+# building". UNMED leans cool-green (kills red, lifts green slightly) so the
+# same near-white ceiling tubes read sickly and the warm amber floor "bounce"
+# fixtures (fake_gi_bounce, see room .tscn "L*_bounce" nodes) come out a
+# muddier, cooler amber rather than clean warm light — both colours pulled
+# toward the same infection. LUCID's tint is close to identity (barely warm)
+# so daylight-through-barred-windows reads clean, matching concept 95b44321.
+#
+# UNMED's `exposure` (0.42) is DELIBERATELY UNTOUCHED by this pass — see the
+# HARD CONSTRAINT comment on _target_exposure(). Every other UNMED number
+# below moved instead: ambient and light_scale both dropped further, which is
+# safe because light PLACEMENT (room .tscn omni_range/omni_attenuation, tuned
+# tighter in the same pass so pools fall off faster) now carries more of the
+# "pool vs black" contrast that ambient/light_scale used to carry alone.
+# LUCID's exposure DID move (0.95 -> 0.78): at 0.95 x the default 1.25
+# brightness-setting multiplier, a wall directly under a fixture (e.g. room 1's
+# spawn, 2m from L0) blew fully white with no readable detail — confirmed via
+# tools/shoot_states.tscn, not by eye. 0.78 keeps LUCID unambiguously the
+# brighter, calmer state without clipping the geometry closest to a fitting.
 const MOOD := {
 	StateManager.State.LUCID: {
 		"fog": Color(0.843, 0.894, 0.875),
-		"fog_begin": 12.0,
-		"fog_end": 40.0,
-		"ambient": 0.34,
-		"exposure": 0.95,
-		"light_scale": 1.0,
-		"light": Color(0.949, 1.0, 0.984),
+		"fog_begin": 10.0,
+		"fog_end": 34.0,
+		"ambient": 0.28,
+		"exposure": 0.78,
+		"light_scale": 0.88,
+		"light_tint": Color(1.0, 0.98, 0.93),
 	},
 	StateManager.State.UNMED: {
 		"fog": Color(0.090, 0.043, 0.039),
-		"fog_begin": 2.5,
+		"fog_begin": 2.2,
 		"fog_end": 16.0,
-		"ambient": 0.010,
+		"ambient": 0.006,
 		"exposure": 0.42,
-		"light_scale": 0.30,
-		"light": Color(1.0, 0.2, 0.141),
+		"light_scale": 0.26,
+		"light_tint": Color(0.72, 1.0, 0.80),
 	},
 }
 
@@ -345,6 +371,10 @@ func _apply_mood(state: int, instant: bool) -> void:
 		# pools too, which is what makes a room read as unlit rather than
 		# merely dim.
 		atmosphere.set_light_scale(m["light_scale"], instant)
+		# And tint, so "dim" also means "sick" rather than "a clean bulb on a
+		# dimmer" — see the MOOD comment block above for why this field was
+		# dead for the whole life of the port.
+		atmosphere.set_light_color(m["light_tint"], instant)
 	_set_grain(GRAIN_LUCID if state == StateManager.State.LUCID else GRAIN_UNMED, instant)
 
 	if instant:

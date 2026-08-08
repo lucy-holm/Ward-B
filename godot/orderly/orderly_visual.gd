@@ -153,14 +153,20 @@ const SIGHT_CONE_SEGMENTS := 20
 const STEP_EPSILON := 0.0005
 
 # --- palette ------------------------------------------------------------
-const UNIFORM_BASE := Color(0.80, 0.765, 0.68)   # bone-white / off-cream cloth
-const UNIFORM_GRIME := Color(0.33, 0.22, 0.12)   # brown-ochre stain
-const SKIN_BASE := Color(0.80, 0.75, 0.66)       # pale, waxy
-const SKIN_GRIME := Color(0.34, 0.24, 0.15)
-const SHOE_BASE := Color(0.46, 0.42, 0.36)
-const SHOE_GRIME := Color(0.20, 0.14, 0.08)
-const BADGE_BASE := Color(0.86, 0.85, 0.79)
-const BUTTON_BASE := Color(0.42, 0.38, 0.30)
+# 2026-08 grime/plastic pass: darker, greyer, more desaturated across the
+# board to match the character-sheet's soiled institutional taupe (was a
+# cleaner, warmer cream that read closer to "new hospital linen" than
+# "worn for years and never properly washed"). orderly_body.gdshader
+# compensates edge_glow for base_color's drop so the far-dark silhouette
+# read does not dim along with it — see that shader's header.
+const UNIFORM_BASE := Color(0.66, 0.63, 0.56)    # soiled bone-tan cloth, not cream
+const UNIFORM_GRIME := Color(0.20, 0.15, 0.10)   # darker, greyer stain (less orange)
+const SKIN_BASE := Color(0.68, 0.64, 0.58)       # pale, waxy — cooler than the cloth
+const SKIN_GRIME := Color(0.22, 0.17, 0.13)
+const SHOE_BASE := Color(0.38, 0.35, 0.31)       # worn dark leather
+const SHOE_GRIME := Color(0.14, 0.10, 0.07)
+const BADGE_BASE := Color(0.80, 0.79, 0.72)      # paper/plastic tag, lightly soiled
+const BUTTON_BASE := Color(0.36, 0.33, 0.27)
 
 var _leg_pivots: Array[Node3D] = []
 var _arm_pivots: Array[Node3D] = []
@@ -246,19 +252,25 @@ func _make_material(base: Color, grime: Color, grime_amount: float, roughness: f
 func _build_body() -> void:
 	var orderly := get_parent()
 
-	var cloth_clean := _make_material(UNIFORM_BASE, UNIFORM_GRIME, 0.05, 0.86, 0.9, 0.0, 0.0, TORSO_W * 0.5)
-	var cloth_body := _make_material(UNIFORM_BASE, UNIFORM_GRIME, 0.16, 0.86, 0.9, 1.0, 0.0, TORSO_W * 0.5)
-	var cloth_hem := _make_material(UNIFORM_BASE, UNIFORM_GRIME, 0.55, 0.86, 0.9, 0.0, 0.0, TORSO_W * 0.5)
-	var cloth_upper_arm := _make_material(UNIFORM_BASE, UNIFORM_GRIME, 0.10, 0.86, 0.85, 0.0, 0.0, ARM_W)
-	var cloth_cuff := _make_material(UNIFORM_BASE, UNIFORM_GRIME, 0.5, 0.86, 0.85, 0.0, 0.0, ARM_W)
-	var cloth_thigh := _make_material(UNIFORM_BASE, UNIFORM_GRIME, 0.20, 0.86, 0.85, 0.0, 0.0, LEG_W)
-	var cloth_shin := _make_material(UNIFORM_BASE, UNIFORM_GRIME, 0.58, 0.86, 0.85, 0.0, 0.0, LEG_W)
-	var skin_head := _make_material(SKIN_BASE, SKIN_GRIME, 0.04, 0.4, 0.55, 1.0, 1.0, HEAD_R)
-	var skin_neck := _make_material(SKIN_BASE, SKIN_GRIME, 0.05, 0.4, 0.5, 1.0, 0.0, NECK_R)
-	var skin_hand := _make_material(SKIN_BASE, SKIN_GRIME, 0.12, 0.42, 0.45, 0.0, 0.0, 0.05)
-	var shoe_mat := _make_material(SHOE_BASE, SHOE_GRIME, 0.4, 0.7, 0.3, 0.0, 0.0, 0.1)
-	var badge_mat := _make_material(BADGE_BASE, SKIN_GRIME, 0.03, 0.5, 0.2, 0.0, 0.0, 0.03)
-	var button_mat := _make_material(BUTTON_BASE, SKIN_GRIME, 0.1, 0.55, 0.15, 0.0, 0.0, 0.02)
+	# 2026-08 grime/plastic pass: roughness pushed further toward matte
+	# (cloth 0.86 -> ~0.92, skin 0.4 -> ~0.56, shoe 0.7 -> 0.8) and grime_amount
+	# raised at the already-dirty extremities (hem/cuff/shin/shoe) so the
+	# hems/cuffs/knees-dirtiest, shoulders-clean read from the character sheet
+	# is more pronounced. The plastic-sheen cut itself is mostly the shader's
+	# new specular_base/SPECULAR-dimming, not these two columns.
+	var cloth_clean := _make_material(UNIFORM_BASE, UNIFORM_GRIME, 0.06, 0.92, 0.9, 0.0, 0.0, TORSO_W * 0.5)
+	var cloth_body := _make_material(UNIFORM_BASE, UNIFORM_GRIME, 0.20, 0.92, 0.9, 1.0, 0.0, TORSO_W * 0.5)
+	var cloth_hem := _make_material(UNIFORM_BASE, UNIFORM_GRIME, 0.68, 0.93, 0.9, 0.0, 0.0, TORSO_W * 0.5)
+	var cloth_upper_arm := _make_material(UNIFORM_BASE, UNIFORM_GRIME, 0.13, 0.92, 0.85, 0.0, 0.0, ARM_W)
+	var cloth_cuff := _make_material(UNIFORM_BASE, UNIFORM_GRIME, 0.65, 0.93, 0.85, 0.0, 0.0, ARM_W)
+	var cloth_thigh := _make_material(UNIFORM_BASE, UNIFORM_GRIME, 0.25, 0.92, 0.85, 0.0, 0.0, LEG_W)
+	var cloth_shin := _make_material(UNIFORM_BASE, UNIFORM_GRIME, 0.70, 0.93, 0.85, 0.0, 0.0, LEG_W)
+	var skin_head := _make_material(SKIN_BASE, SKIN_GRIME, 0.05, 0.56, 0.55, 1.0, 1.0, HEAD_R)
+	var skin_neck := _make_material(SKIN_BASE, SKIN_GRIME, 0.05, 0.56, 0.5, 1.0, 0.0, NECK_R)
+	var skin_hand := _make_material(SKIN_BASE, SKIN_GRIME, 0.17, 0.58, 0.45, 0.0, 0.0, 0.05)
+	var shoe_mat := _make_material(SHOE_BASE, SHOE_GRIME, 0.55, 0.8, 0.3, 0.0, 0.0, 0.1)
+	var badge_mat := _make_material(BADGE_BASE, SKIN_GRIME, 0.03, 0.58, 0.2, 0.0, 0.0, 0.03)
+	var button_mat := _make_material(BUTTON_BASE, SKIN_GRIME, 0.1, 0.62, 0.15, 0.0, 0.0, 0.02)
 
 	# legs — hip-pivoted so the gait swing rotates from the joint. Thigh/shin
 	# are separate baked lofts (MESH_LEG_*) that share an exact knee

@@ -25,11 +25,25 @@ render_mode blend_mix, depth_draw_opaque, cull_back, diffuse_burley, specular_sc
 // in vertex()), never world position, so patterns are pinned to the mesh
 // and stay put regardless of the puppet's animated pose.
 
-uniform vec4 base_color : source_color = vec4(0.78, 0.74, 0.65, 1.0);
-uniform vec4 grime_color : source_color = vec4(0.30, 0.21, 0.12, 1.0);
+// 2026-08 grime/plastic pass (see brief: concept sheet is a gaunt figure in a
+// DIRTY MATTE bone-white/tan uniform, not a shiny mannequin). base_color and
+// grime_color both moved darker and greyer — less warm cream, more soiled
+// institutional taupe — to match the reference sheet's desaturated fabric.
+// This darkens the rim EMISSION too (it multiplies this same `col`), so
+// edge_glow below is bumped to compensate — see its own comment.
+uniform vec4 base_color : source_color = vec4(0.66, 0.63, 0.56, 1.0);
+uniform vec4 grime_color : source_color = vec4(0.20, 0.15, 0.10, 1.0);
 uniform float grime_amount : hint_range(0.0, 1.0) = 0.2;
 uniform float grime_scale = 5.0;
 uniform float roughness_base : hint_range(0.0, 1.0) = 0.85;
+// Cuts the "shiny plastic mannequin" specular highlight without touching
+// METALLIC (must stay 0 — see header). Godot's SPECULAR uniform maps to
+// dielectric F0 = 0.08 * specular, so 0.5 (the engine default when this
+// output is left unset) reads as a fairly glossy dielectric under a point
+// light; 0.3 is a duller, worn-cloth/dead-skin F0 without going metallic or
+// fully unlit-flat. Fragment() dims it further over grimy patches — dirt
+// doesn't shine.
+uniform float specular_base : hint_range(0.0, 1.0) = 0.3;
 uniform float rim_strength : hint_range(0.0, 2.0) = 0.5;
 // Edge-only emission so the silhouette survives near-zero ambient. Keep low:
 // past ~0.5 he starts reading as lit rather than pale.
@@ -38,11 +52,21 @@ uniform float rim_strength : hint_range(0.0, 2.0) = 0.5;
 // or he goes invisible at range every time the room darkens.
 //
 // 2026-08 lighting pass: UNMED tonemap_exposure settled at 0.42 (down from
-// 0.60). Emission is exposure-scaled like everything else, so edge_glow is
+// 0.60). Emission is exposure-scaled like everything else, so edge_glow was
 // raised 2.2 -> 3.1 (2.2 * 0.60/0.42) to hold his far-dark (~6m) silhouette
 // at roughly its old on-screen brightness. If you change UNMED exposure,
 // change this by the same ratio or he goes invisible at range.
-uniform float edge_glow : hint_range(0.0, 6.0) = 3.1;
+//
+// 2026-08 grime/plastic pass: base_color's average luminance dropped from
+// ~0.72 to ~0.62 (darker, greyer per the concept sheet) and EMISSION is
+// `col * fres * edge_glow`, i.e. directly proportional to that same albedo.
+// Rather than let the far silhouette dim as a side effect of a matte-cloth
+// tweak, edge_glow is scaled by the inverse (0.72/0.62 ~= 1.17, rounded up
+// for margin) to 3.1 -> 3.7 so the rim stays at least as bright as before.
+// If base_color's average brightness changes again, rescale edge_glow by
+// (old_avg / new_avg) on top of the exposure ratio above — the two
+// compensations stack, they don't replace each other.
+uniform float edge_glow : hint_range(0.0, 6.0) = 3.7;
 uniform float seam_strength : hint_range(0.0, 1.0) = 0.0;
 uniform float face_strength : hint_range(0.0, 1.0) = 0.0;
 // Rough local scale of this part (sphere/cylinder radius in local units).
@@ -102,8 +126,9 @@ void fragment() {
 	// this instance was given (hem/cuffs/knees high, shoulders/head low) ---
 	float n = fbm3(local_pos * grime_scale + vec3(11.0, 3.0, 7.0));
 	float blotch = smoothstep(0.42, 0.72, n);
-	col = mix(col, grime_color.rgb, blotch * grime_amount);
-	rough -= blotch * grime_amount * 0.12;
+	float dirt = blotch * grime_amount; // reused below to dull SPECULAR too
+	col = mix(col, grime_color.rgb, dirt);
+	rough -= dirt * 0.12;
 
 	float pr = max(part_radius, 0.001);
 	vec3 p = local_pos / pr;
@@ -157,10 +182,26 @@ void fragment() {
 	// the distance that matters. 1.4 spreads it across the whole silhouette so
 	// he reads as a pale SHAPE against black — the dormitory concept's read —
 	// while facing surfaces still fall off, so he is not a flat cut-out.
+	//
+	// 2026-08 grime/plastic pass: 1.8 was trialled to darken broad facing
+	// surfaces (less waxy up close), but at ~6m the orderly still presents
+	// real facing area (torso front, head) and 1.8 visibly DIMMED the
+	// FarCamera silhouette below the shipped 1.4 read — a gameplay regression
+	// the brief forbids ("keep the far-dark read at least as strong"). Kept at
+	// 1.4. The "less plastic" win is carried entirely by the darker/greyer
+	// albedo, higher ROUGHNESS and the SPECULAR cut below — none of which
+	// touch this emission — and by edge_glow being sized only to HOLD the far
+	// read (not brighten it), so up close he is no waxier than the shipped
+	// look, just greyer and matter.
 	float fres = pow(1.0 - clamp(dot(normalize(NORMAL), normalize(VIEW)), 0.0, 1.0), 1.4);
 	EMISSION = col * fres * edge_glow;
 
 	ALBEDO = col;
 	ROUGHNESS = clamp(rough, 0.05, 1.0);
 	METALLIC = 0.0;
+	// Dirt doesn't shine: grimy patches lose more of their already-low
+	// specular response than clean cloth/skin, on top of the flat
+	// specular_base cut above. METALLIC stays 0 throughout — this is a
+	// dielectric F0 tweak, not a metal/non-metal switch.
+	SPECULAR = mix(specular_base, specular_base * 0.4, clamp(dirt, 0.0, 1.0));
 }

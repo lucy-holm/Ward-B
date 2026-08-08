@@ -58,10 +58,15 @@ shader = ExtResource("1_shader")
 ; softer-edged patches (low chip_scale, wide chip_edge_width, low lip), and
 ; the "rust" tint is repurposed as a dull water/mould stain, not orange
 ; rust, at low strength. metallic_base is 0 — fabric has no reason for any.
+; Palette pass (2026-08, matB): the board's "WORN PADDED-CELL WALL FABRIC"
+; panel is a warmer, browner khaki than the previous flat tan (measured
+; average ~0.38-0.45 with R notably > B, vs. this material's near-flat
+; spread) — warmed and darkened base_color to match. substrate/mould-stain
+; nudged toward the same family rather than an independent grey.
 shader_parameter/decay = 0.35
-shader_parameter/base_color = Color(0.58, 0.55, 0.48, 1)
-shader_parameter/substrate_color = Color(0.2, 0.2, 0.16, 1)
-shader_parameter/rust_bleed_color = Color(0.32, 0.3, 0.22, 1)
+shader_parameter/base_color = Color(0.52, 0.465, 0.38, 1)
+shader_parameter/substrate_color = Color(0.22, 0.19, 0.15, 1)
+shader_parameter/rust_bleed_color = Color(0.30, 0.31, 0.24, 1)
 shader_parameter/mottle_tex = SubResource("NoiseTexture2D_pad_mottle")
 shader_parameter/normal_tex = SubResource("NoiseTexture2D_pad_normal")
 shader_parameter/chip_tex = SubResource("NoiseTexture2D_pad_chip")

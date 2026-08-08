@@ -34,19 +34,23 @@ width = 256
 height = 256
 noise = SubResource("FastNoiseLite_wall2_island")
 
+; Palette pass (2026-08, matB): same deltas as wall.tres — see that file's
+; header. Kept wall2's own slightly darker/cooler baseline rather than
+; unifying the two into one color set (they're meant to read as two
+; separately-painted runs, not one texture repeated).
 [resource]
 render_priority = 0
 shader = ExtResource("1_shader")
-shader_parameter/decay = 0.13
-shader_parameter/paint_clean_color = Color(0.60, 0.58, 0.52, 1)
-shader_parameter/paint_soiled_color = Color(0.53, 0.505, 0.455, 1)
-shader_parameter/plaster_color = Color(0.50, 0.475, 0.425, 1)
-shader_parameter/lath_color = Color(0.27, 0.25, 0.207, 1)
-shader_parameter/green_cast_color = Color(0.41, 0.435, 0.32, 1)
-shader_parameter/shadow_color = Color(0.33, 0.35, 0.284, 1)
-shader_parameter/rust_color = Color(0.64, 0.34, 0.278, 1)
-shader_parameter/grime_color = Color(0.41, 0.275, 0.207, 1)
-shader_parameter/band_color = Color(0.215, 0.238, 0.228, 1)
+shader_parameter/decay = 0.22
+shader_parameter/paint_clean_color = Color(0.615, 0.565, 0.485, 1)
+shader_parameter/paint_soiled_color = Color(0.535, 0.49, 0.415, 1)
+shader_parameter/plaster_color = Color(0.50, 0.45, 0.375, 1)
+shader_parameter/lath_color = Color(0.225, 0.196, 0.16, 1)
+shader_parameter/green_cast_color = Color(0.365, 0.38, 0.30, 1)
+shader_parameter/shadow_color = Color(0.30, 0.315, 0.258, 1)
+shader_parameter/rust_color = Color(0.545, 0.31, 0.26, 1)
+shader_parameter/grime_color = Color(0.345, 0.23, 0.16, 1)
+shader_parameter/band_color = Color(0.185, 0.205, 0.196, 1)
 shader_parameter/band_height = 1.1
 shader_parameter/band_softness = 0.22
 shader_parameter/rail_width = 0.025
@@ -61,7 +65,7 @@ shader_parameter/streak_strength = 0.22
 shader_parameter/normal_strength = 1.1
 shader_parameter/roughness_paint = 0.55
 shader_parameter/roughness_plaster = 0.95
-shader_parameter/ao_strength = 0.22
+shader_parameter/ao_strength = 0.27
 shader_parameter/parallax_strength = 0.12
 shader_parameter/peel_threshold_min = 0.09
 shader_parameter/peel_threshold_max = 0.68

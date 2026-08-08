@@ -57,8 +57,11 @@ shader = ExtResource("1_shader")
 ; (plastic has some sheen) and rust bleed is present but moderate — only
 ; the steel parts should show it, plastic doesn't rust, but there's no
 ; per-part mask to split them on, so it's tuned as a compromise.
+; Palette pass (2026-08, matB): small desaturating nudge so the furniture
+; beige sits in the same family as the retuned wall/floor palette instead of
+; standing out as the single brightest, most saturated surface in a room.
 shader_parameter/decay = 0.35
-shader_parameter/base_color = Color(0.74, 0.68, 0.56, 1)
+shader_parameter/base_color = Color(0.70, 0.645, 0.53, 1)
 shader_parameter/substrate_color = Color(0.29, 0.267, 0.22, 1)
 shader_parameter/rust_bleed_color = Color(0.55, 0.31, 0.23, 1)
 shader_parameter/mottle_tex = SubResource("NoiseTexture2D_prop_mottle")

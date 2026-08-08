@@ -55,10 +55,21 @@ shader = ExtResource("1_shader")
 ; Dorm reference: near-black rusted tube frames dominate, cream paint only
 ; survives in small flecks — so base_color is the paint remnant and
 ; chip_coverage is LOW (most of the surface reads as substrate/rust).
+;
+; Palette pass (2026-08, matB): the "RUSTED HOSPITAL BED FRAME" board panel
+; is dominated end-to-end by warm rust-brown, not neutral near-black —
+; rust_bleed_color is only a halo band around each chip boundary
+; (rust_bleed_reach), so a neutral substrate_color left the deep, far-from-
+; any-edge substrate reading as flat grey metal instead of old iron. Warmed
+; substrate_color toward a dark rust-brown so it reads rusty even away from
+; any edge, widened rust_bleed_reach so the halo actually spans a visible
+; fraction of a tube's width instead of a thin line, and matched
+; rust_bleed_color to the board's rust swatch (was more saturated/orange
+; than anything in the reference).
 shader_parameter/decay = 0.35
-shader_parameter/base_color = Color(0.62, 0.58, 0.48, 1)
-shader_parameter/substrate_color = Color(0.17, 0.15, 0.13, 1)
-shader_parameter/rust_bleed_color = Color(0.44, 0.28, 0.21, 1)
+shader_parameter/base_color = Color(0.60, 0.555, 0.47, 1)
+shader_parameter/substrate_color = Color(0.22, 0.155, 0.115, 1)
+shader_parameter/rust_bleed_color = Color(0.52, 0.30, 0.23, 1)
 shader_parameter/mottle_tex = SubResource("NoiseTexture2D_bed_mottle")
 shader_parameter/normal_tex = SubResource("NoiseTexture2D_bed_normal")
 shader_parameter/chip_tex = SubResource("NoiseTexture2D_bed_chip")
@@ -75,8 +86,8 @@ shader_parameter/chip_coverage = 0.16
 shader_parameter/chip_edge_width = 0.025
 shader_parameter/chip_lip_strength = 1.3
 shader_parameter/chip_ao_strength = 0.4
-shader_parameter/rust_bleed_strength = 0.42
-shader_parameter/rust_bleed_reach = 0.22
+shader_parameter/rust_bleed_strength = 0.5
+shader_parameter/rust_bleed_reach = 0.30
 shader_parameter/rust_bleed_distance = 0.18
 shader_parameter/floor_grime = 0.35
 shader_parameter/floor_grime_height = 0.3

@@ -60,10 +60,19 @@ await page.keyboard.down('KeyD');
 await page.waitForTimeout(1500);
 await page.keyboard.up('KeyD');
 
-// LOOK: mouse motion (pointer lock may or may not engage headlessly; the
-// walk assertions are the load-bearing ones).
+// LOOK: click to engage pointer lock, then move the mouse.
+//
+// This assertion exists because it was previously skipped as "may or may not
+// engage headlessly", and that is exactly the bug that shipped: on the web,
+// pointer lock can ONLY be requested inside a user-gesture handler, so the
+// startup request was silently refused and desktop mouse-look was completely
+// dead. Clicking the canvas is the whole point of the test.
+await page.locator('canvas').click({ force: true }).catch(() => {});
+await page.waitForTimeout(500);
+const locked = await page.evaluate(() => document.pointerLockElement !== null);
 await page.mouse.move(640, 360);
-for (let i = 0; i < 10; i++) await page.mouse.move(640 + i * 25, 360);
+for (let i = 0; i < 20; i++) await page.mouse.move(640 + i * 30, 360 + (i % 3) * 8);
+await page.waitForTimeout(600);
 
 await page.waitForTimeout(17000);
 await browser.close();
@@ -76,10 +85,14 @@ if (pos.length) {
   console.log('first:', JSON.stringify({ x: pos[0].x, z: pos[0].z, yaw: pos[0].yaw }));
   console.log('last :', JSON.stringify({ x: pos.at(-1).x, z: pos.at(-1).z, yaw: pos.at(-1).yaw }));
 }
+const yaws = new Set(pos.map((e) => e.yaw)).size;
+
 console.log('\n--- desktop input ---');
 console.log(`WALK/STRAFE distinct positions : ${moved}   ${moved > 1 ? 'OK' : 'NO RESPONSE'}`);
+console.log(`pointer lock engaged on click  : ${locked}   ${locked ? 'OK' : 'NOT LOCKED'}`);
+console.log(`LOOK distinct yaw values       : ${yaws}   ${yaws > 1 ? 'OK' : 'NO RESPONSE'}`);
 console.log(`errors                         : ${errors.length ? errors.join('\n') : 'none'}`);
 
-const ok = pos.length > 0 && moved > 1 && errors.length === 0;
+const ok = pos.length > 0 && moved > 1 && yaws > 1 && errors.length === 0;
 console.log(ok ? '\nDESKTOP VERIFY: PASS' : '\nDESKTOP VERIFY: FAIL');
 process.exit(ok ? 0 : 1);

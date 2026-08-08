@@ -62,7 +62,12 @@ func _ready() -> void:
 
 func set_input_enabled(enabled: bool) -> void:
 	_input_enabled = enabled
-	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED if enabled and not _is_touch() else Input.MOUSE_MODE_VISIBLE
+	# Deliberately does NOT request capture. On the web that request is refused
+	# outside a user gesture, so asking here is at best a no-op and at worst
+	# misleading — it makes the code look like capture is handled when it is
+	# not. Capture is requested on the first click, in _unhandled_input.
+	if not enabled or _is_touch():
+		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 
 
 func _is_touch() -> bool:
@@ -86,6 +91,18 @@ func teleport(x: float, z: float, to_level := "") -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if not _input_enabled:
 		return
+
+	# CLICK TO CAPTURE. On the web, pointer lock can ONLY be requested from
+	# inside a user-gesture handler — a browser silently refuses a request
+	# made at startup. set_input_enabled() asks for MOUSE_MODE_CAPTURED in
+	# _ready, that request is dropped, and because _apply_look only runs while
+	# the mouse is actually captured, desktop mouse-look was completely dead:
+	# clicking the viewport did nothing at all. Re-requesting here, inside a
+	# real click, is the only thing that works in a browser.
+	if event is InputEventMouseButton and (event as InputEventMouseButton).pressed:
+		if not _is_touch() and Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
+			Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+			return
 
 	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 		_look_accum += (event as InputEventMouseMotion).relative

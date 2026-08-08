@@ -29,6 +29,8 @@ func _ready() -> void:
 	# Enforced in code rather than per-node in the .tscn so that adding a
 	# label to the HUD later cannot quietly break mobile again.
 	_ignore_mouse(self)
+	_apply_scale()
+	get_viewport().size_changed.connect(_apply_scale)
 
 	StateManager.medication_changed.connect(_on_medication_changed)
 	StateManager.shift_ability_changed.connect(_on_shift_ability_changed)
@@ -38,6 +40,44 @@ func _ready() -> void:
 	toast_label.modulate.a = 0.0
 	med_bar.visible = false
 	_on_pills_changed(GameState.pills)
+
+
+# Font sizes at the 720p the layout was authored against. Everything scales
+# from these, because a fixed pixel size is wrong on any other display: on a
+# large desktop canvas the HUD was rendering at roughly a third of its
+# intended relative size and was genuinely hard to read. Stretch is disabled
+# project-wide (see project.godot) so nothing else scales this for us.
+const BASE_HEIGHT := 720.0
+const SIZE_OBJECTIVE := 30
+const SIZE_TOAST := 32
+const SIZE_THREAT := 30
+const SIZE_PILLS := 26
+const SIZE_PROMPT := 28
+const SCALE_MIN := 0.85
+const SCALE_MAX := 2.2
+
+
+func _apply_scale() -> void:
+	var h := float(get_viewport().get_visible_rect().size.y)
+	var s := clampf(h / BASE_HEIGHT, SCALE_MIN, SCALE_MAX)
+
+	objective_label.add_theme_font_size_override("font_size", int(SIZE_OBJECTIVE * s))
+	toast_label.add_theme_font_size_override("font_size", int(SIZE_TOAST * s))
+	threat_label.add_theme_font_size_override("font_size", int(SIZE_THREAT * s))
+	pills_label.add_theme_font_size_override("font_size", int(SIZE_PILLS * s))
+	prompt_label.add_theme_font_size_override("font_size", int(SIZE_PROMPT * s))
+
+	# Margins and the medication bar scale with it, or the text outgrows its
+	# gutter and the bar looks like a hairline next to 2x type.
+	var m := int(28 * s)
+	var margin: MarginContainer = $Margin
+	for side in ["left", "top", "right", "bottom"]:
+		margin.add_theme_constant_override("margin_" + side, m)
+	med_bar.custom_minimum_size = Vector2(180.0 * s, 8.0 * s)
+	# The reticle is a fixed-size Panel; keep it proportional too.
+	reticle.size = Vector2(6.0 * s, 6.0 * s)
+	reticle.position = -reticle.size * 0.5
+	prompt_label.position.y = 26.0 * s
 
 
 func _ignore_mouse(node: Node) -> void:

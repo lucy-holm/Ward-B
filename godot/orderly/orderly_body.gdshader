@@ -31,6 +31,13 @@ uniform float grime_amount : hint_range(0.0, 1.0) = 0.2;
 uniform float grime_scale = 5.0;
 uniform float roughness_base : hint_range(0.0, 1.0) = 0.85;
 uniform float rim_strength : hint_range(0.0, 2.0) = 0.5;
+// Edge-only emission so the silhouette survives near-zero ambient. Keep low:
+// past ~0.5 he starts reading as lit rather than pale.
+// Range goes past 1.0 deliberately. The scene tonemaps with ACES at 0.60
+// exposure, which crushes emission hard — a full 1.0 displays around 0.4
+// luminance (measured with a diagnostic flat-magenta emission). Values under
+// ~1.5 simply do not survive to the screen at the unmedicated ambient.
+uniform float edge_glow : hint_range(0.0, 4.0) = 2.2;
 uniform float seam_strength : hint_range(0.0, 1.0) = 0.0;
 uniform float face_strength : hint_range(0.0, 1.0) = 0.0;
 // Rough local scale of this part (sphere/cylinder radius in local units).
@@ -128,8 +135,25 @@ void fragment() {
 	}
 
 	// --- fresnel rim: pale-shape-in-the-gloom read, never a light source --
+	// Godot's RIM is a LIGHTING term: it modulates the response to incoming
+	// light, so at the unmedicated ambient (0.022) it contributes essentially
+	// nothing and he vanishes at distance. That is a gameplay failure, not
+	// just a look one — the whole mechanic is that you can SEE him coming
+	// while unmedicated and cannot while lucid.
 	RIM = rim_strength;
 	RIM_TINT = 0.15;
+
+	// So the silhouette read is carried by a faint fresnel-shaped EMISSION,
+	// which survives with no light at all. Deliberately edge-only and very
+	// low: it makes his outline separate from black, it does NOT make him a
+	// light source and it casts nothing. Facing surfaces stay unlit, so he is
+	// still a shape in the dark rather than a lamp.
+	// Exponent 3.0 confined this to a rim a few pixels wide, which vanishes at
+	// the distance that matters. 1.4 spreads it across the whole silhouette so
+	// he reads as a pale SHAPE against black — the dormitory concept's read —
+	// while facing surfaces still fall off, so he is not a flat cut-out.
+	float fres = pow(1.0 - clamp(dot(normalize(NORMAL), normalize(VIEW)), 0.0, 1.0), 1.4);
+	EMISSION = col * fres * edge_glow;
 
 	ALBEDO = col;
 	ROUGHNESS = clamp(rough, 0.05, 1.0);

@@ -82,6 +82,7 @@ func _initialize() -> void:
 	_write("arm_upper", _build_arm_upper())
 	_write("arm_cuff", _build_arm_cuff())
 	_write("cuff_turnback", _build_cuff_turnback())
+	_write("wrist", _build_wrist())
 	_write("torso", _build_torso())
 	_write("collar", _build_collar())
 	_write("back_vent", _build_back_vent())
@@ -94,8 +95,18 @@ func _initialize() -> void:
 	quit()
 
 
+# BINARY .res, not text .tres — this is the single biggest lever on the web
+# build's .pck size (see this file's regeneration report). SurfaceTool-built
+# ArrayMeshes serialize their vertex arrays as PackedFloat32Array etc., which
+# .tres writes out as a giant literal float list (~60+ bytes/vertex in text);
+# .res stores the same PackedArrays as raw binary, ~5-10x smaller on disk for
+# mesh-heavy resources like these. Old stale .tres files are NOT auto-deleted
+# here (Godot doesn't like scripts touching files mid-import); the export
+# preset uses export_filter="all_resources", so leftover .tres would still
+# get bundled into the .pck for nothing — delete orderly/meshes/*.tres by
+# hand after regenerating (see the report for the exact command used).
 func _write(part_name: String, mesh: ArrayMesh) -> void:
-	var path := "%s/%s.tres" % [OUT_DIR, part_name]
+	var path := "%s/%s.res" % [OUT_DIR, part_name]
 	var err := ResourceSaver.save(mesh, path)
 	if err != OK:
 		push_error("failed to save %s: %d" % [path, err])
@@ -131,6 +142,46 @@ static func rounded_rect_profile(half_u: float, half_v: float, r: float, corner_
 			positions.append(c + dir * rc)
 			normals.append(dir)
 	return [positions, normals]
+
+
+# TRUE ellipse cross-section — positions ON the ellipse boundary, analytic
+# outward normal from the ellipse's own implicit-gradient direction
+# (x/hu^2, y/hv^2), normalized. This is the fix for the form problem the
+# design brief flags: `rounded_rect_profile` with r clamped to min(hu,hv)
+# (the pattern every anatomical part used to use for "fully round") produces
+# a STADIUM — two semicircular caps of radius min(hu,hv) joined by straight
+# edges along the longer axis, whenever hu != hv. A stadium's curvature is
+# either exactly 0 (the straight edge) or exactly 1/r (the cap) — it never
+# grades smoothly the way a real limb, torso or palm cross-section does, so
+# even at high tessellation it still reads as an extruded/swept slab. A true
+# ellipse's curvature varies continuously around the loop instead, which is
+# what actually reads as "round" rather than "rounded-rectangular."
+# `segs` = total ring point count (pass corner_segs*4 from call sites that
+# used to feed rounded_rect_profile, so switching a part's profile never
+# changes its own or an adjoining part's vertex count / triangle budget).
+static func ellipse_profile(half_u: float, half_v: float, segs: int) -> Array:
+	var positions: Array[Vector2] = []
+	var normals: Array[Vector2] = []
+	var hu: float = maxf(half_u, 0.0001)
+	var hv: float = maxf(half_v, 0.0001)
+	for i in range(segs):
+		var a := TAU * float(i) / float(segs)
+		var c := cos(a)
+		var s := sin(a)
+		positions.append(Vector2(hu * c, hv * s))
+		normals.append(Vector2(c / hu, s / hv).normalized())
+	return [positions, normals]
+
+
+# Dispatches to ellipse_profile when a ring's `r` is negative (the sentinel
+# every anatomical ring below now uses — see the file header's technique
+# note) and to the old rounded_rect_profile otherwise (still used by trim
+# that should read as cut/folded cloth rather than anatomy: the collar,
+# half-belt and back-vent arc tubes, and the shoe).
+static func profile_for(half_u: float, half_v: float, r: float, corner_segs: int) -> Array:
+	if r < 0.0:
+		return ellipse_profile(half_u, half_v, corner_segs * 4)
+	return rounded_rect_profile(half_u, half_v, r, corner_segs)
 
 
 # --- winding-safe smooth triangle/quad emission -------------------------
@@ -278,7 +329,7 @@ static func build_loft(rings: Array, corner_segs: int, axis: String, fold_bands:
 	var ring_nrm0: Array = []
 	for ri in range(n_rings):
 		var ring: Dictionary = rings[ri]
-		var prof: Array = rounded_rect_profile(ring.hu, ring.hv, ring.r, corner_segs)
+		var prof: Array = profile_for(ring.hu, ring.hv, ring.r, corner_segs)
 		var pos2d: Array = prof[0]
 		var nrm2d: Array = prof[1]
 		var ring_t: float = ring.get("t", float(ri) / float(max(n_rings - 1, 1)))
@@ -412,37 +463,49 @@ static func _centroid(pts: Array) -> Vector3:
 # be added as a MeshInstance3D at position ZERO directly under the existing
 # pivot/torso node — no extra runtime offset math, no rig change.
 
-const LEG_CORNER_SEGS := 28
-const ARM_CORNER_SEGS := 26
-const TORSO_CORNER_SEGS := 32
-const PALM_CORNER_SEGS := 26
-const FINGER_CORNER_SEGS := 20
-const SHOE_CORNER_SEGS := 26
-const COLLAR_CORNER_SEGS := 16
-const BELT_CORNER_SEGS := 14
-const VENT_CORNER_SEGS := 10
-const HEAD_CORNER_SEGS := 34
+# Bumped up from the original values now that cross-sections are true
+# ellipses (see profile_for/ellipse_profile) instead of stadiums — more
+# tessellation on a genuinely curved profile actually buys smoother
+# curvature now, where it used to just add facets to a shape that was still
+# fundamentally a swept box. Budget-generous per the brief (measured totals
+# are in this file's regeneration report); heaviest bumps went to the parts
+# with the most screen presence (torso, head) or the most instances (legs,
+# arms), lighter bumps to small/reused trim (fingers x10, collar, belt).
+const LEG_CORNER_SEGS := 72
+const ARM_CORNER_SEGS := 68
+const TORSO_CORNER_SEGS := 90
+const PALM_CORNER_SEGS := 60
+const FINGER_CORNER_SEGS := 42
+const SHOE_CORNER_SEGS := 56
+const COLLAR_CORNER_SEGS := 34
+const BELT_CORNER_SEGS := 30
+const VENT_CORNER_SEGS := 22
+const HEAD_CORNER_SEGS := 86
 
 
-# Hip -> upper-thigh -> lower-thigh -> knee. Cleaner material (less grime)
-# than the shin, per the original two-material split. More rings than the
-# original 4 so the taper reads as a genuine curve rather than a facet, and
-# so there's enough resolution for the back-of-knee gather fold below.
+# Hip -> UPPER-THIGH BULGE -> lower-thigh -> knee. Cleaner material (less
+# grime) than the shin, per the original two-material split. The hip ring is
+# deliberately slimmer than the bulge peak just below it (0.090 -> 0.099 ->
+# taper), not a monotonic taper from the widest point straight to the knee —
+# a real thigh has real muscle mass a hand's-width down from the hip, not at
+# the hip joint itself. Matches the brief's "volume change along the
+# length" note (this was previously the one limb with no bulge at all — the
+# calf already had one, see leg_shin below).
 func _build_leg_thigh() -> ArrayMesh:
 	var h: float = OV.LEG_H
 	var rings := [
-		{pos = 0.00 * -h, hu = 0.095, hv = 0.078, r = 999.0, t = 0.00},
-		{pos = 0.06 * -h, hu = 0.094, hv = 0.077, r = 999.0, t = 0.08},
-		{pos = 0.10 * -h, hu = 0.092, hv = 0.076, r = 999.0, t = 0.14},
-		{pos = 0.18 * -h, hu = 0.089, hv = 0.073, r = 999.0, t = 0.26},
-		{pos = 0.26 * -h, hu = 0.081, hv = 0.068, r = 999.0, t = 0.38},
-		{pos = 0.34 * -h, hu = 0.072, hv = 0.062, r = 999.0, t = 0.50},
-		{pos = 0.42 * -h, hu = 0.065, hv = 0.058, r = 999.0, t = 0.72},
+		{pos = 0.00 * -h, hu = 0.090, hv = 0.074, r = 999.0, t = 0.00},
+		{pos = 0.05 * -h, hu = 0.096, hv = 0.079, r = 999.0, t = 0.07},
+		{pos = 0.10 * -h, hu = 0.099, hv = 0.081, r = 999.0, t = 0.13},
+		{pos = 0.16 * -h, hu = 0.094, hv = 0.077, r = 999.0, t = 0.21},
+		{pos = 0.24 * -h, hu = 0.085, hv = 0.071, r = 999.0, t = 0.33},
+		{pos = 0.32 * -h, hu = 0.075, hv = 0.064, r = 999.0, t = 0.46},
+		{pos = 0.40 * -h, hu = 0.067, hv = 0.059, r = 999.0, t = 0.64},
 		{pos = 0.46 * -h, hu = 0.062, hv = 0.056, r = 999.0, t = 0.86},
 		{pos = 0.50 * -h, hu = 0.060, hv = 0.055, r = 999.0, t = 1.00},
 	]
 	for ring in rings:
-		ring.r = min(ring.hu, ring.hv)
+		ring.r = -1.0  # true ellipse — see profile_for/ellipse_profile's header
 	var folds := [
 		# Trouser fabric gathering just above the knee crease, back-weighted.
 		{kind = "ripple", center_t = 0.94, width_t = 0.10, freq = 8.0, amp = 0.0035, target_theta = PI / 2.0, sharpness = 1.5},
@@ -466,7 +529,7 @@ func _build_leg_shin() -> ArrayMesh:
 		{pos = 1.00 * -h, hu = 0.046, hv = 0.040, r = 999.0, t = 1.00},
 	]
 	for ring in rings:
-		ring.r = min(ring.hu, ring.hv)
+		ring.r = -1.0  # true ellipse — see profile_for/ellipse_profile's header
 	var folds := [
 		# Crease just below the knee, back-weighted — a continuation of the
 		# thigh's fold so the seam between the two meshes doesn't read as a
@@ -478,21 +541,25 @@ func _build_leg_shin() -> ArrayMesh:
 	return build_loft(rings, LEG_CORNER_SEGS, "y", folds)
 
 
+# Shoulder -> BICEP SWELL -> taper -> elbow. Same "volume change along the
+# length" fix as leg_thigh: the shoulder-end ring is slimmer than the bulge
+# peak a hand's-width below it, instead of the old monotonic 0.050->0.032
+# taper that read as a uniform tube tacked onto the shoulder.
 func _build_arm_upper() -> ArrayMesh:
 	var l: float = OV.ARM_LEN
 	var rings := [
-		{pos = 0.00 * -l, hu = 0.050, hv = 0.048, r = 999.0, t = 0.00},
-		{pos = 0.06 * -l, hu = 0.049, hv = 0.047, r = 999.0, t = 0.09},
-		{pos = 0.10 * -l, hu = 0.048, hv = 0.046, r = 999.0, t = 0.16},
-		{pos = 0.18 * -l, hu = 0.046, hv = 0.044, r = 999.0, t = 0.30},
-		{pos = 0.26 * -l, hu = 0.041, hv = 0.039, r = 999.0, t = 0.44},
-		{pos = 0.34 * -l, hu = 0.038, hv = 0.036, r = 999.0, t = 0.58},
-		{pos = 0.42 * -l, hu = 0.034, hv = 0.032, r = 999.0, t = 0.80},
-		{pos = 0.46 * -l, hu = 0.033, hv = 0.031, r = 999.0, t = 0.90},
+		{pos = 0.00 * -l, hu = 0.048, hv = 0.046, r = 999.0, t = 0.00},
+		{pos = 0.05 * -l, hu = 0.050, hv = 0.048, r = 999.0, t = 0.07},
+		{pos = 0.10 * -l, hu = 0.053, hv = 0.050, r = 999.0, t = 0.14},
+		{pos = 0.16 * -l, hu = 0.054, hv = 0.051, r = 999.0, t = 0.22},
+		{pos = 0.24 * -l, hu = 0.049, hv = 0.046, r = 999.0, t = 0.34},
+		{pos = 0.32 * -l, hu = 0.042, hv = 0.039, r = 999.0, t = 0.48},
+		{pos = 0.40 * -l, hu = 0.036, hv = 0.033, r = 999.0, t = 0.66},
+		{pos = 0.46 * -l, hu = 0.033, hv = 0.031, r = 999.0, t = 0.86},
 		{pos = 0.50 * -l, hu = 0.032, hv = 0.030, r = 999.0, t = 1.00},
 	]
 	for ring in rings:
-		ring.r = min(ring.hu, ring.hv)
+		ring.r = -1.0  # true ellipse — see profile_for/ellipse_profile's header
 	var folds := [
 		# Inner-elbow crease as the sleeve nears the joint.
 		{kind = "ripple", center_t = 0.92, width_t = 0.09, freq = 7.0, amp = 0.003, target_theta = PI / 2.0, sharpness = 1.6},
@@ -500,71 +567,124 @@ func _build_arm_upper() -> ArrayMesh:
 	return build_loft(rings, ARM_CORNER_SEGS, "y", folds)
 
 
+# Shortened to end at 0.97*-l instead of 1.00*-l (was flush with the wrist/
+# hand attach point) — see _build_wrist below for why: the sleeve now ends
+# a few centimetres short of the hand, exposing a short bare-skin wrist
+# instead of the cloth cuff fusing directly into the glove-like palm mesh.
+# That gap (different mesh, different material, a visible step down in
+# radius) is the brief's "jacket should drape away... at cuffs" cue, done
+# the way a real sleeve actually achieves it (ending before the hand)
+# rather than as a literal hollow air-gap shell.
 func _build_arm_cuff() -> ArrayMesh:
 	var l: float = OV.ARM_LEN
 	var rings := [
-		{pos = 0.50 * -l, hu = 0.032, hv = 0.030, r = 999.0, t = 0.00},
-		{pos = 0.58 * -l, hu = 0.037, hv = 0.035, r = 999.0, t = 0.16},
-		{pos = 0.65 * -l, hu = 0.038, hv = 0.036, r = 999.0, t = 0.30},
-		{pos = 0.70 * -l, hu = 0.036, hv = 0.034, r = 999.0, t = 0.39},
-		{pos = 0.74 * -l, hu = 0.033, hv = 0.031, r = 999.0, t = 0.48},
-		{pos = 0.82 * -l, hu = 0.030, hv = 0.028, r = 999.0, t = 0.64},
-		{pos = 0.91 * -l, hu = 0.027, hv = 0.025, r = 999.0, t = 0.82},
-		{pos = 0.96 * -l, hu = 0.025, hv = 0.023, r = 999.0, t = 0.92},
-		{pos = 1.00 * -l, hu = 0.024, hv = 0.022, r = 999.0, t = 1.00},
+		{pos = 0.500 * -l, hu = 0.032, hv = 0.030, r = 999.0, t = 0.00},
+		{pos = 0.575 * -l, hu = 0.037, hv = 0.035, r = 999.0, t = 0.16},
+		{pos = 0.641 * -l, hu = 0.038, hv = 0.036, r = 999.0, t = 0.30},
+		{pos = 0.688 * -l, hu = 0.036, hv = 0.034, r = 999.0, t = 0.39},
+		{pos = 0.726 * -l, hu = 0.033, hv = 0.031, r = 999.0, t = 0.48},
+		{pos = 0.801 * -l, hu = 0.030, hv = 0.028, r = 999.0, t = 0.64},
+		{pos = 0.885 * -l, hu = 0.027, hv = 0.025, r = 999.0, t = 0.82},
+		{pos = 0.932 * -l, hu = 0.025, hv = 0.023, r = 999.0, t = 0.92},
+		{pos = 0.970 * -l, hu = 0.024, hv = 0.022, r = 999.0, t = 1.00},
 	]
 	for ring in rings:
-		ring.r = min(ring.hu, ring.hv)
+		ring.r = -1.0  # true ellipse — see profile_for/ellipse_profile's header
 	var folds := [
 		{kind = "ripple", center_t = 0.05, width_t = 0.07, freq = 7.0, amp = 0.0025, target_theta = PI / 2.0, sharpness = 1.6},
 	]
 	return build_loft(rings, ARM_CORNER_SEGS, "y", folds)
 
 
-# NEW — a short, slightly larger-radius flare right at the wrist end,
-# folding back over the cuff proper like a turned-up sleeve hem. Baked in
-# the SAME absolute pivot-local space as arm_cuff (see the file-header
-# coordinate note) so it needs no extra offset: its own last ring lands
-# exactly at -ARM_LEN, same as the cuff's, right where the hand attaches.
+# NEW — a short, slightly larger-radius flare right at the (now shortened)
+# cuff end, folding back over the cuff proper like a turned-up sleeve hem.
+# Baked in the SAME absolute pivot-local space as arm_cuff (see the
+# file-header coordinate note) so it needs no extra offset. Repositioned to
+# sit at arm_cuff's new 0.970*-l end (was 1.000*-l) — same relative position
+# within the cuff's own span, just shorter along with it.
 func _build_cuff_turnback() -> ArrayMesh:
 	var l: float = OV.ARM_LEN
 	var end_hu := 0.024
 	var end_hv := 0.022
 	var rings := [
-		{pos = 0.955 * -l, hu = end_hu * 0.92, hv = end_hv * 0.92, r = 999.0, t = 0.00},
-		{pos = 0.978 * -l, hu = end_hu * 1.38, hv = end_hv * 1.38, r = 999.0, t = 0.45},
-		{pos = 1.000 * -l, hu = end_hu * 1.08, hv = end_hv * 1.08, r = 999.0, t = 1.00},
+		{pos = 0.9277 * -l, hu = end_hu * 0.92, hv = end_hv * 0.92, r = 999.0, t = 0.00},
+		{pos = 0.9493 * -l, hu = end_hu * 1.38, hv = end_hv * 1.38, r = 999.0, t = 0.45},
+		{pos = 0.9700 * -l, hu = end_hu * 1.08, hv = end_hv * 1.08, r = 999.0, t = 1.00},
 	]
 	for ring in rings:
-		ring.r = min(ring.hu, ring.hv)
+		ring.r = -1.0  # true ellipse — see profile_for/ellipse_profile's header
 	return build_loft(rings, ARM_CORNER_SEGS, "y")
 
 
-# Shoulder (widest, boxy-tailored) -> chest -> tailored waist -> hip ->
+# NEW — bare wrist, bridging the shortened cuff/turnback (see above, ends at
+# 0.970*-l) to the hand attach point at 1.000*-l. Skin-material, ellipse
+# cross-section shrinking slightly then flaring to match MESH_PALM's own
+# first ring exactly (hu=0.028, hv=0.016 — see _build_palm) so the wrist
+# joins the palm with no visible step, the same "shared terminal ring"
+# convention leg_thigh/leg_shin use at the knee. This is what actually reads
+# as "sleeve drapes, doesn't fuse into the hand": a different material and a
+# real taper change, not just a coincident seam.
+func _build_wrist() -> ArrayMesh:
+	var l: float = OV.ARM_LEN
+	var rings := [
+		{pos = 0.970 * -l, hu = 0.0221, hv = 0.0202, r = 999.0, t = 0.00},
+		{pos = 0.985 * -l, hu = 0.0250, hv = 0.0180, r = 999.0, t = 0.50},
+		{pos = 1.000 * -l, hu = 0.0280, hv = 0.0160, r = 999.0, t = 1.00},
+	]
+	for ring in rings:
+		ring.r = -1.0  # true ellipse — see profile_for/ellipse_profile's header
+	return build_loft(rings, ARM_CORNER_SEGS, "y")
+
+
+# Neck-base blend -> shoulder (widest) -> chest -> tailored waist -> hip ->
 # hem flare (the brief's "hem that flares slightly over the trousers") ->
-# hem bottom (folds back in a touch, the way a stiff hem edge does). Small
-# `r` throughout — this should read as cut cloth panels, not a rounded
-# capsule like the limbs. Extra rings vs. the original six give the hem
-# flare and waist enough resolution for real cloth-fold displacement
-# (radially pushed/pulled per vertex, normals recomputed from the result —
-# see build_loft's header) instead of a smooth shell.
+# recessed hem ledge (an overhang/undercut, not a flat closed bottom — see
+# below). Now a TRUE ELLIPSE throughout (r = -1.0 — see profile_for's
+# header), replacing the old small-radius rounded-rect "tailored cloth
+# panel" look per the brief's "a torso is a wide flattened ellipse, not a
+# slab with radiused corners"; the tailored-cut read now comes entirely
+# from the placket/collar/belt/vent trim in orderly_visual.gd, not from the
+# body's own cross-section.
+#
+# THREE NEW top rings (0.560th/0.610th/0.648th) extend the loft above the
+# old flat shoulder plateau and taper it down toward the neck cylinder's own
+# radius (NECK_R=0.05) instead of stopping dead at shoulder width — the
+# brief's "shoulder line should slope and the neck should JOIN the torso,
+# not sit on it." orderly_visual.gd's neck_pivot is still anchored at the
+# OLD shoulder height (0.500*th, now mid-slope rather than the tip), so the
+# neck cylinder's own base is hidden inside this taper and only emerges
+# where the taper has shrunk below the neck's own radius — a real blend,
+# not a second seam.
+#
+# Hem: the old single flare-then-slightly-narrower-cap read as a flat
+# closed bottom flush with the widest point. The last two rings now pull
+# in sharply (-0.545th) before closing (-0.580th), so the flare rim
+# overhangs what's below it — an eave that reads as the hem hanging away
+# from the body rather than terminating flush against it (the honest
+# single-shell approximation of "drape with an air gap"; a literal open
+# hollow hem was considered and rejected as a manifold-hole risk from
+# below/three-quarter angles — see this file's regeneration report).
 func _build_torso() -> ArrayMesh:
 	var th: float = OV.TORSO_H
 	var rings := [
-		{pos = 0.500 * th, hu = 0.185, hv = 0.115, r = 0.045, t = 0.00},
-		{pos = 0.440 * th, hu = 0.191, hv = 0.118, r = 0.047, t = 0.06},
-		{pos = 0.380 * th, hu = 0.195, hv = 0.120, r = 0.048, t = 0.12},
-		{pos = 0.300 * th, hu = 0.200, hv = 0.125, r = 0.050, t = 0.20},
-		{pos = 0.220 * th, hu = 0.196, hv = 0.122, r = 0.048, t = 0.28},
-		{pos = 0.150 * th, hu = 0.188, hv = 0.118, r = 0.046, t = 0.35},
-		{pos = 0.020 * th, hu = 0.172, hv = 0.105, r = 0.042, t = 0.48},
-		{pos = -0.050 * th, hu = 0.165, hv = 0.100, r = 0.040, t = 0.55},
-		{pos = -0.180 * th, hu = 0.172, hv = 0.105, r = 0.040, t = 0.68},
-		{pos = -0.320 * th, hu = 0.185, hv = 0.115, r = 0.040, t = 0.80},
-		{pos = -0.430 * th, hu = 0.200, hv = 0.122, r = 0.035, t = 0.88},
-		{pos = -0.470 * th, hu = 0.209, hv = 0.127, r = 0.032, t = 0.91},
-		{pos = -0.500 * th, hu = 0.215, hv = 0.130, r = 0.030, t = 0.94},
-		{pos = -0.580 * th, hu = 0.205, hv = 0.125, r = 0.025, t = 1.00},
+		{pos = 0.648 * th, hu = 0.050, hv = 0.048, r = -1.0, t = 0.000},
+		{pos = 0.610 * th, hu = 0.082, hv = 0.062, r = -1.0, t = 0.020},
+		{pos = 0.560 * th, hu = 0.132, hv = 0.090, r = -1.0, t = 0.040},
+		{pos = 0.500 * th, hu = 0.185, hv = 0.115, r = -1.0, t = 0.060},
+		{pos = 0.440 * th, hu = 0.191, hv = 0.118, r = -1.0, t = 0.116},
+		{pos = 0.380 * th, hu = 0.195, hv = 0.120, r = -1.0, t = 0.173},
+		{pos = 0.300 * th, hu = 0.200, hv = 0.125, r = -1.0, t = 0.248},
+		{pos = 0.220 * th, hu = 0.196, hv = 0.122, r = -1.0, t = 0.323},
+		{pos = 0.150 * th, hu = 0.188, hv = 0.118, r = -1.0, t = 0.389},
+		{pos = 0.020 * th, hu = 0.172, hv = 0.105, r = -1.0, t = 0.511},
+		{pos = -0.050 * th, hu = 0.165, hv = 0.100, r = -1.0, t = 0.577},
+		{pos = -0.180 * th, hu = 0.172, hv = 0.105, r = -1.0, t = 0.699},
+		{pos = -0.320 * th, hu = 0.185, hv = 0.115, r = -1.0, t = 0.812},
+		{pos = -0.430 * th, hu = 0.200, hv = 0.122, r = -1.0, t = 0.887},
+		{pos = -0.470 * th, hu = 0.209, hv = 0.127, r = -1.0, t = 0.915},
+		{pos = -0.500 * th, hu = 0.215, hv = 0.130, r = -1.0, t = 0.944},
+		{pos = -0.545 * th, hu = 0.150, hv = 0.095, r = -1.0, t = 0.970},
+		{pos = -0.580 * th, hu = 0.140, hv = 0.090, r = -1.0, t = 1.000},
 	]
 	var folds := [
 		# Hem-flare gather — where a hanging jacket actually creases, mostly
@@ -613,13 +733,17 @@ func _build_back_vent() -> ArrayMesh:
 	# Torso half-depth (hv) at the same heights, +6mm so the ridge sits
 	# proud of the surface rather than sinking into it — the exact bug class
 	# the old flat hem-band trim caused (see orderly_visual.gd's comment).
+	# Last ring's cz updated for the new recessed hem ledge in _build_torso
+	# (hv there dropped from 0.125 to 0.090 when the hem gained its
+	# overhang/undercut) — kept in sync or the vent ridge would jut out
+	# ~35mm past the new, narrower hem surface instead of the intended 6mm.
 	var rings := [
 		{pos = -0.050 * th, hu = 0.010, hv = 0.010, r = 0.004, cz = 0.106, t = 0.00},
 		{pos = -0.180 * th, hu = 0.010, hv = 0.010, r = 0.004, cz = 0.111, t = 0.26},
 		{pos = -0.320 * th, hu = 0.010, hv = 0.010, r = 0.004, cz = 0.121, t = 0.52},
 		{pos = -0.430 * th, hu = 0.009, hv = 0.009, r = 0.004, cz = 0.128, t = 0.74},
 		{pos = -0.500 * th, hu = 0.008, hv = 0.008, r = 0.003, cz = 0.136, t = 0.87},
-		{pos = -0.580 * th, hu = 0.007, hv = 0.007, r = 0.003, cz = 0.131, t = 1.00},
+		{pos = -0.580 * th, hu = 0.007, hv = 0.007, r = 0.003, cz = 0.096, t = 1.00},
 	]
 	return build_loft(rings, VENT_CORNER_SEGS, "y")
 
@@ -629,18 +753,32 @@ func _build_back_vent() -> ArrayMesh:
 # of fully cylindrical like the wrist. Extra rings vs. the original three
 # give room for a subtle knuckle-row bulge (four small bumps, roughly where
 # the finger bases are) instead of a flat knuckle edge.
+# NOW a true ellipse (r = -1.0 throughout, see profile_for's header) instead
+# of a small-radius rounded rect — the brief's literal "the palm is a slab."
+# Two new asymmetric bump bands added below the existing knuckle row: a
+# THENAR bulge (thumb-base muscle, local +X — see _build_hand's thumb at
+# positive X) and a smaller HYPOTHENAR ridge on the opposite (pinky, -X)
+# edge, both lower on the palm than the knuckles (center_t ~0.2-0.35 vs the
+# knuckle row's 0.92) — real anatomy, not a flat plane between wrist and
+# fingers.
 func _build_palm() -> ArrayMesh:
 	var hl: float = OV.HAND_LEN
 	var rings := [
-		{pos = 0.00 * -hl, hu = 0.028, hv = 0.016, r = 0.014, t = 0.00},
-		{pos = 0.16 * -hl, hu = 0.030, hv = 0.017, r = 0.0135, t = 0.16},
-		{pos = 0.30 * -hl, hu = 0.033, hv = 0.018, r = 0.013, t = 0.30},
-		{pos = 0.46 * -hl, hu = 0.036, hv = 0.019, r = 0.012, t = 0.46},
-		{pos = 0.62 * -hl, hu = 0.038, hv = 0.020, r = 0.011, t = 0.62},
-		{pos = 0.85 * -hl, hu = 0.040, hv = 0.019, r = 0.009, t = 0.85},
-		{pos = 1.00 * -hl, hu = 0.040, hv = 0.018, r = 0.007, t = 1.00},
+		{pos = 0.00 * -hl, hu = 0.028, hv = 0.016, r = -1.0, t = 0.00},
+		{pos = 0.16 * -hl, hu = 0.030, hv = 0.017, r = -1.0, t = 0.16},
+		{pos = 0.30 * -hl, hu = 0.033, hv = 0.018, r = -1.0, t = 0.30},
+		{pos = 0.46 * -hl, hu = 0.036, hv = 0.019, r = -1.0, t = 0.46},
+		{pos = 0.62 * -hl, hu = 0.038, hv = 0.020, r = -1.0, t = 0.62},
+		{pos = 0.85 * -hl, hu = 0.040, hv = 0.019, r = -1.0, t = 0.85},
+		{pos = 1.00 * -hl, hu = 0.040, hv = 0.018, r = -1.0, t = 1.00},
 	]
-	var bumps := []
+	var bumps := [
+		# Thenar eminence — thumb-base bulge, +X edge.
+		{kind = "bump", center_t = 0.34, width_t = 0.16, center_theta = 0.0, width_theta = 0.55, amp = 0.006},
+		# Hypothenar edge — smaller ulnar-side ridge, -X edge, a bit higher
+		# (closer to the wrist) than the thenar bulge.
+		{kind = "bump", center_t = 0.22, width_t = 0.14, center_theta = PI, width_theta = 0.45, amp = 0.0035},
+	]
 	for i in range(4):
 		var th := -1.35 + i * 0.24
 		bumps.append({kind = "bump", center_t = 0.92, width_t = 0.10, center_theta = th, width_theta = 0.13, amp = 0.0035})
@@ -665,7 +803,7 @@ func _build_finger() -> ArrayMesh:
 		{pos = 1.00 * -fl, hu = 0.0040, hv = 0.0040, r = 999.0, t = 1.00, cz = -0.022},
 	]
 	for ring in rings:
-		ring.r = min(ring.hu, ring.hv)
+		ring.r = -1.0  # true ellipse — see profile_for/ellipse_profile's header
 	return build_loft(rings, FINGER_CORNER_SEGS, "y")
 
 
@@ -705,14 +843,42 @@ func _build_shoe() -> ArrayMesh:
 # ring_t convention: 0 = chin/underside pole, 1 = crown pole.
 func _build_head() -> ArrayMesh:
 	var r: float = OV.HEAD_R
-	var n := 24
+	var n := 56
 	var rings: Array = []
 	for i in range(n):
 		var t := float(i) / float(n - 1)
 		var phi := -PI / 2.0 + PI * t
 		var rad: float = maxf(r * cos(phi), r * 0.025)
 		var y: float = r * sin(phi)
-		rings.append({pos = y, hu = rad, hv = rad, r = rad, t = t})
+		# Cranium/jaw asymmetry — "a skull is not an egg" (brief). A pure
+		# UV-sphere (uniform rad every direction, both poles identical) is
+		# exactly an egg: same curvature logic top and bottom. Break hu
+		# (left-right) and hv (front-back) apart from the sphere's shared
+		# `rad` in two bands instead: a fuller, slightly rearward-shifted
+		# CRANIUM in the upper third (bigger brain-case behind the face
+		# rather than a dome that's round in every direction), and a
+		# narrower, front-back-flattened JAW in the lower third (a chin
+		# tapers toward a ridge, not a round pole). `cz` (already supported
+		# by build_loft as a per-ring bend, see the header) shifts the whole
+		# ring off-axis so the cranium sits a touch further back and the
+		# chin tucks a touch further forward — still only a few mm on a
+		# 120mm head, the same "suggested not sculpted" budget the bump
+		# bands below already use.
+		var hu := rad
+		var hv := rad
+		var cz := 0.0
+		if t > 0.58:
+			var ct: float = clampf((t - 0.58) / 0.34, 0.0, 1.0)
+			var cranium: float = sin(ct * PI)  # 0 at 0.58 and 0.92, peaks mid-cranium
+			hv *= 1.0 + 0.16 * cranium
+			hu *= 1.0 + 0.05 * cranium
+			cz += 0.010 * cranium
+		elif t < 0.36:
+			var jt: float = clampf(1.0 - t / 0.36, 0.0, 1.0)  # 1 at chin, 0 at jaw hinge
+			hv *= 1.0 - 0.22 * jt
+			hu *= 1.0 - 0.10 * jt
+			cz -= 0.006 * jt
+		rings.append({pos = y, hu = hu, hv = hv, r = -1.0, cz = cz, t = t})
 
 	const FRONT := -PI / 2.0
 	var bands := [

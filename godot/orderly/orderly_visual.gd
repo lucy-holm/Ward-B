@@ -47,19 +47,20 @@ const BODY_SHADER := preload("res://orderly/orderly_body.gdshader")
 # technique: smooth-shaded rounded-rectangle cross-sections swept along the
 # limb/torso/shoe). Regenerate after changing the proportions below with:
 #   godot --headless --path . --script res://orderly/_gen/gen_orderly_meshes.gd
-const MESH_LEG_THIGH := preload("res://orderly/meshes/leg_thigh.tres")
-const MESH_LEG_SHIN := preload("res://orderly/meshes/leg_shin.tres")
-const MESH_ARM_UPPER := preload("res://orderly/meshes/arm_upper.tres")
-const MESH_ARM_CUFF := preload("res://orderly/meshes/arm_cuff.tres")
-const MESH_CUFF_TURNBACK := preload("res://orderly/meshes/cuff_turnback.tres")
-const MESH_TORSO := preload("res://orderly/meshes/torso.tres")
-const MESH_COLLAR := preload("res://orderly/meshes/collar.tres")
-const MESH_BACK_VENT := preload("res://orderly/meshes/back_vent.tres")
-const MESH_HALF_BELT := preload("res://orderly/meshes/half_belt.tres")
-const MESH_PALM := preload("res://orderly/meshes/palm.tres")
-const MESH_FINGER := preload("res://orderly/meshes/finger.tres")
-const MESH_SHOE := preload("res://orderly/meshes/shoe.tres")
-const MESH_HEAD := preload("res://orderly/meshes/head.tres")
+const MESH_LEG_THIGH := preload("res://orderly/meshes/leg_thigh.res")
+const MESH_LEG_SHIN := preload("res://orderly/meshes/leg_shin.res")
+const MESH_ARM_UPPER := preload("res://orderly/meshes/arm_upper.res")
+const MESH_ARM_CUFF := preload("res://orderly/meshes/arm_cuff.res")
+const MESH_CUFF_TURNBACK := preload("res://orderly/meshes/cuff_turnback.res")
+const MESH_WRIST := preload("res://orderly/meshes/wrist.res")
+const MESH_TORSO := preload("res://orderly/meshes/torso.res")
+const MESH_COLLAR := preload("res://orderly/meshes/collar.res")
+const MESH_BACK_VENT := preload("res://orderly/meshes/back_vent.res")
+const MESH_HALF_BELT := preload("res://orderly/meshes/half_belt.res")
+const MESH_PALM := preload("res://orderly/meshes/palm.res")
+const MESH_FINGER := preload("res://orderly/meshes/finger.res")
+const MESH_SHOE := preload("res://orderly/meshes/shoe.res")
+const MESH_HEAD := preload("res://orderly/meshes/head.res")
 
 # --- proportions ------------------------------------------------------------
 # Pushed further than a naturalistic figure on purpose: very long straight
@@ -379,6 +380,17 @@ func _build_body() -> void:
 		turnback.mesh = MESH_CUFF_TURNBACK
 		turnback.material_override = cloth_cuff
 		pivot.add_child(turnback)
+
+		# NEW — bare wrist (MESH_WRIST, see gen_orderly_meshes.gd's
+		# _build_wrist), skin-material, bridging the now-shortened cuff to
+		# the hand attach point. This is the "jacket drapes away at the
+		# cuffs" cue: the sleeve ends a few cm short of the hand instead of
+		# fusing straight into it, same absolute-pivot-local convention as
+		# every other limb mesh (no offset needed).
+		var wrist := MeshInstance3D.new()
+		wrist.mesh = MESH_WRIST
+		wrist.material_override = skin_hand
+		pivot.add_child(wrist)
 
 		var hand := _build_hand(skin_hand)
 		hand.position.y = -ARM_LEN

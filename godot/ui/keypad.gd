@@ -18,12 +18,48 @@ var _entered := ""
 var _attempts := 0
 
 
+# Authored against 720p. Project stretch is disabled, so nothing scales this
+# for us — on a 1728x1080 desktop canvas the whole panel rendered at roughly
+# a third of its intended relative size and the keys were fiddly to hit.
+# Same fix as the HUD: derive from viewport height.
+const BASE_HEIGHT := 720.0
+const SCALE_MIN := 0.9
+const SCALE_MAX := 2.4
+
+
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_WHEN_PAUSED
 	hide()
 	for child in _grid.get_children():
 		if child is Button:
 			(child as Button).pressed.connect(_on_key.bind((child as Button).text))
+	_apply_scale()
+	get_viewport().size_changed.connect(_apply_scale)
+
+
+func _apply_scale() -> void:
+	var s := clampf(float(get_viewport().get_visible_rect().size.y) / BASE_HEIGHT,
+		SCALE_MIN, SCALE_MAX)
+
+	var panel: PanelContainer = $Panel
+	var half_w := 150.0 * s
+	var half_h := 215.0 * s
+	panel.offset_left = -half_w
+	panel.offset_right = half_w
+	panel.offset_top = -half_h
+	panel.offset_bottom = half_h
+
+	_display.add_theme_font_size_override("font_size", int(46 * s))
+	$Panel/VBox/Hint.add_theme_font_size_override("font_size", int(16 * s))
+	$Panel/VBox.add_theme_constant_override("separation", int(14 * s))
+	_grid.add_theme_constant_override("h_separation", int(10 * s))
+	_grid.add_theme_constant_override("v_separation", int(10 * s))
+
+	for child in _grid.get_children():
+		if child is Button:
+			var b := child as Button
+			b.custom_minimum_size = Vector2(84.0 * s, 72.0 * s)
+			b.add_theme_font_size_override("font_size", int(30 * s))
 
 
 func open(code: String) -> void:

@@ -19,6 +19,16 @@ func _ready() -> void:
 
 	var game: Node = load("res://main.tscn").instantiate()
 	add_child(game)
+
+	# Dismiss the start overlay, exactly as shoot_game.gd does and for the same
+	# reason (see its header): the overlay is a near-opaque full-screen
+	# CanvasLayer, so without this every shot here is a photograph of the
+	# WARD B title card, not the ward — which is exactly what happened when
+	# this script was first used for the 2026-08 lighting pass (both "unmed"
+	# and "lucid" shots were pixel-identical title screens).
+	if game.get("start_overlay") != null and game.start_overlay.has_method("_on_admit_pressed"):
+		game.start_overlay._on_admit_pressed()
+
 	await get_tree().create_timer(seconds).timeout
 
 	if game.has_method("load_room"):

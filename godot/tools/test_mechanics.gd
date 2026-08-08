@@ -19,8 +19,38 @@ func _ready() -> void:
 	_test_trap_guard()
 	_test_axis_separated_slide()
 	_test_pill_economy()
+	_test_no_camera_environment_override()
 	await _test_orderly_patrols()
 	_finish()
+
+
+# THE MOOD MUST ACTUALLY REACH THE SCREEN.
+#
+# Camera3D.environment OVERRIDES WorldEnvironment completely. player.tscn's
+# camera shipped with a leftover placeholder Environment on it, so the game
+# rendered at default linear tonemapping, exposure 1.0, no fog and no glow,
+# while main.gd faithfully wrote every MOOD value into a WorldEnvironment that
+# never drew a single pixel. The unmedicated ward was bright and flat for the
+# entire life of the port.
+#
+# Nothing caught it. check_rooms never instantiates the player; test_flicker
+# asserts on light_energy VALUES rather than pixels, which stayed correct the
+# whole time; and tools/shoot.gd builds its own camera and environment, so
+# every screenshot rendered the mood correctly and looked like proof.
+#
+# An override is legitimate in principle, so this asserts the specific thing
+# that is not: the camera the game plays through must not shadow the
+# WorldEnvironment that main.gd drives.
+func _test_no_camera_environment_override() -> void:
+	var player: Node = load("res://player/player.tscn").instantiate()
+	var cam: Camera3D = player.get_node_or_null("Camera3D")
+	_check(cam != null, "player.tscn must have a Camera3D")
+	if cam != null:
+		_check(
+			cam.environment == null,
+			"player camera must NOT carry an Environment override — it shadows "
+			+ "WorldEnvironment and MOOD never reaches the screen")
+	player.free()
 
 
 func _check(cond: bool, what: String) -> void:

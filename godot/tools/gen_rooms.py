@@ -624,6 +624,14 @@ def room1():
     r.interactable("dispenser1", "dispenser", (0.55, 0.75, 0.16), (2.2, 1.45, 0.14),
                    "dispenser", "MEDICATION")
 
+    # Two fittings, z=2 and z=5 in a room spanning z 0..6.
+    #
+    # These were briefly moved to 1.5/3.5 to kill a "blown out wall at spawn"
+    # that turned out to be misdiagnosed: the real cause was a placeholder
+    # Environment left on the player's Camera3D, which overrode WorldEnvironment
+    # and rendered the whole game at exposure 1.0 with no fog. With that removed
+    # the original placement is correctly dim, and 1.5/3.5 left the spawn too
+    # dark to find the paper cup. Fixture placement was never the problem.
     r.light(0, 2)
     r.light(0, 5)
     return r

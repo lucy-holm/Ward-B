@@ -64,6 +64,20 @@ const GRAIN_UNMED := 0.04
 # come part-way back (0.10 -> 0.30, 0.30 -> 0.42) rather than all the way.
 #
 # Verified on room 1 spawn AND room 4 centre, in both states.
+#
+# AND VERIFY THROUGH THE REAL GAME, NOT tools/shoot.gd.
+#
+# None of this reached the screen for the entire life of the port: player.tscn's
+# Camera3D carried a placeholder Environment, and Camera3D.environment overrides
+# WorldEnvironment outright, so the game rendered at default linear tonemapping
+# and exposure 1.0 with no fog while these values were written to an
+# Environment that never drew a pixel. shoot.gd builds its own camera and
+# environment, so every screenshot looked correctly dark and the successive
+# "make it darker" passes were tuning an image nobody was playing — at the
+# room-1 spawn, game (42,43,36) vs harness (4,5,1).
+#
+# Use tools/shoot_game.tscn (real main.tscn) or tools/shoot_web.mjs (real
+# browser) for any judgement about how dark the ward actually is.
 const MOOD := {
 	StateManager.State.LUCID: {
 		"fog": Color(0.843, 0.894, 0.875),

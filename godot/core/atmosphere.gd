@@ -86,7 +86,17 @@ func _process(delta: float) -> void:
 	_clock += delta
 	# Ease toward the target so the fittings dim/brighten with the mood tween
 	# rather than snapping a frame before it.
-	_light_scale = lerpf(_light_scale, _light_scale_target, minf(1.0, delta * 3.0))
+	#
+	# Rate raised 3.0 -> 12.0 in the 2026-08 lighting pass: UNMED's light_scale
+	# dropped 0.45 -> 0.30 (see main.gd's MOOD comment), which made the
+	# UNMED -> LUCID swing noticeably bigger than before. At the old rate that swing was still visibly settling a couple
+	# of seconds after the state change — tools/test_flicker.tscn caught it
+	# as a spread violation on the "lucid should read steady" assertion,
+	# since it samples shortly after switching. 12.0 (time constant ~0.08s)
+	# fully settles well inside a couple of frames — still reads as a snappy
+	# transition, not a hard cut, and matches the ~0.45s mood crossfade
+	# without lagging behind it.
+	_light_scale = lerpf(_light_scale, _light_scale_target, minf(1.0, delta * 12.0))
 	var unmed := not StateManager.is_lucid()
 	_tick_flicker(delta, unmed)
 	_tick_fog(unmed)

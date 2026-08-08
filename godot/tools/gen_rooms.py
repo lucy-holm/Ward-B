@@ -430,12 +430,29 @@ class Emitter:
                 # get the concept art's look: a bright pool under each fitting
                 # falling off to near-black, rather than a uniform wash. Ambient
                 # was dropped to 0.08 to match, so the lights do the work.
+                #
+                # omni_attenuation 1.4 -> 1.7, range 7 -> 9.
+                #
+                # A room-1 audit found that standing almost directly under a
+                # fitting (~1.5m, which several spawn/doorway points do) blew
+                # the nearby wall out to a legible olive-grey wash: Godot's omni
+                # falloff is pow(distance, -attenuation) windowed by range, and
+                # at low attenuation the near-field barely rolls off. That audit
+                # first pushed attenuation to 2.6 with range 6, which fixed
+                # room 1 and BROKE every large room — at that exponent almost
+                # nothing reached the floor of a 12x12 hall, leaving room 4 as
+                # bare ceiling smears on black.
+                #
+                # 1.7/9.0 is the compromise that holds both: still noticeably
+                # tighter than 1.4 up close, but with enough reach that a hall
+                # resolves. Anything steeper than ~2.0 is a large-room killer —
+                # check room 4, not just room 1, before touching these.
                 body.append('[node name="L%d" type="OmniLight3D" parent="Lights"]' % i)
                 body.append("transform = %s" % _xform((x, y, z)))
                 body.append("light_color = Color(0.949, 1.0, 0.98, 1)")
                 body.append("light_energy = 0.95")
-                body.append("omni_range = 7.0")
-                body.append("omni_attenuation = 1.4")
+                body.append("omni_range = 9.0")
+                body.append("omni_attenuation = 1.7")
                 # Shadows on EVERY light cost 40% frame time (10.9 -> 6.5 fps
                 # measured): an omni shadow is a 6-face cube render, and rooms
                 # carry up to 8 lights. Only every third fitting casts, which is
@@ -771,7 +788,29 @@ def room4():
 
     # tables
     r.block((1.5, 0.5, 0.9), (2, 0.25, 0.3), "prop", collider=(1.25, 2.75, -0.15, 0.75))
-    r.block((1.5, 0.5, 0.9), (3.2, 0.25, 2.6), "prop", collider=(2.45, 3.95, 2.15, 3.05))
+    # MOVED EAST, x 3.2 -> 4.9 (collider 2.45..3.95 -> 4.15..5.65).
+    #
+    # At its authored position this table sat directly on top of patrol
+    # waypoint 0 (3.5, 3): the orderly spawns on waypoint 0, so he started
+    # embedded in it, and the axis-separated resolver — which has no
+    # escape-from-inside case — refused every move. He stood inside the table
+    # for the entire room. The east patrol leg (x = 3.5, z 3 -> -3) also ran
+    # straight through it, and leg 4->0 grazed its north-east corner at 0.10m.
+    #
+    # Inherited from the Three.js build, not introduced by the port: room4.ts
+    # has the identical waypoints and the identical rb.solid, and passes
+    # WAYPOINTS to the Orderly constructor RAW — kit.patrol() only arrived at
+    # room 11, so rooms 4-7 were never clearance-validated. check_rooms.gd now
+    # ports that validator, which is what caught this.
+    #
+    # The PROP moved rather than the patrol loop, deliberately: room4's header
+    # documents the loop's shape as designed (x >= -0.5 footprint keeping the
+    # west wall a readable safe lane, the wp4 bulge toward the player's first
+    # sightline) and it carries a reaction-time audit. The tables carry no such
+    # intent. At 0.5m tall this one is also far below the 1.5m occlusion ray,
+    # so moving it cannot change any sight line. It now sits against the east
+    # wall (inner face x = 5.88), clearing the x = 3.5 leg by 0.65m.
+    r.block((1.5, 0.5, 0.9), (4.9, 0.25, 2.6), "prop", collider=(4.15, 5.65, 2.15, 3.05))
 
     # tall shelving unit — the occluder. Sits between the patrol loop and the
     # west wall's safe lane, so hiding in its shadow actually works.

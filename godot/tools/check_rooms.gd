@@ -166,7 +166,119 @@ func _check_room(id: String, path: String, registry: Dictionary) -> void:
 	# --- unique interactable ids ---
 	_collect_ids(room, {}, id)
 
+	# --- patrol clearance ---
+	_check_patrol(id, col)
+
 	_dispose(room)
+
+
+# PATROL CLEARANCE — the port of kit.ts's `patrol()`, which this validator has
+# been missing entirely.
+#
+# CLAUDE.md advertises check:rooms as "runs patrol-clearance validators". That
+# was true of the TS harness and never true here, and the gap was not academic:
+# room 4's waypoint 0 sits *inside* a table collider, so the orderly spawned
+# embedded in furniture and the axis-separated resolver refused every move.
+# Every other check passed. (The same room is unvalidated in the Three.js
+# build too — kit.patrol() only arrived at room 11, and rooms 4-7 pass their
+# waypoints to the Orderly constructor raw, so it is an inherited bug rather
+# than a port regression.)
+#
+# Checks waypoints AND the legs between them: a leg can clip a corner even when
+# both endpoints are clear. Only always-on colliders count (state_filter -1) —
+# a lucid-only blocker does not apply to him, the same rule Orderly documents.
+const PATROL_MARGIN := 0.1  # on top of the body radius; kit.ts's ">0.5" rule
+
+
+func _check_patrol(id: String, col: WardCollision) -> void:
+	var script: GDScript = load("res://rooms/%s/%s.gd" % [id, id])
+	if script == null:
+		return
+	var wps: Variant = script.get("WAYPOINTS")
+	if wps == null or not (wps is Array) or (wps as Array).is_empty():
+		return  # room has no orderly; nothing to validate
+
+	var pts: Array = wps
+	var need := Tuning.ORDERLY_RADIUS + PATROL_MARGIN
+
+	for i in pts.size():
+		var w: Vector3 = pts[i]
+		for b in col.boxes:
+			if b.state_filter != -1:
+				continue
+			var d := _point_box_dist(w.x, w.z, b)
+			if d < need:
+				_fail("%s: patrol waypoint %d (%.2f, %.2f) is only %.2fm from collider "
+					% [id, i, w.x, w.z, d]
+					+ "x[%.2f,%.2f] z[%.2f,%.2f] — needs >%.2fm (body %.2f + margin). "
+					% [b.min_x, b.max_x, b.min_z, b.max_z, need, Tuning.ORDERLY_RADIUS]
+					+ "He spawns on waypoint 0, so an embedded waypoint freezes him outright.")
+
+	for i in pts.size():
+		var a: Vector3 = pts[i]
+		var c: Vector3 = pts[(i + 1) % pts.size()]
+		for b in col.boxes:
+			if b.state_filter != -1:
+				continue
+			var d := _seg_box_dist(a.x, a.z, c.x, c.z, b)
+			if d < need:
+				_fail("%s: patrol leg %d->%d ((%.2f,%.2f) to (%.2f,%.2f)) passes only %.2fm from "
+					% [id, i, (i + 1) % pts.size(), a.x, a.z, c.x, c.z, d]
+					+ "collider x[%.2f,%.2f] z[%.2f,%.2f] — needs >%.2fm. This is the wedge bug: "
+					% [b.min_x, b.max_x, b.min_z, b.max_z, need]
+					+ "his body clips the corner mid-leg and freezes there.")
+
+
+func _point_box_dist(x: float, z: float, b) -> float:
+	var dx := maxf(maxf(b.min_x - x, 0.0), x - b.max_x)
+	var dz := maxf(maxf(b.min_z - z, 0.0), z - b.max_z)
+	return sqrt(dx * dx + dz * dz)
+
+
+func _point_seg_dist(px: float, pz: float, x0: float, z0: float, x1: float, z1: float) -> float:
+	var dx := x1 - x0
+	var dz := z1 - z0
+	var len_sq := dx * dx + dz * dz
+	var t := 0.0
+	if len_sq > 0.0:
+		t = clampf(((px - x0) * dx + (pz - z0) * dz) / len_sq, 0.0, 1.0)
+	return Vector2(px - (x0 + t * dx), pz - (z0 + t * dz)).length()
+
+
+# Liang-Barsky segment-vs-AABB, same as kit.ts's segIntersectsAABB.
+func _seg_hits_box(x0: float, z0: float, x1: float, z1: float, b) -> bool:
+	var t0 := 0.0
+	var t1 := 1.0
+	var dx := x1 - x0
+	var dz := z1 - z0
+	var p := [-dx, dx, -dz, dz]
+	var q := [x0 - b.min_x, b.max_x - x0, z0 - b.min_z, b.max_z - z0]
+	for i in 4:
+		if p[i] == 0.0:
+			if q[i] < 0.0:
+				return false
+		else:
+			var r: float = q[i] / p[i]
+			if p[i] < 0.0:
+				if r > t1:
+					return false
+				if r > t0:
+					t0 = r
+			else:
+				if r < t0:
+					return false
+				if r < t1:
+					t1 = r
+	return true
+
+
+func _seg_box_dist(x0: float, z0: float, x1: float, z1: float, b) -> float:
+	if _seg_hits_box(x0, z0, x1, z1, b):
+		return 0.0
+	var best := minf(_point_box_dist(x0, z0, b), _point_box_dist(x1, z1, b))
+	for c in [[b.min_x, b.min_z], [b.max_x, b.min_z], [b.max_x, b.max_z], [b.min_x, b.max_z]]:
+		best = minf(best, _point_seg_dist(c[0], c[1], x0, z0, x1, z1))
+	return best
 
 
 func _collect_ids(node: Node, seen: Dictionary, room_id: String) -> void:

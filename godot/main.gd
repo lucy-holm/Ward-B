@@ -37,15 +37,33 @@ const GRAIN_UNMED := 0.04
 # lighting.
 #
 # The gap between the two states is deliberately extreme. UNMEDICATED is meant
-# to be barely navigable: near-zero ambient, fog closing to 7m, lights at 45%
-# and flickering. LUCID is clinically over-lit by contrast. Shifting should
-# feel like the building itself changes, not like a colour filter.
+# to be barely navigable: near-zero ambient, low exposure, lights heavily
+# scaled down and flickering. LUCID is clinically over-lit by contrast.
+# Shifting should feel like the building itself changes, not a colour filter.
 #
 # This is only safe because the things you MUST see are unshaded and so are
 # untouched by any of it: wall scrawls (shaded = false), the pill, the glow
 # panels, and the fixtures' amber/cyan accent strips. In the dark the red
 # scrawls and the pill burn through an almost black room — which is the
 # intended read, not a compromise.
+#
+# TUNE AGAINST A LARGE ROOM AND A SMALL ONE, ALWAYS.
+#
+# The 2026-08 darkness pass was tuned solely against room 1's spawn and shipped
+# values (ambient 0.003 / exposure 0.30 / light_scale 0.10 / fog_end 7.5) that
+# made room 1 look superb and rendered room 4 as literally two faint smears of
+# ceiling on pure black — no floor, no walls, no props, unplayable. Room 1's
+# spawn faces a wall 2m away under a fitting; room 4 is a 12x12 hall. Any
+# setting judged from one of those is wrong for the other.
+#
+# The dominant term for a big room is FOG, not light: unmed fog is near-black,
+# so a fog_end of 7.5m replaced everything past 7.5m in a 12m hall with solid
+# fog colour. No amount of light_scale could recover it. fog_end 16.0 with
+# fog_begin 2.5 keeps the close-range murk that makes corridors oppressive
+# while letting a hall resolve at all. light_scale/exposure then only had to
+# come part-way back (0.10 -> 0.30, 0.30 -> 0.42) rather than all the way.
+#
+# Verified on room 1 spawn AND room 4 centre, in both states.
 const MOOD := {
 	StateManager.State.LUCID: {
 		"fog": Color(0.843, 0.894, 0.875),
@@ -58,11 +76,11 @@ const MOOD := {
 	},
 	StateManager.State.UNMED: {
 		"fog": Color(0.090, 0.043, 0.039),
-		"fog_begin": 1.6,
-		"fog_end": 7.5,
-		"ambient": 0.022,
-		"exposure": 0.60,
-		"light_scale": 0.45,
+		"fog_begin": 2.5,
+		"fog_end": 16.0,
+		"ambient": 0.010,
+		"exposure": 0.42,
+		"light_scale": 0.30,
 		"light": Color(1.0, 0.2, 0.141),
 	},
 }

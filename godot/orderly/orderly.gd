@@ -251,10 +251,29 @@ func _move_toward(target: Vector3, speed: float, delta: float) -> void:
 	if _nav.is_navigation_finished() or _nav.target_position.distance_to(target) > 0.05:
 		_nav.target_position = target
 
-	var use_nav := NavigationServer3D.map_get_iteration_id(_nav.get_navigation_map()) != 0
-	if use_nav and not _nav.is_navigation_finished():
+	# Use the navmesh ONLY if it actually handed us somewhere new to walk to.
+	#
+	# This used to gate on `map_get_iteration_id(...) != 0`, which reads like
+	# "is there a usable navmesh?" but only means "has the navigation server
+	# synced at least once" — true in EVERY scene from about the third physics
+	# frame. No room in this project has ever contained a NavigationRegion3D,
+	# so the map has zero regions, every path query returns an empty path, and
+	# get_next_path_position() answers with the agent's OWN position. dir came
+	# out zero-length and _move_toward returned before stepping: every orderly
+	# in the game stood frozen on waypoint 0 forever.
+	#
+	# Testing the returned position directly means this degrades correctly in
+	# both directions — with no navmesh he walks the straight-line path the
+	# Three.js build used (which is what the patrol legs were authored and
+	# clearance-validated against), and if regions are baked later he starts
+	# pathing around obstacles with no change here.
+	var to_next := Vector2.ZERO
+	if not _nav.is_navigation_finished():
 		var next := _nav.get_next_path_position()
-		dir = Vector2(next.x - global_position.x, next.z - global_position.z)
+		to_next = Vector2(next.x - global_position.x, next.z - global_position.z)
+
+	if to_next.length() > 0.01:
+		dir = to_next
 	else:
 		dir = Vector2(target.x - global_position.x, target.z - global_position.z)
 

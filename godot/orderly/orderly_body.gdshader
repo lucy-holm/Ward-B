@@ -33,11 +33,16 @@ uniform float roughness_base : hint_range(0.0, 1.0) = 0.85;
 uniform float rim_strength : hint_range(0.0, 2.0) = 0.5;
 // Edge-only emission so the silhouette survives near-zero ambient. Keep low:
 // past ~0.5 he starts reading as lit rather than pale.
-// Range goes past 1.0 deliberately. The scene tonemaps with ACES at 0.60
-// exposure, which crushes emission hard — a full 1.0 displays around 0.4
-// luminance (measured with a diagnostic flat-magenta emission). Values under
-// ~1.5 simply do not survive to the screen at the unmedicated ambient.
-uniform float edge_glow : hint_range(0.0, 4.0) = 2.2;
+// Range goes past 1.0 deliberately. The scene tonemaps with ACES; exposure
+// crushes emission hard, so this has to track main.gd's UNMED tonemap_exposure
+// or he goes invisible at range every time the room darkens.
+//
+// 2026-08 lighting pass: UNMED tonemap_exposure settled at 0.42 (down from
+// 0.60). Emission is exposure-scaled like everything else, so edge_glow is
+// raised 2.2 -> 3.1 (2.2 * 0.60/0.42) to hold his far-dark (~6m) silhouette
+// at roughly its old on-screen brightness. If you change UNMED exposure,
+// change this by the same ratio or he goes invisible at range.
+uniform float edge_glow : hint_range(0.0, 6.0) = 3.1;
 uniform float seam_strength : hint_range(0.0, 1.0) = 0.0;
 uniform float face_strength : hint_range(0.0, 1.0) = 0.0;
 // Rough local scale of this part (sphere/cylinder radius in local units).

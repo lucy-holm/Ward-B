@@ -155,27 +155,49 @@ Physics ticks at a fixed 60 Hz, which is strictly better than the original's
 `dt` clamped to 0.05 s. Per-tick displacement (0.057 m) stays far below the
 0.35 m radius, so tunnelling remains impossible.
 
-### 2.2 Orderly movement uses `NavigationAgent3D` — a real behaviour change
-The chase *rules* are ported exactly (see §3). The **movement** is not.
+### 2.2 Orderly movement: straight-line today, `NavigationAgent3D` if baked
+The chase *rules* are ported exactly (see §3). The **movement** is layered.
 
 The original stepped in a straight line and slid along AABBs, which meant a
 blocked orderly could **wedge permanently** — nothing re-paths, so he grinds
 against a corner forever. `kit.patrol()` exists purely to validate ≥0.5 m
 clearance on every leg at authoring time and catch that at build time.
 
-Using `NavigationAgent3D` removes that entire bug class and the need for the
-validator. **Cost:** he now paths *around* obstacles during a chase where he
-used to beeline and scrape.
+`NavigationAgent3D` was introduced to remove that bug class. **It has never
+actually been active**, and this section previously claimed otherwise.
 
-> ⚠️ **Rooms 5, 6 and 7 want a playtest pass.** Their patrol geometry was
-> tuned against straight-line pursuit. Room 7's east leg sits at `x = 1.0`
-> specifically because `1.3` wedged him against a shelf; room 6's waypoints
-> were moved after dt-stepped simulation of the real sight/grace/chase loop.
-> Smarter pathing makes him *more* dangerous in the pocket rooms than the
-> reaction-time audits assumed.
+> 🐞 **The frozen-orderly bug.** `_move_toward` gated on
+> `NavigationServer3D.map_get_iteration_id(...) != 0` as a proxy for "a usable
+> navmesh exists". It does not mean that — it means "the navigation server has
+> synced", which becomes true in *every* scene about three physics frames in.
+> No room in this project has ever contained a `NavigationRegion3D`, so the map
+> had **zero regions**, every path query returned an empty path, and
+> `get_next_path_position()` answered with the orderly's *own* position. `dir`
+> came out zero-length and he returned before stepping. Every orderly in the
+> game stood frozen on waypoint 0, in every room, for the entire life of the
+> port. `check_rooms` never caught it because it validates patrol *wiring* —
+> waypoints present, legs clear — and never ticks physics, so a perfectly
+> authored patrol loop that is never walked passes every check.
+
+The guard now tests the thing it depends on: whether the agent handed back a
+position meaningfully different from where he already is. That degrades
+correctly in both directions — with no navmesh he walks the **straight-line
+path the Three.js build used**, which is what the patrol legs were authored and
+clearance-validated against; bake `NavigationRegion3D`s later and he starts
+pathing around obstacles with no code change. `kit.patrol()`'s clearance
+validation is therefore still load-bearing, not vestigial.
+
+Because straight-line is what actually runs, rooms 5/6/7 are back on the
+geometry they were originally tuned for (room 7's east leg at `x = 1.0` to
+avoid wedging against a shelf, room 6's dt-simulated waypoints), so the
+reaction-time audits hold as written.
+
+Regression test: `_test_orderly_patrols` in `tools/test_mechanics.gd` asserts
+he displaces from spawn and visits every waypoint. It was confirmed to fail
+against the broken guard before being committed alongside the fix.
 
 The final step still resolves through the same AABB routine as the player,
-so he can never end up inside geometry the navmesh smoothed over.
+so he can never end up inside geometry a navmesh might smooth over.
 
 ### 2.3 Footsteps are spatial — more information than before
 His mesh is hidden while you are lucid, so footsteps are the *only* way to
@@ -343,7 +365,10 @@ wire.
   the frozen anim clock while paused, and the translucent sight cone are not
   yet ported. The cone in particular is a real gameplay affordance while
   unmed, not decoration.
-- **Rooms 5/6/7 need playtesting** against the NavAgent change (§2.2).
+- **Rooms 4/5/6/7 need playtesting now that orderlies actually walk** (§2.2).
+  Their patrol, sight, grace and chase loops have never once run in the Godot
+  build against a moving orderly, so no threat pacing in this port has been
+  observed rather than assumed.
 - **A/B experiments framework** (`src/game/experiments.ts`) is not ported;
   `Telemetry` reserves the `experiment`/`variant` payload fields for it.
 - **No map viewer.** `/map.html?room=<id>` has no Godot equivalent; the

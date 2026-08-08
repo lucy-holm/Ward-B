@@ -19,6 +19,7 @@ func _ready() -> void:
 	_test_trap_guard()
 	_test_axis_separated_slide()
 	_test_pill_economy()
+	await _test_orderly_patrols()
 	_finish()
 
 
@@ -142,6 +143,57 @@ func _test_pill_economy() -> void:
 	_check(
 		StateManager.medication == med_before,
 		"force_state to the SAME state must early-return without refilling the meter")
+
+
+# THE ORDERLY ACTUALLY WALKS.
+#
+# This exists because he did not, in any room, for the entire life of the
+# Godot port. _move_toward gated on `map_get_iteration_id(...) != 0` as a
+# stand-in for "a navmesh exists"; it really means "the navigation server has
+# synced", which is true in every scene after ~3 physics frames. With zero
+# NavigationRegion3Ds in the project, every path query came back empty and
+# get_next_path_position() returned his own position, so dir was zero-length
+# and he never took a step. Nothing caught it: check_rooms validates patrol
+# WIRING (waypoints present, legs clear) and never ticks physics, so a
+# perfectly-authored patrol loop that is never walked passed every check.
+#
+# Asserts he visits every waypoint, which fails both for a frozen orderly and
+# for one that drifts without advancing the loop.
+func _test_orderly_patrols() -> void:
+	var player := Node3D.new()
+	player.set_script(load("res://tools/test_stub_player.gd"))
+	player.position = Vector3(90, 0, 90)  # far enough that sight/catch never fire
+	add_child(player)
+
+	var square: Array[Vector3] = [
+		Vector3(2, 0, 2), Vector3(2, 0, 8), Vector3(8, 0, 8), Vector3(8, 0, 2)]
+	var orderly: CharacterBody3D = load("res://orderly/orderly.tscn").instantiate()
+	orderly.waypoints = square.duplicate()
+	add_child(orderly)
+	orderly.setup(player, null)
+
+	var start: Vector3 = orderly.global_position
+	var visited := {}
+	# 1500 ticks = 25 s at 60 Hz. One lap of this 24 m loop at 1.5 m/s plus
+	# four 0.8 s waypoint pauses is ~19.2 s, so this is a full lap with margin.
+	for i in 1500:
+		visited[orderly._wp_index] = true
+		await get_tree().physics_frame
+
+	# Deliberately NOT "or visited.size() > 1": _wp_index advances to 1 on the
+	# very first tick because he spawns exactly on waypoint 0, so a waypoint
+	# check alone passes even when he never moves a millimetre. Displacement is
+	# the assertion that actually catches the bug.
+	_check(
+		start.distance_to(orderly.global_position) > 0.0,
+		"orderly must move at all — he stood frozen on waypoint 0 for the whole port")
+	_check(
+		visited.size() == square.size(),
+		"orderly must walk his whole patrol loop (visited %d/%d waypoints)"
+			% [visited.size(), square.size()])
+
+	orderly.queue_free()
+	player.queue_free()
 
 
 func _finish() -> void:

@@ -156,17 +156,24 @@ const STEP_EPSILON := 0.0005
 # 2026-08 grime/plastic pass: darker, greyer, more desaturated across the
 # board to match the character-sheet's soiled institutional taupe (was a
 # cleaner, warmer cream that read closer to "new hospital linen" than
-# "worn for years and never properly washed"). orderly_body.gdshader
-# compensates edge_glow for base_color's drop so the far-dark silhouette
-# read does not dim along with it — see that shader's header.
-const UNIFORM_BASE := Color(0.66, 0.63, 0.56)    # soiled bone-tan cloth, not cream
-const UNIFORM_GRIME := Color(0.20, 0.15, 0.10)   # darker, greyer stain (less orange)
-const SKIN_BASE := Color(0.68, 0.64, 0.58)       # pale, waxy — cooler than the cloth
-const SKIN_GRIME := Color(0.22, 0.17, 0.13)
-const SHOE_BASE := Color(0.38, 0.35, 0.31)       # worn dark leather
-const SHOE_GRIME := Color(0.14, 0.10, 0.07)
-const BADGE_BASE := Color(0.80, 0.79, 0.72)      # paper/plastic tag, lightly soiled
-const BUTTON_BASE := Color(0.36, 0.33, 0.27)
+# "worn for years and never properly washed").
+#
+# 2026-08 light-absorption pass: dropped again (~0.66 -> ~0.46 on the cloth).
+# These Colors OVERRIDE the shader's own base_color defaults per body part, so
+# darkening the shader alone did nothing — both have to move together. The
+# goal is a figure that absorbs the ward's light instead of catching it: he
+# resolves as pale dirty cloth only inside a fluorescent pool, and between
+# pools he returns almost nothing. The badge stays comparatively bright on
+# purpose — a small hard glint of officialdom is the one thing that should
+# catch the light on him.
+const UNIFORM_BASE := Color(0.46, 0.44, 0.39)    # soiled bone-tan cloth, light-absorbing
+const UNIFORM_GRIME := Color(0.16, 0.13, 0.09)   # darker, greyer stain (less orange)
+const SKIN_BASE := Color(0.50, 0.47, 0.43)       # waxy dead skin — cooler than the cloth
+const SKIN_GRIME := Color(0.18, 0.14, 0.11)
+const SHOE_BASE := Color(0.24, 0.22, 0.19)       # worn dark leather, near-black in gloom
+const SHOE_GRIME := Color(0.10, 0.07, 0.05)
+const BADGE_BASE := Color(0.62, 0.61, 0.55)      # paper/plastic tag, lightly soiled
+const BUTTON_BASE := Color(0.24, 0.22, 0.18)
 
 var _leg_pivots: Array[Node3D] = []
 var _arm_pivots: Array[Node3D] = []

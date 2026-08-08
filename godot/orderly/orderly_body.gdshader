@@ -29,9 +29,16 @@ render_mode blend_mix, depth_draw_opaque, cull_back, diffuse_burley, specular_sc
 // DIRTY MATTE bone-white/tan uniform, not a shiny mannequin). base_color and
 // grime_color both moved darker and greyer — less warm cream, more soiled
 // institutional taupe — to match the reference sheet's desaturated fabric.
-// This darkens the rim EMISSION too (it multiplies this same `col`), so
-// edge_glow below is bumped to compensate — see its own comment.
-uniform vec4 base_color : source_color = vec4(0.66, 0.63, 0.56, 1.0);
+//
+// 2026-08 LIGHT-ABSORPTION pass (direction change — read this before raising
+// these values back): dropped again 0.66 -> 0.46. The brief is now that he
+// ABSORBS light and looms as a dark mass, rather than catching every photon
+// in the room. A ~0.46 albedo still resolves as pale, dirty cloth when he
+// crosses a fluorescent pool (which is the intended reveal), but in the
+// ambient-0.006 dark between pools he returns almost nothing — which is the
+// whole point. Do NOT re-compensate EMISSION for this drop; that coupling is
+// exactly what made him a lamp. See edge_glow.
+uniform vec4 base_color : source_color = vec4(0.46, 0.44, 0.39, 1.0);
 uniform vec4 grime_color : source_color = vec4(0.20, 0.15, 0.10, 1.0);
 uniform float grime_amount : hint_range(0.0, 1.0) = 0.2;
 uniform float grime_scale = 5.0;
@@ -43,30 +50,35 @@ uniform float roughness_base : hint_range(0.0, 1.0) = 0.85;
 // light; 0.3 is a duller, worn-cloth/dead-skin F0 without going metallic or
 // fully unlit-flat. Fragment() dims it further over grimy patches — dirt
 // doesn't shine.
-uniform float specular_base : hint_range(0.0, 1.0) = 0.3;
+//
+// 2026-08 light-absorption pass: 0.3 -> 0.18. Even a dull dielectric F0 puts
+// a highlight on the shoulders/skull when he passes under a fitting, and that
+// highlight was still reading as "waxy mannequin". 0.18 is about as low as a
+// real surface goes without looking like an unlit cutout.
+uniform float specular_base : hint_range(0.0, 1.0) = 0.18;
 uniform float rim_strength : hint_range(0.0, 2.0) = 0.5;
-// Edge-only emission so the silhouette survives near-zero ambient. Keep low:
-// past ~0.5 he starts reading as lit rather than pale.
-// Range goes past 1.0 deliberately. The scene tonemaps with ACES; exposure
-// crushes emission hard, so this has to track main.gd's UNMED tonemap_exposure
-// or he goes invisible at range every time the room darkens.
+// Edge-only emission so the silhouette survives near-zero ambient.
 //
-// 2026-08 lighting pass: UNMED tonemap_exposure settled at 0.42 (down from
-// 0.60). Emission is exposure-scaled like everything else, so edge_glow was
-// raised 2.2 -> 3.1 (2.2 * 0.60/0.42) to hold his far-dark (~6m) silhouette
-// at roughly its old on-screen brightness. If you change UNMED exposure,
-// change this by the same ratio or he goes invisible at range.
+// HISTORY, because this value ratcheted itself into a bug: it was repeatedly
+// raised (2.2 -> 3.1 for an exposure drop, 3.1 -> 3.7 to compensate a darker
+// albedo) under a rule of "never let the far silhouette dim". Each step was
+// locally reasonable and the cumulative result was not: at 3.7 with the broad
+// exponent below, EMISSION at the rim reached ~0.46*3.7 = 1.7, which after
+// ACES at UNMED exposure 0.42 CLIPS TO WHITE across most of his body. He
+// stopped being a pale shape in the gloom and became a glowing white
+// mannequin — brightly self-lit in a pitch-dark ward, the opposite of
+// imposing, and impossible to reconcile with the concept art.
 //
-// 2026-08 grime/plastic pass: base_color's average luminance dropped from
-// ~0.72 to ~0.62 (darker, greyer per the concept sheet) and EMISSION is
-// `col * fres * edge_glow`, i.e. directly proportional to that same albedo.
-// Rather than let the far silhouette dim as a side effect of a matte-cloth
-// tweak, edge_glow is scaled by the inverse (0.72/0.62 ~= 1.17, rounded up
-// for margin) to 3.1 -> 3.7 so the rim stays at least as bright as before.
-// If base_color's average brightness changes again, rescale edge_glow by
-// (old_avg / new_avg) on top of the exposure ratio above — the two
-// compensations stack, they don't replace each other.
-uniform float edge_glow : hint_range(0.0, 6.0) = 3.7;
+// 2026-08 light-absorption pass: 3.7 -> 0.9, and the compensation rule above
+// is DELETED. Emission is now a faint edge that separates his outline from
+// black, nothing more — he is lit by the ward's fluorescents like any other
+// object, so he is a dark mass that the light REVEALS as he crosses a pool,
+// and merely a suggestion of an edge between them.
+//
+// Do not reintroduce an "auto-compensate for albedo/exposure" rule here. If
+// he ever needs to be more findable, add a gameplay cue (audio, a longer
+// telegraph, light placement) rather than making the character self-luminous.
+uniform float edge_glow : hint_range(0.0, 6.0) = 0.9;
 uniform float seam_strength : hint_range(0.0, 1.0) = 0.0;
 uniform float face_strength : hint_range(0.0, 1.0) = 0.0;
 // Rough local scale of this part (sphere/cylinder radius in local units).
@@ -178,22 +190,18 @@ void fragment() {
 	// low: it makes his outline separate from black, it does NOT make him a
 	// light source and it casts nothing. Facing surfaces stay unlit, so he is
 	// still a shape in the dark rather than a lamp.
-	// Exponent 3.0 confined this to a rim a few pixels wide, which vanishes at
-	// the distance that matters. 1.4 spreads it across the whole silhouette so
-	// he reads as a pale SHAPE against black — the dormitory concept's read —
-	// while facing surfaces still fall off, so he is not a flat cut-out.
+	// The exponent controls how much of him this covers. 1.4 spread it across
+	// essentially the WHOLE silhouette — combined with the old edge_glow that
+	// is what made him a self-lit mannequin rather than a shape (see
+	// edge_glow's history note). 2.8 pulls it back to a genuine rim: the
+	// grazing edge picks up a faint outline, every surface facing the camera
+	// falls to its lit value, which in an unlit corridor is near-black.
 	//
-	// 2026-08 grime/plastic pass: 1.8 was trialled to darken broad facing
-	// surfaces (less waxy up close), but at ~6m the orderly still presents
-	// real facing area (torso front, head) and 1.8 visibly DIMMED the
-	// FarCamera silhouette below the shipped 1.4 read — a gameplay regression
-	// the brief forbids ("keep the far-dark read at least as strong"). Kept at
-	// 1.4. The "less plastic" win is carried entirely by the darker/greyer
-	// albedo, higher ROUGHNESS and the SPECULAR cut below — none of which
-	// touch this emission — and by edge_glow being sized only to HOLD the far
-	// read (not brighten it), so up close he is no waxier than the shipped
-	// look, just greyer and matter.
-	float fres = pow(1.0 - clamp(dot(normalize(NORMAL), normalize(VIEW)), 0.0, 1.0), 1.4);
+	// The read this is aiming for: a tall absence, darker than the fogged wall
+	// behind him, edged in the faintest cold line — you notice the shape
+	// before you can name it. When he steps under a working fluorescent the
+	// pool does the work and you see him properly, which is the scare.
+	float fres = pow(1.0 - clamp(dot(normalize(NORMAL), normalize(VIEW)), 0.0, 1.0), 2.8);
 	EMISSION = col * fres * edge_glow;
 
 	ALBEDO = col;

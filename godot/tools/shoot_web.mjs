@@ -1,7 +1,14 @@
 // Screenshot the game AS THE BROWSER ACTUALLY RENDERS IT.
 //
-//   node tools/shoot_web.mjs [name] [seconds]
+//   node tools/shoot_web.mjs [name] [seconds] [keys]
 //   WARDB_URL=https://host:8444/index.html node tools/shoot_web.mjs
+//
+// `keys` is a comma-separated list sent to the canvas once the ward has
+// settled — e.g. `Backquote` to open the render-style dev panel. Needed
+// because the panel's whole point is that it works IN A BROWSER: a local
+// Godot run cannot prove a browser does not swallow the key first, which is
+// precisely why that binding is Backquote rather than F3 (Chrome and Firefox
+// both claim F3 for "find next" before the canvas ever sees it).
 //
 // WHY THIS EXISTS: every other visual check in this repo renders through
 // tools/shoot.gd, which loads a room scene directly in a local Godot process.
@@ -44,6 +51,19 @@ await page
 // The engine boots, then room1 loads and the mood tween settles. Shooting too
 // early catches the default Environment, not MOOD.
 await page.waitForTimeout(WAIT_S * 1000);
+
+// Focus the canvas first. Godot's web build listens on the canvas element,
+// not the document, so a key dispatched at the page default target is
+// delivered to nothing and the shot silently looks like the key did not work.
+const KEYS = (process.argv[4] || '').split(',').map((k) => k.trim()).filter(Boolean);
+if (KEYS.length) {
+  await page.locator('canvas').click({ position: { x: 5, y: 5 } }).catch(() => {});
+  for (const k of KEYS) {
+    await page.keyboard.press(k);
+    await page.waitForTimeout(600);
+  }
+}
+
 await page.screenshot({ path: `.artifacts/${NAME}.png` });
 await browser.close();
 

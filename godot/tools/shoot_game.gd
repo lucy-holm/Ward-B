@@ -27,6 +27,18 @@ func _ready() -> void:
 	var shot_name: String = args[0] if args.size() > 0 else "game"
 	var seconds: float = float(args[1]) if args.size() > 1 else 6.0
 	var room_id: String = args[2] if args.size() > 2 else ""
+	# Pass "lucid" as arg 4 to shoot the medicated state, mirroring shoot.gd's
+	# arg 9. The ward starts UNMED, so without this only half the game can be
+	# photographed from here — and the two states are the whole point of it.
+	var want_lucid: bool = args.size() > 3 and str(args[3]).begins_with("l")
+	# Arg 5: comma-separated posterize uniform overrides, e.g.
+	#   "enabled=0" or "levels=2,tint_amount=0,pixel_size=3"
+	#
+	# Written STRAIGHT TO THE MATERIAL, deliberately not through WardSettings.
+	# set_style() persists to user://, so routing A/B shots through it would
+	# leave the last variant shot as the machine's saved style and silently
+	# change what every later screenshot — and the editor — renders.
+	var overrides: String = args[4] if args.size() > 4 else ""
 
 	var game: Node = load("res://main.tscn").instantiate()
 	add_child(game)
@@ -50,6 +62,35 @@ func _ready() -> void:
 		game.load_room(room_id)
 		# Room load rebuilds lights and re-runs the mood; give it time to settle.
 		await get_tree().create_timer(2.5).timeout
+
+	if want_lucid:
+		StateManager.force_state(StateManager.State.LUCID, "shoot_game")
+		# _apply_mood crossfades the environment over 0.45s and _set_style
+		# rides the same curve; shooting sooner catches the ward mid-fade,
+		# which is neither state and tells you nothing about either.
+		await get_tree().create_timer(1.2).timeout
+
+	# Applied last: _apply_style_settings() and the state crossfade both write
+	# these uniforms, so anything set earlier would be overwritten before the
+	# frame is grabbed.
+	if not overrides.is_empty():
+		var rect: ColorRect = game.get_node_or_null("Posterize/Rect")
+		var mat: ShaderMaterial = null if rect == null else rect.material as ShaderMaterial
+		if mat == null:
+			push_error("style overrides given but the Posterize layer is missing")
+		else:
+			for pair in overrides.split(",", false):
+				var kv := pair.split("=")
+				if kv.size() != 2:
+					push_error("bad style override '%s' (want key=value)" % pair)
+					continue
+				var k := kv[0].strip_edges()
+				var v := float(kv[1])
+				# `levels` is an int uniform; handing it a float silently
+				# leaves the shader on its previous value.
+				mat.set_shader_parameter(k, int(v) if k == "levels" else v)
+			print("style overrides: %s" % overrides)
+		await get_tree().process_frame
 
 	# Report what is ACTUALLY governing the render, not what we hope is.
 	var cam := _find_active_camera(game)

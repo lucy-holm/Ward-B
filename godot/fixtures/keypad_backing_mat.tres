@@ -1,0 +1,9 @@
+[gd_resource type="StandardMaterial3D" format=3 uid="uid://wardbfxka01"]
+
+; Near-black recess behind the key grid and the ID plate, so both read as
+; set into the body rather than floating on its surface.
+
+[resource]
+albedo_color = Color(0.06, 0.075, 0.09, 1)
+roughness = 0.6
+metallic = 0.0

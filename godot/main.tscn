@@ -1,0 +1,41 @@
+[gd_scene load_steps=4 format=3 uid="uid://bwardbmain001"]
+
+[ext_resource type="Script" path="res://main.gd" id="1_main"]
+[ext_resource type="PackedScene" uid="uid://bwardbplayer01" path="res://player/player.tscn" id="2_player"]
+
+[sub_resource type="Environment" id="Environment_ward"]
+background_mode = 0
+background_color = Color(0.09, 0.043, 0.039, 1)
+ambient_light_source = 2
+ambient_light_color = Color(0.8, 0.85, 0.83, 1)
+ambient_light_energy = 0.045
+fog_enabled = true
+fog_mode = 1
+fog_light_color = Color(0.09, 0.043, 0.039, 1)
+fog_depth_begin = 2.6
+fog_depth_end = 13.0
+fog_depth_curve = 1.0
+tonemap_mode = 3
+tonemap_exposure = 0.72
+tonemap_white = 4.0
+glow_enabled = true
+glow_intensity = 0.55
+glow_strength = 1.0
+glow_bloom = 0.12
+glow_blend_mode = 1
+glow_hdr_threshold = 0.85
+glow_hdr_scale = 2.0
+adjustment_enabled = true
+adjustment_brightness = 1.0
+adjustment_contrast = 1.08
+adjustment_saturation = 0.88
+
+[node name="Main" type="Node3D"]
+script = ExtResource("1_main")
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_ward")
+
+[node name="WorldRoot" type="Node3D" parent="."]
+
+[node name="Player" parent="." instance=ExtResource("2_player")]

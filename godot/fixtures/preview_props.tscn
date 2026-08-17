@@ -1,0 +1,93 @@
+[gd_scene load_steps=11 format=3 uid="uid://wardbfixpreview01"]
+
+; Verification scaffold, not a shipped fixture — a wall/floor/table set
+; lit like main.tscn's UNMEDICATED mood (background+ambient only,
+; ambient_light_energy 0.13, fog begins 2.6m) so door.tscn / pill_cup.tscn /
+; pill_pickup.tscn can be judged in the same gloom the player sees them in.
+; Room scripts don't reference the fixtures yet (wired separately); this is
+; the only place they're instanced today. Delete freely once judged, or keep
+; as a standing readability regression check.
+
+[ext_resource type="PackedScene" uid="uid://wardbfixdoor001" path="res://fixtures/door.tscn" id="fx_door"]
+[ext_resource type="PackedScene" uid="uid://wardbfixpillcup01" path="res://fixtures/pill_cup.tscn" id="fx_cup"]
+[ext_resource type="PackedScene" uid="uid://wardbfixpillpick1" path="res://fixtures/pill_pickup.tscn" id="fx_pickup"]
+[ext_resource type="Material" uid="uid://wardbmatd0cabd0" path="res://materials/floor.tres" id="m_floor"]
+[ext_resource type="Material" uid="uid://wardbmatbb126" path="res://materials/wall.tres" id="m_wall"]
+[ext_resource type="Material" uid="uid://wardbmatf20070f" path="res://materials/prop.tres" id="m_prop"]
+[ext_resource type="Script" path="res://fixtures/preview_props.gd" id="s_preview"]
+
+[sub_resource type="Environment" id="Environment_preview"]
+background_mode = 0
+background_color = Color(0.09, 0.043, 0.039, 1)
+ambient_light_source = 2
+ambient_light_color = Color(0.8, 0.85, 0.83, 1)
+ambient_light_energy = 0.13
+fog_enabled = true
+fog_light_color = Color(0.09, 0.043, 0.039, 1)
+fog_density = 0.08
+fog_depth_begin = 2.6
+fog_depth_end = 13.0
+
+[sub_resource type="BoxMesh" id="bm_floor"]
+size = Vector3(10.0, 0.1, 6.0)
+material = ExtResource("m_floor")
+
+[sub_resource type="BoxMesh" id="bm_wall_left"]
+size = Vector3(2.0, 3.0, 0.24)
+material = ExtResource("m_wall")
+
+[sub_resource type="BoxMesh" id="bm_wall_right"]
+size = Vector3(2.0, 3.0, 0.24)
+material = ExtResource("m_wall")
+
+[sub_resource type="BoxMesh" id="bm_table"]
+size = Vector3(0.6, 0.9, 0.6)
+material = ExtResource("m_prop")
+
+[node name="PreviewProps" type="Node3D"]
+script = ExtResource("s_preview")
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_preview")
+
+[node name="Floor" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0, -0.05, 0.0)
+mesh = SubResource("bm_floor")
+
+[node name="WallLeft" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.5, 1.5, 0.1)
+mesh = SubResource("bm_wall_left")
+
+[node name="WallRight" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.5, 1.5, 0.1)
+mesh = SubResource("bm_wall_right")
+
+[node name="Door" parent="." instance=ExtResource("fx_door")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.5, 1.5, 0.0)
+
+[node name="Table" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.0, 0.45, 0.0)
+mesh = SubResource("bm_table")
+
+[node name="PillCup" parent="." instance=ExtResource("fx_cup")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.0, 1.01, 0.0)
+
+[node name="PillPickup" parent="." instance=ExtResource("fx_pickup")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.6, 0.05, 0.3)
+
+[node name="L0" type="OmniLight3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.0, 2.7, -1.2)
+light_color = Color(0.949, 1.0, 0.98, 1)
+light_energy = 0.8
+omni_range = 12.0
+
+[node name="L1" type="OmniLight3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.2, 2.7, -1.2)
+light_color = Color(0.949, 1.0, 0.98, 1)
+light_energy = 0.8
+omni_range = 12.0
+
+[node name="Camera3D" type="Camera3D" parent="."]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0.85, 1.7, -4.0)
+current = true
+fov = 60.0

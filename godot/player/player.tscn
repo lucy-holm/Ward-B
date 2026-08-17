@@ -1,0 +1,35 @@
+[gd_scene load_steps=3 format=3 uid="uid://bwardbplayer01"]
+
+[ext_resource type="Script" path="res://player/player.gd" id="1_player"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_player"]
+size = Vector3(0.7, 1.62, 0.7)
+
+[node name="Player" type="CharacterBody3D"]
+collision_layer = 1
+collision_mask = 0
+script = ExtResource("1_player")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.81, 0)
+shape = SubResource("BoxShape3D_player")
+
+[node name="Camera3D" type="Camera3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.62, 0)
+; NO `environment` HERE. Camera3D.environment OVERRIDES WorldEnvironment
+; outright. A placeholder Environment left on this camera meant the game
+; rendered with default linear tonemapping at exposure 1.0, no fog and no
+; glow, while main.gd dutifully wrote every MOOD value into a
+; WorldEnvironment that was never used to draw a single pixel. The ward was
+; bright and flat in play no matter what the lighting values said, and every
+; tools/shoot.gd still looked correct because that harness builds its own
+; WorldEnvironment and has no camera override. Do not reintroduce this.
+fov = 72.0
+near = 0.05
+far = 100.0
+
+[node name="InteractRay" type="RayCast3D" parent="Camera3D"]
+target_position = Vector3(0, 0, -2.7)
+collision_mask = 32
+collide_with_areas = true
+collide_with_bodies = true

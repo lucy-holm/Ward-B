@@ -1,0 +1,10 @@
+[gd_resource type="StandardMaterial3D" format=3 uid="uid://wardbfxkb01"]
+
+; Cool slate-blue, deliberately a different hue family from the dispenser's
+; warm gray-green body so the two fixtures' silhouettes never blur together
+; at a glance even before either glow is visible.
+
+[resource]
+albedo_color = Color(0.13, 0.16, 0.195, 1)
+roughness = 0.55
+metallic = 0.05

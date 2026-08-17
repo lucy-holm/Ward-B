@@ -24,15 +24,28 @@ Two authors share this repo: **Tom** (`preview/tom`) and **Edo**
 
 ## Deploy topology
 
-| Branch          | Auto-deploys to                                      | Audience         |
-| --------------- | ---------------------------------------------------- | ---------------- |
-| `preview/tom`   | `…/Ward-B/previews/tom/`                              | Tom's WIP        |
-| `preview/edo`   | `…/Ward-B/previews/edo/`                              | Edo's WIP        |
-| `main`          | `…/Ward-B/beta/` (merged staging)                    | shared playtest  |
-| `release`       | https://tommy-holmes.itch.io/ward-b (with telemetry) | real audience    |
+| Branch          | Auto-deploys to                                      | Engine   | Audience        |
+| --------------- | ---------------------------------------------------- | -------- | --------------- |
+| `preview/tom`   | `…/Ward-B/previews/tom/`                              | Godot    | Tom's WIP       |
+| `preview/edo`   | `…/Ward-B/previews/edo/`                              | Godot    | Edo's WIP       |
+| `main`          | `…/Ward-B/beta/` (merged staging)                    | Godot    | shared playtest |
+| `main`          | `…/Ward-B/threejs/`                                  | Three.js | shared playtest |
+| `release`       | https://tommy-holmes.itch.io/ward-b (with telemetry) | Three.js | real audience   |
+
+**Two engines live here, and which one is "the game" depends on where you
+look.** Staging moved to the Godot port; itch.io still ships Three.js. That
+split is about room coverage, not preference: Godot has rooms 1–7, Three.js
+has 1–20 (`godot/MIGRATION_NOTES.md`). `threejs/` is therefore still the only
+complete run and stays published for comparison until the port catches up.
+A change under `src/rooms/` does **not** appear in the Godot build, and a
+change under `godot/rooms/` does not appear on itch.
+
+Publishing Godot to itch is a manual, gated dispatch
+(`.github/workflows/deploy-itch-godot.yml`) that refuses the public `html5`
+channel while rooms are missing. `deploy-itch.yml` is untouched.
 
 The GitHub Pages site root (`…/Ward-B/`) is a static chooser (`hub/index.html`)
-linking to all three staging builds. It never ships to itch.
+linking to every staging build. It never ships to itch.
 
 Full details: `docs/superpowers/specs/2026-08-06-two-person-collaboration-runbook.md`.
 

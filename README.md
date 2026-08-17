@@ -34,17 +34,26 @@ preview/tom  ─┐
 preview/edo  ─┘
 ```
 
-| Branch          | Auto-deploys to                                   | Audience              |
-| --------------- | ------------------------------------------------- | --------------------- |
-| `preview/tom`   | `…/Ward-B/previews/tom/`                           | Tom's WIP             |
-| `preview/edo`   | `…/Ward-B/previews/edo/`                           | Edo's WIP             |
-| `main`          | `…/Ward-B/beta/` (merged staging)                 | shared playtest       |
-| `release`       | https://tommy-holmes.itch.io/ward-b (with telemetry) | real audience      |
+| Branch          | Auto-deploys to                                   | Engine   | Audience        |
+| --------------- | ------------------------------------------------- | -------- | --------------- |
+| `preview/tom`   | `…/Ward-B/previews/tom/`                           | Godot    | Tom's WIP       |
+| `preview/edo`   | `…/Ward-B/previews/edo/`                           | Godot    | Edo's WIP       |
+| `main`          | `…/Ward-B/beta/` (merged staging)                 | Godot    | shared playtest |
+| `main`          | `…/Ward-B/threejs/`                               | Three.js | shared playtest |
+| `release`       | https://tommy-holmes.itch.io/ward-b (with telemetry) | Three.js | real audience |
+
+**Staging runs the Godot port; itch.io still ships Three.js.** The split is
+room coverage, not preference — Godot covers rooms 1–7, Three.js covers 1–20
+(see [`godot/MIGRATION_NOTES.md`](godot/MIGRATION_NOTES.md)). `threejs/` stays
+published because it is still the only complete run, and it is what you
+compare the port against. Publishing Godot to itch is a manual, gated
+dispatch (`.github/workflows/deploy-itch-godot.yml`) which refuses the public
+`html5` channel until room parity; `deploy-itch.yml` is untouched.
 
 The GitHub Pages **site root** (`…/Ward-B/`) is a static "admissions" chooser
-([`hub/index.html`](hub/index.html)) linking to the merged beta and each
-author's preview. It exists on staging only — it is never bundled into the
-itch release.
+([`hub/index.html`](hub/index.html)) linking to the merged beta, the Three.js
+build and each author's preview. It exists on staging only — it is never
+bundled into the itch release.
 
 **Rules of the road:**
 

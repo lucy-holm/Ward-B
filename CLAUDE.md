@@ -59,11 +59,20 @@ Two authors share this repo: **Tom** (`preview/tom`) and **Edo**
 - `main` auto-deploys to `…/Ward-B/beta/` (merged staging); each `preview/*`
   to `…/Ward-B/previews/<name>/`; the Pages root is a static chooser
   (`hub/index.html`). None of this touches the public audience.
+- **Those staging builds are the GODOT port, not Three.js.** `main` also
+  publishes the Three.js build to `…/Ward-B/threejs/`, which is still the only
+  build with all 20 rooms (Godot has 1–7 — `godot/MIGRATION_NOTES.md`). Know
+  which engine you are changing: edits under `src/` do not reach `beta/`, and
+  edits under `godot/` do not reach itch.
 
 ## Hard rules
 
 - **`release` is the only branch that publishes to the public** (itch.io, with
-  telemetry). `main` publishes the *staging* beta to GitHub Pages. Never push
+  telemetry), and it ships **Three.js**. The Godot build reaches itch only via
+  a manual `deploy-itch-godot.yml` dispatch, which refuses the public `html5`
+  channel while Godot has fewer rooms than Three.js — don't defeat that gate
+  without the author saying so explicitly.
+  `main` publishes the *staging* beta to GitHub Pages. Never push
   `main` or `release` unless the author explicitly says to. Committing locally
   on a `preview/*` branch is fine — the authors don't commit themselves; the
   agent commits.

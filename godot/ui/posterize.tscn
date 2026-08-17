@@ -1,0 +1,51 @@
+[gd_scene load_steps=3 format=3 uid="uid://bwardbpost001"]
+
+[ext_resource type="Shader" path="res://ui/shaders/posterize.gdshader" id="1_post"]
+
+[sub_resource type="ShaderMaterial" id="Mat_post"]
+shader = ExtResource("1_post")
+shader_parameter/enabled = 1.0
+shader_parameter/levels = 4
+shader_parameter/pixel_size = 2.0
+shader_parameter/dither_amount = 1.0
+shader_parameter/tint_amount = 0.0
+shader_parameter/tint_lo = Color(0.051, 0.059, 0.071, 1)
+shader_parameter/tint_hi = Color(0.91, 0.894, 0.839, 1)
+shader_parameter/exposure = 1.0
+shader_parameter/shadow_gamma = 2.2
+
+; layer -2, i.e. BELOW the film grain (-1) and far below the HUD (0).
+;
+; Order matters in both directions here:
+;  * Above the 3D, so there is something in the back buffer to read. At this
+;    point the viewport holds the rendered ward and nothing else.
+;  * Below the grain, so grain still reads as moving film over the top. Put
+;    this ABOVE the grain instead and the grain is silently destroyed — it
+;    swings luminance by ~0.04, which is well under one quantisation step at
+;    4 levels (0.33), so every grain pixel would snap back to its neighbour's
+;    bucket and the layer would stop doing anything at all.
+;  * Below the HUD, so objective text, keypad digits and the touch buttons
+;    stay at full resolution. Dithering the UI would make codes unreadable —
+;    the same reason grain.tscn sits under the HUD rather than over it.
+[node name="Posterize" type="CanvasLayer"]
+layer = -2
+
+; REQUIRED, and required to be FIRST. A canvas_item shader sampling
+; hint_screen_texture reads the back buffer, and the back buffer is only
+; populated where a BackBufferCopy has run earlier in the draw order. Without
+; this node the shader samples an empty texture and the screen goes black —
+; which looks like a broken shader rather than a missing node.
+; copy_mode = 2 is COPY_MODE_VIEWPORT (whole screen, no rect needed).
+[node name="Copy" type="BackBufferCopy" parent="."]
+copy_mode = 2
+
+[node name="Rect" type="ColorRect" parent="."]
+material = SubResource("Mat_post")
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+; Never eat clicks: the touch controls and keypad live above this layer, but
+; mouse_filter defaults to STOP on Control, and a full-screen STOP rect is a
+; classic way to make an entire UI mysteriously stop responding.
+mouse_filter = 2
+color = Color(1, 1, 1, 1)

@@ -1,0 +1,10 @@
+[gd_scene load_steps=2 format=3 uid="uid://bwardbdevpanel"]
+
+[ext_resource type="Script" path="res://ui/dev_panel.gd" id="1_dev"]
+
+; Intentionally an empty CanvasLayer: every control is built in _ready() by
+; walking WardSettings.STYLE_SPEC. Laying the rows out here instead would
+; create a second list of knobs to keep in step with the settings, which is
+; the one thing the panel is designed not to have. See ui/dev_panel.gd.
+[node name="DevPanel" type="CanvasLayer"]
+script = ExtResource("1_dev")

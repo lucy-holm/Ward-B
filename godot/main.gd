@@ -24,11 +24,43 @@ const HUD_SCENE := preload("res://ui/hud.tscn")
 const KEYPAD_SCENE := preload("res://ui/keypad.tscn")
 const TOUCH_SCENE := preload("res://ui/touch_controls.tscn")
 const GRAIN_SCENE := preload("res://ui/grain.tscn")
+const POSTERIZE_SCENE := preload("res://ui/posterize.tscn")
+const DEV_PANEL_SCENE := preload("res://ui/dev_panel.tscn")
 const START_OVERLAY_SCENE := preload("res://ui/start_overlay.tscn")
 
 # Film grain opacity per state — the ward is grainier unmedicated.
 const GRAIN_LUCID := 0.025
 const GRAIN_UNMED := 0.04
+
+# --- Posterise style, per state ---------------------------------------------
+#
+# Two colours per state for the duotone ramp, plus the pre-quantise lift.
+#
+# The tints keep the split the whole game is built on: LUCID is clinical bone
+# on cold charcoal, UNMED keeps the sick sage-green cast its fog and materials
+# already carry, so the state shift still reads instantly at a glance even
+# once hue has otherwise been quantised away.
+#
+# LIFT IS NOT COSMETIC. Quantisation is a floor function, so it destroys
+# signal that sits below one step: UNMED renders close enough to black
+# (.artifacts/final_room1_unmed.png is very nearly an empty frame) that at 4
+# levels almost every pixel lands in bucket 0 and the result is a flat void
+# with no dither pattern at all. Lifting before quantising is what puts the
+# geometry back. LUCID needs none of this, which is exactly why the figure is
+# per-state rather than one global number.
+const STYLE_LUCID := {
+	"lo": Color(0.051, 0.059, 0.071),
+	"hi": Color(0.910, 0.894, 0.839),
+	"lift": 1.0,
+}
+const STYLE_UNMED := {
+	"lo": Color(0.031, 0.051, 0.035),
+	"hi": Color(0.698, 0.753, 0.549),
+	# Modest, because shadow_gamma now does the work that a big lift used to
+	# have to do. This is a nudge, not the mechanism — pushing it far enough
+	# to matter on its own is what flattens the state into "dim grey".
+	"lift": 1.3,
+}
 
 # Environment mood targets, ported from renderer.ts:25-45.
 #
@@ -141,6 +173,8 @@ var hud: CanvasLayer
 var keypad: CanvasLayer
 var touch_controls: CanvasLayer
 var grain: CanvasLayer
+var posterize: CanvasLayer
+var dev_panel: CanvasLayer
 var start_overlay: CanvasLayer
 var atmosphere: Atmosphere
 
@@ -187,6 +221,12 @@ func _ready() -> void:
 	grain = GRAIN_SCENE.instantiate()
 	add_child(grain)
 
+	# Sits at layer -2, under the grain — see ui/posterize.tscn for why that
+	# specific position rather than merely "somewhere below the HUD".
+	posterize = POSTERIZE_SCENE.instantiate()
+	add_child(posterize)
+	_apply_style_settings()
+
 	# Gates play behind ADMIT ME and is the only route to the randomize-codes
 	# config panel — the Godot analogue of index.html's #startOverlay /
 	# #settingsOverlay + hud.ts's showStart()/bindConfig(). Added last among
@@ -200,6 +240,16 @@ func _ready() -> void:
 	# real, already-loaded ward (see start_overlay.gd), so dragging the slider
 	# has to write through to the frame behind it on the same tick.
 	start_overlay.brightness_changed.connect(apply_brightness_now)
+
+	# Layer 20, above even the start overlay (10): the panel is a debug tool
+	# and has to stay reachable from the title card, which is where you are
+	# most likely to be when you decide to change the look. Hidden until
+	# toggled, so it costs nothing for a normal player.
+	dev_panel = DEV_PANEL_SCENE.instantiate()
+	add_child(dev_panel)
+	dev_panel.style_changed.connect(_apply_style_settings)
+	dev_panel.opened.connect(_on_dev_panel_opened)
+	dev_panel.closed.connect(_on_dev_panel_closed)
 
 	atmosphere = Atmosphere.new()
 	atmosphere.name = "Atmosphere"
@@ -376,6 +426,7 @@ func _apply_mood(state: int, instant: bool) -> void:
 		# dead for the whole life of the port.
 		atmosphere.set_light_color(m["light_tint"], instant)
 	_set_grain(GRAIN_LUCID if state == StateManager.State.LUCID else GRAIN_UNMED, instant)
+	_set_style(state, instant)
 
 	if instant:
 		env.fog_light_color = m["fog"]
@@ -412,6 +463,95 @@ func _set_grain(strength: float, instant: bool) -> void:
 	create_tween().tween_method(
 		func(v: float) -> void: mat.set_shader_parameter("strength", v),
 		float(mat.get_shader_parameter("strength")), strength, 0.45)
+
+
+## True only when opening the panel is what suspended play. Opening the tuner
+## from the start screen must not hand control to the player on close — that
+## would skip ADMIT ME and start the game from a debug key.
+var _dev_panel_took_input := false
+
+
+func _on_dev_panel_opened() -> void:
+	# set_input_enabled(false) also releases the mouse, which the panel needs
+	# before any slider can be grabbed.
+	_dev_panel_took_input = player.is_input_enabled()
+	if _dev_panel_took_input:
+		player.set_input_enabled(false)
+
+
+func _on_dev_panel_closed() -> void:
+	if _dev_panel_took_input:
+		player.set_input_enabled(true)
+		_dev_panel_took_input = false
+
+
+func _posterize_material() -> ShaderMaterial:
+	if posterize == null:
+		return null
+	var rect: ColorRect = posterize.get_node_or_null("Rect")
+	if rect == null:
+		return null
+	return rect.material as ShaderMaterial
+
+
+## Pushes the dev-view style settings into the shader and the viewport.
+##
+## Called on startup and again on every dev-panel edit. Deliberately split
+## from _set_style(): the values here are state-INDEPENDENT (the player's
+## chosen look), whereas the tint ramp and lift are state-DEPENDENT and
+## crossfade with the ward. Re-running this must therefore not clobber a mood
+## crossfade in flight, so it finishes by re-asserting the current state's
+## values instantly rather than tweening them.
+func _apply_style_settings() -> void:
+	var mat := _posterize_material()
+	if mat == null:
+		return
+	mat.set_shader_parameter("enabled", WardSettings.get_style(WardSettings.KEY_STYLE_ENABLED))
+	mat.set_shader_parameter("levels", int(WardSettings.get_style(WardSettings.KEY_STYLE_LEVELS)))
+	mat.set_shader_parameter("pixel_size", WardSettings.get_style(WardSettings.KEY_STYLE_PIXEL_SIZE))
+	mat.set_shader_parameter("dither_amount", WardSettings.get_style(WardSettings.KEY_STYLE_DITHER))
+	mat.set_shader_parameter("tint_amount", WardSettings.get_style(WardSettings.KEY_STYLE_TINT))
+	mat.set_shader_parameter("shadow_gamma", WardSettings.get_style(WardSettings.KEY_STYLE_GAMMA))
+
+	# The single biggest performance lever available on this renderer: the web
+	# export runs at CSS x devicePixelRatio (measured at 1081x2202 on a 2.6x
+	# phone — see the project.godot display notes), so the ward is fragment
+	# bound. Halving this quarters the shaded pixel count, and on a dithered
+	# image the softness it introduces is largely hidden by the quantisation.
+	var vp := get_viewport()
+	if vp != null:
+		vp.scaling_3d_scale = WardSettings.get_style(WardSettings.KEY_STYLE_RESOLUTION)
+
+	_set_style(StateManager.state, true)
+
+
+## Crossfades the duotone ramp and the pre-quantise lift between ward states,
+## on the same 0.45s curve as the mood tween so the two move together.
+func _set_style(state: int, instant: bool) -> void:
+	var mat := _posterize_material()
+	if mat == null:
+		return
+	var s: Dictionary = STYLE_LUCID if state == StateManager.State.LUCID else STYLE_UNMED
+	var lift: float = float(s["lift"]) * WardSettings.get_style(WardSettings.KEY_STYLE_EXPOSURE)
+
+	if instant:
+		mat.set_shader_parameter("tint_lo", s["lo"])
+		mat.set_shader_parameter("tint_hi", s["hi"])
+		mat.set_shader_parameter("exposure", lift)
+		return
+
+	# One tween driving all three, rather than three tweens: the tints and the
+	# lift have to stay consistent with each other mid-fade or the ward passes
+	# through a colour combination that belongs to neither state.
+	var from_lo: Color = mat.get_shader_parameter("tint_lo")
+	var from_hi: Color = mat.get_shader_parameter("tint_hi")
+	var from_lift: float = float(mat.get_shader_parameter("exposure"))
+	create_tween().set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT).tween_method(
+		func(t: float) -> void:
+			mat.set_shader_parameter("tint_lo", from_lo.lerp(s["lo"], t))
+			mat.set_shader_parameter("tint_hi", from_hi.lerp(s["hi"], t))
+			mat.set_shader_parameter("exposure", lerpf(from_lift, lift, t)),
+		0.0, 1.0, 0.45)
 
 
 func shift_fx() -> void:

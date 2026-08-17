@@ -70,6 +70,10 @@ func set_input_enabled(enabled: bool) -> void:
 		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 
 
+func is_input_enabled() -> bool:
+	return _input_enabled
+
+
 func _is_touch() -> bool:
 	return DisplayServer.is_touchscreen_available()
 

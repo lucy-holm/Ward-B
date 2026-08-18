@@ -24,12 +24,16 @@ Collision layers (see project.godot [layer_names]):
 
 import os
 import math
+import sys
 
 OUT_ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
 
 WALL_HALF = 0.12
 WALL_H = 3.0
 WALL_Y = 1.5
+# Mirrors core/tuning.gd's PLAYER_EYE_HEIGHT, for the headroom check on a
+# raised level (ROOM_AUTHORING.md §8).
+EYE_HEIGHT = 1.62
 
 LAYER_WORLD = 2
 LAYER_LUCID = 4
@@ -145,33 +149,111 @@ class Room:
         self.spawn = spawn            # (x, z, yaw)
         self.exits = exits            # [(to, min_x, max_x, min_z, max_z)]
         self.script = script or "%s.gd" % rid
-        self.walls = []               # (mesh_size, mesh_pos, mat, state, collider|None, name|None)
+        # (mesh_size, mesh_pos, mat, state, collider|None, name|None, level|None)
+        # `level` is the stacked-level tag — see the verticality block below.
+        self.walls = []
         self.props = []
         self.scrawls = []
         self.interactables = []
         self.lights = []
         self.ceiling_y = 3.0
+        # --- verticality (see core/levels.gd) -----------------------------
+        # TIER 1: a single-valued floor height. Zones and ramps declared here
+        # are folded into the synthetic '__flat' level at load. They have ZERO
+        # collision impact — a raised region is never a collider, only a
+        # height the rendered Y eases toward. Keep the player on it with
+        # ordinary walls and railings, which are ordinary colliders.
+        self.height_zones = []        # (min_x, max_x, min_z, max_z, y)
+        self.ramps = []               # (min_x, max_x, min_z, max_z, axis, y_low, y_high)
+        # TIER 2: genuinely stacked surfaces. Declaring `levels` REPLACES the
+        # tier-1 fold, so a room uses one or the other, never both — the
+        # zones/ramps of a stacked room belong to a level, not to the room.
+        self.levels = []              # (id, base_y, floor, zones, ramps)
+        self.stairwells = []          # dicts, see stairwell()
 
     # geometry -------------------------------------------------------------
-    def wall_x(self, x0, x1, z, mat="wall", state=None):
+    def wall_x(self, x0, x1, z, mat="wall", state=None, level=None):
         self._wall((x1 - x0, WALL_H, 0.24), ((x0 + x1) / 2.0, WALL_Y, z), mat, state,
-                   (x0, x1, z - WALL_HALF, z + WALL_HALF))
+                   (x0, x1, z - WALL_HALF, z + WALL_HALF), level=level)
 
-    def wall_z(self, z0, z1, x, mat="wall2", state=None):
+    def wall_z(self, z0, z1, x, mat="wall2", state=None, level=None):
         self._wall((0.24, WALL_H, z1 - z0), (x, WALL_Y, (z0 + z1) / 2.0), mat, state,
-                   (x - WALL_HALF, x + WALL_HALF, z0, z1))
+                   (x - WALL_HALF, x + WALL_HALF, z0, z1), level=level)
 
-    def _wall(self, size, pos, mat, state, collider, name=None):
-        self.walls.append((size, pos, mat, state, collider, name))
+    def _wall(self, size, pos, mat, state, collider, name=None, level=None):
+        self.walls.append((size, pos, mat, state, collider, name, level))
 
-    def block(self, size, pos, mat="wall", state=None, collider=None, name=None):
+    def block(self, size, pos, mat="wall", state=None, collider=None, name=None, level=None):
         """Mesh, optionally with its own collider footprint."""
-        self.walls.append((size, pos, mat, state, collider, name))
+        self.walls.append((size, pos, mat, state, collider, name, level))
 
-    def solid(self, min_x, max_x, min_z, max_z, state=None, name=None):
+    def solid(self, min_x, max_x, min_z, max_z, state=None, name=None, level=None):
         """Collider with no mesh. `name` gives it a stable node name so a room
         script can find it later (door colliders are unlocked by name)."""
-        self.walls.append((None, None, None, state, (min_x, max_x, min_z, max_z), name))
+        self.walls.append((None, None, None, state, (min_x, max_x, min_z, max_z), name, level))
+
+    def band_x(self, x0, x1, z, y0=WALL_H, y1=None, mat="wall"):
+        """Upper wall band, NO COLLIDER — cosmetic only.
+
+        A two-storey room's ceiling sits above the standard 3m wall height, so
+        without these the volume is open above every wall and the upper level
+        looks out into nothing. Bands close it visually. They are deliberately
+        never colliders: containment is the 0..3m wall's job, and colliders are
+        infinite in Y in this game, so a second one on the same XZ footprint
+        would be pure redundancy."""
+        y1 = self.ceiling_y if y1 is None else y1
+        self.block((x1 - x0, y1 - y0, 0.24), ((x0 + x1) / 2.0, (y0 + y1) / 2.0, z), mat)
+
+    def band_z(self, z0, z1, x, y0=WALL_H, y1=None, mat="wall2"):
+        """Upper wall band on the Z axis. See band_x."""
+        y1 = self.ceiling_y if y1 is None else y1
+        self.block((0.24, y1 - y0, z1 - z0), (x, (y0 + y1) / 2.0, (z0 + z1) / 2.0), mat)
+
+    # verticality ----------------------------------------------------------
+    def height_zone(self, min_x, max_x, min_z, max_z, y):
+        """A flat raised (or sunken) rectangle. NOT a collider."""
+        self.height_zones.append((min_x, max_x, min_z, max_z, y))
+
+    def ramp(self, min_x, max_x, min_z, max_z, axis, y_low, y_high):
+        """A sloped rectangle. `axis` is 'x' or 'z' — the dimension the slope
+        runs along; y_low is at that axis's MIN end. Ramps beat height zones
+        where the two overlap, so a ramp's endpoints can sit flush against an
+        adjacent zone without the zone fighting it at the seam. NOT a
+        collider."""
+        self.ramps.append((min_x, max_x, min_z, max_z, axis, y_low, y_high))
+
+    def level(self, lid, base_y, floor, zones=None, ramps=None):
+        """One room-local named floor, for a genuinely stacked room.
+
+        `floor` is this level's own footprint (min_x, max_x, min_z, max_z). It
+        is NOT consulted when resolving height — base_y, zones and ramps are —
+        and exists for spawn validation and tooling.
+
+        A raised level's own floor must ALSO be authored as an opaque box
+        (`block`) whose underside becomes the ceiling for whoever is below it.
+        The engine draws no floor for a level: there is one ceiling plane per
+        room and nothing else."""
+        self.levels.append((lid, base_y, floor, list(zones or []), list(ramps or [])))
+
+    def stairwell(self, sid, min_x, max_x, min_z, max_z, axis,
+                  y_low, level_at_low, y_high, level_at_high):
+        """The connector between exactly two levels.
+
+        y_low/level_at_low describe the AXIS's min end, y_high/level_at_high
+        its max end. "low" and "high" name the ends of the axis, not the
+        heights: a stair that descends as z increases has y_low > y_high.
+
+        A traveler's level flips only on clearing the footprint end to end,
+        never mid-stair. Keep every orderly patrol leg out of the footprint —
+        an orderly's level is fixed for life and never flips."""
+        self.stairwells.append({
+            "id": sid, "min_x": min_x, "max_x": max_x, "min_z": min_z, "max_z": max_z,
+            "axis": axis, "y_low": y_low, "level_at_low": level_at_low,
+            "y_high": y_high, "level_at_high": level_at_high,
+        })
+
+    def has_verticality(self):
+        return bool(self.height_zones or self.ramps or self.levels or self.stairwells)
 
     # content --------------------------------------------------------------
     def scrawl(self, text, pos, rot_y, size, sid=None):
@@ -244,7 +326,15 @@ class Emitter:
         # spawn
         body.append('[node name="Spawn" type="Marker3D" parent="."]')
         body.append("transform = %s" % _xform_yaw(r.spawn[2], (r.spawn[0], 0.0, r.spawn[1])))
+        # A stacked room spawns the player on a named level; everything else
+        # gets the room's first (or synthetic '__flat') level. Read by
+        # main.gd's load_room.
+        if r.levels:
+            body.append('metadata/level = "%s"' % r.levels[0][0])
         body.append("")
+
+        # verticality
+        body.extend(self._verticality_nodes())
 
         # floor + ceiling
         body.append('[node name="Shell" type="Node3D" parent="."]')
@@ -267,7 +357,7 @@ class Emitter:
         body.append('[node name="Geometry" type="Node3D" parent="."]')
         body.append("")
         wi = 0
-        for size, pos, mat, state, collider, cname in r.walls:
+        for size, pos, mat, state, collider, cname, wlevel in r.walls:
             wi += 1
             parent = "Geometry"
             nm = cname if cname else "W%d" % wi
@@ -300,6 +390,13 @@ class Emitter:
                 body.append("transform = %s" % _xform(cpos))
                 body.append("collision_layer = %d" % layer)
                 body.append("collision_mask = 0")
+                # Stacked-level tag, read by WardCollision._level_tag_of.
+                # Metadata rather than a collision-layer bit: level ids are
+                # arbitrary room-local strings and a layer mask is 32 bits.
+                # Emitted only when the room asked for one, so every existing
+                # collider stays untagged and therefore active on all levels.
+                if wlevel:
+                    body.append('metadata/level = "%s"' % wlevel)
                 body.append("")
                 body.append('[node name="Shape" type="CollisionShape3D" parent="%s/%s"]' % (parent, nm))
                 body.append('shape = SubResource("%s")' % sh)
@@ -514,6 +611,107 @@ class Emitter:
 
         return self._header() + "\n".join(body) + "\n"
 
+    def _verticality_nodes(self):
+        """The room's floor-height data, as metadata on one dataless node.
+
+        Verticality has no geometry and no collision of its own, so unlike a
+        wall it is not expressible as a node with a shape — it is pure data
+        that core/levels.gd reads on room load. Metadata keeps it visible and
+        editable in the inspector after generation, which is the same bargain
+        the rest of this generator makes (the .tscn is the source of truth
+        once written).
+
+        Emitted ONLY when a room actually declares verticality, so every room
+        that does not is byte-for-byte what it was before this existed and
+        resolves to the implicit flat level.
+        """
+        r = self.room
+        if not r.has_verticality():
+            return []
+
+        self._validate_verticality()
+
+        out = ['[node name="Verticality" type="Node3D" parent="."]']
+        out.append("metadata/ceiling_y = %s" % _num(r.ceiling_y))
+
+        if r.levels:
+            # TIER 2 — explicit stacked levels. Their zones/ramps are scoped
+            # to the level, so the room-wide tier-1 lists are not emitted.
+            entries = []
+            for lid, base_y, floor, zones, ramps in r.levels:
+                entries.append(
+                    '{"id": "%s", "base_y": %s, "floor": %s, "zones": %s, "ramps": %s}'
+                    % (lid, _num(base_y), _rect(floor), _zones(zones), _ramps(ramps)))
+            out.append("metadata/levels = [%s]" % ", ".join(entries))
+        else:
+            # TIER 1 — folded into the synthetic '__flat' level at load.
+            if r.height_zones:
+                out.append("metadata/zones = %s" % _zones(r.height_zones))
+            if r.ramps:
+                out.append("metadata/ramps = %s" % _ramps(r.ramps))
+
+        if r.stairwells:
+            entries = []
+            for s in r.stairwells:
+                entries.append(
+                    '{"id": "%s", "min_x": %s, "max_x": %s, "min_z": %s, "max_z": %s, '
+                    '"axis": "%s", "y_low": %s, "level_at_low": "%s", '
+                    '"y_high": %s, "level_at_high": "%s"}'
+                    % (s["id"], _num(s["min_x"]), _num(s["max_x"]),
+                       _num(s["min_z"]), _num(s["max_z"]), s["axis"],
+                       _num(s["y_low"]), s["level_at_low"],
+                       _num(s["y_high"]), s["level_at_high"]))
+            out.append("metadata/stairwells = [%s]" % ", ".join(entries))
+
+        out.append("")
+        return out
+
+    def _validate_verticality(self):
+        """Authoring checks. Warnings, not errors — the generator's job is to
+        emit what was asked for, and a half-built room in progress should
+        still generate. check_rooms.gd is the hard gate."""
+        r = self.room
+        ids = [lvl[0] for lvl in r.levels]
+
+        for lvl in r.levels:
+            lid, base_y = lvl[0], lvl[1]
+            # ROOM_AUTHORING.md §8: a level with much less than ~1m of
+            # clearance over standing eye height reads as a crawlspace, not a
+            # storey. The trip point is 0.95 rather than a hard 1.0 because
+            # the recommendation is "~1m" and room 17's own design lands at
+            # 0.98 by intent — warning on the canonical case would be noise.
+            head = r.ceiling_y - base_y - EYE_HEIGHT
+            if head < 0.95:
+                _warn("%s: level '%s' has %.2fm headroom (ceiling_y %.2f - base_y "
+                      "%.2f - eye %.2f); want ~1.0m — raise ceiling_y"
+                      % (r.rid, lid, head, r.ceiling_y, base_y, EYE_HEIGHT))
+
+        for s in r.stairwells:
+            if s["axis"] not in ("x", "z"):
+                _warn("%s: stairwell '%s' axis must be 'x' or 'z', got %r"
+                      % (r.rid, s["id"], s["axis"]))
+            span = (s["max_x"] - s["min_x"]) if s["axis"] == "x" else (s["max_z"] - s["min_z"])
+            if span <= 0:
+                _warn("%s: stairwell '%s' has a zero/negative span along its own "
+                      "axis — the level flip can never fire" % (r.rid, s["id"]))
+            if s["level_at_low"] == s["level_at_high"]:
+                _warn("%s: stairwell '%s' connects level '%s' to itself"
+                      % (r.rid, s["id"], s["level_at_low"]))
+            if ids:
+                for end in ("level_at_low", "level_at_high"):
+                    if s[end] not in ids:
+                        _warn("%s: stairwell '%s' %s='%s' names no declared level %s"
+                              % (r.rid, s["id"], end, s[end], ids))
+            elif s["level_at_low"] != "__flat" or s["level_at_high"] != "__flat":
+                _warn("%s: stairwell '%s' names levels but the room declares none"
+                      % (r.rid, s["id"]))
+
+        tagged = {w[6] for w in r.walls if w[6]}
+        for t in sorted(tagged):
+            if ids and t not in ids:
+                _warn("%s: collider tagged level '%s', which is not a declared "
+                      "level %s — it will be inert" % (r.rid, t, ids))
+
     def scrawl_font(self):
         if not any(e[2] == "f_scrawl" for e in self.ext):
             self.ext.append(("FontFile", "res://fonts/RockSalt-Regular.ttf",
@@ -546,6 +744,39 @@ class Emitter:
             out.extend(lines)
             out.append("")
         return "\n".join(out) + "\n"
+
+
+# --- verticality serialisation helpers -------------------------------------
+#
+# These render Godot Variant literals into the .tscn's metadata lines. Floats
+# always carry a decimal point: Godot's parser types a bare `3` as int, and
+# core/levels.gd's float() conversions would still work but the inspector
+# would show the wrong type and an editor round-trip would rewrite it.
+
+def _num(v):
+    return "%.4f" % float(v)
+
+
+def _rect(rect):
+    return "[%s]" % ", ".join(_num(v) for v in rect)
+
+
+def _zones(zones):
+    return "[%s]" % ", ".join(
+        "[%s, %s, %s, %s, %s]" % tuple(_num(v) for v in z) for z in zones)
+
+
+def _ramps(ramps):
+    # (min_x, max_x, min_z, max_z, axis, y_low, y_high) — axis is a string, so
+    # this cannot go through the all-floats path above.
+    return "[%s]" % ", ".join(
+        '[%s, %s, %s, %s, "%s", %s, %s]'
+        % (_num(a), _num(b), _num(c), _num(d), ax, _num(lo), _num(hi))
+        for (a, b, c, d, ax, lo, hi) in ramps)
+
+
+def _warn(msg):
+    sys.stderr.write("gen_rooms: WARNING: %s\n" % msg)
 
 
 def _xform(pos):

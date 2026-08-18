@@ -151,6 +151,26 @@ class Room:
         self.interactables = []
         self.lights = []
         self.ceiling_y = 3.0
+        # Ceiling-fitting falloff, per-room because THIS GENERATOR IS STALE and
+        # cannot currently round-trip rooms 1-7.
+        #
+        # Commit bafc584 ("concept-art UNMED pools") retuned every shipped room
+        # to omni_range 6.0 / omni_attenuation 2.3 by editing
+        # rooms/room{1-7}.tscn directly, and never updated this file. So
+        # re-running gen_rooms.py REVERTS the lighting of every room it writes
+        # back to the 9.0/1.7 below — a flat overlapping wash instead of the
+        # tight pools the concept art asks for. Rooms 4 and 5 drifted further
+        # still (that commit also bumped them from 2 to 3 shadow-casting
+        # fixtures, which the `i % 3` rule below cannot express), so those two
+        # cannot be regenerated faithfully at all right now.
+        #
+        # The defaults below are therefore left at the OLD values purely so
+        # this change is provably a no-op for rooms 1-7's emitted output; they
+        # are NOT what the game ships. Until the default is fixed centrally
+        # (and 1-7 re-emitted and re-verified), regenerating rooms 1-7 means
+        # reverting them afterwards. Room 8 onward sets the real values.
+        self.light_range = 9.0
+        self.light_attenuation = 1.7
 
     # geometry -------------------------------------------------------------
     def wall_x(self, x0, x1, z, mat="wall", state=None):
@@ -451,8 +471,8 @@ class Emitter:
                 body.append("transform = %s" % _xform((x, y, z)))
                 body.append("light_color = Color(0.949, 1.0, 0.98, 1)")
                 body.append("light_energy = 0.95")
-                body.append("omni_range = 9.0")
-                body.append("omni_attenuation = 1.7")
+                body.append("omni_range = %.1f" % r.light_range)
+                body.append("omni_attenuation = %.1f" % r.light_attenuation)
                 # Shadows on EVERY light cost 40% frame time (10.9 -> 6.5 fps
                 # measured): an omni shadow is a 6-face cube render, and rooms
                 # carry up to 8 lights. Only every third fitting casts, which is
@@ -1108,6 +1128,118 @@ def room7():
     return r
 
 
+# --- ROOM 8 — the East Ward ------------------------------------------------
+# The finale: two of them. Orderly A keeps a tight orbit around the central
+# island; orderly B walks a wide figure-eight whose waist crosses right past
+# the island's north and south faces — exactly where the split code is
+# scrawled. Their loops are independent AND counter-rotating, so the safe
+# window to read either half isn't fixed: you have to watch both of them, not
+# just one. One dispenser, tucked in an alcove out along B's eastern leg —
+# inside patrolled ground, but lucid is always safe regardless of who's
+# nearby, so reaching it is a navigation problem, not a combat one. A shadow
+# (the island, the alcove's own walls, a filing block on the west wall) is
+# always within reach of wherever you'd need to stand.
+#
+# Shell shape follows room5 (the other island-plus-split-code room), not
+# room6: south-cap spawn, north staff-door gap, vestibule beyond. It is wider
+# and deeper, and the east wall carries the alcove's mouth.
+
+def room8():
+    r = Room("room8", "the East Ward",
+             floor=(-9, 10.5, -10, 6),
+             spawn=(0, 5, 0),
+             exits=[("room9", -1, 1, -9.9, -8.8)])
+
+    # Match the falloff every shipped room actually uses (see Room.__init__:
+    # the generator's own defaults are stale). Without this room 8 would be lit
+    # unlike rooms 1-7 — broad overlapping washes instead of tight pools.
+    r.light_range = 6.0
+    r.light_attenuation = 2.3
+
+    # shell, x [-9,9] z [-8,6]
+    r.wall_x(-9, 9, 6)            # south cap, behind spawn
+    r.wall_z(-8, 6, -9)           # west wall, unbroken
+    r.wall_z(-8, 0.4, 9)          # east wall, south of the alcove's opening
+    r.wall_z(2.0, 6, 9)           # east wall, north of the alcove's opening
+    r.wall_x(-9, -1, -8)          # north, west of the staff-door gap
+    r.wall_x(1, 9, -8)            # north, east of the staff-door gap
+
+    # vestibule beyond the staff door, x [-1,1] z [-10,-8]
+    r.wall_z(-10, -8, -1)
+    r.wall_z(-10, -8, 1)
+    r.wall_x(-1, 1, -10)          # caps the vestibule
+    r.block((1.8, 2.6, 0.06), (0, 1.4, -9.8), "glow")  # warm glow beyond the exit
+
+    # staff door collider — locked until the code is entered; the room script
+    # disables it in place.
+    r.solid(-1, 1, -8.13, -7.87, name="DoorCollider")
+
+    # The central island — A's inner orbit runs around it; B's figure-eight
+    # waist grazes its north and south faces, which is exactly where the split
+    # code lives. One solid footprint, ringed by a lower counter skirt; the
+    # ring/core blocks are MESH ONLY, the single r.solid below is the collider,
+    # same division as room5's island.
+    r.solid(-1.9, 1.9, -1.3, 1.3)
+    r.block((1.6, 2.0, 0.9), (0, 1.0, 0), "wall2")        # raised core
+    r.block((3.8, 1.1, 0.5), (0, 0.55, 1.05), "prop")     # ring, south face
+    r.block((3.8, 1.1, 0.5), (0, 0.55, -1.05), "prop")    # ring, north face
+    r.block((0.5, 1.1, 1.3), (-1.65, 0.55, 0), "prop")    # ring, west face
+    r.block((0.5, 1.1, 1.3), (1.65, 0.55, 0), "prop")     # ring, east face
+
+    # Dispenser alcove — off the east wall, out along orderly B's eastern leg.
+    # Inside patrolled ground, but lucid is always safe, so finding it is the
+    # only real challenge.
+    #
+    # The dispenser mounts on the END CAP (thin-x, facing out the mouth toward
+    # -x), not on the south bracket. room8.ts carries a facing-audit note: on
+    # the south wall the outward normal is +z but inferFacing picks -z (the
+    # room-wide floor centre is south of this alcove), which points the whole
+    # composite — slot, tray, MEDICATION plate — into the wall it is mounted
+    # on. The end cap puts the plate dead ahead as you walk in.
+    r.wall_x(9, 10.5, 0.4)        # alcove south wall
+    r.wall_x(9, 10.5, 2.0)        # alcove north wall
+    r.wall_z(0.4, 2.0, 10.5)      # alcove east end cap — the dispenser mounts here
+
+    # A filing block against the west wall — the one stretch of orderly B's
+    # loop that runs close along a bare wall gets a shadow to duck into. Its
+    # collider is also what forces B's west legs to x=-7.3 (see room8.gd).
+    r.block((0.6, 1.6, 1.2), (-8.19, 0.8, -3), "prop",
+            collider=(-8.49, -7.89, -3.6, -2.4))
+
+    r.scrawl("two sets of footsteps.\nonly one of them is yours",
+             (8.75, 1.7, 4), -math.pi / 2, 2.8)
+    # The split code, on the island's south and north faces — the two halves
+    # face opposite ways, so you cannot read both from one standing position,
+    # and B's waist crosses both. Positions are verbatim from room8.ts.
+    r.scrawl("2 8 – –", (0, 1.6, 1.9), 0.0, 2.2, sid="codeScrawlA")
+    r.scrawl("– – 4 6", (0, 1.6, -1.9), math.pi, 2.2, sid="codeScrawlB")
+
+    # Alcove end cap is at x=10.5, mouth opens toward -x, so facing is PINNED
+    # 'nx' — see the facing-audit note above the alcove walls.
+    r.interactable("dispenser8", "dispenser", (0.16, 0.75, 0.55), (10.36, 1.45, 1.2),
+                   "dispenser", "use the dispenser", facing="nx")
+    # North-wall mounts, z-thin, proud of the inner face at z=-7.88; the room
+    # interior is +z of both, so facing is PINNED 'pz'. (The heuristic happens
+    # to agree here, but gen_rooms' header records two shipped bugs from
+    # trusting it, so both are explicit.)
+    r.interactable("keypad8", "keypad", (0.4, 0.5, 0.14), (1.35, 1.45, -7.75),
+                   "pad", "use the keypad", facing="pz")
+    r.interactable("exitdoor", "door", (2, 3, 0.2), (0, 1.5, -8),
+                   "door", "the exit door", facing="pz")
+
+    r.light(0, 4.5)
+    r.light(0, 1.5)
+    r.light(0, -1.5)
+    r.light(5, 3)
+    r.light(5, -4)
+    r.light(-5, 3)
+    r.light(-5, -4)
+    r.light(9, 1)
+    r.light(0, -6)
+    r.light(0, -9)
+    return r
+
+
 if __name__ == "__main__":
     # write_materials() is DELIBERATELY NOT CALLED — see its definition.
     write_room(room1())
@@ -1117,4 +1249,5 @@ if __name__ == "__main__":
     write_room(room5())
     write_room(room6())
     write_room(room7())
+    write_room(room8())
     print("done")

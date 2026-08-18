@@ -1270,11 +1270,20 @@ def room10():
     r.interactable("exitdoor", "door", (2, 3, 0.2), (0, 1.5, -26),
                    "door", "the exit door", facing="pz")
 
-    # 14 fittings down the run. The two code nooks and the dispenser alcove get
-    # their own so the scrawls and the MEDICATION plate are legible from inside
-    # the recess — room10.ts lit them only from the open floor 5m away, which
-    # left all three recesses too dark to read (room6/room7 both light their
-    # alcoves for exactly this reason).
+    # 14 fittings down the spine, then one inside each of the three recesses.
+    #
+    # DEVIATION from room10.ts, which lights the spine only. Verified by A/B
+    # screenshot rather than assumed: with no fitting inside them the recesses
+    # render as pure black voids. The code scrawls survive that (Label3D is
+    # shaded=false, so they read regardless) but everything shaded does not —
+    # in alcove B the dispenser's entire body disappears and the only things
+    # left are its unshaded display and tray strip, floating in black. A player
+    # looking into that alcove sees an amber sliver, not a dispenser.
+    #
+    # This follows the ward's own convention rather than breaking it: room6.ts
+    # lights its dispenser alcove ({pos:[6.3,-5.3]}) and room7.ts its dispenser
+    # nook ({pos:[-6.5,1.05]}). room10.ts is the outlier, and it is the one room
+    # where all three recesses carry something the player is required to find.
     r.light(0, 6)
     r.light(0, 2)
     r.light(4, -2)

@@ -73,21 +73,61 @@ def stacked_fixture():
     # the axis's MIN end and y_high (0.0, the ground) at its MAX end.
     r.stairwell("STAIR", 4.0, 8.0, 6.0, 12.0, "z", 3.4, "balcony", 0.0, "ground")
 
-    # The balcony's own decking — an opaque box whose underside is the
+    # The balcony's own decking — an opaque BOX whose underside is the
     # ceiling for whoever is standing below it. Never a plane: a plane is
-    # single-sided and would be invisible from underneath.
-    r.block((20.0, 0.3, 16.0), (0.0, 3.25, -2.0), "prop")
+    # single-sided and would be invisible from underneath, which is exactly
+    # the view this geometry has to serve. The stair mouth (x 4..8) is left
+    # open, so the deck is two slabs either side of it.
+    r.block((14.0, 0.3, 16.0), (-3.0, 3.25, -2.0), "prop")   # x -10..4
+    r.block((2.0, 0.3, 16.0), (9.0, 3.25, -2.0), "prop")     # x   8..10
 
     # A railing on the balcony only. This MUST NOT block the ground floor
     # underneath it — that is the whole point of a level-tagged collider.
+    # Exactly ONE tagged collider in this fixture; test_verticality counts
+    # them, so all the decoration below is deliberately mesh-only.
     r.solid(-2.0, 2.0, -0.2, 0.2, name="Railing", level="balcony")
     # And a real structural wall, untagged, which blocks on every level.
     r.solid(-9.0, -8.0, -0.2, 0.2, name="RealWall")
 
-    # Upper wall bands close the two-storey volume above the standard 3m
-    # walls. Cosmetic, no colliders.
-    r.wall_x(-10.0, 10.0, -10.0)
-    r.band_x(-10.0, 10.0, -10.0)
+    # --- decoration, so a screenshot actually reads as two storeys ---------
+    # All mesh-only (no collider argument), so none of it disturbs the
+    # collision assertions above.
+    # The railing the tagged collider stands for.
+    r.block((4.0, 0.1, 0.12), (0.0, 4.3, 0.0), "chain")
+    r.block((4.0, 0.1, 0.12), (0.0, 3.9, 0.0), "chain")
+    r.block((0.12, 1.0, 0.12), (-2.0, 3.9, 0.0), "chain")
+    r.block((0.12, 1.0, 0.12), (2.0, 3.9, 0.0), "chain")
+    # The structural wall the untagged collider stands for, full height so it
+    # visibly passes through BOTH levels.
+    r.block((1.0, 6.0, 0.4), (-8.5, 3.0, 0.0), "wall")
+    # The stair: twelve steps descending from the balcony (z=6, y=3.4) to the
+    # ground (z=12, y=0), filling the stairwell footprint exactly.
+    for i in range(12):
+        z0 = 6.0 + i * 0.5
+        y = 3.4 - (3.4 / 12.0) * i
+        r.block((4.0, 0.18, 0.5), (6.0, y, z0 + 0.25), "prop")
+    # Stair side wall, so the run reads as a shaft rather than floating steps.
+    r.block((0.24, 3.6, 6.0), (4.0, 1.8, 9.0), "wall2")
+
+    # Shell: perimeter walls, plus upper wall bands closing the two-storey
+    # volume above the standard 3m wall height. Bands carry no collider.
+    for (x0, x1, z) in [(-10.0, 10.0, -10.0), (-10.0, 10.0, 20.0)]:
+        r.wall_x(x0, x1, z)
+        r.band_x(x0, x1, z)
+    for (z0, z1, x) in [(-10.0, 20.0, -10.0), (-10.0, 20.0, 10.0)]:
+        r.wall_z(z0, z1, x)
+        r.band_z(z0, z1, x)
+
+    # Lights on BOTH levels — under the deck for the ground floor, above it
+    # for the balcony. Without the lower set the entire point of the shot (an
+    # occupied floor beneath an occupied floor) renders as black.
+    r.light(-4.0, 0.0, 2.9)
+    r.light(-4.0, -6.0, 2.9)
+    r.light(2.0, 3.0, 2.9)
+    r.light(0.0, 10.0, 5.4)
+    r.light(0.0, 16.0, 5.4)
+    r.light(-3.0, -4.0, 5.4)
+    r.light(6.0, 8.0, 5.4)
     return r
 
 

@@ -146,6 +146,7 @@ class Room:
         self.exits = exits            # [(to, min_x, max_x, min_z, max_z)]
         self.script = script or "%s.gd" % rid
         self.walls = []               # (mesh_size, mesh_pos, mat, state, collider|None, name|None)
+        self.movers = []              # (name, size, pos, mat) — AnimatableBody3D, see mover()
         self.props = []
         self.scrawls = []
         self.interactables = []
@@ -172,6 +173,29 @@ class Room:
         """Collider with no mesh. `name` gives it a stable node name so a room
         script can find it later (door colliders are unlocked by name)."""
         self.walls.append((None, None, None, state, (min_x, max_x, min_z, max_z), name))
+
+    def mover(self, name, size, pos, mat="wall2"):
+        """A wall that MOVES at runtime: mesh + collider welded into one body,
+        emitted as an AnimatableBody3D rather than a StaticBody3D.
+
+        Everything else in the ward is a StaticBody3D because it never moves.
+        Godot treats StaticBody3D as immovable by contract — moving one is
+        undefined behaviour as far as the physics server is concerned.
+        AnimatableBody3D is the node type that means "static body, but code
+        drives its transform", which is exactly what room 13's closing slabs
+        are, so the scene stays honest about what it contains.
+
+        `sync_to_physics` is left OFF deliberately. It exists so a moving body
+        can push a CharacterBody3D that runs move_and_slide; nothing in this
+        game does (see player.gd — collision_mask 0, position written directly
+        from WardCollision.try_move), so it would buy nothing and cost a
+        kinematic step per frame. The room script owns both the transform and
+        the WardCollision box for these bodies. See rooms/room13/room13.gd.
+
+        Unlike block(), mesh and collider are the SAME box centred on the body
+        origin, so the room script can move both with one position write.
+        """
+        self.movers.append((name, size, pos, mat))
 
     # content --------------------------------------------------------------
     def scrawl(self, text, pos, rot_y, size, sid=None):
@@ -317,6 +341,26 @@ class Emitter:
                 body.append("transform = %s" % _xform(pos))
                 body.append('mesh = SubResource("%s")' % m)
                 body.append("")
+
+        # movers — runtime-driven walls (room 13's closing slabs). Same
+        # Geometry parent as everything else so WardCollision.rebuild_from
+        # picks them up like any other solid; the room script then keeps the
+        # cached box in step with the transform it writes.
+        for (mname, msize, mpos, mmat) in r.movers:
+            sh = self.box_shape(msize)
+            mm = self.box_mesh(msize, mmat)
+            body.append('[node name="%s" type="AnimatableBody3D" parent="Geometry"]' % mname)
+            body.append("transform = %s" % _xform(mpos))
+            body.append("collision_layer = %d" % LAYER_WORLD)
+            body.append("collision_mask = 0")
+            body.append("sync_to_physics = false")
+            body.append("")
+            body.append('[node name="Shape" type="CollisionShape3D" parent="Geometry/%s"]' % mname)
+            body.append('shape = SubResource("%s")' % sh)
+            body.append("")
+            body.append('[node name="Mesh" type="MeshInstance3D" parent="Geometry/%s"]' % mname)
+            body.append('mesh = SubResource("%s")' % mm)
+            body.append("")
 
         # scrawls — always unmed-only, one wrapper for all of them
         if r.scrawls:
@@ -1108,6 +1152,82 @@ def room7():
     return r
 
 
+# --- ROOM 13 — the Last Ward -----------------------------------------------
+# The epilogue, and the one room where LUCID is the dangerous state: while the
+# player is calm inside the squeeze stretch two full-height slabs drift inward
+# and never retract. Unmed halts them and hands the corridor to two orderlies.
+# No interactables, no keypad, no code, no dispenser — you cross with whatever
+# room 12 left you holding.
+#
+# Geometry is a straight port of src/rooms/room13.ts (the shipped version, not
+# the older plan doc: 40m stretch, two patrols, exit to room14). The ONLY
+# structural difference is the slabs, which are AnimatableBody3D via mover()
+# instead of three.js meshes plus hand-mutated ColliderDefs — see room13.gd's
+# header for why, and for why the TS build's per-frame penetration clamp is
+# NOT reproduced.
+#
+# Slab geometry: the TS build scaled each slab every frame so its mass always
+# ran from the inner face out to the perimeter. Scaling a collision body is
+# the one thing Godot actively warns about, so instead the slab is a single
+# unscaled box sized for the WORST case — thick enough that even at the
+# minimum 1m gap it still reaches the perimeter wall (SHELL_X - minGap/2 =
+# 3.5m) — and only ever translated. At wider gaps its outer half sits buried
+# in, and past, the perimeter wall at x=+-4, which no camera inside the room
+# can see: that wall is full-height and runs the room's whole length.
+#
+# The obvious cheaper choice — a thin slab flush with the perimeter at the
+# START width — is WRONG, and tools/test_room13.tscn exists partly because it
+# caught this: a slab that only spans startGap/2..SHELL_X opens a walkable
+# 1.7m channel behind itself as it advances, running the full length of the
+# stretch and open to the entry hall at z=16. A player could narrow the walls
+# on purpose and then stroll down the recess past the entire hazard.
+
+def room13():
+    shell_x = 4.0
+    sq_min_z, sq_max_z = -24.0, 16.0
+    start_gap = 5.0
+    min_gap = 1.0
+    slab_thick = shell_x - min_gap / 2.0        # 3.5 — mirrors room13.gd
+    slab_len = sq_max_z - sq_min_z              # 40
+    slab_mid_z = (sq_min_z + sq_max_z) / 2.0    # -4
+    # Inner face at +-start_gap/2, so the body centre sits half a thickness out.
+    slab_x = start_gap / 2.0 + slab_thick / 2.0  # 4.25
+
+    r = Room("room13", "the Last Ward",
+             floor=(-shell_x, shell_x, -32, 22),
+             spawn=(0, 20, 0),
+             exits=[("room14", -1, 1, -31.9, -30.8)])
+
+    # Z1 — the entry hall, z [16, 22]. Spawn, safe, deliberately NO dispenser.
+    r.wall_x(-shell_x, shell_x, 22)      # south cap, behind spawn
+    r.wall_z(-32, 22, -shell_x)          # west perimeter, full length
+    r.wall_z(-32, 22, shell_x)           # east perimeter, full length
+
+    # Z3 — the exit vestibule, z [-30, -24], and the doorway beyond it.
+    r.wall_x(-shell_x, -1, -30)
+    r.wall_x(1, shell_x, -30)
+    r.wall_z(-32, -30, -1)
+    r.wall_z(-32, -30, 1)
+    r.wall_x(-1, 1, -32)
+    r.block((1.8, 2.6, 0.06), (0, 1.4, -31.8), "glow")   # the way out
+
+    # The squeeze stretch, z [-24, 16] — the two moving slabs. Authored at the
+    # full 5m gap; room13.gd is the only thing that ever moves them.
+    r.mover("SlabEast", (slab_thick, WALL_H, slab_len), (slab_x, WALL_Y, slab_mid_z))
+    r.mover("SlabWest", (slab_thick, WALL_H, slab_len), (-slab_x, WALL_Y, slab_mid_z))
+
+    r.scrawl("the last hallway.\nnothing left to take.",
+             (-3.85, 1.6, 19), math.pi / 2, 2.6)
+    r.scrawl("the calm makes it smaller.\nthe raw makes it watched.",
+             (3.85, 1.6, 19), -math.pi / 2, 2.8)
+    r.scrawl("it lets you out.\nit just wanted to see you choose.",
+             (-3.85, 1.6, -27), math.pi / 2, 2.4)
+
+    for z in (20, 16, 10, 4, -2, -8, -14, -20, -24, -26, -29):
+        r.light(0, z)
+    return r
+
+
 if __name__ == "__main__":
     # write_materials() is DELIBERATELY NOT CALLED — see its definition.
     write_room(room1())
@@ -1117,4 +1237,5 @@ if __name__ == "__main__":
     write_room(room5())
     write_room(room6())
     write_room(room7())
+    write_room(room13())
     print("done")

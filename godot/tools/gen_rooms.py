@@ -2488,6 +2488,169 @@ def room14():
     return r
 
 
+# --- ROOM 15 — the Sorting Room --------------------------------------------
+# Three unmed-only shape keys in L-shaped dogleg alcoves; the exit is a shape
+# lock, not a keypad — no code, no digits, just a count. Ported from
+# src/rooms/room15.ts (spec: docs/superpowers/specs/2026-07-19-room15-shape-
+# keys-design.md, reworked per Tom's playtest pass). The room's behaviour —
+# the forced-raw threshold, the escalation from two orderlies to five, the
+# held-shape bookkeeping — is in rooms/room15/room15.gd; this is geometry.
+#
+# NO DISPENSERS ANYWHERE, deliberately: the whole room is played raw, and the
+# lock is authored allow_unmed so nothing in it ever requires a pill.
+
+def room15():
+    # FLOOR RECT covers x[-10.8, 10.8], WIDER than the room's own walls at
+    # x=+-9, so the three alcoves that stick out past them get floor and
+    # ceiling. room15.ts authors floor x[-9,9] and its alcoves therefore hang
+    # over nothing; in Godot the floor and ceiling are two real slabs sized
+    # from this rect, so an alcove outside it is a black void you can walk
+    # into. Same fix room10 already applies (its rect is +-9.6 to cover nooks
+    # at the same offset). The overhang beyond the outer walls is sealed
+    # between floor and ceiling and unreachable.
+    r = Room("room15", "the Sorting Room",
+             floor=(-10.8, 10.8, -29, 6),
+             spawn=(0, 5, 0),
+             exits=[("room16", -1, 1, -28.9, -27.1)])
+
+    # perimeter shell — spawn end at +z (south). West/east walls are broken
+    # only at the alcove mouths.
+    r.wall_x(-9, 9, 6)            # south cap, behind spawn
+
+    # west wall (x=-9) — gaps at Key A's mouth z[-3.4,-1.8] and Key C's mouth
+    # z[-18.8,-17.2]. room15.ts's removed dispenser recess (z[-7.4,-5.8]) is
+    # not here either: that stretch is solid, merged into the run either side.
+    r.wall_z(-27, -18.8, -9)
+    r.wall_z(-17.2, -3.4, -9)
+    r.wall_z(-1.8, 6, -9)
+
+    # east wall (x=9) — gap at Key B's mouth z[-10.8,-9.2].
+    r.wall_z(-27, -10.8, 9)
+    r.wall_z(-9.2, 6, 9)
+
+    # north cap, with the exit doorway gap x[-1,1]
+    r.wall_x(-9, -1, -27)
+    r.wall_x(1, 9, -27)
+    # The exit door's collider, locked until the shape lock opens; the room
+    # script drops it by name through main.unlock_door. This is the ONLY
+    # collider the whole mechanic has — keys and the lock itself have none.
+    r.solid(-1, 1, -27.1, -26.9, name="DoorCollider")
+
+    # vestibule beyond the exit door, x[-1,1] z[-29,-27]
+    r.wall_z(-29, -27, -1)
+    r.wall_z(-29, -27, 1)
+    r.wall_x(-1, 1, -29)
+    r.block((1.8, 2.6, 0.06), (0, 1.4, -28.8), "glow")  # warm glow beyond the exit
+
+    # --- Key A (blue circle) — west wall, the safe dogleg. leg1 (visible from
+    # the room): x[-10.8,-9] z[-3.4,-1.8]. leg2 (blind, turns south):
+    # x[-10.8,-9.4] z[-1.8,0]. The gap between the two legs sits at leg1's
+    # far/blind end, so the turn cannot be seen or shortcut from the mouth.
+    #
+    # leg2 is the occluder: in the Three.js build it was a hand-authored AABB
+    # handed to every Orderly. Here it needs no declaration at all — Godot's
+    # Orderly raycasts against REAL wall geometry (orderly.gd's _occluded), so
+    # the bracket walls below ARE the occlusion. One less thing to keep in
+    # sync, and it cannot drift from the geometry it describes.
+    r.wall_x(-10.8, -9, -3.4)     # leg1 north bracket
+    r.wall_x(-9.4, -9, -1.8)      # leg1 south wall, solid strip near the mouth only
+    r.wall_z(-3.4, 0.0, -10.8)    # leg1 west cap + leg2 west wall, one run
+    r.wall_z(-1.8, 0.0, -9.4)     # leg2 east wall
+    r.wall_x(-10.8, -9.4, 0.0)    # leg2 south end cap
+    r.block((0.12, 0.14, 1.6), (-9, 2.7, -2.6), "glow")  # mouth lintel
+
+    # --- Key B (green square) — east wall, the patrol-reading dogleg.
+    # leg1: x[9,10.8] z[-10.8,-9.2]. leg2 (blind, turns north): x[9.4,10.8]
+    # z[-12.6,-10.8]. Key A's topology, reflected onto the east wall.
+    r.wall_x(9, 9.4, -10.8)       # leg1 north wall, solid strip near the mouth only
+    r.wall_x(9, 10.8, -9.2)       # leg1 south bracket
+    r.wall_z(-12.6, -9.2, 10.8)   # leg1 east cap + leg2 east wall, one run
+    r.wall_z(-12.6, -10.8, 9.4)   # leg2 west wall
+    r.wall_x(9.4, 10.8, -12.6)    # leg2 north end cap
+    r.block((0.12, 0.14, 1.6), (9, 2.7, -10.0), "glow")  # mouth lintel
+
+    # --- Key C (red triangle) — west wall, the timed-dash dogleg. leg1:
+    # x[-10.8,-9] z[-18.8,-17.2]. leg2 (blind, turns north): x[-10.8,-9.4]
+    # z[-20.6,-18.8]. Same topology as Key A, guarded much tighter.
+    r.wall_x(-10.8, -9, -17.2)    # leg1 south bracket, near the mouth
+    r.wall_x(-9.4, -9, -18.8)     # leg1 north wall, solid strip near the mouth only
+    r.wall_z(-20.6, -17.2, -10.8)  # leg1 west cap + leg2 west wall, one run
+    r.wall_z(-20.6, -18.8, -9.4)  # leg2 east wall
+    r.wall_x(-10.8, -9.4, -20.6)  # leg2 north end cap
+    r.block((0.12, 0.14, 1.6), (-9, 2.7, -18.0), "glow")  # mouth lintel
+
+    # --- the keys. states='unmed' is forced by Room.shape_key: while lucid the
+    # alcove looks empty, the prop is not drawn, and the interaction ray will
+    # not focus it. Each sits at its leg2's far cap — unreachable, and
+    # unseeable, without rounding the blind corner.
+    r.shape_key("shapeKeyA", "circle", "#3fa9dd", (-10.5, 0.9, -0.3))
+    r.shape_key("shapeKeyB", "square", "#4caf6a", (10.5, 0.9, -12.3))
+    r.shape_key("shapeKeyC", "triangle", "#c1170f", (-10.5, 0.9, -20.3))
+
+    # --- the lock, the door and the panel, all on the north wall.
+    # Lock centre: wall face -26.88, plus half its 0.14m depth = -26.81.
+    # Facing PINNED, never inferred.
+    r.shape_lock("shape_lock15", (1.35, 1.45, -26.81), "pz",
+                 ["circle", "square", "triangle"])
+    # The slab is scenery — room15.gd's availability filter makes it
+    # permanently un-interactable, because the lock opens it and nothing else.
+    r.interactable("exitdoor", "door", (2, 3, 0.2), (0, 1.5, -27),
+                   "door", "the exit door", facing="pz")
+    # Panel centre: wall face -26.88, plus the 0.03m decal gap = -26.85. rot_y
+    # 0 means "faces +Z, into the room" — the same axis/sign rule a scrawl or a
+    # fixture mounted on this wall follows. 2.4m wide, so 0.8m tall.
+    r.icon_panel("doorIcons15", ["circle", "square", "triangle"],
+                 ["#3fa9dd", "#4caf6a", "#c1170f"], (0.0, 2.6, -26.85), 0.0, 2.4)
+
+    # Scrawls. Widths were MEASURED, not assumed — a Label3D renders far wider
+    # than its authored `size` (a texture scale, not a measurement), and a
+    # scrawl that overruns its wall run punches through the wall at right
+    # angles to it. Measured world spans, roll included, from
+    #   godot --headless --path godot tools/measure_scrawls.tscn -- \
+    #       res://rooms/room15/room15.tscn
+    #   west  z=2.2   -> 5.54m, z[-0.57,  4.97]  in the run z[-1.8,   6]
+    #   east  z=-2.0  -> 4.54m, z[-4.27,  0.27]  in the run z[-9.2,   6]
+    #   west  z=-10.0 -> 5.09m, z[-12.54,-7.46]  in the run z[-17.2, -3.4]
+    #   east  z=-18.0 -> 5.10m, z[-20.55,-15.45] in the run z[-27,  -10.8]
+    #   north x=-5.0  -> 4.56m, x[-7.28, -2.72]  in the run x[-9,    -1]
+    # Tallest is 2.38m about y=1.7 (0.51..2.89m), clear of floor and ceiling.
+    # The two tight ones are the north-wall line (8m of wall, and it must not
+    # cross the doorway at x=-1) and the spawn-wall line (the south cap is
+    # 3.8m from its centre).
+    r.scrawl("no medicine here. only what\nyou carried in.",
+             (-8.85, 1.7, 2.2), math.pi / 2, 2.0)
+    r.scrawl("something small waits\nwhere the wall turns",
+             (8.85, 1.7, -2.0), -math.pi / 2, 2.0)
+    r.scrawl("he walks past it\nmore than he watches it",
+             (-8.85, 1.7, -10.0), math.pi / 2, 2.0)
+    r.scrawl("the corner is the only\npart of you it can't own",
+             (8.85, 1.7, -18.0), -math.pi / 2, 2.0)
+    r.scrawl("every one you take,\nanother of them arrives",
+             (-5.0, 1.7, -26.85), 0.0, 1.8)
+
+    # 13 fittings down the spine, then one inside each alcove's leg2.
+    # room10's lesson, verified by screenshot there and here: an unlit recess
+    # renders as a pure black void, and everything shaded inside it vanishes —
+    # which for this room would mean the key prop the player is hunting.
+    r.light(0, 4)
+    r.light(0, 0)
+    r.light(-6, -2.5)
+    r.light(6, -2.5)
+    r.light(0, -6.5)
+    r.light(-4, -10)
+    r.light(6, -10)
+    r.light(0, -14)
+    r.light(-4, -14.5)
+    r.light(4, -18)
+    r.light(-4, -18.5)
+    r.light(0, -22)
+    r.light(0, -25.5)
+    r.light(-10.1, -0.9)          # Key A's leg2
+    r.light(10.1, -11.7)          # Key B's leg2
+    r.light(-10.1, -19.7)         # Key C's leg2
+    return r
+
+
 if __name__ == "__main__":
     # write_materials() is DELIBERATELY NOT CALLED — see its definition.
     #
@@ -2517,4 +2680,5 @@ if __name__ == "__main__":
     write_room(room13())
     write_room(room11())
     write_room(room14())
+    write_room(room15())
     print("done")

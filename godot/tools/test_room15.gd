@@ -214,7 +214,15 @@ func _test_authoring_invariants() -> void:
 			if child is RoomExit:
 				to = (child as RoomExit).exit_to
 				break
-	_check(to == "room16", "exit must target room16, got '%s'" % to)
+	# Room 16 is not ported yet, so room15 is currently the chain terminator and
+	# exits to "END" — check_rooms.gd fails on an exit to an unregistered room.
+	# Keyed off the registry rather than hard-coded, so this tightens by itself
+	# the moment room16 lands instead of needing to be remembered. Same pattern
+	# as test_room14.
+	var room16_exists: bool = load("res://main.gd").ROOM_SCENES.has("room16")
+	var want_exit := "room16" if room16_exists else "END"
+	_check(to == want_exit,
+		"exit must target %s (room16 registered: %s), got '%s'" % [want_exit, room16_exists, to])
 
 	# No dispenser anywhere: the whole room is played raw and change #1 of the
 	# rework is that there is nothing to dose with.

@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://bwardbtest004"]
+
+[ext_resource type="Script" path="res://tools/test_verticality.gd" id="1_test"]
+
+[node name="TestVerticality" type="Node"]
+script = ExtResource("1_test")

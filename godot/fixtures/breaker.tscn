@@ -1,0 +1,122 @@
+[gd_scene load_steps=12 format=3 uid="uid://wardbfixbreaker01"]
+
+; Wall-mounted lighting breaker — room 16's "the breaker switch". Canonical
+; size 0.50W x 0.60H x 0.16D, origin at the centre of the volume, faceplate
+; faces -Z, matching every other fixture under fixtures/ and the size
+; kit.ts's SWITCH_FOOTPRINT authors ([thin 0.16, height 0.60, along 0.50]).
+;
+; SILHOUETTE IS THE POINT. The dispenser is a slot-and-tray, the keypad is a
+; grid of small bumps; this is a flat plate with ONE big thing sticking out of
+; it. A player scanning a wall from across the bay has to be able to tell "the
+; thing you throw" from "the thing you type into" before either is legible,
+; which is why this gets its own accent colour (amber) and its own shape
+; rather than a recoloured keypad.
+;
+; THE LEVER IS A PIVOT NODE, not a mesh. `Lever` sits at the top of the handle
+; and everything visible hangs BELOW it, so a room script animating the throw
+; only ever writes Lever.rotation.x and the handle swings about its bolt like
+; a real one. rooms/room16/room16.gd does exactly that (see LEVER_LIT/
+; LEVER_DARK) — it is also why nothing here is baked into a single mesh.
+;
+; Visuals only — no collision, no gameplay script. The room generator supplies
+; the Area3D + CollisionShape3D this gets instanced under.
+
+[ext_resource type="Material" uid="uid://wardbfxbb01" path="res://fixtures/breaker_body_mat.tres" id="m_body"]
+[ext_resource type="Material" uid="uid://wardbfxbp01" path="res://fixtures/breaker_plate_mat.tres" id="m_plate"]
+[ext_resource type="Material" uid="uid://wardbfxbg01" path="res://fixtures/breaker_glow_mat.tres" id="m_glow"]
+[ext_resource type="Material" uid="uid://wardbfxhw01" path="res://fixtures/hardware_mat.tres" id="m_hw"]
+[ext_resource type="FontFile" path="res://fonts/SpecialElite-Regular.ttf" id="f_sign"]
+
+[sub_resource type="BoxMesh" id="bm_body"]
+size = Vector3(0.5, 0.6, 0.16)
+
+[sub_resource type="BoxMesh" id="bm_plate"]
+size = Vector3(0.42, 0.5, 0.02)
+
+[sub_resource type="BoxMesh" id="bm_handle"]
+size = Vector3(0.05, 0.24, 0.05)
+
+[sub_resource type="BoxMesh" id="bm_knob"]
+size = Vector3(0.075, 0.055, 0.075)
+
+[sub_resource type="BoxMesh" id="bm_indicator"]
+size = Vector3(0.14, 0.028, 0.012)
+
+[sub_resource type="CylinderMesh" id="cm_screw"]
+top_radius = 0.006
+bottom_radius = 0.006
+height = 0.006
+radial_segments = 8
+
+[node name="Breaker" type="Node3D"]
+
+[node name="Body" type="MeshInstance3D" parent="."]
+mesh = SubResource("bm_body")
+surface_material_override/0 = ExtResource("m_body")
+
+[node name="Plate" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.02, -0.085)
+mesh = SubResource("bm_plate")
+surface_material_override/0 = ExtResource("m_plate")
+
+; Pivot at the bolt. Rotation about X swings the handle; +x tilts the bottom
+; of the handle toward the room (LIT, "up"), -x pushes it back (DARK, "down").
+[node name="Lever" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.115, -0.092)
+
+[node name="Handle" type="MeshInstance3D" parent="Lever"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.12, -0.032)
+mesh = SubResource("bm_handle")
+surface_material_override/0 = ExtResource("m_hw")
+
+; The knob is the ONE part of this fixture that has to read in the dark, and
+; that is not decoration. Room 16's soft-lock fix is that the breaker is a
+; genuine two-way toggle — you must be able to walk back and turn the lights
+; on again — so once thrown, the switch has to stay both findable AND legible
+; as thrown. Verified by screenshot: with the knob in hardware_mat the whole
+; lever is a black silhouette in an unlit room and its position cannot be
+; read at all. Amber unshaded, same idea (and the same house rule) as every
+; dispenser slot glow and exit panel in the game.
+[node name="Knob" type="MeshInstance3D" parent="Lever"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.245, -0.032)
+mesh = SubResource("bm_knob")
+surface_material_override/0 = ExtResource("m_glow")
+
+[node name="Indicator" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.215, -0.096)
+mesh = SubResource("bm_indicator")
+surface_material_override/0 = ExtResource("m_glow")
+
+[node name="ScrewTL" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, -0.212, 0.262, -0.078)
+mesh = SubResource("cm_screw")
+surface_material_override/0 = ExtResource("m_hw")
+
+[node name="ScrewTR" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0.214, 0.259, -0.078)
+mesh = SubResource("cm_screw")
+surface_material_override/0 = ExtResource("m_hw")
+
+[node name="ScrewBL" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, -0.213, -0.264, -0.078)
+mesh = SubResource("cm_screw")
+surface_material_override/0 = ExtResource("m_hw")
+
+[node name="ScrewBR" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0.211, -0.261, -0.078)
+mesh = SubResource("cm_screw")
+surface_material_override/0 = ExtResource("m_hw")
+
+[node name="Label" type="Label3D" parent="."]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0, 0.245, -0.096)
+font = ExtResource("f_sign")
+text = "BAY LIGHTING"
+modulate = Color(0.86, 0.62, 0.34, 1)
+outline_modulate = Color(0.04, 0.03, 0.02, 1)
+font_size = 20
+outline_size = 4
+pixel_size = 0.0011
+billboard = 0
+no_depth_test = false
+horizontal_alignment = 1
+vertical_alignment = 1

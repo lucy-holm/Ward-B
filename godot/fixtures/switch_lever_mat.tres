@@ -1,0 +1,13 @@
+[gd_resource type="StandardMaterial3D" format=3 uid="uid://wardbfxsl01"]
+
+; The lever shaft. Pale worn steel, and deliberately NOT fixtures/hardware_mat
+; (albedo 0.075) like the screws and hinges: at that value the arm rendered as
+; pure black in the ward's lighting and the fixture's whole silhouette — a bar
+; sticking out of a box — was invisible, leaving a red knob apparently floating
+; beside a panel. The shaft is the shape that says "pull me"; it has to catch
+; light.
+
+[resource]
+albedo_color = Color(0.36, 0.375, 0.355, 1)
+roughness = 0.42
+metallic = 0.08

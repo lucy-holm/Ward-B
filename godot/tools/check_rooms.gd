@@ -14,6 +14,7 @@
 #   - every exit target resolves to a registered room (or END)
 #   - the exit chain from room1 is unbroken and reaches every room
 #   - interactable ids are unique within a room
+#   - trigger ids are unique within a room, and no trigger rect is degenerate
 #   - the collider cache is non-empty
 extends Node
 
@@ -48,11 +49,15 @@ const EXPECTED_MATERIAL_TYPE := {
 	"prop": "ShaderMaterial", "bed": "ShaderMaterial",
 	"door": "ShaderMaterial", "chain": "ShaderMaterial",
 	"dispenser": "ShaderMaterial", "pad": "ShaderMaterial",
-	"keypad": "ShaderMaterial",
+	"keypad": "ShaderMaterial", "plate": "ShaderMaterial",
 	# Deliberately NOT shaders: glow is unshaded so a light panel reads at full
 	# brightness regardless of room lighting, and pill is kept clean/ungrimed
-	# because it is a gameplay-readable affordance.
+	# because it is a gameplay-readable affordance. `breaker` is a third kind
+	# of exception again — a fallback placeholder that is never drawn (the real
+	# switch is fixtures/breaker.tscn), asserted here only so the fallback
+	# cannot silently rot into a missing-resource load failure. See its header.
 	"glow": "StandardMaterial3D", "pill": "StandardMaterial3D",
+	"breaker": "StandardMaterial3D",
 }
 
 
@@ -166,6 +171,9 @@ func _check_room(id: String, path: String, registry: Dictionary) -> void:
 	# --- unique interactable ids ---
 	_collect_ids(room, {}, id)
 
+	# --- trigger volumes ---
+	_check_triggers(id, room)
+
 	# --- patrol clearance ---
 	_check_patrol(id, col)
 
@@ -194,12 +202,40 @@ func _check_patrol(id: String, col: WardCollision) -> void:
 	var script: GDScript = load("res://rooms/%s/%s.gd" % [id, id])
 	if script == null:
 		return
-	var wps: Variant = script.get("WAYPOINTS")
-	if wps == null or not (wps is Array) or (wps as Array).is_empty():
+
+	# EVERY route, not just one named WAYPOINTS.
+	#
+	# This used to read exactly one constant, `WAYPOINTS`, and return silently
+	# when it was absent. That is fine for rooms 1-7, which have at most one
+	# orderly — but rooms 8, 10, 11, 12, 15, 17 and 20 carry two to five, named
+	# WAYPOINTS_A / WAYPOINTS_B / ... A multi-orderly room therefore matched
+	# nothing and was skipped ENTIRELY, reporting success while validating not
+	# one of its patrol routes. Silent skipping is the worst failure mode a
+	# checker can have: it is indistinguishable from passing.
+	#
+	# Now every constant whose name starts with WAYPOINTS and holds a non-empty
+	# Array is validated, and the failure text names the constant so a report
+	# on a five-orderly room says which route is wrong.
+	var routes: Array = []  # of [name, points]
+	for key: String in script.get_script_constant_map():
+		if not key.begins_with("WAYPOINTS"):
+			continue
+		var v: Variant = script.get_script_constant_map()[key]
+		if v is Array and not (v as Array).is_empty():
+			routes.append([key, v])
+	if routes.is_empty():
 		return  # room has no orderly; nothing to validate
 
-	var pts: Array = wps
+	# Deterministic order so failures read the same run to run.
+	routes.sort_custom(func(a, b): return str(a[0]) < str(b[0]))
+
 	var need := Tuning.ORDERLY_RADIUS + PATROL_MARGIN
+	for route in routes:
+		_check_one_patrol(id, str(route[0]), route[1], col, need)
+
+
+func _check_one_patrol(id: String, route: String, pts: Array, col: WardCollision,
+		need: float) -> void:
 
 	for i in pts.size():
 		var w: Vector3 = pts[i]
@@ -208,8 +244,8 @@ func _check_patrol(id: String, col: WardCollision) -> void:
 				continue
 			var d := _point_box_dist(w.x, w.z, b)
 			if d < need:
-				_fail("%s: patrol waypoint %d (%.2f, %.2f) is only %.2fm from collider "
-					% [id, i, w.x, w.z, d]
+				_fail("%s[%s]: patrol waypoint %d (%.2f, %.2f) is only %.2fm from collider "
+					% [id, route, i, w.x, w.z, d]
 					+ "x[%.2f,%.2f] z[%.2f,%.2f] — needs >%.2fm (body %.2f + margin). "
 					% [b.min_x, b.max_x, b.min_z, b.max_z, need, Tuning.ORDERLY_RADIUS]
 					+ "He spawns on waypoint 0, so an embedded waypoint freezes him outright.")
@@ -222,8 +258,8 @@ func _check_patrol(id: String, col: WardCollision) -> void:
 				continue
 			var d := _seg_box_dist(a.x, a.z, c.x, c.z, b)
 			if d < need:
-				_fail("%s: patrol leg %d->%d ((%.2f,%.2f) to (%.2f,%.2f)) passes only %.2fm from "
-					% [id, i, (i + 1) % pts.size(), a.x, a.z, c.x, c.z, d]
+				_fail("%s[%s]: patrol leg %d->%d ((%.2f,%.2f) to (%.2f,%.2f)) passes only %.2fm from "
+					% [id, route, i, (i + 1) % pts.size(), a.x, a.z, c.x, c.z, d]
 					+ "collider x[%.2f,%.2f] z[%.2f,%.2f] — needs >%.2fm. This is the wedge bug: "
 					% [b.min_x, b.max_x, b.min_z, b.max_z, need]
 					+ "his body clips the corner mid-leg and freezes there.")
@@ -279,6 +315,30 @@ func _seg_box_dist(x0: float, z0: float, x1: float, z1: float, b) -> float:
 	for c in [[b.min_x, b.min_z], [b.max_x, b.min_z], [b.max_x, b.max_z], [b.min_x, b.max_z]]:
 		best = minf(best, _point_seg_dist(c[0], c[1], x0, z0, x1, z1))
 	return best
+
+
+# TRIGGER VOLUMES — the same class of check as interactable ids, plus one that
+# only exists because containment is deliberately STRICT (see
+# core/trigger_volume.gd): a rect with min >= max on either axis contains no
+# point at all, so it is silently dead rather than merely small. That is very
+# easy to author by transposing two numbers, and the symptom — "the plate does
+# nothing" — looks identical to a room-script bug.
+func _check_triggers(room_id: String, room: Node) -> void:
+	var seen := {}
+	for v in TriggerVolume.collect(room):
+		var tid := v.trigger_id
+		if tid.is_empty():
+			_fail("%s: trigger volume with empty trigger_id" % room_id)
+			continue
+		if seen.has(tid):
+			_fail("%s: duplicate trigger id '%s' — the poll keys its active set "
+				% [room_id, tid] + "on the id, so the second one can never fire "
+				+ "independently of the first")
+		seen[tid] = true
+		if v.min_x >= v.max_x or v.min_z >= v.max_z:
+			_fail("%s: trigger '%s' has a degenerate rect x[%.2f,%.2f] z[%.2f,%.2f] — "
+				% [room_id, tid, v.min_x, v.max_x, v.min_z, v.max_z]
+				+ "containment is strict (> / <), so it can never fire")
 
 
 func _collect_ids(node: Node, seen: Dictionary, room_id: String) -> void:

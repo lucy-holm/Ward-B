@@ -1,0 +1,12 @@
+[gd_resource type="StandardMaterial3D" format=3 uid="uid://wardbfxsk01"]
+
+; The lever's grip. Signal red, because this is the one fixture in the ward
+; you throw exactly once and can never put back, and playtest note #1 on room
+; 18 was that the levers read as inert wall panels. A painted handle is the
+; oldest legibility trick there is and it survives the posterise pass, which a
+; subtle silhouette difference does not.
+
+[resource]
+albedo_color = Color(0.42, 0.13, 0.10, 1)
+roughness = 0.7
+metallic = 0.0

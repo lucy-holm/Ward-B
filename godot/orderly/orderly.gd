@@ -38,6 +38,24 @@ enum Mode { PATROL, CHASE, RETURNING }
 @export var waypoints: Array[Vector3] = []
 @export var sight_range := Tuning.ORDERLY_SIGHT_RANGE
 @export var cone_deg := Tuning.ORDERLY_CONE_DEG
+
+# Which stacked level he is fixed to, for his ENTIRE LIFETIME. He never calls
+# WardLevels.resolve_level — only the player does. Two reasons this is the
+# design and not a shortcut:
+#
+#  1. It formalizes the convention room 11 documents by hand ("keep each
+#     orderly's reachable XZ footprint on one level") instead of relying on
+#     careful authoring.
+#  2. An orderly whose level could flip mid-patrol would make a patrol leg
+#     crossing a stairwell footprint into a silent logic bug, and patrol
+#     clearance validation does not know about stairwells. Fixed at
+#     construction, the worst outcome of that authoring mistake is a
+#     cosmetic float/sink (his height lookup stays pinned to his own level),
+#     never a wrong-level catch.
+#
+# '__flat' matches every room without authored levels, where the player's
+# level is also always '__flat' — see WardLevels.FLAT_LEVEL_ID. Kept as a
+# literal rather than the constant so the inspector shows a plain default.
 @export var level := "__flat"
 
 @onready var _nav: NavigationAgent3D = $NavigationAgent3D
@@ -71,6 +89,24 @@ var facing := Vector2(0, 1)
 var _player: Node3D = null
 var collision_fallback: WardCollision = null
 
+# Verticality — OPTIONAL height lookup, presentation only.
+#
+# Without it he stands at y=0 always, which is correct for every flat room
+# and is what rooms 1-10 get. With it, his rendered Y follows his OWN level's
+# floor height each tick, so he does not float over a raised zone or sink
+# into a stairwell he chases the player into — the latter being the visible
+# failure, since a stairwell reads as solid geometry and a knee-deep orderly
+# climbing it looks broken.
+#
+# CRUCIALLY THIS CANNOT CHANGE HIS LEVEL. The lookup is always made with his
+# own fixed `level`, and he never calls resolve_level. Because stairwells are
+# checked first in floor_height_at and match if `level` equals EITHER of the
+# stairwell's two ends, an orderly on 'ground' who chases onto a stairwell
+# whose ground end is his does get the interpolated stair height — visually
+# following the player up the steps — while remaining categorically a
+# ground-level entity for sight, catch and collision.
+var world_levels: WardLevels = null
+
 
 func _ready() -> void:
 	collision_layer = WardCollision.LAYER_ORDERLY
@@ -90,9 +126,14 @@ func _ready() -> void:
 	_apply_visibility(StateManager.state)
 
 
-func setup(player: Node3D, fallback: WardCollision) -> void:
+## `levels` is optional and additive — rooms 1-10 call setup() with two
+## arguments and are unaffected. A room with any verticality at all should
+## pass `_main.levels` so he stands on his own floor rather than at y=0.
+func setup(player: Node3D, fallback: WardCollision, levels: WardLevels = null) -> void:
 	_player = player
 	collision_fallback = fallback
+	world_levels = levels
+	_apply_floor_height()
 
 
 ## 0..1 watch ramp, pinned at 1 while chasing. Drives HUD threat + audio.
@@ -133,6 +174,11 @@ func _physics_process(delta: float) -> void:
 	# visual yaw only; the cone uses `facing` directly
 	_body.rotation.y = atan2(-facing.x, -facing.y)
 
+	# 1b. rendered height — presentation only, no logic reads it. Applied
+	# BEFORE the sight check below because _occluded() casts a real 3D ray
+	# from his eye, and a stale Y would aim it from last tick's floor.
+	_apply_floor_height()
+
 	# 2. CONTACT CATCH — every mode, not just chase.
 	var to_player := _to_player()
 	if _player_is_vulnerable() and to_player.length() < Tuning.ORDERLY_CATCH_RADIUS:
@@ -145,6 +191,30 @@ func _physics_process(delta: float) -> void:
 		_update_sight(delta, to_player)
 
 
+## Snap his rendered Y to his own level's floor height. Never changes `level`
+## — see the world_levels field header.
+func _apply_floor_height() -> void:
+	if world_levels == null:
+		return
+	global_position.y = world_levels.floor_height_at(level, global_position.x, global_position.z)
+
+
+# THE HEADLINE PROPERTY OF STACKED FLOORS. Ported from orderly.ts's
+# `playerState === 'unmed' && playerLevel === this.level`, and gating BOTH
+# the contact catch and sight, exactly as the reference does.
+#
+# This is a PROOF, not a layout guarantee. An orderly constructed with
+# level 'ground' can never transition to watching or chasing against a player
+# on 'balcony', and can never catch them by touch either, regardless of XZ
+# distance — because this runs before any distance, cone or occlusion math.
+# Cross-level line of sight is not "unmodeled", it is categorically
+# impossible, which is both the strongest available answer and cheaper than
+# real 3D occlusion. Room 17 is built entirely on this: two orderlies patrol
+# the same XZ rectangle at different heights and provably never perceive each
+# other's target.
+#
+# The catch is gated too, not just sight: a player standing directly BELOW a
+# chasing orderly (same XZ, one level down) must not be catchable by contact.
 func _player_is_vulnerable() -> bool:
 	# Lucid is checked independently here and in _update_sight, exactly as the
 	# original did. A lucid player can walk straight through him.
@@ -152,7 +222,7 @@ func _player_is_vulnerable() -> bool:
 
 
 func _player_level() -> String:
-	return _player.level if "level" in _player else "__flat"
+	return WardLevels.level_of(_player)
 
 
 func _to_player() -> Vector2:
@@ -292,7 +362,10 @@ func _move_toward(target: Vector3, speed: float, delta: float) -> void:
 	# the same AABB routine the player uses, so he can never end up inside
 	# geometry the navmesh smoothed over.
 	if collision_fallback != null:
-		to = collision_fallback.try_move(from, to, Tuning.ORDERLY_RADIUS, StateManager.State.UNMED)
+		# His own fixed level, never the player's — a railing tagged to the
+		# balcony blocks the balcony patroller and not the one underneath.
+		to = collision_fallback.try_move(
+			from, to, Tuning.ORDERLY_RADIUS, StateManager.State.UNMED, level)
 
 	global_position.x = to.x
 	global_position.z = to.y

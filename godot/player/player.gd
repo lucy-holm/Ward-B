@@ -15,11 +15,31 @@ const PITCH_LIMIT := 1.45  # rad, ~83.1 degrees
 @onready var camera: Camera3D = $Camera3D
 
 var world_collision: WardCollision
+# Injected by main.gd on _ready, alongside world_collision. Null-safe: with no
+# level data the verticality step below is skipped entirely and Y stays where
+# spawn_at put it, which is what every test harness that builds a bare player
+# gets.
+var world_levels: WardLevels
 
 var yaw := 0.0
 var pitch := 0.0
 var is_moving := false
-var level := "__flat"
+
+# Stacked floors — the player's persistent "which floor am I on" answer.
+#
+# Level is NOT a pure function of (x, z): a gallery and the floor beneath it
+# legitimately share an XZ rectangle with two different correct heights, and
+# what disambiguates them for any one traveler is this field. It is only ever
+# changed by WardLevels.resolve_level, driven from main.gd once per tick
+# after movement, and only ever by physically walking a stairwell end to end.
+# '__flat' is the synthetic level every room without authored levels uses, so
+# this never differs from its default in rooms 1-16.
+#
+# global_position.y is the matching RENDERED height, eased toward
+# WardLevels.floor_height_at each tick (also in main.gd). Movement below
+# stays strictly 2D/XZ — y is never simulated, never collided against, and
+# never integrated. There is no jumping and no falling in this game.
+var level := WardLevels.FLAT_LEVEL_ID
 
 # Accumulated look delta in pixels, consumed once per frame — mirrors
 # input.ts's consumeLook(), so a dropped frame accumulates rather than
@@ -78,14 +98,27 @@ func _is_touch() -> bool:
 	return DisplayServer.is_touchscreen_available()
 
 
-func spawn_at(x: float, z: float, spawn_yaw: float, spawn_level := "__flat") -> void:
-	global_position = Vector3(x, 0.0, z)
+## `spawn_y` seats the player at the spawn point's floor height immediately
+## rather than letting the per-tick ease climb to it from 0 over ~10 ticks,
+## which on a raised spawn would render as the room dropping out from under
+## you on arrival. Ported from player.ts's `at.y ?? 0`. Defaults to 0, so a
+## caller that does not care is unchanged.
+func spawn_at(x: float, z: float, spawn_yaw: float,
+		spawn_level := WardLevels.FLAT_LEVEL_ID, spawn_y := 0.0) -> void:
+	global_position = Vector3(x, spawn_y, z)
 	yaw = spawn_yaw
 	pitch = 0.0  # deliberately reset, matching player.ts:34-41
 	level = spawn_level
 	_apply_rotation()
 
 
+## A multi-level room MUST pass `to_level` explicitly on any catch/reset
+## teleport. Otherwise a catch on the balcony drops the player at the ground
+## spawn's XZ while still tagged 'balcony', where they would read the
+## balcony's floor height, be blocked by the balcony's railings, and be
+## invisible to every ground-level orderly. Y is left alone deliberately: the
+## per-tick ease in main.gd resolves it to the destination's floor height
+## within a few ticks, which reads as a stumble rather than a snap.
 func teleport(x: float, z: float, to_level := "") -> void:
 	global_position = Vector3(x, global_position.y, z)
 	if not to_level.is_empty():
@@ -166,6 +199,11 @@ func stick_radius() -> float:
 # tunnelling remains impossible.
 func _physics_process(delta: float) -> void:
 	if not _input_enabled:
+		# Verticality still tracks the floor while input is suspended: the
+		# ward renders live behind the start overlay, and a room script can
+		# teleport the player during a cutscene-ish pause. Movement is what
+		# the input gate is for, not height.
+		_update_verticality()
 		return
 
 	_apply_look()
@@ -188,12 +226,47 @@ func _physics_process(delta: float) -> void:
 
 		var from := Vector2(global_position.x, global_position.z)
 		var to := from + Vector2(dx, dz)
-		var resolved := world_collision.try_move(from, to, Tuning.PLAYER_RADIUS, StateManager.state)
+		# `level` filters level-tagged colliders (a balcony railing must not
+		# block the floor under it). XZ only — y is never touched here.
+		var resolved := world_collision.try_move(
+			from, to, Tuning.PLAYER_RADIUS, StateManager.state, level)
 		global_position.x = resolved.x
 		global_position.z = resolved.y
 
+	# Verticality, run HERE rather than in main.gd, and deliberately outside
+	# the `is_moving` branch above so a teleport or a standing ease still
+	# resolves. See main.gd's ordering note: main's _physics_process actually
+	# runs BEFORE this one, so doing it there would resolve and ease against
+	# last tick's position.
+	_update_verticality()
+
 	if is_moving:
 		_bob_clock += delta
+
+
+# main.ts:527-542's order exactly: move (above, XZ only), then resolve which
+# level we are on, then ease Y toward that level's floor height.
+#
+# RESOLVE BEFORE EASE, always. The ease asks "how high is the floor for the
+# level I am on", so resolving second would spend the tick you step off a
+# stairwell reading the height of the level you just left.
+#
+# The ease factor is per-TICK, not per-second, in both engines: main.ts
+# clamps dt to 0.05 s and then applies a bare 0.35, and Godot's physics tick
+# is a fixed 1/60 s, so the two agree at the 60 Hz the original ran at and
+# the clamp can never bind here. Deliberately NOT rewritten as a
+# dt-proportional exponential decay — 0.35 is a tuned feel value and changing
+# its shape changes how a ramp reads.
+#
+# This is the ONLY thing in the game that writes the player's Y. Collision
+# stays strictly 2D/XZ; there is no jumping, no falling and no vertical
+# collision anywhere, and none is being added.
+func _update_verticality() -> void:
+	if world_levels == null:
+		return
+	var p := global_position
+	level = world_levels.resolve_level(level, p.x, p.z)
+	global_position.y += (world_levels.floor_height_at(level, p.x, p.z) - p.y) * WardLevels.Y_EASE
 
 
 func _apply_look() -> void:

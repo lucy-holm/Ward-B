@@ -1,0 +1,14 @@
+[gd_resource type="StandardMaterial3D" format=3 uid="uid://wardbfxsg01"]
+
+; Breaker indicator lamp. Unshaded like every other fixture glow, but AMBER —
+; the accent-colour split is the fastest "which fixture is this" cue at
+; distance (dispenser warm amber-white, keypad cyan, breaker orange), and it
+; matches the three.js build's MATERIALS.breaker emissive (0xcf7b2e).
+
+[resource]
+shading_mode = 0
+albedo_color = Color(0.95, 0.62, 0.26, 1)
+roughness = 0.9
+emission_enabled = true
+emission = Color(0.81, 0.48, 0.18, 1)
+emission_energy_multiplier = 2.0

@@ -9,10 +9,22 @@
 # affinity, declares it in the editor, and reacts to a signal. Nothing polls
 # a global, and a designer can retag a prop without touching code.
 #
-# Colliders: for a StaticBody3D this also flips the body's collision layer
-# between its authored solid layer and 0, and asks the room to rebuild the
-# AABB cache, so state-conditional walls stop blocking as well as stop
-# rendering.
+# COLLIDERS: THIS NODE DOES NOT TOUCH THEM. Only `visible` is written — see
+# _apply() below, which is the whole implementation.
+#
+# An earlier version of this comment claimed the node also flipped a
+# StaticBody3D's collision layer and asked the room to rebuild its AABB cache.
+# It never did. State-conditional BLOCKING comes from the collision layer
+# alone: layer 4 (solid_lucid_only) and layer 8 (solid_unmed_only), filtered
+# at query time by WardCollision._add_box, which sets a per-box state_filter
+# and consults it in try_move / is_blocked_at. Visibility and solidity are two
+# independent mechanisms that happen to agree because the generator emits both
+# from the same `state` argument.
+#
+# The practical consequence, which cost two separate agents time: a screenshot
+# CANNOT tell you whether a state-gated wall actually blocks. It only shows
+# whether the mesh drew. Use tools/check_state_gates.gd, which instantiates
+# the real scene and probes WardCollision directly.
 @tool
 class_name StateObject
 extends Node3D

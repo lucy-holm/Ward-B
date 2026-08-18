@@ -1108,6 +1108,193 @@ def room7():
     return r
 
 
+# --- ROOM 10 — the Wing ----------------------------------------------------
+# The spike: everything, at scale, and the two-pill pocket finally has to be
+# spent like a budget instead of a buffer. Four chambers in a straight run,
+# south to north (19.2 x 36 — by far the largest footprint in the ward):
+#
+#   Z1 the intake hall   z [0, 8]      spawn, dispenser A, safe
+#   Z2 the day ward      z [-10, 0]    orderly A, code half A in a west nook
+#   Z3 the records annex z [-20, -10]  orderly B, code half B in an east nook,
+#                                      dispenser B in a west alcove — opposite
+#                                      side of his loop from the code, so
+#                                      reaching it costs a real crossing even
+#                                      though lucid keeps it safe
+#   Z4 the exit chamber  z [-26, -20]  safe, keypad, door, safety dispenser
+#
+# THE TWO GATES are why this room exists. Z1/Z2 (z=0) is an open doorway — you
+# arrive lucid, it costs nothing, and gating it would only add a pill sink
+# before the room has taught the trick. Z2/Z3 (z=-10) and Z3/Z4 (z=-20) are
+# each sealed by a wall panel that exists ONLY while unmed — the same
+# state-conditional blocker as room 1's doorway, but load-bearing here instead
+# of a tutorial beat. Since code halves are scrawls, and scrawls are unmed-only
+# everywhere in the ward, the player is GUARANTEED to be raw at the moment they
+# reach each gate. So each crossing costs a pill:
+#
+#   read code A (unmed, free) -> shift to cross gate 2 (1 pill)
+#   -> read code B (unmed, free) -> shift to cross gate 3 (1 pill)
+#   -> lucid at the keypad, no further cost.
+#
+# Two pills back to back clears both gates with zero detours. One pill clears
+# it too, with a mandatory stop at dispenser B in between. A catch resets to
+# the intake hall, forced lucid, pills kept — dispenser A is three steps from
+# spawn, so failure is never a dead end.
+#
+# TIMER SOFT-LOCK AUDIT (ported with the room): lucidity expires on its own
+# after ~45s, so a player can go raw mid-zone with no warning. Z2 opens onto Z1
+# through the ungated doorway, so an unmed revert there has a free walk back to
+# dispenser A. Z3 is fine because dispenser B's alcove is always-on geometry,
+# never state-gated, so it is reachable raw like every other point in Z3. Z4
+# was the actual hole — gate 3 is unmed-sealed on its only doorway, and a
+# player who crosses it lucid (as the intended solve requires) then times out
+# in Z4 was stranded raw with nothing but a keypad that refuses to read.
+# dispenser10c fixes that: flush on Z4's west wall, well west of the
+# gate-3-to-keypad line, so it is a real detour rather than something the
+# intended route passes anyway. It does not touch the two-pill budget — both
+# gates are already paid for by the time anyone stands in Z4.
+#
+# NOTE ON THE GATE GEOMETRY: mesh and collider are authored as ONE block() with
+# state="unmed", which the emitter wraps in a StateObject (visible_in_state=2)
+# whose StaticBody3D lands on collision_layer 8 (solid_unmed_only). That is the
+# whole gating mechanism — WardCollision filters layer 8 boxes to the UNMED
+# state at query time, so the panel blocks raw and is not merely invisible but
+# genuinely absent while medicated. room10.ts kept the mesh (rb.block) and the
+# collider (rb.solid) as two separate calls; fusing them here is the room1
+# pattern and guarantees the two can never drift apart.
+
+def room10():
+    r = Room("room10", "the Wing",
+             floor=(-9.6, 9.6, -28, 8),
+             spawn=(0, 7, 0),
+             exits=[("room11", -1, 1, -27.9, -26.8)])
+
+    # exterior shell — west (x=-8) and east (x=8) walls run the full
+    # north-south length, broken only where the alcoves open onto them.
+    r.wall_z(-26, -15.4, -8)      # west, south of the dispenser-B alcove mouth
+    r.wall_z(-13.8, -9.4, -8)     # west, between the two west-side alcove mouths
+    r.wall_z(-7.8, 8, -8)         # west, north of the code-A nook mouth
+    r.wall_z(-26, -19.4, 8)       # east, south of the code-B nook mouth
+    r.wall_z(-17.8, 8, 8)         # east, north of the code-B nook mouth
+
+    r.wall_x(-8, 8, 8)            # south cap, behind spawn
+
+    # north cap, with the final exit doorway gap
+    r.wall_x(-8, -1, -26)
+    r.wall_x(1, 8, -26)
+    # exit door collider — locked until the code is entered; the room script
+    # disables it in place by name.
+    r.solid(-1, 1, -26.13, -25.87, name="DoorCollider")
+
+    # vestibule beyond the exit door, x [-1,1] z [-28,-26]
+    r.wall_z(-28, -26, -1)
+    r.wall_z(-28, -26, 1)
+    r.wall_x(-1, 1, -28)
+    r.block((1.8, 2.6, 0.06), (0, 1.4, -27.8), "glow")  # warm glow beyond the exit
+
+    # Z1/Z2 boundary, z=0 — an OPEN doorway, deliberately ungated.
+    r.wall_x(-8, -2, 0)
+    r.wall_x(2, 8, 0)
+
+    # GATE 2 — Z2/Z3 boundary, z=-10. Unmed-only panel across the doorway:
+    # crossing it lucid is a walk, crossing it raw is a wall.
+    r.wall_x(-8, -2, -10)
+    r.wall_x(2, 8, -10)
+    r.block((4, 3, 0.24), (0, 1.5, -10), "wall", "unmed",
+            collider=(-2, 2, -10.12, -9.88), name="Gate2")
+
+    # GATE 3 — Z3/Z4 boundary, z=-20. Same trick, same reason.
+    r.wall_x(-8, -2, -20)
+    r.wall_x(2, 8, -20)
+    r.block((4, 3, 0.24), (0, 1.5, -20), "wall", "unmed",
+            collider=(-2, 2, -20.12, -19.88), name="Gate3")
+
+    # Z2 — the day ward. A central occluder his loop runs clear of, and a nook
+    # carved into the west wall at the zone's north end (right where his loop
+    # passes closest) holding code half A.
+    r.block((3.4, 1.8, 1.4), (0, 0.9, -4.5), "wall2",
+            collider=(-1.7, 1.7, -5.2, -3.8))
+
+    r.wall_x(-9.6, -8, -9.4)      # nook A south bracket
+    r.wall_x(-9.6, -8, -7.8)      # nook A north bracket
+    r.wall_z(-9.4, -7.8, -9.6)    # nook A end cap — code half A is scrawled here
+
+    # Z3 — the records annex. Code half B sits deep in an east nook near gate 3;
+    # dispenser B sits in a west alcove midway down the zone — opposite side,
+    # opposite end, so reaching either from the other crosses the floor his loop
+    # actually covers (safely, lucid, but not for free — it is the whole width).
+    r.wall_x(8, 9.6, -19.4)       # nook B south bracket
+    r.wall_x(8, 9.6, -17.8)       # nook B north bracket
+    r.wall_z(-19.4, -17.8, 9.6)   # nook B end cap — code half B is scrawled here
+
+    r.wall_x(-9.6, -8, -15.4)     # dispenser-B alcove south bracket
+    r.wall_x(-9.6, -8, -13.8)     # dispenser-B alcove north bracket
+    r.wall_z(-15.4, -13.8, -9.6)  # alcove end cap — the dispenser mounts here
+
+    # Glow lintels over each recess mouth — playtest 6 walked straight past the
+    # nooks; a lit threshold marks "there is a space here" from across the zone.
+    r.block((0.12, 0.14, 1.6), (-8, 2.7, -8.6), "glow")   # nook A mouth
+    r.block((0.12, 0.14, 1.6), (8, 2.7, -18.6), "glow")   # nook B mouth
+    r.block((0.12, 0.14, 1.6), (-8, 2.7, -14.6), "glow")  # alcove B mouth
+
+    # The nook end caps sit at x=±9.6 with inner faces at ±9.48 (walls are 0.24
+    # thick). room10.ts originally authored these at ±9.55 — INSIDE the wall, so
+    # the wall rendered over them and the code was invisible (playtest 6). ±9.46
+    # is the fixed value; do not "tidy" it back toward the wall.
+    r.scrawl("3 1 – –", (-9.46, 1.7, -8.6), math.pi / 2, 2.2, sid="codeScrawlA")
+    r.scrawl("– – 7 5", (9.46, 1.7, -18.6), -math.pi / 2, 2.2, sid="codeScrawlB")
+    # Zone hints, each on the wall OPPOSITE the recess it points at, so it is
+    # readable from the open floor rather than from inside the nook.
+    r.scrawl("they scratch their numbers\nwhere the west wall breaks",
+             (7.86, 1.7, -5), -math.pi / 2, 2.8)
+    r.scrawl("the rest is written\nwhere the east wall breaks",
+             (-7.86, 1.7, -16.5), math.pi / 2, 2.8)
+    # On gate 2's south face, facing +Z back at the player as they walk up to it.
+    r.scrawl("the doors only open\nfor the calm ones", (-5, 1.7, -9.85), 0, 2.6)
+
+    # Z1's dispenser, three steps from spawn — the catch-reset safety net.
+    # West-wall mount, x-thin, faceplate PINNED east into the room.
+    r.interactable("dispenser10a", "dispenser", (0.16, 0.75, 0.55), (-7.72, 1.45, 4),
+                   "dispenser", "use the dispenser", facing="px")
+    # Z3's dispenser, proud of the alcove end cap's inner face (x=-9.48) rather
+    # than flush in it. Facing PINNED 'px' per the facing audit — alcove mounts
+    # are exactly the fragile case the heuristic gets wrong (room7 and room8
+    # both shipped a MEDICATION plate pointing into a wall this way).
+    r.interactable("dispenser10b", "dispenser", (0.16, 0.75, 0.55), (-9.46, 1.45, -14.6),
+                   "dispenser", "use the dispenser", facing="px")
+    # Z4's safety dispenser — see the TIMER SOFT-LOCK AUDIT above. No orderly
+    # ever reaches Z4, so there is no patrol clearance to worry about here.
+    r.interactable("dispenser10c", "dispenser", (0.16, 0.75, 0.55), (-7.72, 1.45, -23),
+                   "dispenser", "use the dispenser", facing="px")
+    r.interactable("keypad10", "keypad", (0.4, 0.5, 0.14), (1.35, 1.45, -25.75),
+                   "pad", "use the keypad", facing="pz")
+    r.interactable("exitdoor", "door", (2, 3, 0.2), (0, 1.5, -26),
+                   "door", "the exit door", facing="pz")
+
+    # 14 fittings down the run. The two code nooks and the dispenser alcove get
+    # their own so the scrawls and the MEDICATION plate are legible from inside
+    # the recess — room10.ts lit them only from the open floor 5m away, which
+    # left all three recesses too dark to read (room6/room7 both light their
+    # alcoves for exactly this reason).
+    r.light(0, 6)
+    r.light(0, 2)
+    r.light(4, -2)
+    r.light(-4, -2)
+    r.light(4, -6)
+    r.light(-4, -6)
+    r.light(0, -9)
+    r.light(4, -12)
+    r.light(-4, -12)
+    r.light(4, -16)
+    r.light(-4, -16)
+    r.light(0, -19)
+    r.light(0, -22)
+    r.light(0, -25)
+    r.light(-8.8, -8.6)    # nook A — code half A
+    r.light(8.8, -18.6)    # nook B — code half B
+    r.light(-8.8, -14.6)   # alcove B — dispenser
+    return r
+
+
 if __name__ == "__main__":
     # write_materials() is DELIBERATELY NOT CALLED — see its definition.
     write_room(room1())
@@ -1117,4 +1304,5 @@ if __name__ == "__main__":
     write_room(room5())
     write_room(room6())
     write_room(room7())
+    write_room(room10())
     print("done")

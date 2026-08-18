@@ -209,8 +209,21 @@ class Room:
         # are NOT what the game ships. Until the default is fixed centrally
         # (and 1-7 re-emitted and re-verified), regenerating rooms 1-7 means
         # reverting them afterwards. Room 8 onward sets the real values.
-        self.light_range = 9.0
-        self.light_attenuation = 1.7
+        # Default to the SHIPPED values (OMNI_RANGE / OMNI_ATTENUATION), not
+        # the stale 9.0/1.7 this generator carried for months. A room may still
+        # override per-room — room 8 does — but saying nothing now reproduces
+        # what rooms 1-7 actually ship.
+        self.light_range = OMNI_RANGE
+        self.light_attenuation = OMNI_ATTENUATION
+        # Extra shadow-casting fitting indices, on top of the `i % 3` rule.
+        #
+        # Rooms 4 and 5 were hand-promoted in commit bafc584 to give L1 a
+        # shadow as well as L0 and L3 — a judgement about those two rooms that
+        # the modulo rule cannot express. Without this the generator silently
+        # DEMOTES them on any full run, which is a real (if subtle) lighting
+        # regression: it was the last remaining drift between this file and the
+        # shipped scenes.
+        self.shadow_extra = []
 
     # geometry -------------------------------------------------------------
     def wall_x(self, x0, x1, z, mat="wall", state=None, level=None):
@@ -676,15 +689,13 @@ class Emitter:
                 body.append("light_energy = 0.95")
                 body.append("omni_range = %.1f" % r.light_range)
                 body.append("omni_attenuation = %.1f" % r.light_attenuation)
-                body.append("omni_range = %.1f" % OMNI_RANGE)
-                body.append("omni_attenuation = %.1f" % OMNI_ATTENUATION)
                 # Shadows on EVERY light cost 40% frame time (10.9 -> 6.5 fps
                 # measured): an omni shadow is a 6-face cube render, and rooms
                 # carry up to 8 lights. Only every third fitting casts, which is
                 # both affordable and closer to the concept art — those rooms are
                 # lit by one dominant source with the rest as fill, not by an
                 # even grid of shadow-casters.
-                body.append("shadow_enabled = %s" % ("true" if i % 3 == 0 else "false"))
+                body.append("shadow_enabled = %s" % ("true" if (i % 3 == 0 or i in r.shadow_extra) else "false"))
                 # Omni shadows are a cube render per light; bias tuned to kill
                 # acne on the 0.24m-thick walls without visible peter-panning.
                 body.append("shadow_bias = 0.04")
@@ -1181,6 +1192,7 @@ def room4():
              floor=(-6, 6, -7, 5),
              spawn=(0, 4, 0),
              exits=[("room5", -1, 1, -6.9, -5.8)])
+    r.shadow_extra = [1]  # hand-promoted in bafc584; see Room.shadow_extra
 
     # day room shell, x [-6,6] z [-5,5]
     r.wall_x(-6, 6, 5)            # south cap, behind spawn
@@ -1269,6 +1281,7 @@ def room5():
              floor=(-7, 7, -8, 5),
              spawn=(0, 4.3, 0),
              exits=[("room6", -1, 1, -7.9, -6.8)])
+    r.shadow_extra = [1]  # hand-promoted in bafc584; see Room.shadow_extra
 
     # main room shell, x [-7,7] z [-6,5] (south = entrance, north = staff door)
     r.wall_x(-7, 7, 5)            # south cap, behind spawn

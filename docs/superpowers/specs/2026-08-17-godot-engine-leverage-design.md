@@ -163,6 +163,57 @@ Baseline: `2026-07-15-room13-lucid-danger-design.md` plus a 603-line plan.
 Two full-height slabs drift inward while lucid and never retract; unmed halts
 them but hands the corridor to the orderlies.
 
+**CORRECTED 2026-08-18 — the original recommendation in this section was
+wrong on the facts. Superseded text preserved below the correction.**
+
+I originally claimed that room 13's per-frame player penetration clamp exists
+*solely* to work around a Three.js `tryMove` deadlock that Godot does not
+have, and recommended `AnimatableBody3D` slabs that push the player, on the
+grounds that this would delete code. Both halves were wrong, and the agent
+porting the room established why by execution rather than argument.
+
+**Godot has the same deadlock.** `core/collision.gd`'s `try_move` is a
+faithful port of `tryMove`, destination-only overlap test included. Once a
+body overlaps an inflated box, every nearby destination also overlaps it, so
+both axes fail and the body freezes — exactly as in Three.js. The clamp was
+never engine-specific.
+
+**`AnimatableBody3D` cannot push anything here**, for two independent reasons,
+neither fixable from a room script:
+
+1. The player is not in the physics solver. `player.gd` is a `CharacterBody3D`
+   with `collision_mask = 0` that never calls `move_and_slide`; it writes
+   `global_position` directly from `WardCollision.try_move`. Godot's
+   moving-platform push path lives inside `move_and_slide`.
+2. `WardCollision` is a load-time cache. `rebuild_from()` snapshots world-space
+   AABBs once and `try_move` queries that array, never the physics server. A
+   body whose transform changes is invisible to movement until its box is
+   updated.
+
+**What shipped instead**, and it is better than what I proposed: the slab is an
+`AnimatableBody3D` because that is the correct node type for "a static body
+that code moves" (`StaticBody3D` contractually means "never moves"), with
+`sync_to_physics = false`. Motion writes the node transform *and* the cached
+`WardCollision.Box` together, keyed by `Box.source`, so the node transform
+stays the source of truth and a stray `rebuild_collision()` self-heals rather
+than reverting.
+
+The clamp is not reintroduced. What replaces it is bounded: it runs only on
+ticks where a slab actually advanced, only inward, and by at most the distance
+the slab moved (~4mm at 60Hz) — that is the slab carrying the player, not a
+correction pass. The TS version was unconditional, two-sided, both states,
+every frame.
+
+**Lesson worth keeping:** the geometry also changed, and testing caught what
+reading did not. The obvious 1.5m slab flush at the start width opens a
+walkable 1.7m channel behind itself as it advances — running the full 40m
+stretch, open to the entry hall, letting a player deliberately narrow the
+walls and stroll past the entire hazard. The shipped slab is 3.5m thick so it
+still reaches the perimeter at minimum gap.
+
+<details>
+<summary>Superseded original recommendation</summary>
+
 **This is a redesign, not a port, and the spec's own reasoning says so
 implicitly.** The Three.js implementation carries a per-frame player
 penetration clamp that exists *solely* because its `tryMove` deadlocks once
@@ -180,6 +231,8 @@ the crush geometry changes slightly. The spec's soft-lock audit must be
 re-run rather than assumed to carry over.
 
 ---
+
+</details>
 
 ## Room 20 — the Loading Bay
 

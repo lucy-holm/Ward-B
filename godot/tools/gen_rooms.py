@@ -2360,6 +2360,103 @@ def room11():
 
 
 
+
+# --- ROOM 14 — the Hold ----------------------------------------------------
+# The wing exhales. Room 13 gave nothing back, so this one opens with a
+# dispenser five meters from spawn and asks exactly one new thing: a gate that
+# a floor plate holds open only while something's weight is on it, with the
+# plate far enough from the gate that being on it and being through it are
+# mutually exclusive. One base-tuned orderly paces a line that crosses the
+# plate — the wing's reintroduction of the threat, and the second half of the
+# teach (his patrol never stops, even lucid when you cannot see him, so he can
+# carry the plate for you).
+#
+# No keypad and no code. Three honest routes (spec: room14-pressure-plates):
+#   A solo sprint    — step on, run the 1.38m plate-to-gate gap before the
+#                      0.7s settle window closes. 0 pills.
+#   B let him carry  — wait behind the crate, walk through while his leg
+#                      crosses the plate. 0 pills unmed, 1 lucid for safety.
+#   C pay to be safe — lucid first, then A or B risk-free. 1 pill.
+#
+# THE PLATE IS DELIBERATELY NOT STATE-FILTERED. State-filtering it would mean
+# the mechanism simply does not exist in one ward state, which would break
+# exactly the safe route this room wants to teach: the STATE is the tool here,
+# not a gate on the mechanism.
+#
+# Geometry that is load-bearing rather than decorative, and must not drift:
+#   plate x[-1.3,1.3] z[-12.5,-11.3]   straddles the patrol line at z=-11.9
+#   gate wall z=-14, opening x[-1,1]   inner face z=-13.88
+#   plate-to-gate gap                  13.88 - 12.5 = 1.38m
+#   settle window (room14.gd)          0.7s x 3.4 m/s = 2.38m of coverage
+# Widening the plate northward, or moving the gate wall south, deletes the
+# failure the room exists to produce.
+
+def room14():
+    r = Room("room14", "the Hold",
+             floor=(-5, 5, -17, 9),
+             spawn=(0, 8, 0),
+             exits=[("room15", -1, 1, -16.9, -16.2)])
+
+    # perimeter — floor x[-5,5] z[-17,9], spawn end at +z (south)
+    r.wall_x(-5, 5, 9)            # south cap, behind spawn
+    r.wall_z(-17, 9, -5)          # west
+    r.wall_z(-17, 9, 5)           # east
+    r.wall_x(-5, 5, -17)          # north cap
+
+    # gate wall, z=-14 — a 2m opening x[-1,1], held by the plate, never a
+    # keypad. The opening's collider is named so room14.gd can re-engage it:
+    # this is the ONE collider in the ward that closes again after opening,
+    # which is why it goes through DeferredGate (core/deferred_gate.gd) and
+    # never straight through main.unlock_door.
+    r.wall_x(-5, -1, -14)
+    r.wall_x(1, 5, -14)
+    r.solid(-1, 1, -14.1, -13.9, name="GateCollider")
+
+    # the plate, straddling his patrol line. One call, two shapes — trigger
+    # and flush 4cm mesh — so the visible plate and its firing bounds cannot
+    # drift. No collider, which is both the mechanic (it stays walkable) and
+    # what lets his patrol cross it as bare floor with no special-casing.
+    r.plate("plate14", -1.3, 1.3, -12.5, -11.3)
+
+    # waiting crate near the gate — occluder + cover for route B
+    r.block((0.9, 1.0, 0.6), (3, 0.5, -13), "prop", collider=(2.55, 3.45, -13.3, -12.7))
+
+    # vestibule glow — the way out reads from across the room once it opens
+    r.block((1.8, 2.6, 0.06), (0, 1.4, -16.8), "glow")
+
+    # vestibule trigger — fires the "through" beat once, past the gate
+    r.trigger("vestibule14", -5, 5, -16, -14.2)
+
+    # Both scrawls sit far outside his reach — nearest patrol point is
+    # (-4.2,-11.9) at 13.9m for the west one, (4.2,-11.9) at 9.9m for the
+    # east one, against the 8.2m inspection-point floor.
+    r.scrawl("it only holds the door\nwhile it's heavy.",
+             (-4.85, 1.65, 2), math.pi / 2, 2.6)
+    r.scrawl("he never stopped walking.\nyou just stopped seeing him.",
+             (4.85, 1.65, -2), -math.pi / 2, 2.6)
+
+    # Entry alcove, ~5m from spawn, behind no gate and ~19.6m from the nearest
+    # patrol point. A deliberate departure from the "pressure, not comfort"
+    # dispenser rule: this room has no unmed-sealed pocket and no lucid-gated
+    # action at all, and it follows the one room in the game with no dispenser.
+    # West wall, so the faceplate points east — PINNED, never inferred.
+    r.interactable("dispenser14", "dispenser", (0.16, 0.75, 0.55), (-4.8, 1.45, 7.3),
+                   "dispenser", "use the dispenser", facing="px")
+    # The gate itself is scenery the room script swings; room14.gd's
+    # availability filter makes it permanently un-interactable, because this
+    # door is opened by weight and by nothing else.
+    r.interactable("gate14", "door", (2, 3, 0.2), (0, 1.5, -14),
+                   "door", "the gate", facing="pz")
+
+    r.light(0, 6)
+    r.light(0, 1)
+    r.light(0, -4)
+    r.light(3, -12)
+    r.light(-3, -12)
+    r.light(0, -15.5)
+    return r
+
+
 if __name__ == "__main__":
     # write_materials() is DELIBERATELY NOT CALLED — see its definition.
     #
@@ -2388,4 +2485,5 @@ if __name__ == "__main__":
     write_room(room12())
     write_room(room13())
     write_room(room11())
+    write_room(room14())
     print("done")

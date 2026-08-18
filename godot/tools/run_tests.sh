@@ -54,7 +54,7 @@ for s in "${SUITES[@]}"; do
   )
   if grep -q "__TIMEOUT__" <<<"$out"; then
     echo "TIMEOUT after ${TIMEOUT_S}s"; fail=1
-  elif grep -qE "^\s*OK - " <<<"$out"; then
+  elif grep -qE "(^[[:space:]]*|: )OK - " <<<"$out"; then
     grep -oE "OK - .*" <<<"$out" | head -1
   else
     echo "FAILED (no 'OK -' line — see output below)"

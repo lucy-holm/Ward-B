@@ -1440,7 +1440,7 @@ def room7():
              # room8+ are out of scope for this migration pass; room7 ends the
              # build instead of chaining onward. Restore ("room8", ...) when
              # the rest of the ward is ported.
-             exits=[("END", -1, 1, -6.9, -5.8)])
+             exits=[("room8", -1, 1, -6.9, -5.8)])
 
     # shell, x [-6,6] z [-7,5] — reuses room4's exact footprint, different guts
     r.wall_x(-6, 6, 5)            # south cap, behind spawn
@@ -1570,21 +1570,7 @@ def room9():
     r.light(3, 1)
     r.light(0, -1.5)
     r.light(0, -4.5)
-# --- ROOM 8 — the East Ward ------------------------------------------------
-# The finale: two of them. Orderly A keeps a tight orbit around the central
-# island; orderly B walks a wide figure-eight whose waist crosses right past
-# the island's north and south faces — exactly where the split code is
-# scrawled. Their loops are independent AND counter-rotating, so the safe
-# window to read either half isn't fixed: you have to watch both of them, not
-# just one. One dispenser, tucked in an alcove out along B's eastern leg —
-# inside patrolled ground, but lucid is always safe regardless of who's
-# nearby, so reaching it is a navigation problem, not a combat one. A shadow
-# (the island, the alcove's own walls, a filing block on the west wall) is
-# always within reach of wherever you'd need to stand.
-#
-# Shell shape follows room5 (the other island-plus-split-code room), not
-# room6: south-cap spawn, north staff-door gap, vestibule beyond. It is wider
-# and deeper, and the east wall carries the alcove's mouth.
+    return r
 
 def room8():
     r = Room("room8", "the East Ward",
@@ -1679,59 +1665,7 @@ def room8():
     r.light(9, 1)
     r.light(0, -6)
     r.light(0, -9)
-# --- ROOM 10 — the Wing ----------------------------------------------------
-# The spike: everything, at scale, and the two-pill pocket finally has to be
-# spent like a budget instead of a buffer. Four chambers in a straight run,
-# south to north (19.2 x 36 — by far the largest footprint in the ward):
-#
-#   Z1 the intake hall   z [0, 8]      spawn, dispenser A, safe
-#   Z2 the day ward      z [-10, 0]    orderly A, code half A in a west nook
-#   Z3 the records annex z [-20, -10]  orderly B, code half B in an east nook,
-#                                      dispenser B in a west alcove — opposite
-#                                      side of his loop from the code, so
-#                                      reaching it costs a real crossing even
-#                                      though lucid keeps it safe
-#   Z4 the exit chamber  z [-26, -20]  safe, keypad, door, safety dispenser
-#
-# THE TWO GATES are why this room exists. Z1/Z2 (z=0) is an open doorway — you
-# arrive lucid, it costs nothing, and gating it would only add a pill sink
-# before the room has taught the trick. Z2/Z3 (z=-10) and Z3/Z4 (z=-20) are
-# each sealed by a wall panel that exists ONLY while unmed — the same
-# state-conditional blocker as room 1's doorway, but load-bearing here instead
-# of a tutorial beat. Since code halves are scrawls, and scrawls are unmed-only
-# everywhere in the ward, the player is GUARANTEED to be raw at the moment they
-# reach each gate. So each crossing costs a pill:
-#
-#   read code A (unmed, free) -> shift to cross gate 2 (1 pill)
-#   -> read code B (unmed, free) -> shift to cross gate 3 (1 pill)
-#   -> lucid at the keypad, no further cost.
-#
-# Two pills back to back clears both gates with zero detours. One pill clears
-# it too, with a mandatory stop at dispenser B in between. A catch resets to
-# the intake hall, forced lucid, pills kept — dispenser A is three steps from
-# spawn, so failure is never a dead end.
-#
-# TIMER SOFT-LOCK AUDIT (ported with the room): lucidity expires on its own
-# after ~45s, so a player can go raw mid-zone with no warning. Z2 opens onto Z1
-# through the ungated doorway, so an unmed revert there has a free walk back to
-# dispenser A. Z3 is fine because dispenser B's alcove is always-on geometry,
-# never state-gated, so it is reachable raw like every other point in Z3. Z4
-# was the actual hole — gate 3 is unmed-sealed on its only doorway, and a
-# player who crosses it lucid (as the intended solve requires) then times out
-# in Z4 was stranded raw with nothing but a keypad that refuses to read.
-# dispenser10c fixes that: flush on Z4's west wall, well west of the
-# gate-3-to-keypad line, so it is a real detour rather than something the
-# intended route passes anyway. It does not touch the two-pill budget — both
-# gates are already paid for by the time anyone stands in Z4.
-#
-# NOTE ON THE GATE GEOMETRY: mesh and collider are authored as ONE block() with
-# state="unmed", which the emitter wraps in a StateObject (visible_in_state=2)
-# whose StaticBody3D lands on collision_layer 8 (solid_unmed_only). That is the
-# whole gating mechanism — WardCollision filters layer 8 boxes to the UNMED
-# state at query time, so the panel blocks raw and is not merely invisible but
-# genuinely absent while medicated. room10.ts kept the mesh (rb.block) and the
-# collider (rb.solid) as two separate calls; fusing them here is the room1
-# pattern and guarantees the two can never drift apart.
+    return r
 
 def room10():
     r = Room("room10", "the Wing",
@@ -1755,145 +1689,6 @@ def room10():
     # exit door collider — locked until the code is entered; the room script
     # disables it in place by name.
     r.solid(-1, 1, -26.13, -25.87, name="DoorCollider")
-# --- ROOM 12 — the Asylum Floor --------------------------------------------
-# The finale, and the biggest footprint in the game: ~22m wide by 74m
-# north-south, versus room 5's 14x13. Five chambers, three orderlies, two
-# state-filtered gates, one code split across two nooks.
-#
-# Chambers, north (spawn, +Z) to south (exit, -Z):
-#   Z1 the entry hall   z [36,46]   spawn, dispenser12a, safe
-#   Z2 the quiet ward   z [20,36]   orderly C alone; dispenser12c just south
-#                                   of GATE B; code half 1 in an east nook
-#   Z3 the day hall     z [-8,20]   orderlies A + B, counter-rotating; code
-#                                   half 2 in an east nook
-#   Z4 the supply room  z [-18,-8]  dispenser12b, safe
-#   Z5 the last door    z [-26,-18] safe, keypad, exit
-#
-# THE PILL ECONOMY (PILLS_MAX is 1, game-wide). Both gates are sealed
-# unmed-only, so crossing either one costs a shift to lucid, i.e. one pill.
-# The whole middle of the floor sits between them, and the pocket holds
-# exactly ONE station — dispenser12c, a metre and a half south of GATE B.
-# Intended solve:
-#
-#   forced unmed at spawn -> dispenser12a (top to 1, nothing spent)
-#   -> GATE B sealed -> shift lucid (-1, 0 left) -> cross
-#   -> dispenser12c, right there -> bank (0 -> 1)
-#   -> Z2 unmed (free): read half 1 in nook C, evade orderly C
-#   -> Z3 unmed: read half 2 in the hall nook, evade A + B
-#   -> GATE C sealed -> shift lucid (-1, 0 left) -> cross -> already lucid,
-#      so the keypad needs nothing further
-#   -> dispenser12b sits in Z4 as a buffer the finale door does not need
-#
-# WALK-BACK: the gates seal UNMED only, so a lucid player can retreat through
-# either one in either direction for free, and the Z2/Z3 and Z4/Z5 boundaries
-# are open doorways with no gate at all. The only way to strand yourself is to
-# go unmed inside the stretch at 0 pills — and the way out of that is the way
-# out everywhere else in this game: walk into a cone and let the catch force
-# you lucid and teleport you to spawn, pills kept, with dispenser12a in the
-# same open hall as the spawn point.
-#
-# TIMER SOFT-LOCK: lucidity expires on its own after 45s, so a player can
-# cross GATE B lucid and have the clock revoke it while still deep in Z2/Z3.
-# At 1-pill capacity there is no reserve to shift back with, so a station HAS
-# to be reachable unmedicated inside the pocket. dispenser12c is it. There is
-# deliberately NO station in Z3 — per playtest 9, a mistimed revert down by
-# GATE C should cost a long walk back past all three orderlies, not a short
-# one. That walk is always available (open doorway at z=20); it is a long
-# walk, not a dead end.
-
-def room12():
-    r = Room("room12", "the Asylum Floor",
-             floor=(-10, 12, -28, 46),
-             spawn=(0, 44, 0),
-             exits=[("room13", -1, 1, -27.9, -26.8)])
-
-    # --- Z1, the entry hall — x [-10,10] z [36,46]. Dispenser A; the last
-    # cabinet on this side of GATE B and of every orderly on the floor.
-    r.wall_x(-10, 10, 46)         # south cap, behind spawn
-    r.wall_z(36, 46, -10)         # west wall
-    r.wall_z(36, 46, 10)          # east wall
-
-    # GATE B — the Z1/Z2 boundary at z=36. The doorway gap is x [-2,2]; the
-    # panel that fills it exists (and blocks) ONLY while unmedicated, so the
-    # crossing costs a shift to lucid, i.e. a pill. Mesh and collider are
-    # authored as one state-filtered block here; the TS split them across
-    # block(...,'unmed') + solid(...,'unmed') over the identical footprint.
-    r.wall_x(-10, -2, 36)
-    r.wall_x(2, 10, 36)
-    r.block((4, 3, 0.24), (0, 1.5, 36), "wall", "unmed",
-            collider=(-2, 2, 35.88, 36.12))
-
-    # --- Z2, the quiet ward — x [-10,10] z [20,36]. Orderly C alone; his loop
-    # is skewed west, leaving the whole east wall — nook C included — a flat
-    # 7m off his nearest leg. Sight range is 6m, so the nook is unseeable from
-    # patrol full stop: the exposure is the crossing, not the read.
-    r.wall_z(20, 36, -10)         # west wall, unbroken
-    r.wall_z(20, 26, 10)          # east wall, south of the nook mouth
-    r.wall_z(28, 36, 10)          # east wall, north of the nook mouth
-
-    r.wall_x(10, 12, 26)          # nook C south bracket
-    r.wall_x(10, 12, 28)          # nook C north bracket
-    r.wall_z(26, 28, 12)          # nook C end cap — code half 1 is scrawled here
-    r.block((0.12, 0.14, 2), (10, 2.7, 27), "glow")   # glow lintel, nook C mouth
-
-    # A central occluder inside orderly C's loop's open interior — not on the
-    # path. The Godot orderly tests occlusion with a real RayCast3D against
-    # LAYER_WORLD_STATIC, so this collider IS the occluder; no hand-authored
-    # AABB list (the TS ISLAND_C/NOOK_C arrays) is needed or possible.
-    r.block((3, 1.8, 4), (-2, 0.9, 28), "wall2", collider=(-3.5, -0.5, 26, 30))
-
-    # Z2/Z3 boundary at z=20 — an OPEN doorway, no gate. Both code halves are
-    # unmed-only anyway and the whole stretch is already sealed at both ends
-    # by GATE B and GATE C; a third gate here would only add a toll the design
-    # does not need, and it would turn the long walk back to dispenser12c into
-    # a dead end.
-    r.wall_x(-10, -2, 20)
-    r.wall_x(2, 10, 20)
-
-    # --- Z3, the day hall — x [-10,10] z [-8,20]. The biggest single chamber
-    # in the game: 28m deep, 20m wide. Two orderlies, counter-rotating — A
-    # runs the outer rectangle one way, B a smaller inner rectangle the other
-    # way — so they read as two independent patrols crossing each other's
-    # ground rather than a pair walking in step. Code half 2 sits in an east
-    # nook 7m off A's nearest leg and farther off B's: same
-    # unseeable-from-patrol guarantee as nook C.
-    r.wall_z(-8, 20, -10)         # west wall, unbroken
-    r.wall_z(-8, 4, 10)           # east wall, south of the nook mouth
-    r.wall_z(6, 20, 10)           # east wall, north of the nook mouth
-
-    r.wall_x(10, 12, 4)           # nook hall south bracket
-    r.wall_x(10, 12, 6)           # nook hall north bracket
-    r.wall_z(4, 6, 12)            # nook hall end cap — code half 2 is scrawled here
-    r.block((0.12, 0.14, 2), (10, 2.7, 5), "glow")    # glow lintel, nook hall mouth
-
-    # Two occluders: one in the gap between the outer and inner loops, one
-    # against the west wall outside A's west leg — multiple shadows across the
-    # one patrolled space, not just the nook itself.
-    r.block((1, 1.8, 2), (1.5, 0.9, 6), "wall2", collider=(1, 2, 5, 7))
-    r.block((1, 1.6, 2), (-8.8, 0.8, 13), "prop", collider=(-9.3, -8.3, 12, 14))
-
-    # GATE C — the Z3/Z4 boundary at z=-8, the far end of the no-refill
-    # stretch. Same unmed-only seal as GATE B.
-    r.wall_x(-10, -2, -8)
-    r.wall_x(2, 10, -8)
-    r.block((4, 3, 0.24), (0, 1.5, -8), "wall", "unmed",
-            collider=(-2, 2, -8.12, -7.88))
-
-    # --- Z4, the supply room — x [-10,10] z [-18,-8]. Safe. Dispenser B, the
-    # first cabinet since dispenser12c back in Z2.
-    r.wall_z(-18, -8, -10)
-    r.wall_z(-18, -8, 10)
-
-    # Z4/Z5 boundary at z=-18 — open doorway. Nothing left to gate; the finale
-    # does not need another toll on top of the one the floor just paid.
-    r.wall_x(-10, -2, -18)
-    r.wall_x(2, 10, -18)
-
-    # --- Z5, the last door — x [-10,10] z [-26,-18]. Safe, keypad, exit.
-    r.wall_z(-26, -18, -10)
-    r.wall_z(-26, -18, 10)
-    r.wall_x(-10, -1, -26)        # north, west of the door gap
-    r.wall_x(1, 10, -26)          # north, east of the door gap
 
     # vestibule beyond the exit door, x [-1,1] z [-28,-26]
     r.wall_z(-28, -26, -1)
@@ -2011,6 +1806,106 @@ def room12():
     r.light(-8.8, -8.6)    # nook A — code half A
     r.light(8.8, -18.6)    # nook B — code half B
     r.light(-8.8, -14.6)   # alcove B — dispenser
+    return r
+
+def room12():
+    r = Room("room12", "the Asylum Floor",
+             floor=(-10, 12, -28, 46),
+             spawn=(0, 44, 0),
+             exits=[("room13", -1, 1, -27.9, -26.8)])
+
+    # --- Z1, the entry hall — x [-10,10] z [36,46]. Dispenser A; the last
+    # cabinet on this side of GATE B and of every orderly on the floor.
+    r.wall_x(-10, 10, 46)         # south cap, behind spawn
+    r.wall_z(36, 46, -10)         # west wall
+    r.wall_z(36, 46, 10)          # east wall
+
+    # GATE B — the Z1/Z2 boundary at z=36. The doorway gap is x [-2,2]; the
+    # panel that fills it exists (and blocks) ONLY while unmedicated, so the
+    # crossing costs a shift to lucid, i.e. a pill. Mesh and collider are
+    # authored as one state-filtered block here; the TS split them across
+    # block(...,'unmed') + solid(...,'unmed') over the identical footprint.
+    r.wall_x(-10, -2, 36)
+    r.wall_x(2, 10, 36)
+    r.block((4, 3, 0.24), (0, 1.5, 36), "wall", "unmed",
+            collider=(-2, 2, 35.88, 36.12))
+
+    # --- Z2, the quiet ward — x [-10,10] z [20,36]. Orderly C alone; his loop
+    # is skewed west, leaving the whole east wall — nook C included — a flat
+    # 7m off his nearest leg. Sight range is 6m, so the nook is unseeable from
+    # patrol full stop: the exposure is the crossing, not the read.
+    r.wall_z(20, 36, -10)         # west wall, unbroken
+    r.wall_z(20, 26, 10)          # east wall, south of the nook mouth
+    r.wall_z(28, 36, 10)          # east wall, north of the nook mouth
+
+    r.wall_x(10, 12, 26)          # nook C south bracket
+    r.wall_x(10, 12, 28)          # nook C north bracket
+    r.wall_z(26, 28, 12)          # nook C end cap — code half 1 is scrawled here
+    r.block((0.12, 0.14, 2), (10, 2.7, 27), "glow")   # glow lintel, nook C mouth
+
+    # A central occluder inside orderly C's loop's open interior — not on the
+    # path. The Godot orderly tests occlusion with a real RayCast3D against
+    # LAYER_WORLD_STATIC, so this collider IS the occluder; no hand-authored
+    # AABB list (the TS ISLAND_C/NOOK_C arrays) is needed or possible.
+    r.block((3, 1.8, 4), (-2, 0.9, 28), "wall2", collider=(-3.5, -0.5, 26, 30))
+
+    # Z2/Z3 boundary at z=20 — an OPEN doorway, no gate. Both code halves are
+    # unmed-only anyway and the whole stretch is already sealed at both ends
+    # by GATE B and GATE C; a third gate here would only add a toll the design
+    # does not need, and it would turn the long walk back to dispenser12c into
+    # a dead end.
+    r.wall_x(-10, -2, 20)
+    r.wall_x(2, 10, 20)
+
+    # --- Z3, the day hall — x [-10,10] z [-8,20]. The biggest single chamber
+    # in the game: 28m deep, 20m wide. Two orderlies, counter-rotating — A
+    # runs the outer rectangle one way, B a smaller inner rectangle the other
+    # way — so they read as two independent patrols crossing each other's
+    # ground rather than a pair walking in step. Code half 2 sits in an east
+    # nook 7m off A's nearest leg and farther off B's: same
+    # unseeable-from-patrol guarantee as nook C.
+    r.wall_z(-8, 20, -10)         # west wall, unbroken
+    r.wall_z(-8, 4, 10)           # east wall, south of the nook mouth
+    r.wall_z(6, 20, 10)           # east wall, north of the nook mouth
+
+    r.wall_x(10, 12, 4)           # nook hall south bracket
+    r.wall_x(10, 12, 6)           # nook hall north bracket
+    r.wall_z(4, 6, 12)            # nook hall end cap — code half 2 is scrawled here
+    r.block((0.12, 0.14, 2), (10, 2.7, 5), "glow")    # glow lintel, nook hall mouth
+
+    # Two occluders: one in the gap between the outer and inner loops, one
+    # against the west wall outside A's west leg — multiple shadows across the
+    # one patrolled space, not just the nook itself.
+    r.block((1, 1.8, 2), (1.5, 0.9, 6), "wall2", collider=(1, 2, 5, 7))
+    r.block((1, 1.6, 2), (-8.8, 0.8, 13), "prop", collider=(-9.3, -8.3, 12, 14))
+
+    # GATE C — the Z3/Z4 boundary at z=-8, the far end of the no-refill
+    # stretch. Same unmed-only seal as GATE B.
+    r.wall_x(-10, -2, -8)
+    r.wall_x(2, 10, -8)
+    r.block((4, 3, 0.24), (0, 1.5, -8), "wall", "unmed",
+            collider=(-2, 2, -8.12, -7.88))
+
+    # --- Z4, the supply room — x [-10,10] z [-18,-8]. Safe. Dispenser B, the
+    # first cabinet since dispenser12c back in Z2.
+    r.wall_z(-18, -8, -10)
+    r.wall_z(-18, -8, 10)
+
+    # Z4/Z5 boundary at z=-18 — open doorway. Nothing left to gate; the finale
+    # does not need another toll on top of the one the floor just paid.
+    r.wall_x(-10, -2, -18)
+    r.wall_x(2, 10, -18)
+
+    # --- Z5, the last door — x [-10,10] z [-26,-18]. Safe, keypad, exit.
+    r.wall_z(-26, -18, -10)
+    r.wall_z(-26, -18, 10)
+    r.wall_x(-10, -1, -26)        # north, west of the door gap
+    r.wall_x(1, 10, -26)          # north, east of the door gap
+
+    # vestibule beyond the exit door, x [-1,1] z [-28,-26]
+    r.wall_z(-28, -26, -1)
+    r.wall_z(-28, -26, 1)
+    r.wall_x(-1, 1, -28)
     r.block((1.8, 2.6, 0.06), (0, 1.4, -27.8), "glow")  # warm glow beyond
 
     # exit door collider — locked until the code is entered; room12.gd drops
@@ -2088,35 +1983,7 @@ def room12():
         (0, -20), (0, -23), (0, -26),                  # Z5
     ]:
         r.light(x, z)
-# --- ROOM 13 — the Last Ward -----------------------------------------------
-# The epilogue, and the one room where LUCID is the dangerous state: while the
-# player is calm inside the squeeze stretch two full-height slabs drift inward
-# and never retract. Unmed halts them and hands the corridor to two orderlies.
-# No interactables, no keypad, no code, no dispenser — you cross with whatever
-# room 12 left you holding.
-#
-# Geometry is a straight port of src/rooms/room13.ts (the shipped version, not
-# the older plan doc: 40m stretch, two patrols, exit to room14). The ONLY
-# structural difference is the slabs, which are AnimatableBody3D via mover()
-# instead of three.js meshes plus hand-mutated ColliderDefs — see room13.gd's
-# header for why, and for why the TS build's per-frame penetration clamp is
-# NOT reproduced.
-#
-# Slab geometry: the TS build scaled each slab every frame so its mass always
-# ran from the inner face out to the perimeter. Scaling a collision body is
-# the one thing Godot actively warns about, so instead the slab is a single
-# unscaled box sized for the WORST case — thick enough that even at the
-# minimum 1m gap it still reaches the perimeter wall (SHELL_X - minGap/2 =
-# 3.5m) — and only ever translated. At wider gaps its outer half sits buried
-# in, and past, the perimeter wall at x=+-4, which no camera inside the room
-# can see: that wall is full-height and runs the room's whole length.
-#
-# The obvious cheaper choice — a thin slab flush with the perimeter at the
-# START width — is WRONG, and tools/test_room13.tscn exists partly because it
-# caught this: a slab that only spans startGap/2..SHELL_X opens a walkable
-# 1.7m channel behind itself as it advances, running the full length of the
-# stretch and open to the entry hall at z=16. A player could narrow the walls
-# on purpose and then stroll down the recess past the entire hazard.
+    return r
 
 def room13():
     shell_x = 4.0
@@ -2391,11 +2258,15 @@ def room11():
 # Widening the plate northward, or moving the gate wall south, deletes the
 # failure the room exists to produce.
 
+# CHAIN TERMINATOR. room14.ts exits to room15, but rooms 15-20 are not
+# ported yet and check_rooms.gd fails on an exit to an unregistered room.
+# So this is pinned to "END" exactly as room7 was before room8 landed.
+# RESTORE ("room15", ...) when room 15 is ported.
 def room14():
     r = Room("room14", "the Hold",
              floor=(-5, 5, -17, 9),
              spawn=(0, 8, 0),
-             exits=[("room15", -1, 1, -16.9, -16.2)])
+             exits=[("END", -1, 1, -16.9, -16.2)])
 
     # perimeter — floor x[-5,5] z[-17,9], spawn end at +z (south)
     r.wall_x(-5, 5, 9)            # south cap, behind spawn

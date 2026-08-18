@@ -46,6 +46,13 @@ const ROOM_SCENES := {
 	"room5": "res://rooms/room5/room5.tscn",
 	"room6": "res://rooms/room6/room6.tscn",
 	"room7": "res://rooms/room7/room7.tscn",
+	"room8": "res://rooms/room8/room8.tscn",
+	"room9": "res://rooms/room9/room9.tscn",
+	"room10": "res://rooms/room10/room10.tscn",
+	"room11": "res://rooms/room11/room11.tscn",
+	"room12": "res://rooms/room12/room12.tscn",
+	"room13": "res://rooms/room13/room13.tscn",
+	"room14": "res://rooms/room14/room14.tscn",
 }
 
 const HUD_SCENE := preload("res://ui/hud.tscn")

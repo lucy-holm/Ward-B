@@ -194,12 +194,40 @@ func _check_patrol(id: String, col: WardCollision) -> void:
 	var script: GDScript = load("res://rooms/%s/%s.gd" % [id, id])
 	if script == null:
 		return
-	var wps: Variant = script.get("WAYPOINTS")
-	if wps == null or not (wps is Array) or (wps as Array).is_empty():
+
+	# EVERY route, not just one named WAYPOINTS.
+	#
+	# This used to read exactly one constant, `WAYPOINTS`, and return silently
+	# when it was absent. That is fine for rooms 1-7, which have at most one
+	# orderly — but rooms 8, 10, 11, 12, 15, 17 and 20 carry two to five, named
+	# WAYPOINTS_A / WAYPOINTS_B / ... A multi-orderly room therefore matched
+	# nothing and was skipped ENTIRELY, reporting success while validating not
+	# one of its patrol routes. Silent skipping is the worst failure mode a
+	# checker can have: it is indistinguishable from passing.
+	#
+	# Now every constant whose name starts with WAYPOINTS and holds a non-empty
+	# Array is validated, and the failure text names the constant so a report
+	# on a five-orderly room says which route is wrong.
+	var routes: Array = []  # of [name, points]
+	for key: String in script.get_script_constant_map():
+		if not key.begins_with("WAYPOINTS"):
+			continue
+		var v: Variant = script.get_script_constant_map()[key]
+		if v is Array and not (v as Array).is_empty():
+			routes.append([key, v])
+	if routes.is_empty():
 		return  # room has no orderly; nothing to validate
 
-	var pts: Array = wps
+	# Deterministic order so failures read the same run to run.
+	routes.sort_custom(func(a, b): return str(a[0]) < str(b[0]))
+
 	var need := Tuning.ORDERLY_RADIUS + PATROL_MARGIN
+	for route in routes:
+		_check_one_patrol(id, str(route[0]), route[1], col, need)
+
+
+func _check_one_patrol(id: String, route: String, pts: Array, col: WardCollision,
+		need: float) -> void:
 
 	for i in pts.size():
 		var w: Vector3 = pts[i]
@@ -208,8 +236,8 @@ func _check_patrol(id: String, col: WardCollision) -> void:
 				continue
 			var d := _point_box_dist(w.x, w.z, b)
 			if d < need:
-				_fail("%s: patrol waypoint %d (%.2f, %.2f) is only %.2fm from collider "
-					% [id, i, w.x, w.z, d]
+				_fail("%s[%s]: patrol waypoint %d (%.2f, %.2f) is only %.2fm from collider "
+					% [id, route, i, w.x, w.z, d]
 					+ "x[%.2f,%.2f] z[%.2f,%.2f] — needs >%.2fm (body %.2f + margin). "
 					% [b.min_x, b.max_x, b.min_z, b.max_z, need, Tuning.ORDERLY_RADIUS]
 					+ "He spawns on waypoint 0, so an embedded waypoint freezes him outright.")
@@ -222,8 +250,8 @@ func _check_patrol(id: String, col: WardCollision) -> void:
 				continue
 			var d := _seg_box_dist(a.x, a.z, c.x, c.z, b)
 			if d < need:
-				_fail("%s: patrol leg %d->%d ((%.2f,%.2f) to (%.2f,%.2f)) passes only %.2fm from "
-					% [id, i, (i + 1) % pts.size(), a.x, a.z, c.x, c.z, d]
+				_fail("%s[%s]: patrol leg %d->%d ((%.2f,%.2f) to (%.2f,%.2f)) passes only %.2fm from "
+					% [id, route, i, (i + 1) % pts.size(), a.x, a.z, c.x, c.z, d]
 					+ "collider x[%.2f,%.2f] z[%.2f,%.2f] — needs >%.2fm. This is the wedge bug: "
 					% [b.min_x, b.max_x, b.min_z, b.max_z, need]
 					+ "his body clips the corner mid-leg and freezes there.")

@@ -26,6 +26,10 @@ func _ready() -> void:
 
 	var scene_path: String = args[0]
 	var shot_name: String = args[1] if args.size() > 1 else "shot"
+	# Parsed here rather than inside the camera-less branch below, because it
+	# now drives StateManager too — which matters for EVERY shot, including
+	# scenes that carry their own camera.
+	var want_lucid: bool = args.size() > 9 and str(args[9]).begins_with("l")
 
 	if not ResourceLoader.exists(scene_path):
 		push_error("no such scene: %s" % scene_path)
@@ -57,7 +61,6 @@ func _ready() -> void:
 		# runtime anyway. Reading the source of truth makes drift impossible.
 		# Pass "lucid" as arg 9 to shoot the medicated state.
 		var mood: Dictionary = (load("res://main.gd") as GDScript).MOOD
-		var want_lucid: bool = args.size() > 9 and str(args[9]).begins_with("l")
 		var m: Dictionary = mood[1 if want_lucid else 0]
 		env.ambient_light_energy = float(args[8]) if args.size() > 8 else float(m["ambient"])
 		env.fog_enabled = true
@@ -94,6 +97,21 @@ func _ready() -> void:
 			cam.global_position = Vector3(0, 1.62, 3)
 			cam.look_at(Vector3.ZERO, Vector3.UP)
 		cam.make_current()
+
+	# FORCE THE WARD STATE, not just the mood.
+	#
+	# For a long time arg 9 ("lucid") only swapped which MOOD row fed the
+	# Environment — fog, ambient, exposure. StateManager was never touched and
+	# defaults to UNMED, so a shot labelled "lucid" still rendered every
+	# unmed-only object and still hid every lucid-only one. That is worse than
+	# having no flag: room 10's two unmed-only gate panels appear in a "lucid"
+	# screenshot, which reads as "the gate never opens" when the gate is fine.
+	#
+	# StateObject connects to state_changed in _ready, and the scene is already
+	# added above, so forcing here reaches every state-filtered node.
+	StateManager.force_state(
+		StateManager.State.LUCID if want_lucid else StateManager.State.UNMED,
+		"shoot")
 
 	# Fittings dim per state exactly as Atmosphere does at runtime.
 	if _light_scale != 1.0:

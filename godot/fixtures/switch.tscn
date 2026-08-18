@@ -1,0 +1,91 @@
+[gd_scene load_steps=10 format=3 uid="uid://wardbfixswitch01"]
+
+; Wall-mounted BREAKER SWITCH — the fixture you throw, as opposed to the one
+; you type on. Canonical size 0.50W x 0.60H x 0.16D, origin at the centre of
+; the volume, faceplate toward -Z (the generator rotates the whole node to
+; whichever wall it hangs off). Ports src/game/world.ts's buildSwitch(): a
+; breaker-material body plus a lever protruding off the face, sized so the
+; silhouette is a bar sticking out of a box — nothing else in the ward has
+; that outline.
+;
+; THE LEVER IS ITS OWN PIVOT NODE, on purpose. `Lever` sits on the faceplate
+; and its Arm/Knob children extend along +Y from it, so a room script throws
+; the switch with ONE property write:
+;
+;     fixture.get_node("Model/Lever").rotation.x = <angle>
+;
+; Rest is 0 — the arm stands straight up off the boss, unambiguously "not
+; thrown". rooms/room18/room18.gd swings it to THROWN_ROT_X and never puts it
+; back. Rotating the pivot rather than moving the whole Area3D matters: the
+; three.js build
+; expressed "thrown" by sliding the entire fixture 0.28m down the wall, which
+; in a real 3D scene reads as the breaker falling off its mounting rather than
+; as a handle being pulled.
+;
+; Visuals only — no collision, no gameplay script. The room generator supplies
+; the Area3D + CollisionShape3D this gets instanced under.
+
+[ext_resource type="Material" uid="uid://wardbfxsb01" path="res://fixtures/switch_body_mat.tres" id="m_body"]
+[ext_resource type="Material" uid="uid://wardbfxsg01" path="res://fixtures/switch_glow_mat.tres" id="m_glow"]
+[ext_resource type="Material" uid="uid://wardbfxhw01" path="res://fixtures/hardware_mat.tres" id="m_hw"]
+
+[sub_resource type="BoxMesh" id="bm_body"]
+size = Vector3(0.5, 0.6, 0.16)
+
+[sub_resource type="BoxMesh" id="bm_face"]
+size = Vector3(0.4, 0.48, 0.02)
+
+[sub_resource type="BoxMesh" id="bm_arm"]
+size = Vector3(0.045, 0.24, 0.045)
+
+[sub_resource type="BoxMesh" id="bm_knob"]
+size = Vector3(0.075, 0.06, 0.075)
+
+[sub_resource type="BoxMesh" id="bm_lamp"]
+size = Vector3(0.07, 0.045, 0.02)
+
+[sub_resource type="CylinderMesh" id="cm_boss"]
+top_radius = 0.055
+bottom_radius = 0.055
+height = 0.035
+radial_segments = 12
+
+[node name="Switch" type="Node3D"]
+
+[node name="Body" type="MeshInstance3D" parent="."]
+mesh = SubResource("bm_body")
+surface_material_override/0 = ExtResource("m_body")
+
+; Recessed faceplate, 1cm proud of the body's -Z face.
+[node name="Face" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.02, -0.085)
+mesh = SubResource("bm_face")
+surface_material_override/0 = ExtResource("m_hw")
+
+; The pivot boss the lever turns on — a disc lying in the XY plane, so it is
+; rotated 90 degrees about X to point its axis down -Z.
+[node name="Boss" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0, -0.09, -0.105)
+mesh = SubResource("cm_boss")
+surface_material_override/0 = ExtResource("m_hw")
+
+; THE LEVER PIVOT. Room scripts write rotation.x on THIS node; at rest it is
+; identity, so the arm points straight up out of the boss and the "thrown"
+; pose is a single unambiguous sign of rotation away from it.
+[node name="Lever" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.09, -0.105)
+
+[node name="Arm" type="MeshInstance3D" parent="Lever"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.12, 0)
+mesh = SubResource("bm_arm")
+surface_material_override/0 = ExtResource("m_hw")
+
+[node name="Knob" type="MeshInstance3D" parent="Lever"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.255, 0)
+mesh = SubResource("bm_knob")
+surface_material_override/0 = ExtResource("m_body")
+
+[node name="Lamp" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.215, -0.095)
+mesh = SubResource("bm_lamp")
+surface_material_override/0 = ExtResource("m_glow")

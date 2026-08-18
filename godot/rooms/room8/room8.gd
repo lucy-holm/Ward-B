@@ -168,6 +168,10 @@ func _regenerate_code() -> void:
 # tell which one just noticed them.
 
 func _spawn_orderlies() -> void:
+	# Defensive free before respawn, same as rooms 5-7: on_enter runs once per
+	# room instance today, but a second call here would leave FOUR of them
+	# patrolling and only two of them tracked.
+	on_leave()
 	_orderly_a = _spawn_one(WAYPOINTS_A, _on_warned_a)
 	_orderly_b = _spawn_one(WAYPOINTS_B, _on_warned_b)
 

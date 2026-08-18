@@ -1,0 +1,806 @@
+[gd_scene load_steps=48 format=3 uid="uid://wardbroomc57f0a8"]
+
+[ext_resource type="Script" path="res://rooms/room16/room16.gd" id="s_room"]
+[ext_resource type="Material" uid="uid://wardbmatd0cabd0" path="res://materials/floor.tres" id="m_floor"]
+[ext_resource type="Material" uid="uid://wardbmatd5eaba5" path="res://materials/ceil.tres" id="m_ceil"]
+[ext_resource type="Material" uid="uid://wardbmatbb126" path="res://materials/wall.tres" id="m_wall"]
+[ext_resource type="Material" uid="uid://wardbmat5fba6a4" path="res://materials/wall2.tres" id="m_wall2"]
+[ext_resource type="Script" path="res://core/light_object.gd" id="s_lightobj"]
+[ext_resource type="Material" uid="uid://wardbmatde9ba6d" path="res://materials/glow.tres" id="m_glow"]
+[ext_resource type="Script" path="res://core/state_object.gd" id="s_stateobj"]
+[ext_resource type="FontFile" path="res://fonts/RockSalt-Regular.ttf" id="f_scrawl"]
+[ext_resource type="PackedScene" path="res://fixtures/dispenser.tscn" id="fx_dispenser"]
+[ext_resource type="PackedScene" path="res://fixtures/breaker.tscn" id="fx_switch"]
+[ext_resource type="PackedScene" path="res://fixtures/door.tscn" id="fx_door"]
+[ext_resource type="Script" path="res://core/interactable.gd" id="s_interactable"]
+[ext_resource type="Script" path="res://core/room_exit.gd" id="s_exit"]
+
+[sub_resource type="BoxMesh" id="bm_0"]
+size = Vector3(22.4000, 0.1000, 22.0000)
+material = ExtResource("m_floor")
+
+[sub_resource type="BoxMesh" id="bm_1"]
+size = Vector3(22.4000, 0.1000, 22.0000)
+material = ExtResource("m_ceil")
+
+[sub_resource type="BoxShape3D" id="bs_0"]
+size = Vector3(16.0000, 3.0000, 0.2400)
+
+[sub_resource type="BoxMesh" id="bm_2"]
+size = Vector3(16.0000, 3.0000, 0.2400)
+material = ExtResource("m_wall")
+
+[sub_resource type="BoxShape3D" id="bs_1"]
+size = Vector3(0.2400, 3.0000, 4.0000)
+
+[sub_resource type="BoxMesh" id="bm_3"]
+size = Vector3(0.2400, 3.0000, 4.0000)
+material = ExtResource("m_wall2")
+
+[sub_resource type="BoxShape3D" id="bs_2"]
+size = Vector3(7.0000, 3.0000, 0.2400)
+
+[sub_resource type="BoxMesh" id="bm_4"]
+size = Vector3(7.0000, 3.0000, 0.2400)
+material = ExtResource("m_wall")
+
+[sub_resource type="BoxShape3D" id="bs_3"]
+size = Vector3(0.2400, 3.0000, 8.9000)
+
+[sub_resource type="BoxMesh" id="bm_5"]
+size = Vector3(0.2400, 3.0000, 8.9000)
+material = ExtResource("m_wall2")
+
+[sub_resource type="BoxShape3D" id="bs_4"]
+size = Vector3(0.2400, 3.0000, 5.5000)
+
+[sub_resource type="BoxMesh" id="bm_6"]
+size = Vector3(0.2400, 3.0000, 5.5000)
+material = ExtResource("m_wall2")
+
+[sub_resource type="BoxShape3D" id="bs_5"]
+size = Vector3(0.2400, 3.0000, 5.2000)
+
+[sub_resource type="BoxMesh" id="bm_7"]
+size = Vector3(0.2400, 3.0000, 5.2000)
+material = ExtResource("m_wall2")
+
+[sub_resource type="BoxShape3D" id="bs_6"]
+size = Vector3(0.2400, 3.0000, 9.2000)
+
+[sub_resource type="BoxMesh" id="bm_8"]
+size = Vector3(0.2400, 3.0000, 9.2000)
+material = ExtResource("m_wall2")
+
+[sub_resource type="BoxShape3D" id="bs_7"]
+size = Vector3(3.2000, 3.0000, 0.2400)
+
+[sub_resource type="BoxMesh" id="bm_9"]
+size = Vector3(3.2000, 3.0000, 0.2400)
+material = ExtResource("m_wall")
+
+[sub_resource type="BoxShape3D" id="bs_8"]
+size = Vector3(0.2400, 3.0000, 3.2000)
+
+[sub_resource type="BoxMesh" id="bm_10"]
+size = Vector3(0.2400, 3.0000, 3.2000)
+material = ExtResource("m_wall2")
+
+[sub_resource type="BoxMesh" id="bm_11"]
+size = Vector3(0.1200, 0.1400, 1.6000)
+material = ExtResource("m_glow")
+
+[sub_resource type="BoxMesh" id="bm_12"]
+size = Vector3(0.4000, 0.0400, 0.4000)
+
+[sub_resource type="StandardMaterial3D" id="phosphor_mat"]
+resource_local_to_scene = true
+shading_mode = 0
+transparency = 1
+albedo_color = Color(0.749, 1.0, 0.788, 1)
+roughness = 0.9
+
+[sub_resource type="BoxShape3D" id="bs_9"]
+size = Vector3(2.0000, 3.0000, 0.2600)
+
+[sub_resource type="BoxShape3D" id="bs_10"]
+size = Vector3(0.2400, 3.0000, 2.0000)
+
+[sub_resource type="BoxMesh" id="bm_13"]
+size = Vector3(0.2400, 3.0000, 2.0000)
+material = ExtResource("m_wall2")
+
+[sub_resource type="BoxShape3D" id="bs_11"]
+size = Vector3(2.0000, 3.0000, 0.2400)
+
+[sub_resource type="BoxMesh" id="bm_14"]
+size = Vector3(2.0000, 3.0000, 0.2400)
+material = ExtResource("m_wall")
+
+[sub_resource type="BoxMesh" id="bm_15"]
+size = Vector3(1.8000, 2.6000, 0.0600)
+material = ExtResource("m_glow")
+
+[sub_resource type="BoxShape3D" id="bs_12"]
+size = Vector3(0.5500, 0.7500, 0.1600)
+
+[sub_resource type="BoxShape3D" id="bs_13"]
+size = Vector3(0.5000, 0.6000, 0.1600)
+
+[sub_resource type="BoxShape3D" id="bs_14"]
+size = Vector3(2.0000, 3.0000, 0.2000)
+
+[sub_resource type="BoxShape3D" id="bs_15"]
+size = Vector3(2.0000, 3.0000, 1.0000)
+
+[node name="Room" type="Node3D"]
+script = ExtResource("s_room")
+
+[node name="Spawn" type="Marker3D" parent="."]
+transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, 0.0000, 0.0000, 5.0000)
+
+[node name="Shell" type="Node3D" parent="."]
+
+[node name="Floor" type="MeshInstance3D" parent="Shell"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0000, -0.0500, -5.0000)
+mesh = SubResource("bm_0")
+
+[node name="Ceiling" type="MeshInstance3D" parent="Shell"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0000, 3.0500, -5.0000)
+mesh = SubResource("bm_1")
+
+[node name="Geometry" type="Node3D" parent="."]
+
+[node name="W1" type="StaticBody3D" parent="Geometry"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0000, 1.5000, 6.0000)
+collision_layer = 2
+collision_mask = 0
+
+[node name="Shape" type="CollisionShape3D" parent="Geometry/W1"]
+shape = SubResource("bs_0")
+
+[node name="Mesh" type="MeshInstance3D" parent="Geometry/W1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0000, 0.0000, 0.0000)
+mesh = SubResource("bm_2")
+
+[node name="W2" type="StaticBody3D" parent="Geometry"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8.0000, 1.5000, 4.0000)
+collision_layer = 2
+collision_mask = 0
+
+[node name="Shape" type="CollisionShape3D" parent="Geometry/W2"]
+shape = SubResource("bs_1")
+
+[node name="Mesh" type="MeshInstance3D" parent="Geometry/W2"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0000, 0.0000, 0.0000)
+mesh = SubResource("bm_3")
+
+[node name="W3" type="StaticBody3D" parent="Geometry"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8.0000, 1.5000, 4.0000)
+collision_layer = 2
+collision_mask = 0
+
+[node name="Shape" type="CollisionShape3D" parent="Geometry/W3"]
+shape = SubResource("bs_1")
+
+[node name="Mesh" type="MeshInstance3D" parent="Geometry/W3"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0000, 0.0000, 0.0000)
+mesh = SubResource("bm_3")
+
+[node name="W4" type="StaticBody3D" parent="Geometry"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.5000, 1.5000, 2.0000)
+collision_layer = 2
+collision_mask = 0
+
+[node name="Shape" type="CollisionShape3D" parent="Geometry/W4"]
+shape = SubResource("bs_2")
+
+[node name="Mesh" type="MeshInstance3D" parent="Geometry/W4"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0000, 0.0000, 0.0000)
+mesh = SubResource("bm_4")
+
+[node name="W5" type="StaticBody3D" parent="Geometry"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4.5000, 1.5000, 2.0000)
+collision_layer = 2
+collision_mask = 0
+
+[node name="Shape" type="CollisionShape3D" parent="Geometry/W5"]
+shape = SubResource("bs_2")
+
+[node name="Mesh" type="MeshInstance3D" parent="Geometry/W5"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0000, 0.0000, 0.0000)
+mesh = SubResource("bm_4")
+
+[node name="W6" type="StaticBody3D" parent="Geometry"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8.0000, 1.5000, -2.4500)
+collision_layer = 2
+collision_mask = 0
+
+[node name="Shape" type="CollisionShape3D" parent="Geometry/W6"]
+shape = SubResource("bs_3")
+
+[node name="Mesh" type="MeshInstance3D" parent="Geometry/W6"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0000, 0.0000, 0.0000)
+mesh = SubResource("bm_5")
+
+[node name="W7" type="StaticBody3D" parent="Geometry"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8.0000, 1.5000, -11.2500)
+collision_layer = 2
+collision_mask = 0
+
+[node name="Shape" type="CollisionShape3D" parent="Geometry/W7"]
+shape = SubResource("bs_4")
+
+[node name="Mesh" type="MeshInstance3D" parent="Geometry/W7"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0000, 0.0000, 0.0000)
+mesh = SubResource("bm_6")
+
+[node name="W8" type="StaticBody3D" parent="Geometry"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8.0000, 1.5000, -0.6000)
+collision_layer = 2
+collision_mask = 0
+
+[node name="Shape" type="CollisionShape3D" parent="Geometry/W8"]
+shape = SubResource("bs_5")
+
+[node name="Mesh" type="MeshInstance3D" parent="Geometry/W8"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0000, 0.0000, 0.0000)
+mesh = SubResource("bm_7")
+
+[node name="W9" type="StaticBody3D" parent="Geometry"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8.0000, 1.5000, -9.4000)
+collision_layer = 2
+collision_mask = 0
+
+[node name="Shape" type="CollisionShape3D" parent="Geometry/W9"]
+shape = SubResource("bs_6")
+
+[node name="Mesh" type="MeshInstance3D" parent="Geometry/W9"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0000, 0.0000, 0.0000)
+mesh = SubResource("bm_8")
+
+[node name="W10" type="StaticBody3D" parent="Geometry"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -9.6000, 1.5000, -9.6000)
+collision_layer = 2
+collision_mask = 0
+
+[node name="Shape" type="CollisionShape3D" parent="Geometry/W10"]
+shape = SubResource("bs_7")
+
+[node name="Mesh" type="MeshInstance3D" parent="Geometry/W10"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0000, 0.0000, 0.0000)
+mesh = SubResource("bm_9")
+
+[node name="W11" type="StaticBody3D" parent="Geometry"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -9.6000, 1.5000, -6.4000)
+collision_layer = 2
+collision_mask = 0
+
+[node name="Shape" type="CollisionShape3D" parent="Geometry/W11"]
+shape = SubResource("bs_7")
+
+[node name="Mesh" type="MeshInstance3D" parent="Geometry/W11"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0000, 0.0000, 0.0000)
+mesh = SubResource("bm_9")
+
+[node name="W12" type="StaticBody3D" parent="Geometry"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -11.2000, 1.5000, -8.0000)
+collision_layer = 2
+collision_mask = 0
+
+[node name="Shape" type="CollisionShape3D" parent="Geometry/W12"]
+shape = SubResource("bs_8")
+
+[node name="Mesh" type="MeshInstance3D" parent="Geometry/W12"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0000, 0.0000, 0.0000)
+mesh = SubResource("bm_10")
+
+[node name="W13" type="StaticBody3D" parent="Geometry"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 9.6000, 1.5000, -5.6000)
+collision_layer = 2
+collision_mask = 0
+
+[node name="Shape" type="CollisionShape3D" parent="Geometry/W13"]
+shape = SubResource("bs_7")
+
+[node name="Mesh" type="MeshInstance3D" parent="Geometry/W13"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0000, 0.0000, 0.0000)
+mesh = SubResource("bm_9")
+
+[node name="W14" type="StaticBody3D" parent="Geometry"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 9.6000, 1.5000, -2.4000)
+collision_layer = 2
+collision_mask = 0
+
+[node name="Shape" type="CollisionShape3D" parent="Geometry/W14"]
+shape = SubResource("bs_7")
+
+[node name="Mesh" type="MeshInstance3D" parent="Geometry/W14"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0000, 0.0000, 0.0000)
+mesh = SubResource("bm_9")
+
+[node name="W15" type="StaticBody3D" parent="Geometry"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 11.2000, 1.5000, -4.0000)
+collision_layer = 2
+collision_mask = 0
+
+[node name="Shape" type="CollisionShape3D" parent="Geometry/W15"]
+shape = SubResource("bs_8")
+
+[node name="Mesh" type="MeshInstance3D" parent="Geometry/W15"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0000, 0.0000, 0.0000)
+mesh = SubResource("bm_10")
+
+[node name="W16" type="Node3D" parent="Geometry"]
+script = ExtResource("s_lightobj")
+visible_in_light = 1
+
+[node name="Body" type="MeshInstance3D" parent="Geometry/W16"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8.0000, 2.7000, -7.7000)
+mesh = SubResource("bm_11")
+
+[node name="W17" type="Node3D" parent="Geometry"]
+script = ExtResource("s_lightobj")
+visible_in_light = 1
+
+[node name="Body" type="MeshInstance3D" parent="Geometry/W17"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8.0000, 2.7000, -4.0000)
+mesh = SubResource("bm_11")
+
+[node name="W18" type="Node3D" parent="Geometry"]
+script = ExtResource("s_lightobj")
+visible_in_light = 2
+
+[node name="Body" type="MeshInstance3D" parent="Geometry/W18" groups=["phosphor"]]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 7.0000, 0.0200, -4.0000)
+mesh = SubResource("bm_12")
+material_override = SubResource("phosphor_mat")
+metadata/phosphor_alpha = 1.0
+
+[node name="W19" type="Node3D" parent="Geometry"]
+script = ExtResource("s_lightobj")
+visible_in_light = 2
+
+[node name="Body" type="MeshInstance3D" parent="Geometry/W19" groups=["phosphor"]]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.0000, 0.0200, -3.0000)
+mesh = SubResource("bm_12")
+material_override = SubResource("phosphor_mat")
+metadata/phosphor_alpha = 1.0
+
+[node name="W20" type="Node3D" parent="Geometry"]
+script = ExtResource("s_lightobj")
+visible_in_light = 2
+
+[node name="Body" type="MeshInstance3D" parent="Geometry/W20" groups=["phosphor"]]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.0000, 0.0200, -3.5000)
+mesh = SubResource("bm_12")
+material_override = SubResource("phosphor_mat")
+metadata/phosphor_alpha = 1.0
+
+[node name="W21" type="Node3D" parent="Geometry"]
+script = ExtResource("s_lightobj")
+visible_in_light = 2
+
+[node name="Body" type="MeshInstance3D" parent="Geometry/W21" groups=["phosphor"]]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.0000, 0.0200, -5.0000)
+mesh = SubResource("bm_12")
+material_override = SubResource("phosphor_mat")
+metadata/phosphor_alpha = 1.0
+
+[node name="W22" type="Node3D" parent="Geometry"]
+script = ExtResource("s_lightobj")
+visible_in_light = 2
+
+[node name="Body" type="MeshInstance3D" parent="Geometry/W22" groups=["phosphor"]]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -7.0000, 0.0200, -7.0000)
+mesh = SubResource("bm_12")
+material_override = SubResource("phosphor_mat")
+metadata/phosphor_alpha = 1.0
+
+[node name="W23" type="StaticBody3D" parent="Geometry"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.5000, 1.5000, -14.0000)
+collision_layer = 2
+collision_mask = 0
+
+[node name="Shape" type="CollisionShape3D" parent="Geometry/W23"]
+shape = SubResource("bs_2")
+
+[node name="Mesh" type="MeshInstance3D" parent="Geometry/W23"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0000, 0.0000, 0.0000)
+mesh = SubResource("bm_4")
+
+[node name="W24" type="StaticBody3D" parent="Geometry"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4.5000, 1.5000, -14.0000)
+collision_layer = 2
+collision_mask = 0
+
+[node name="Shape" type="CollisionShape3D" parent="Geometry/W24"]
+shape = SubResource("bs_2")
+
+[node name="Mesh" type="MeshInstance3D" parent="Geometry/W24"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0000, 0.0000, 0.0000)
+mesh = SubResource("bm_4")
+
+[node name="DoorCollider" type="StaticBody3D" parent="Geometry"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0000, 1.5000, -14.0000)
+collision_layer = 2
+collision_mask = 0
+
+[node name="Shape" type="CollisionShape3D" parent="Geometry/DoorCollider"]
+shape = SubResource("bs_9")
+
+[node name="W26" type="StaticBody3D" parent="Geometry"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.0000, 1.5000, -15.0000)
+collision_layer = 2
+collision_mask = 0
+
+[node name="Shape" type="CollisionShape3D" parent="Geometry/W26"]
+shape = SubResource("bs_10")
+
+[node name="Mesh" type="MeshInstance3D" parent="Geometry/W26"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0000, 0.0000, 0.0000)
+mesh = SubResource("bm_13")
+
+[node name="W27" type="StaticBody3D" parent="Geometry"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.0000, 1.5000, -15.0000)
+collision_layer = 2
+collision_mask = 0
+
+[node name="Shape" type="CollisionShape3D" parent="Geometry/W27"]
+shape = SubResource("bs_10")
+
+[node name="Mesh" type="MeshInstance3D" parent="Geometry/W27"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0000, 0.0000, 0.0000)
+mesh = SubResource("bm_13")
+
+[node name="W28" type="StaticBody3D" parent="Geometry"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0000, 1.5000, -16.0000)
+collision_layer = 2
+collision_mask = 0
+
+[node name="Shape" type="CollisionShape3D" parent="Geometry/W28"]
+shape = SubResource("bs_11")
+
+[node name="Mesh" type="MeshInstance3D" parent="Geometry/W28"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0000, 0.0000, 0.0000)
+mesh = SubResource("bm_14")
+
+[node name="W29" type="MeshInstance3D" parent="Geometry"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0000, 1.4000, -15.9000)
+mesh = SubResource("bm_15")
+
+[node name="Scrawls" type="Node3D" parent="."]
+script = ExtResource("s_stateobj")
+visible_in_state = 2
+
+[node name="Scrawl0" type="Label3D" parent="Scrawls"]
+transform = Transform3D(0.997870, -0.065229, 0.000000, 0.065229, 0.997870, 0.000000, -0.000000, 0.000000, 1.000000, -4.5000, 1.7000, 2.1500)
+pixel_size = 0.0023
+text = "they never turn\nthe lights off. someone\nmust be afraid too."
+font = ExtResource("f_scrawl")
+font_size = 128
+outline_size = 14
+outline_modulate = Color(0.18, 0.05, 0.04, 0.85)
+modulate = Color(0.62, 0.16, 0.12, 0.92)
+texture_filter = 0
+billboard = 0
+shaded = false
+double_sided = false
+no_depth_test = false
+
+[node name="inkScrawl16" type="Label3D" parent="Scrawls"]
+transform = Transform3D(0.000000, -0.000000, 1.000000, 0.087851, 0.996134, 0.000000, -0.996134, 0.087851, 0.000000, -11.0500, 2.2000, -8.0000)
+pixel_size = 0.0014
+text = "the breaker's east.\nsteady hands only —\nand a fed room."
+font = ExtResource("f_scrawl")
+font_size = 128
+outline_size = 14
+outline_modulate = Color(0.18, 0.05, 0.04, 0.85)
+modulate = Color(0.62, 0.16, 0.12, 0.92)
+texture_filter = 0
+billboard = 0
+shaded = false
+double_sided = false
+no_depth_test = false
+
+[node name="phosphorScrawl16_light" type="Node3D" parent="Scrawls"]
+script = ExtResource("s_lightobj")
+visible_in_light = 2
+
+[node name="phosphorScrawl16" type="Label3D" parent="Scrawls/phosphorScrawl16_light" groups=["phosphor"]]
+transform = Transform3D(0.000000, -0.000000, 1.000000, 0.152296, 0.988335, 0.000000, -0.988335, 0.152296, 0.000000, -11.0500, 0.8000, -8.0000)
+pixel_size = 0.0014
+text = "the door opens only\nfor calm eyes, dark."
+font = ExtResource("f_scrawl")
+font_size = 128
+outline_size = 14
+modulate = Color(0.749, 1.0, 0.788, 0.92)
+outline_modulate = Color(0.04, 0.13, 0.06, 0.85)
+metadata/phosphor_alpha = 0.92
+texture_filter = 0
+billboard = 0
+shaded = false
+double_sided = false
+no_depth_test = false
+
+[node name="Interactables" type="Node3D" parent="."]
+
+[node name="dispenser16a" type="Area3D" parent="Interactables"]
+transform = Transform3D(0.000000, 0, -1.000000, 0, 1, 0, 1.000000, 0, 0.000000, -7.8000, 1.4500, 4.0000)
+collision_layer = 32
+collision_mask = 0
+script = ExtResource("s_interactable")
+interactable_id = "dispenser16a"
+interactable_type = "dispenser"
+label = "use the dispenser"
+
+[node name="Shape" type="CollisionShape3D" parent="Interactables/dispenser16a"]
+shape = SubResource("bs_12")
+
+[node name="Model" parent="Interactables/dispenser16a" instance=ExtResource("fx_dispenser")]
+transform = Transform3D(1.00000, 0, 0, 0, 1.00000, 0, 0, 0, 1.00000, 0.0000, 0.0000, 0.0000)
+
+[node name="lightSwitch16" type="Area3D" parent="Interactables"]
+transform = Transform3D(0.000000, 0, 1.000000, 0, 1, 0, -1.000000, 0, 0.000000, 11.0000, 1.4500, -4.0000)
+collision_layer = 32
+collision_mask = 0
+script = ExtResource("s_interactable")
+interactable_id = "lightSwitch16"
+interactable_type = "switch"
+label = "the breaker switch"
+
+[node name="Shape" type="CollisionShape3D" parent="Interactables/lightSwitch16"]
+shape = SubResource("bs_13")
+
+[node name="Model" parent="Interactables/lightSwitch16" instance=ExtResource("fx_switch")]
+transform = Transform3D(1.00000, 0, 0, 0, 1.00000, 0, 0, 0, 1.00000, 0.0000, 0.0000, 0.0000)
+
+[node name="exitdoor16" type="Area3D" parent="Interactables"]
+transform = Transform3D(-1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, -1.000000, 0.0000, 1.5000, -14.0000)
+collision_layer = 32
+collision_mask = 0
+script = ExtResource("s_interactable")
+interactable_id = "exitdoor16"
+interactable_type = "door"
+label = "the exit door"
+
+[node name="Shape" type="CollisionShape3D" parent="Interactables/exitdoor16"]
+shape = SubResource("bs_14")
+
+[node name="Model" parent="Interactables/exitdoor16" instance=ExtResource("fx_door")]
+transform = Transform3D(1.00000, 0, 0, 0, 1.00000, 0, 0, 0, 1.00000, 0.0000, 0.0000, 0.0000)
+
+[node name="Lights" type="Node3D" parent="."]
+
+[node name="L0" type="OmniLight3D" parent="Lights"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0000, 2.7000, 4.0000)
+metadata/circuit = "bay"
+light_color = Color(0.949, 1.0, 0.98, 1)
+light_energy = 0.95
+omni_range = 6.0
+omni_attenuation = 2.3
+shadow_enabled = true
+shadow_bias = 0.04
+shadow_normal_bias = 1.4
+
+[node name="L0_bounce" type="OmniLight3D" parent="Lights"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0000, 0.2200, 4.0000)
+metadata/circuit = "bay"
+light_color = Color(1.0, 0.79, 0.6, 1)
+light_energy = 0.3
+omni_range = 2.6
+omni_attenuation = 1.1
+shadow_enabled = false
+
+[node name="L1" type="OmniLight3D" parent="Lights"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0000, 2.7000, 0.0000)
+metadata/circuit = "bay"
+light_color = Color(0.949, 1.0, 0.98, 1)
+light_energy = 0.95
+omni_range = 6.0
+omni_attenuation = 2.3
+shadow_enabled = false
+shadow_bias = 0.04
+shadow_normal_bias = 1.4
+
+[node name="L1_bounce" type="OmniLight3D" parent="Lights"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0000, 0.2200, 0.0000)
+metadata/circuit = "bay"
+light_color = Color(1.0, 0.79, 0.6, 1)
+light_energy = 0.3
+omni_range = 2.6
+omni_attenuation = 1.1
+shadow_enabled = false
+
+[node name="L2" type="OmniLight3D" parent="Lights"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.0000, 2.7000, -4.0000)
+metadata/circuit = "bay"
+light_color = Color(0.949, 1.0, 0.98, 1)
+light_energy = 0.95
+omni_range = 6.0
+omni_attenuation = 2.3
+shadow_enabled = false
+shadow_bias = 0.04
+shadow_normal_bias = 1.4
+
+[node name="L2_bounce" type="OmniLight3D" parent="Lights"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.0000, 0.2200, -4.0000)
+metadata/circuit = "bay"
+light_color = Color(1.0, 0.79, 0.6, 1)
+light_energy = 0.3
+omni_range = 2.6
+omni_attenuation = 1.1
+shadow_enabled = false
+
+[node name="L3" type="OmniLight3D" parent="Lights"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.0000, 2.7000, -4.0000)
+metadata/circuit = "bay"
+light_color = Color(0.949, 1.0, 0.98, 1)
+light_energy = 0.95
+omni_range = 6.0
+omni_attenuation = 2.3
+shadow_enabled = true
+shadow_bias = 0.04
+shadow_normal_bias = 1.4
+
+[node name="L3_bounce" type="OmniLight3D" parent="Lights"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.0000, 0.2200, -4.0000)
+metadata/circuit = "bay"
+light_color = Color(1.0, 0.79, 0.6, 1)
+light_energy = 0.3
+omni_range = 2.6
+omni_attenuation = 1.1
+shadow_enabled = false
+
+[node name="L4" type="OmniLight3D" parent="Lights"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.0000, 2.7000, -8.0000)
+metadata/circuit = "bay"
+light_color = Color(0.949, 1.0, 0.98, 1)
+light_energy = 0.95
+omni_range = 6.0
+omni_attenuation = 2.3
+shadow_enabled = false
+shadow_bias = 0.04
+shadow_normal_bias = 1.4
+
+[node name="L4_bounce" type="OmniLight3D" parent="Lights"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.0000, 0.2200, -8.0000)
+metadata/circuit = "bay"
+light_color = Color(1.0, 0.79, 0.6, 1)
+light_energy = 0.3
+omni_range = 2.6
+omni_attenuation = 1.1
+shadow_enabled = false
+
+[node name="L5" type="OmniLight3D" parent="Lights"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.0000, 2.7000, -8.0000)
+metadata/circuit = "bay"
+light_color = Color(0.949, 1.0, 0.98, 1)
+light_energy = 0.95
+omni_range = 6.0
+omni_attenuation = 2.3
+shadow_enabled = false
+shadow_bias = 0.04
+shadow_normal_bias = 1.4
+
+[node name="L5_bounce" type="OmniLight3D" parent="Lights"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.0000, 0.2200, -8.0000)
+metadata/circuit = "bay"
+light_color = Color(1.0, 0.79, 0.6, 1)
+light_energy = 0.3
+omni_range = 2.6
+omni_attenuation = 1.1
+shadow_enabled = false
+
+[node name="L6" type="OmniLight3D" parent="Lights"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.0000, 2.7000, -11.0000)
+metadata/circuit = "bay"
+light_color = Color(0.949, 1.0, 0.98, 1)
+light_energy = 0.95
+omni_range = 6.0
+omni_attenuation = 2.3
+shadow_enabled = true
+shadow_bias = 0.04
+shadow_normal_bias = 1.4
+
+[node name="L6_bounce" type="OmniLight3D" parent="Lights"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.0000, 0.2200, -11.0000)
+metadata/circuit = "bay"
+light_color = Color(1.0, 0.79, 0.6, 1)
+light_energy = 0.3
+omni_range = 2.6
+omni_attenuation = 1.1
+shadow_enabled = false
+
+[node name="L7" type="OmniLight3D" parent="Lights"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.0000, 2.7000, -11.0000)
+metadata/circuit = "bay"
+light_color = Color(0.949, 1.0, 0.98, 1)
+light_energy = 0.95
+omni_range = 6.0
+omni_attenuation = 2.3
+shadow_enabled = false
+shadow_bias = 0.04
+shadow_normal_bias = 1.4
+
+[node name="L7_bounce" type="OmniLight3D" parent="Lights"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.0000, 0.2200, -11.0000)
+metadata/circuit = "bay"
+light_color = Color(1.0, 0.79, 0.6, 1)
+light_energy = 0.3
+omni_range = 2.6
+omni_attenuation = 1.1
+shadow_enabled = false
+
+[node name="L8" type="OmniLight3D" parent="Lights"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0000, 2.7000, -15.0000)
+metadata/circuit = "bay"
+light_color = Color(0.949, 1.0, 0.98, 1)
+light_energy = 0.95
+omni_range = 6.0
+omni_attenuation = 2.3
+shadow_enabled = false
+shadow_bias = 0.04
+shadow_normal_bias = 1.4
+
+[node name="L8_bounce" type="OmniLight3D" parent="Lights"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0000, 0.2200, -15.0000)
+metadata/circuit = "bay"
+light_color = Color(1.0, 0.79, 0.6, 1)
+light_energy = 0.3
+omni_range = 2.6
+omni_attenuation = 1.1
+shadow_enabled = false
+
+[node name="L9" type="OmniLight3D" parent="Lights"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -10.0000, 2.7000, -8.0000)
+metadata/circuit = "bay"
+light_color = Color(0.949, 1.0, 0.98, 1)
+light_energy = 0.95
+omni_range = 6.0
+omni_attenuation = 2.3
+shadow_enabled = true
+shadow_bias = 0.04
+shadow_normal_bias = 1.4
+
+[node name="L9_bounce" type="OmniLight3D" parent="Lights"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -10.0000, 0.2200, -8.0000)
+metadata/circuit = "bay"
+light_color = Color(1.0, 0.79, 0.6, 1)
+light_energy = 0.3
+omni_range = 2.6
+omni_attenuation = 1.1
+shadow_enabled = false
+
+[node name="L10" type="OmniLight3D" parent="Lights"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 10.0000, 2.7000, -4.0000)
+metadata/circuit = "bay"
+light_color = Color(0.949, 1.0, 0.98, 1)
+light_energy = 0.95
+omni_range = 6.0
+omni_attenuation = 2.3
+shadow_enabled = false
+shadow_bias = 0.04
+shadow_normal_bias = 1.4
+
+[node name="L10_bounce" type="OmniLight3D" parent="Lights"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 10.0000, 0.2200, -4.0000)
+metadata/circuit = "bay"
+light_color = Color(1.0, 0.79, 0.6, 1)
+light_energy = 0.3
+omni_range = 2.6
+omni_attenuation = 1.1
+shadow_enabled = false
+
+[node name="Exits" type="Node3D" parent="."]
+
+[node name="Exit0" type="Area3D" parent="Exits"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0000, 1.5000, -15.4000)
+collision_layer = 64
+collision_mask = 1
+script = ExtResource("s_exit")
+exit_to = "room17"
+
+[node name="Shape" type="CollisionShape3D" parent="Exits/Exit0"]
+shape = SubResource("bs_15")
+

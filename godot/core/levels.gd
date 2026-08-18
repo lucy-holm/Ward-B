@@ -330,6 +330,58 @@ func resolve_level(current: String, x: float, z: float) -> String:
 	return current
 
 
+# --- level queries for other systems ---------------------------------------
+#
+# Anything that filters by level — colliders here, trigger volumes elsewhere,
+# scrawls or interactables if they ever need it — should go through these
+# three rather than reimplementing the rule, so "untagged means every level"
+# has exactly one definition in the codebase.
+#
+# THERE IS DELIBERATELY NO `level_at(x, z)`. Level is not a pure function of
+# XZ; that is the entire point of stacked floors, since a gallery and the
+# floor beneath it share an XZ rectangle with two different correct answers.
+# The only honest question is "what level is this TRAVELER on", which is
+# level_of() below, and a traveler only ever changes level by walking a
+# stairwell end to end (resolve_level).
+
+
+## The level a traveler (the player, an orderly, any body carrying one) is
+## currently on. Duck-typed on a `level` property, then metadata, so a test
+## stub or a hand-authored node works without inheriting anything. Defaults
+## to the synthetic flat level, which is what an untagged body means.
+static func level_of(node: Node) -> String:
+	if node == null:
+		return FLAT_LEVEL_ID
+	if "level" in node:
+		return str(node.get("level"))
+	if node.has_meta("level"):
+		return str(node.get_meta("level"))
+	return FLAT_LEVEL_ID
+
+
+## The level TAG on a volume — a collider, a trigger, anything with a
+## footprint rather than a position. Empty means untagged, i.e. active on
+## every level, which is the common case and the only case in rooms 1-16.
+##
+## The default differs from level_of on purpose: an untagged TRAVELER is on
+## the flat level, whereas an untagged VOLUME exists on all levels.
+static func tag_of(node: Node) -> String:
+	if node == null:
+		return ""
+	if node.has_meta("level"):
+		return str(node.get_meta("level"))
+	if "level" in node:
+		return str(node.get("level"))
+	return ""
+
+
+## Does a volume tagged `tag` apply to a traveler on `traveler_level`? The
+## single definition of the rule — Box.active_on_level defers to it, and a
+## level filter on trigger volumes should too.
+static func level_matches(tag: String, traveler_level: String) -> bool:
+	return tag.is_empty() or tag == traveler_level
+
+
 ## True when `id` names a level this room actually authored. For validators
 ## and room scripts; floor_height_at deliberately does not use it (it falls
 ## back rather than failing).

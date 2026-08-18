@@ -383,6 +383,37 @@ func _test_main_drives_it() -> void:
 	_close(player.global_position.y, 0.0375,
 		"and then eases to the height of the level it flipped TO", 0.01)
 
+	# NO ONE-TICK STALENESS. Everything above moves the player by teleport,
+	# which happens BETWEEN ticks and so cannot tell "resolved from this
+	# tick's position" from "resolved from last tick's". This walks him
+	# across the stairwell's far boundary under real input and checks WHICH
+	# tick the flip lands on.
+	#
+	# This is the assertion that caught the original placement of this logic
+	# in main.gd: main's _physics_process measurably runs BEFORE the player's
+	# (a parent ticks before its children), so resolving there saw last
+	# tick's position and the flip arrived one tick late.
+	player.teleport(6.0, 11.9, "balcony")
+	player.yaw = PI  # yaw 0 faces -Z, so PI faces +Z, toward the stair's far end
+	player.set_input_enabled(true)
+	Input.action_press("move_forward")
+
+	var crossed_at := -1
+	var flipped_at := -1
+	for i in 30:
+		await get_tree().physics_frame
+		if crossed_at < 0 and player.global_position.z >= 12.0:
+			crossed_at = i
+		if flipped_at < 0 and player.level == "ground":
+			flipped_at = i
+	Input.action_release("move_forward")
+
+	_check(crossed_at >= 0, "the player actually walked past the stair's far end")
+	_check(flipped_at >= 0, "and the level flipped at some point")
+	_check(crossed_at == flipped_at,
+		"the flip lands on the SAME tick the player crosses, not the next one "
+		+ "(crossed at tick %d, flipped at tick %d)" % [crossed_at, flipped_at])
+
 	remove_child(fixture)
 	fixture.free()
 	remove_child(game)

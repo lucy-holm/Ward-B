@@ -15,6 +15,11 @@ const PITCH_LIMIT := 1.45  # rad, ~83.1 degrees
 @onready var camera: Camera3D = $Camera3D
 
 var world_collision: WardCollision
+# Injected by main.gd on _ready, alongside world_collision. Null-safe: with no
+# level data the verticality step below is skipped entirely and Y stays where
+# spawn_at put it, which is what every test harness that builds a bare player
+# gets.
+var world_levels: WardLevels
 
 var yaw := 0.0
 var pitch := 0.0
@@ -194,6 +199,11 @@ func stick_radius() -> float:
 # tunnelling remains impossible.
 func _physics_process(delta: float) -> void:
 	if not _input_enabled:
+		# Verticality still tracks the floor while input is suspended: the
+		# ward renders live behind the start overlay, and a room script can
+		# teleport the player during a cutscene-ish pause. Movement is what
+		# the input gate is for, not height.
+		_update_verticality()
 		return
 
 	_apply_look()
@@ -223,8 +233,40 @@ func _physics_process(delta: float) -> void:
 		global_position.x = resolved.x
 		global_position.z = resolved.y
 
+	# Verticality, run HERE rather than in main.gd, and deliberately outside
+	# the `is_moving` branch above so a teleport or a standing ease still
+	# resolves. See main.gd's ordering note: main's _physics_process actually
+	# runs BEFORE this one, so doing it there would resolve and ease against
+	# last tick's position.
+	_update_verticality()
+
 	if is_moving:
 		_bob_clock += delta
+
+
+# main.ts:527-542's order exactly: move (above, XZ only), then resolve which
+# level we are on, then ease Y toward that level's floor height.
+#
+# RESOLVE BEFORE EASE, always. The ease asks "how high is the floor for the
+# level I am on", so resolving second would spend the tick you step off a
+# stairwell reading the height of the level you just left.
+#
+# The ease factor is per-TICK, not per-second, in both engines: main.ts
+# clamps dt to 0.05 s and then applies a bare 0.35, and Godot's physics tick
+# is a fixed 1/60 s, so the two agree at the 60 Hz the original ran at and
+# the clamp can never bind here. Deliberately NOT rewritten as a
+# dt-proportional exponential decay — 0.35 is a tuned feel value and changing
+# its shape changes how a ramp reads.
+#
+# This is the ONLY thing in the game that writes the player's Y. Collision
+# stays strictly 2D/XZ; there is no jumping, no falling and no vertical
+# collision anywhere, and none is being added.
+func _update_verticality() -> void:
+	if world_levels == null:
+		return
+	var p := global_position
+	level = world_levels.resolve_level(level, p.x, p.z)
+	global_position.y += (world_levels.floor_height_at(level, p.x, p.z) - p.y) * WardLevels.Y_EASE
 
 
 func _apply_look() -> void:

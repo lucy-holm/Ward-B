@@ -222,7 +222,7 @@ func _player_is_vulnerable() -> bool:
 
 
 func _player_level() -> String:
-	return _player.level if "level" in _player else "__flat"
+	return WardLevels.level_of(_player)
 
 
 func _to_player() -> Vector2:

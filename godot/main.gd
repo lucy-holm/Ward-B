@@ -2,13 +2,24 @@
 # and enforces the frame ordering the original main.ts loop guaranteed.
 #
 # ORDERING CONTRACT (from src/main.ts:515-569) — load-bearing:
-#   1. player moves          (Player._physics_process, XZ only)
+#   1. player moves, then resolves its level, then eases its Y
+#                            (all three in Player._physics_process, in that
+#                             order — see the note on ordering below)
 #   2. orderlies move        (Orderly._physics_process)
-#   3. level resolve, then Y ease  (here, FIRST — see _physics_process)
-#   4. medication expiry     (here, AFTER orderlies — so an orderly can
+#   3. medication expiry     (here, AFTER orderlies — so an orderly can
 #                             never react to a revert in the same tick)
-#   5. exit check            (Area3D signals, effectively last)
-# process_priority is set so this node ticks after the player and the room.
+#   4. exit check            (Area3D signals, effectively last)
+#
+# ORDERING IS NOT ACTUALLY ENFORCED BY process_priority BELOW. That property
+# orders _process only; the physics equivalent is process_physics_priority,
+# which nothing here sets. Measured in Godot 4.7, this node's
+# _physics_process runs BEFORE the player's (a parent ticks before its
+# children, and main.tscn orders WorldEnvironment, WorldRoot, Player), so
+# anything here that reads the player's position is reading last tick's.
+# That is why the verticality step lives in Player._physics_process, directly
+# after the movement it depends on, rather than here: it makes the "move,
+# then resolve, then ease" order structural instead of a property nobody can
+# see is load-bearing.
 extends Node3D
 
 const ROOM_SCENES := {
@@ -264,6 +275,9 @@ func _ready() -> void:
 
 	player.add_to_group("player")
 	player.world_collision = collision
+	# Same injection pattern as world_collision: the player owns the timing of
+	# its own verticality step, this node owns the data.
+	player.world_levels = levels
 	Telemetry.snapshot_provider = player.get_snapshot
 
 	StateManager.medication_depleted.connect(_on_medication_depleted)
@@ -309,34 +323,8 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _physics_process(_delta: float) -> void:
-	_update_verticality()
 	_update_focus()
 	_update_revert_guard()
-
-
-# Verticality, run before anything else this node does — main.ts:527-542's
-# order exactly: move, then resolve level, then ease Y, then everything that
-# reads either.
-#
-# RESOLVE BEFORE EASE, always. The ease asks "how high is the floor for the
-# level I am on", so resolving second would spend the tick you step off a
-# staircase reading the height of the level you just left.
-#
-# The ease factor is per-TICK, not per-second, in both engines — main.ts
-# clamps dt to 0.05 s and then applies a bare 0.35, and Godot's physics tick
-# is a fixed 1/60 s, so the two match at the 60 Hz the original ran at and
-# the clamp can never bind here. Deliberately not made dt-proportional: 0.35
-# is a tuned feel value, and rewriting it as an exponential decay would
-# change how a ramp reads.
-#
-# This is the ONLY thing in the game that writes the player's Y. Collision
-# stays strictly 2D/XZ; there is no jumping, no falling and no vertical
-# collision anywhere, and none is being added.
-func _update_verticality() -> void:
-	var p := player.global_position
-	player.level = levels.resolve_level(player.level, p.x, p.z)
-	var target := levels.floor_height_at(player.level, p.x, p.z)
-	player.global_position.y += (target - p.y) * WardLevels.Y_EASE
 
 
 # --- state -----------------------------------------------------------------

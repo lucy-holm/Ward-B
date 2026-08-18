@@ -63,9 +63,11 @@ class Box:
 		return state_filter == -1 or state_filter == state
 
 	## Untagged colliders are active on EVERY level, so this is trivially true
-	## for every collider authored before levels existed.
+	## for every collider authored before levels existed. Defers to
+	## WardLevels so the rule has one definition shared with every other
+	## level-filtered volume (trigger volumes especially).
 	func active_on_level(level: String) -> bool:
-		return level_filter.is_empty() or level_filter == level
+		return WardLevels.level_matches(level_filter, level)
 
 
 var boxes: Array[Box] = []
@@ -128,11 +130,7 @@ func _add_box(cs: CollisionShape3D, shape: BoxShape3D, body: CollisionObject3D) 
 ## Orderly does. Anything that declares neither is untagged, which is every
 ## collider in rooms 1-16.
 func _level_tag_of(body: CollisionObject3D) -> String:
-	if body.has_meta("level"):
-		return str(body.get_meta("level"))
-	if "level" in body:
-		return str(body.get("level"))
-	return ""
+	return WardLevels.tag_of(body)
 
 
 ## Axis-separated move. Mutates and returns the resolved XZ position.

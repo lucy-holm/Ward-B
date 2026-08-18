@@ -3059,8 +3059,9 @@ def room15():
 # world_static colliders — so that argument does not port, and the protection
 # here is the REAL geometry doing the work instead: the stub wall for the
 # dispenser, the two nook-mouth walls (x[-6,-2] and x[2,6] at z=-3) for the
-# levers. It is a weaker guarantee than room 19's platform (which is proved by
-# test) and is documented as such in room18.gd's header.
+# levers, plus his facing for the last few metres. That is a BEHAVIOURAL
+# guarantee, weaker than room 19's platform (proved cone-free against geometry
+# alone), and room18.gd's header says so rather than papering over it.
 def room18():
     r = Room("room18", "the Relay Room",
              floor=(-6, 6, -9, 5),
@@ -3105,7 +3106,9 @@ def room18():
     # Sizes are held small on purpose: a scrawl renders far wider than its
     # authored number (see tools/measure_scrawls.gd) and the nook is only
     # 3.76m of usable wall between its mouth and its north cap.
-    r.scrawl("one relay.\nthe whole ward.", (-5.85, 1.65, 3.65), math.pi / 2, 1.4)
+    # 1.2, not larger: the Z1 pocket is only the 2.46m between the stub wall
+    # (z=2.42) and the south cap's face (z=4.88). Measured, not guessed.
+    r.scrawl("one relay.\nthe whole ward.", (-5.85, 1.65, 3.65), math.pi / 2, 1.2)
     r.scrawl("it only moves once.\nthey made sure.", (-1.85, 1.65, -5.0), math.pi / 2, 1.3)
     r.scrawl("lights: the long way, lit.\ndoors: the short way, dark.",
              (1.85, 1.65, -5.0), -math.pi / 2, 1.2)
@@ -3193,8 +3196,19 @@ def room19_doors():
              exits=[("room20", -5.5, -3.5, -7.9, -7.2)])
     _room19_shell(r)
 
-    # Divider at z=2 (vestibule z[2,4]); gap x[-6,-3] is the corridor mouth.
-    r.wall_x(-7, -6, 2)
+    # Divider at z=2 (vestibule z[2,4]); the corridor mouth is the gap
+    # x[-5.2,-3], offset to the corridor's east side rather than centred on it.
+    #
+    # THE OFFSET IS LOAD-BEARING, not a stylistic choice. With the TS build's
+    # full-width x[-6,-3] gap, a patrol point at (-3.8,-1.5) has an unblocked
+    # 5.05m line to a player standing at dispenser19 — inside sight range and,
+    # at that phase of his loop, inside his cone: he spots you at the
+    # dispenser, which the spec's reaction-time audit says cannot happen.
+    # Extending the west segment to x=-5.2 puts every such line through solid
+    # wall (worst case crosses z=2 at x=-5.525). Caught by test_rooms1819.gd,
+    # not by reading. The mouth is still 1.5m of clear walking at the player's
+    # radius.
+    r.wall_x(-7, -5.2, 2)
     r.wall_x(-3, 7, 2)
     # The corridor itself, full length z[-8,2]. Its east wall also seals the
     # dead east half off for good.
@@ -3314,10 +3328,13 @@ def room19_lights():
 
     r.scrawl("no door here.\nthey fed the bulbs instead.",
              (-6.85, 1.65, -3.5), math.pi / 2, 1.2)
-    # ON THE PLATFORM, at PLATFORM eye height (0.9 + 1.65) rather than ground
+    # ON THE PLATFORM, hung at PLAT_Y + 1.25 rather than the usual +1.65: it
+    # renders ~1.3m tall and at platform eye height it punches the 3m ceiling.
+    # Ground height would put it below the platform floor entirely — it reads
+    # only to someone who has climbed. (0.9 + 1.65) rather than ground
     # height — it only reads to someone who has climbed.
     r.scrawl("up, and over, and down.\ntake the breath while you can.",
-             (6.85, PLAT_Y + 1.65, -5.5), -math.pi / 2, 1.2)
+             (6.85, PLAT_Y + 1.25, -5.5), -math.pi / 2, 1.2)
 
     # GENEROUS, and visibly so: this is the branch you can see him coming in.
     for x, z in [(-2.5, 3), (-1, 0.5), (3, 0.5), (5.75, -1.8),

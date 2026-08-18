@@ -52,8 +52,12 @@ const EXPECTED_MATERIAL_TYPE := {
 	"keypad": "ShaderMaterial", "plate": "ShaderMaterial",
 	# Deliberately NOT shaders: glow is unshaded so a light panel reads at full
 	# brightness regardless of room lighting, and pill is kept clean/ungrimed
-	# because it is a gameplay-readable affordance.
+	# because it is a gameplay-readable affordance. `breaker` is a third kind
+	# of exception again — a fallback placeholder that is never drawn (the real
+	# switch is fixtures/breaker.tscn), asserted here only so the fallback
+	# cannot silently rot into a missing-resource load failure. See its header.
 	"glow": "StandardMaterial3D", "pill": "StandardMaterial3D",
+	"breaker": "StandardMaterial3D",
 }
 
 

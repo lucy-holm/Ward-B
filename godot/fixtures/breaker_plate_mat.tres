@@ -1,0 +1,10 @@
+[gd_resource type="StandardMaterial3D" format=3 uid="uid://wardbfxbp01"]
+
+; The chipped enamel faceplate the lever is bolted through. Lighter than the
+; body so the panel has an internal read at distance (the same body/backing
+; contrast the keypad uses) without borrowing either other fixture's accent.
+
+[resource]
+albedo_color = Color(0.325, 0.312, 0.281, 1)
+roughness = 0.78
+metallic = 0.03

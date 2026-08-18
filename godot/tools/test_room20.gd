@@ -316,9 +316,18 @@ func _test_authoring_invariants() -> void:
 	var exit := room.get_node_or_null("Exits/Exit0")
 	_check(exit != null and str(exit.exit_to) == "END",
 		"room 20 is the last room: its exit is END, not a terminator hack")
-	_check(not load("res://main.gd").ROOM_SCENES.has("room20"),
-		"room 20 is not registered in ROOM_SCENES yet — check_rooms' chain walk "
-		+ "must not reach it (this assertion tightens by itself when it lands)")
+	# Room 20 IS registered now, and must be: it is the ward's terminus, so
+	# check_rooms' chain walk has to reach it or the last room is unvalidated.
+	#
+	# This assertion was originally written inverted ("must NOT be registered
+	# yet"), with a comment claiming it would tighten by itself once the room
+	# landed. It would not have — an inverted assertion does not tighten, it
+	# simply starts failing, which is what happened the moment the registry was
+	# wired. Stated positively it is now a real invariant rather than a
+	# temporary scaffold.
+	_check(load("res://main.gd").ROOM_SCENES.has("room20"),
+		"room 20 must be registered in ROOM_SCENES — it is the ward's last room "
+		+ "and check_rooms' chain walk has to reach it")
 
 	# Both patrols, clear end to end at his own body radius, against the room's
 	# STATIC geometry. The crate is deliberately not in this set — see below.

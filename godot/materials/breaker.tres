@@ -1,0 +1,24 @@
+[gd_resource type="StandardMaterial3D" format=3 uid="uid://wardbmatbreaker1"]
+
+; FALLBACK ONLY, and deliberately plain.
+;
+; 'breaker' is the MatName room 16's light switch is authored with (ported from
+; the Three.js build, which introduced it precisely so the switch would not
+; read as a third keypad). In practice the switch always renders as
+; fixtures/breaker.tscn — a real composite with a throwable lever — and this
+; material is never drawn.
+;
+; It exists anyway because gen_rooms.py drops a fixture from FIXTURES when its
+; scene is missing and silently falls back to a plain box with the authored
+; MatName. Without this file that fallback would emit an ext_resource pointing
+; at nothing and the room scene would fail to load with no obvious cause. A
+; ten-line placeholder is cheaper than that trap.
+;
+; StandardMaterial3D rather than a triplanar ShaderMaterial for the same
+; reason: it is a safety net, not a surface, and pretending otherwise would
+; mean maintaining a shader nothing renders.
+
+[resource]
+albedo_color = Color(0.148, 0.155, 0.158, 1)
+roughness = 0.62
+metallic = 0.06

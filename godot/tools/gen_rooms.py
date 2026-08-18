@@ -31,6 +31,16 @@ WALL_HALF = 0.12
 WALL_H = 3.0
 WALL_Y = 1.5
 
+# Fitting falloff. THESE ARE THE SHIPPED VALUES, back-ported from the .tscn
+# files — see the long comment in Emitter.emit() next to the OmniLight3D block
+# for the tuning history. The generator emitted 9.0/1.7 for a long time while
+# every committed room1-7 .tscn carried 6.0/2.3, because the final lighting
+# pass was applied to the scenes directly and never brought back here. That
+# drift is a trap: regenerating any shipped room silently relit it. Room 12
+# was generated with the values below, so the whole ward now agrees.
+OMNI_RANGE = 6.0
+OMNI_ATTENUATION = 2.3
+
 LAYER_WORLD = 2
 LAYER_LUCID = 4
 LAYER_UNMED = 8
@@ -443,16 +453,25 @@ class Emitter:
                 # nothing reached the floor of a 12x12 hall, leaving room 4 as
                 # bare ceiling smears on black.
                 #
-                # 1.7/9.0 is the compromise that holds both: still noticeably
+                # 1.7/9.0 was the compromise that held both: still noticeably
                 # tighter than 1.4 up close, but with enough reach that a hall
-                # resolves. Anything steeper than ~2.0 is a large-room killer —
-                # check room 4, not just room 1, before touching these.
+                # resolves.
+                #
+                # A LATER pass went further still and settled on 6.0/2.3, but
+                # only in the seven shipped .tscn files — this generator kept
+                # emitting 9.0/1.7 for months, so `python3 tools/gen_rooms.py`
+                # silently relit the entire ward. The constants at the top of
+                # this file now hold the shipped 6.0/2.3, which is what room 12
+                # (74m north-south, the biggest room in the game, and the one
+                # most exposed to a range cut) was generated and screenshotted
+                # against. Check a LARGE room, not just room 1, before touching
+                # them.
                 body.append('[node name="L%d" type="OmniLight3D" parent="Lights"]' % i)
                 body.append("transform = %s" % _xform((x, y, z)))
                 body.append("light_color = Color(0.949, 1.0, 0.98, 1)")
                 body.append("light_energy = 0.95")
-                body.append("omni_range = 9.0")
-                body.append("omni_attenuation = 1.7")
+                body.append("omni_range = %.1f" % OMNI_RANGE)
+                body.append("omni_attenuation = %.1f" % OMNI_ATTENUATION)
                 # Shadows on EVERY light cost 40% frame time (10.9 -> 6.5 fps
                 # measured): an omni shadow is a 6-face cube render, and rooms
                 # carry up to 8 lights. Only every third fitting casts, which is
@@ -1108,8 +1127,244 @@ def room7():
     return r
 
 
+# --- ROOM 12 — the Asylum Floor --------------------------------------------
+# The finale, and the biggest footprint in the game: ~22m wide by 74m
+# north-south, versus room 5's 14x13. Five chambers, three orderlies, two
+# state-filtered gates, one code split across two nooks.
+#
+# Chambers, north (spawn, +Z) to south (exit, -Z):
+#   Z1 the entry hall   z [36,46]   spawn, dispenser12a, safe
+#   Z2 the quiet ward   z [20,36]   orderly C alone; dispenser12c just south
+#                                   of GATE B; code half 1 in an east nook
+#   Z3 the day hall     z [-8,20]   orderlies A + B, counter-rotating; code
+#                                   half 2 in an east nook
+#   Z4 the supply room  z [-18,-8]  dispenser12b, safe
+#   Z5 the last door    z [-26,-18] safe, keypad, exit
+#
+# THE PILL ECONOMY (PILLS_MAX is 1, game-wide). Both gates are sealed
+# unmed-only, so crossing either one costs a shift to lucid, i.e. one pill.
+# The whole middle of the floor sits between them, and the pocket holds
+# exactly ONE station — dispenser12c, a metre and a half south of GATE B.
+# Intended solve:
+#
+#   forced unmed at spawn -> dispenser12a (top to 1, nothing spent)
+#   -> GATE B sealed -> shift lucid (-1, 0 left) -> cross
+#   -> dispenser12c, right there -> bank (0 -> 1)
+#   -> Z2 unmed (free): read half 1 in nook C, evade orderly C
+#   -> Z3 unmed: read half 2 in the hall nook, evade A + B
+#   -> GATE C sealed -> shift lucid (-1, 0 left) -> cross -> already lucid,
+#      so the keypad needs nothing further
+#   -> dispenser12b sits in Z4 as a buffer the finale door does not need
+#
+# WALK-BACK: the gates seal UNMED only, so a lucid player can retreat through
+# either one in either direction for free, and the Z2/Z3 and Z4/Z5 boundaries
+# are open doorways with no gate at all. The only way to strand yourself is to
+# go unmed inside the stretch at 0 pills — and the way out of that is the way
+# out everywhere else in this game: walk into a cone and let the catch force
+# you lucid and teleport you to spawn, pills kept, with dispenser12a in the
+# same open hall as the spawn point.
+#
+# TIMER SOFT-LOCK: lucidity expires on its own after 45s, so a player can
+# cross GATE B lucid and have the clock revoke it while still deep in Z2/Z3.
+# At 1-pill capacity there is no reserve to shift back with, so a station HAS
+# to be reachable unmedicated inside the pocket. dispenser12c is it. There is
+# deliberately NO station in Z3 — per playtest 9, a mistimed revert down by
+# GATE C should cost a long walk back past all three orderlies, not a short
+# one. That walk is always available (open doorway at z=20); it is a long
+# walk, not a dead end.
+
+def room12():
+    r = Room("room12", "the Asylum Floor",
+             floor=(-10, 12, -28, 46),
+             spawn=(0, 44, 0),
+             exits=[("room13", -1, 1, -27.9, -26.8)])
+
+    # --- Z1, the entry hall — x [-10,10] z [36,46]. Dispenser A; the last
+    # cabinet on this side of GATE B and of every orderly on the floor.
+    r.wall_x(-10, 10, 46)         # south cap, behind spawn
+    r.wall_z(36, 46, -10)         # west wall
+    r.wall_z(36, 46, 10)          # east wall
+
+    # GATE B — the Z1/Z2 boundary at z=36. The doorway gap is x [-2,2]; the
+    # panel that fills it exists (and blocks) ONLY while unmedicated, so the
+    # crossing costs a shift to lucid, i.e. a pill. Mesh and collider are
+    # authored as one state-filtered block here; the TS split them across
+    # block(...,'unmed') + solid(...,'unmed') over the identical footprint.
+    r.wall_x(-10, -2, 36)
+    r.wall_x(2, 10, 36)
+    r.block((4, 3, 0.24), (0, 1.5, 36), "wall", "unmed",
+            collider=(-2, 2, 35.88, 36.12))
+
+    # --- Z2, the quiet ward — x [-10,10] z [20,36]. Orderly C alone; his loop
+    # is skewed west, leaving the whole east wall — nook C included — a flat
+    # 7m off his nearest leg. Sight range is 6m, so the nook is unseeable from
+    # patrol full stop: the exposure is the crossing, not the read.
+    r.wall_z(20, 36, -10)         # west wall, unbroken
+    r.wall_z(20, 26, 10)          # east wall, south of the nook mouth
+    r.wall_z(28, 36, 10)          # east wall, north of the nook mouth
+
+    r.wall_x(10, 12, 26)          # nook C south bracket
+    r.wall_x(10, 12, 28)          # nook C north bracket
+    r.wall_z(26, 28, 12)          # nook C end cap — code half 1 is scrawled here
+    r.block((0.12, 0.14, 2), (10, 2.7, 27), "glow")   # glow lintel, nook C mouth
+
+    # A central occluder inside orderly C's loop's open interior — not on the
+    # path. The Godot orderly tests occlusion with a real RayCast3D against
+    # LAYER_WORLD_STATIC, so this collider IS the occluder; no hand-authored
+    # AABB list (the TS ISLAND_C/NOOK_C arrays) is needed or possible.
+    r.block((3, 1.8, 4), (-2, 0.9, 28), "wall2", collider=(-3.5, -0.5, 26, 30))
+
+    # Z2/Z3 boundary at z=20 — an OPEN doorway, no gate. Both code halves are
+    # unmed-only anyway and the whole stretch is already sealed at both ends
+    # by GATE B and GATE C; a third gate here would only add a toll the design
+    # does not need, and it would turn the long walk back to dispenser12c into
+    # a dead end.
+    r.wall_x(-10, -2, 20)
+    r.wall_x(2, 10, 20)
+
+    # --- Z3, the day hall — x [-10,10] z [-8,20]. The biggest single chamber
+    # in the game: 28m deep, 20m wide. Two orderlies, counter-rotating — A
+    # runs the outer rectangle one way, B a smaller inner rectangle the other
+    # way — so they read as two independent patrols crossing each other's
+    # ground rather than a pair walking in step. Code half 2 sits in an east
+    # nook 7m off A's nearest leg and farther off B's: same
+    # unseeable-from-patrol guarantee as nook C.
+    r.wall_z(-8, 20, -10)         # west wall, unbroken
+    r.wall_z(-8, 4, 10)           # east wall, south of the nook mouth
+    r.wall_z(6, 20, 10)           # east wall, north of the nook mouth
+
+    r.wall_x(10, 12, 4)           # nook hall south bracket
+    r.wall_x(10, 12, 6)           # nook hall north bracket
+    r.wall_z(4, 6, 12)            # nook hall end cap — code half 2 is scrawled here
+    r.block((0.12, 0.14, 2), (10, 2.7, 5), "glow")    # glow lintel, nook hall mouth
+
+    # Two occluders: one in the gap between the outer and inner loops, one
+    # against the west wall outside A's west leg — multiple shadows across the
+    # one patrolled space, not just the nook itself.
+    r.block((1, 1.8, 2), (1.5, 0.9, 6), "wall2", collider=(1, 2, 5, 7))
+    r.block((1, 1.6, 2), (-8.8, 0.8, 13), "prop", collider=(-9.3, -8.3, 12, 14))
+
+    # GATE C — the Z3/Z4 boundary at z=-8, the far end of the no-refill
+    # stretch. Same unmed-only seal as GATE B.
+    r.wall_x(-10, -2, -8)
+    r.wall_x(2, 10, -8)
+    r.block((4, 3, 0.24), (0, 1.5, -8), "wall", "unmed",
+            collider=(-2, 2, -8.12, -7.88))
+
+    # --- Z4, the supply room — x [-10,10] z [-18,-8]. Safe. Dispenser B, the
+    # first cabinet since dispenser12c back in Z2.
+    r.wall_z(-18, -8, -10)
+    r.wall_z(-18, -8, 10)
+
+    # Z4/Z5 boundary at z=-18 — open doorway. Nothing left to gate; the finale
+    # does not need another toll on top of the one the floor just paid.
+    r.wall_x(-10, -2, -18)
+    r.wall_x(2, 10, -18)
+
+    # --- Z5, the last door — x [-10,10] z [-26,-18]. Safe, keypad, exit.
+    r.wall_z(-26, -18, -10)
+    r.wall_z(-26, -18, 10)
+    r.wall_x(-10, -1, -26)        # north, west of the door gap
+    r.wall_x(1, 10, -26)          # north, east of the door gap
+
+    # vestibule beyond the exit door, x [-1,1] z [-28,-26]
+    r.wall_z(-28, -26, -1)
+    r.wall_z(-28, -26, 1)
+    r.wall_x(-1, 1, -28)
+    r.block((1.8, 2.6, 0.06), (0, 1.4, -27.8), "glow")  # warm glow beyond
+
+    # exit door collider — locked until the code is entered; room12.gd drops
+    # it in place via main.unlock_door(). (The TS shoved its minX to 999.)
+    r.solid(-1, 1, -26.13, -25.87, name="DoorCollider")
+
+    # --- scrawls. All unmed-only, as always. Every x is 0.02m clear of the
+    # wall's inner face (walls are 0.24 thick, so a wall centred on -10 has
+    # its face at -9.88), never on the centre-line.
+    r.scrawl("one cabinet past the first gate.\nnothing after it. remember.",
+             (-9.86, 1.7, 38), math.pi / 2, 2.8)
+    r.scrawl("the whole floor breathes\nthe same stale air",
+             (9.86, 1.7, 42), -math.pi / 2, 2.4)
+    r.scrawl("the ward keeps half its mind\nbehind the east wall",
+             (-9.86, 1.7, 28), math.pi / 2, 2.6)
+    # Code half 1, on nook C's end cap (wall at x=12, inner face 11.88).
+    r.scrawl("8 5 – –", (11.86, 1.7, 27), -math.pi / 2, 2.2, sid="codeScrawlA")
+    r.scrawl("the hall keeps two of them.\nthey never walk the same way twice.",
+             (-9.86, 1.7, 10), math.pi / 2, 2.8)
+    # Code half 2, on the hall nook's end cap.
+    r.scrawl("– – 6 3", (11.86, 1.7, 5), -math.pi / 2, 2.2, sid="codeScrawlB")
+    # On GATE C's north face, read from inside the stretch.
+    r.scrawl("the far door doesn't care\nhow you got here.",
+             (-5, 1.7, -7.86), 0, 2.6)
+    r.scrawl("the last cabinet.\nafter this, it's just the door.",
+             (-9.86, 1.7, -15), math.pi / 2, 2.4)
+
+    # --- interactables. Size tuples are in WORLD axes, so a west-wall mount
+    # is thin in X: (0.16, 0.75, 0.55), NOT the canonical (0.55, 0.75, 0.16)
+    # a z-wall mount uses. The generator swaps to canonical itself once it
+    # knows the facing. Every facing below is PINNED — the inferFacing
+    # heuristic misreads alcove/nook mounts, which is a bug the TS build
+    # actually shipped in room 7.
+    r.interactable("dispenser12a", "dispenser", (0.16, 0.75, 0.55),
+                   (-9.72, 1.45, 42), "dispenser", "use the dispenser",
+                   facing="px")
+    r.interactable("dispenser12b", "dispenser", (0.16, 0.75, 0.55),
+                   (-9.72, 1.45, -13), "dispenser", "use the dispenser",
+                   facing="px")
+    # The pocket's ONE station — load-bearing for the one-pill solve, not just
+    # a timer backstop: this is where the pill spent on GATE B is replaced
+    # before the long unmedicated walk to GATE C. Flush on the west wall, 1m
+    # south of GATE B, north of orderly C's rectangle (his north leg is
+    # z=33.5, so z=35 clears it by 1.5m) and west of his x=-7 leg — well off
+    # the route to nook C on the far side.
+    r.interactable("dispenser12c", "dispenser", (0.16, 0.75, 0.55),
+                   (-9.72, 1.45, 35), "dispenser", "use the dispenser",
+                   facing="px")
+    r.interactable("keypad12", "keypad", (0.4, 0.5, 0.14),
+                   (1.35, 1.45, -25.75), "pad", "use the keypad", facing="pz")
+    r.interactable("exitdoor", "door", (2, 3, 0.2), (0, 1.5, -26),
+                   "door", "the exit door", facing="pz")
+
+    # --- lights. 22 fittings over 74m: dense at the two gates and the exit,
+    # sparser down the long chambers so the hall never resolves all at once.
+    #
+    # ONE PORT DEVIATION, at GATE B. room12.ts puts a fitting at (0, 36) —
+    # dead centre of the gate — which in three.js is fine, because its room
+    # lights cast no shadows and simply shine through the gate slab. Here
+    # every third fitting IS a shadow caster, and this one is index 3, so at
+    # (0, 36) it sat sealed *inside* the unmed gate panel (x[-2,2], y 0..3,
+    # z 35.88..36.12): while unmedicated it lit nothing at all, and it popped
+    # on the instant the panel vanished. Verified by screenshot, both states.
+    # Moved 1.4m north into Z1 so it lights the sealed slab from the side the
+    # player approaches it from, and still throws through the gap once the
+    # panel is gone. Placement intent unchanged; nothing else about the light
+    # plan is touched. (GATE C has no fitting of its own in the TS either, and
+    # that one is left alone — you can only ever cross a gate lucid, and lucid
+    # ambient renders the whole chamber legible.)
+    for x, z in [
+        (0, 44), (-5, 40), (5, 40), (0, 37.4),        # Z1 + GATE B
+        (5, 32), (-5, 32), (5, 27), (-2, 28), (5, 23), (-5, 23),   # Z2
+        (0, 17), (-7, 14), (5, 11), (-3, 8), (5, 5), (0, 0), (5, -4), (-5, -4),  # Z3
+        (0, -13),                                      # Z4
+        (0, -20), (0, -23), (0, -26),                  # Z5
+    ]:
+        r.light(x, z)
+    return r
+
+
 if __name__ == "__main__":
     # write_materials() is DELIBERATELY NOT CALLED — see its definition.
+    #
+    # THINK BEFORE RUNNING THIS WHOLESALE. Since the light constants at the top
+    # of this file were brought back in line with the shipped scenes (see
+    # OMNI_RANGE/OMNI_ATTENUATION), a full run reproduces every committed room
+    # byte-for-byte with exactly TWO exceptions: room4's "L1" and room5's "L1"
+    # were hand-promoted to shadow casters in the .tscn, outside the "every
+    # third fitting casts" rule emitted below, and a regenerate reverts both to
+    # shadow_enabled = false. Nothing else drifts.
+    #
+    # To emit a single room without touching its neighbours:
+    #   python3 -c "import sys; sys.path.insert(0, 'tools'); \
+    #               import gen_rooms as g; g.write_room(g.room12())"
     write_room(room1())
     write_room(room2())
     write_room(room3())
@@ -1117,4 +1372,6 @@ if __name__ == "__main__":
     write_room(room5())
     write_room(room6())
     write_room(room7())
+    # Rooms 8-11 are being ported on their own branches; room 12 lands here.
+    write_room(room12())
     print("done")

@@ -2164,6 +2164,202 @@ def room13():
     return r
 
 
+# --- ROOM 11 — the Treatment Corridor --------------------------------------
+# THE FIRST ROOM TO USE VERTICALITY (TIER 1 — height zones + ramps, one
+# implicit '__flat' level; stacked levels belong to room 17 and nothing here
+# needs them).
+#
+# Three chambers, north to south:
+#   Z1 the entry hall     x[-9,9]  z[12,22]   (spawn, dispenser11, y=0)
+#   Z2 the ward floor     x[-9,9]  z[-10,12]  (split level — see below)
+#   Z3 the exit chamber   x[-9,9]  z[-18,-10] (safe, keypad, door, y=0)
+#
+# Z2 is a single-valued floor height: y=0 everywhere EXCEPT a railed platform
+# along the east wall (x[1,9] z[0,8] at MEZZ_Y) and the ramp bridging it down
+# to the lower floor (x[1,9] z[8,10], 0.9 -> 0 along +z). The route through Z2
+# goes UP to read the code off the east wall and back DOWN to continue.
+#
+# THREE THINGS THE ENGINE DELIBERATELY DOES NOT DO FOR YOU (core/levels.gd):
+#   1. A raised region is NEVER a collider. What keeps the player up there is
+#      the railings below — ordinary solids, authored by hand.
+#   2. Nothing renders a zone's floor. The room's one floor mesh is still down
+#      at y=0, so the platform needs an authored opaque BOX slab (never a
+#      plane — a plane is single-sided and vanishes from underneath, which is
+#      exactly the view the lower ward has of it).
+#   3. BlockDef has no X-tilt, so the ramp's VISUAL is a 4-step stand-in. The
+#      walkable surface is smooth regardless: it is the ramp() region, not the
+#      steps.
+# Ramps beat height zones in floor_height_at, so the ramp's high end (y=MEZZ_Y
+# at its min-z end, z=8) is authored flush against the platform's own z=8 edge
+# and the seam is continuous with nothing to tune.
+#
+# CEILING: the ceiling plane is one flat surface at y=3 regardless of floor
+# height, so MEZZ_Y stays modest. Eye height on the platform is 0.9+1.62=2.52,
+# i.e. 0.48m of headroom — the figure src/rooms/room11.ts and
+# ROOM_AUTHORING.md's own worked example both settle on for a raised ZONE.
+# (The generator's ~0.95m headroom warning is a tier-2 check: it reads a
+# level's base_y, not a zone's y, so it is silent here by design.)
+#
+# GATE 1 (Z1/Z2, z=12) and GATE 2 (Z2/Z3, z=-10) are unmed-sealed: solid while
+# raw, open while calm. on_enter forces unmed at the threshold so gate 1
+# always costs a pill however the player left room 10. PILLS_MAX is 1
+# game-wide, so dispenser11b sits inside the pocket between the gates — without
+# it GATE 2 could never be paid (see the INTERIM note in room11.ts).
+#
+# TWO ORDERLIES, ONE PER HEIGHT BAND. Room 11 is tier 1, so the categorical
+# cross-level sight/catch gate does NOT apply — both orderlies are on '__flat'
+# and their separation is pure geometry: LOWER's rectangle x[-8,-6] never comes
+# within his 6m sight range of the platform/ramp footprint (min x-gap 7m) nor
+# of either gate opening (8.06m); UPPER's strip hugs the platform's west rail
+# 6.78m from the code on the east wall. The west rail collider additionally
+# occludes across the boundary, since a collider is a full-height wall to
+# Orderly._occluded()'s raycast.
+#
+# CODE: 2593.
+
+def room11():
+    MEZZ_Y = 0.9
+
+    r = Room("room11", "the Treatment Corridor",
+             floor=(-9, 9, -20, 22),
+             spawn=(0, 20, 0),
+             exits=[("room12", -1, 1, -19.9, -18.8)])
+
+    # --- Z1, the entry hall ------------------------------------------------
+    r.wall_x(-9, 9, 22)           # south cap, behind spawn
+    r.wall_z(12, 22, -9)          # west wall
+    r.wall_z(12, 22, 9)           # east wall
+
+    # GATE 1 — Z1/Z2 boundary at z=12. The panel mesh and its collider are one
+    # call: layer 8 (solid_unmed_only) is what actually blocks, the StateObject
+    # wrapper only hides the mesh (core/state_object.gd).
+    r.wall_x(-9, -2, 12)
+    r.wall_x(2, 9, 12)
+    r.block((4, 3, 0.24), (0, 1.5, 12), "wall", "unmed",
+            collider=(-2, 2, 11.88, 12.12), name="Gate1")
+
+    # --- Z2, the split-level ward floor ------------------------------------
+    # Perimeter runs unbroken: the platform is an interior feature, not a wall
+    # recess, so there is no gap to carve for it.
+    r.wall_z(-10, 12, -9)         # west wall
+    r.wall_z(-10, 12, 9)          # east wall
+
+    # The walkable verticality — two lines, zero collision impact.
+    r.height_zone(1, 9, 0, 8, MEZZ_Y)
+    r.ramp(1, 9, 8, 10, "z", MEZZ_Y, 0)
+
+    # The platform's own floor: an opaque slab, top face exactly at MEZZ_Y.
+    # NO COLLIDER — a collider here would wall the platform off instead of
+    # holding it up.
+    r.block((8, MEZZ_Y, 8), (5, MEZZ_Y / 2.0, 4), "wall2", name="MezzSlab")
+
+    # Visual ramp: 4 steps of 0.5m across the 2m run, full width, rising from
+    # the ground mouth (z=10) to the platform edge (z=8). Also no colliders.
+    RAMP_STEPS = 4
+    for i in range(RAMP_STEPS):
+        step_top = MEZZ_Y * (i + 1) / RAMP_STEPS
+        z_center = 10 - 0.25 - i * 0.5
+        r.block((8, step_top, 0.5), (5, step_top / 2.0, z_center), "wall2",
+                name="RampStep%d" % i)
+
+    # RAILINGS — the only thing keeping anyone on the platform. West is the
+    # full combined edge of platform AND ramp (a sideways step off either drops
+    # up to 0.9m onto nothing); north is the platform's far edge, which the
+    # ramp does not reach. East is the room's real perimeter wall and south
+    # (z=10) is the ramp's ground-level mouth, so neither needs one.
+    # ONE collider for the whole west run, z[0,10] — platform and ramp alike.
+    # The VISUAL is split, because a single 10m block at a constant y 0.9..1.8
+    # is right over the platform but leaves a 0.68m gap under itself at the
+    # ramp's low end, where it reads as a slab floating in mid-air rather than
+    # as a railing (confirmed by screenshot). The ramp segments below sit on
+    # the step tops instead. Purely cosmetic: the collider is unchanged and
+    # full-height either way, so nothing about blocking, occlusion or patrol
+    # clearance moves.
+    r.block((0.24, 0.9, 8), (1, MEZZ_Y + 0.45, 4), "chain",
+            collider=(0.88, 1.12, 0, 10), name="RailWest")
+    for i in range(RAMP_STEPS):
+        step_top = MEZZ_Y * (i + 1) / RAMP_STEPS
+        z_center = 10 - 0.25 - i * 0.5
+        r.block((0.24, 0.9, 0.5), (1, step_top + 0.45, z_center), "chain",
+                name="RailWestRamp%d" % i)
+    r.block((8, 0.9, 0.24), (5, MEZZ_Y + 0.45, 0), "chain",
+            collider=(1, 9, -0.12, 0.12), name="RailNorth")
+
+    # Lit threshold at the ramp's ground-level mouth — the same "a glow marks
+    # a way through" convention every nook mouth in the ward uses.
+    r.block((2, 0.14, 0.12), (5, 2.7, 10.06), "glow")
+
+    # GATE 2 — Z2/Z3 boundary at z=-10.
+    r.wall_x(-9, -2, -10)
+    r.wall_x(2, 9, -10)
+    r.block((4, 3, 0.24), (0, 1.5, -10), "wall", "unmed",
+            collider=(-2, 2, -10.12, -9.88), name="Gate2")
+
+    # --- Z3, the exit chamber ----------------------------------------------
+    r.wall_z(-18, -10, -9)
+    r.wall_z(-18, -10, 9)
+    r.wall_x(-9, -1, -18)         # north, west of the door gap
+    r.wall_x(1, 9, -18)           # north, east of the door gap
+
+    # vestibule beyond the exit door, x [-1,1] z [-20,-18]
+    r.wall_z(-20, -18, -1)
+    r.wall_z(-20, -18, 1)
+    r.wall_x(-1, 1, -20)
+    r.block((1.8, 2.6, 0.06), (0, 1.4, -19.8), "glow")
+
+    # keypadDoor's collider (depth 0.2 -> +-0.1 about the wall line).
+    r.solid(-1, 1, -18.1, -17.9, name="DoorCollider")
+
+    # --- scrawls -----------------------------------------------------------
+    r.scrawl("two doors ahead. one cabinet\nbetween them. find it.",
+             (-8.85, 1.65, 17), math.pi / 2, 2.6)
+    r.scrawl("the hallway forgets\nhow long it's been",
+             (-8.85, 1.65, 20), math.pi / 2, 2.4)
+    r.scrawl("something keeps the low floor.\nsomething else keeps the high one.",
+             (8.85, 1.65, 13), -math.pi / 2, 2.6)
+    r.scrawl("the floor climbs on the east.\nhe never follows it up.",
+             (8.85, 1.65, 10.5), -math.pi / 2, 2.6)
+    # THE CODE — on the east wall at PLATFORM eye height, not ground height, so
+    # it only reads to someone who has climbed the ramp. Proud of the wall face
+    # by 0.1 rather than the usual 0.03 (room11.ts carries the same number).
+    r.scrawl("2 5 9 3", (8.78, MEZZ_Y + 1.65, 4), -math.pi / 2, 2.6,
+             sid="codeScrawl")
+    r.scrawl("it opens for the calm.\nnot for you, yet.",
+             (-5, 1.65, -9.85), 0.0, 2.4)
+    r.scrawl("the last cabinet.\nafter this, it's just the door.",
+             (-8.85, 1.65, -14), math.pi / 2, 2.4)
+
+    # --- interactables -----------------------------------------------------
+    # All three dispensers hang off a wallZ wall, so they are thin in X and
+    # their facing is pinned rather than inferred.
+    r.interactable("dispenser11", "dispenser", (0.16, 0.75, 0.55),
+                   (8.8, 1.45, 17), "dispenser", "use the dispenser",
+                   facing="nx")
+    # In-pocket station: PILLS_MAX is 1, so without this GATE 2 can never be
+    # paid. East wall, 1m north of the ramp mouth, clear of the ramp footprint
+    # (z<=10) and 14.9m from orderly LOWER's nearest patrol point.
+    r.interactable("dispenser11b", "dispenser", (0.16, 0.75, 0.55),
+                   (8.8, 1.45, 11), "dispenser", "use the dispenser",
+                   facing="nx")
+    # Safety dispenser, Z3 — no orderly ever reaches this zone.
+    r.interactable("dispenser11c", "dispenser", (0.16, 0.75, 0.55),
+                   (-8.8, 1.45, -14), "dispenser", "use the dispenser",
+                   facing="px")
+    r.interactable("keypad11", "keypad", (0.4, 0.5, 0.14),
+                   (1.35, 1.45, -17.81), "pad", "use the keypad", facing="pz")
+    r.interactable("exitdoor", "door", (2, 3, 0.2), (0, 1.5, -18),
+                   "door", "the exit door", facing="pz")
+
+    # --- lights ------------------------------------------------------------
+    # Two of these (z=12 and z=-10) sit on a gate's plane by design — see
+    # room11.gd's header for the shadow audit.
+    for x, z in [(0, 20), (0, 16), (0, 12), (-7, 8), (-7, 1), (-7, -6),
+                 (5, 6), (5, 2), (0, -10), (0, -14), (0, -17)]:
+        r.light(x, z)
+    return r
+
+
+
 if __name__ == "__main__":
     # write_materials() is DELIBERATELY NOT CALLED — see its definition.
     #
@@ -2191,4 +2387,5 @@ if __name__ == "__main__":
     # Rooms 8-11 are being ported on their own branches; room 12 lands here.
     write_room(room12())
     write_room(room13())
+    write_room(room11())
     print("done")

@@ -34,11 +34,94 @@ const BUZZ_HZ := 17.0
 const FOG_BREATH_HZ := 0.5
 const FOG_BREATH_AMOUNT := 0.05
 
+# --- THE LIGHT AXIS: circuits ------------------------------------------------
+#
+# THE PROBLEM THIS SOLVES. _tick_flicker below writes light_energy and
+# light_color on EVERY collected light EVERY frame, from snapshots
+# (_base_energy/_base_color) taken in collect_lights(), which itself re-runs on
+# every load_room. So the obvious implementation of a breaker — "the switch
+# sets light_energy = 0" — is stomped on the very next frame and is gone
+# entirely after a reload. Whatever holds the off-state has to live where this
+# loop can READ it, not where this loop can overwrite it.
+#
+# WHY NOT A SINGLE GLOBAL DARK FLAG ON THIS NODE. It would fix the stomping (a
+# flag read by the loop is not a value written by it) but it fixes nothing
+# else, and it hard-codes "the whole room, or nothing" into the engine — the
+# one question the light-axis design doc explicitly leaves open (its open
+# question 6: does a later room want per-zone lighting?). Retrofitting per-zone
+# onto a global bool means touching this loop again.
+#
+# WHY NOT PER-LIGHT STATE KEYED BY INDEX OR NAME. Indices are rebuilt from
+# scratch by every collect_lights and mean nothing across a reload. Names are
+# no better: gen_rooms.py emits "L0", "L0_bounce", "L1"... positionally, so
+# inserting one fitting renumbers every light after it, and a switch that
+# remembered "L3 is off" would silently point at a different fixture.
+#
+# WHAT IT IS INSTEAD: OWNERSHIP BY CIRCUIT.
+#
+# Every light belongs to a named circuit, authored as `metadata/circuit` on the
+# node itself (same convention as `metadata/level` on colliders — a room-local
+# string tag on the node, visible and editable in the inspector, and it
+# survives an editor round-trip). Circuits default to "house", so every room
+# that predates this axis is on one circuit that nothing ever switches, and is
+# byte-identical in behaviour.
+#
+# The off-state then belongs to the CIRCUIT, not to a light, an index, or a
+# node instance:
+#
+#   * _tick_flicker READS the circuit's scale and folds it into `base` before
+#     any flicker math, so its per-frame writes carry the breaker rather than
+#     fighting it. A dark room still buzzes and dips — proportionally, at 12%
+#     — which is what sells failing emergency power over a hard cut.
+#   * collect_lights() re-attaches by NAME, so a room reload rebuilds every
+#     array from the fresh nodes and the circuit that was off is still off. The
+#     state was never in the arrays.
+#   * The scale EASES toward its target (CIRCUIT_EASE, deliberately the 2.2/s
+#     of the Three.js renderer's mood lerp rather than the 12.0/s the ward
+#     state uses) so throwing the breaker is a felt ~0.45s fade, not a cut.
+#   * Two circuits in one room are independently switchable for free, which is
+#     the per-zone capability, unused by room 16 and unblocked for room 17+.
+#
+# Atmosphere is ATMOSPHERE ONLY. None of this gates a mesh, a raycast or a
+# collider — the deterministic visibility half of the light axis is
+# core/light_object.gd, and the reason it is separate is that dynamic light can
+# never make an UNSHADED thing (scrawls, glow panels, the phosphor paint) dim,
+# so legibility has to be an explicit gate. See autoload/room_light.gd.
+
+## What an off circuit's fittings scale to. Not 0: the Three.js renderer
+## multiplied its point lights by this while dark (renderer.ts's
+## DARK_MULTIPLIER) rather than killing them, so a dark room keeps a trace of
+## shape instead of becoming a pure void the player cannot navigate.
+const DARK_CIRCUIT_SCALE := 0.12
+
+## Per-second ease rate toward a circuit's target scale. 2.2 is the Three.js
+## renderer's mood-lerp rate (k = dt * 2.2, time constant ~0.45s) and is
+## deliberately much slower than the 12.0 _light_scale uses for ward state:
+## a ward shift should snap, a breaker should fade.
+const CIRCUIT_EASE := 2.2
+
+## Every light that does not say otherwise.
+const DEFAULT_CIRCUIT := "house"
+
 var _lights: Array[OmniLight3D] = []
 var _base_energy: Array[float] = []
 var _base_color: Array[Color] = []
 var _dip: Array[float] = []
 var _clock := 0.0
+
+# Parallel to _lights: which circuit each collected fitting is on. Rebuilt by
+# collect_lights, exactly like the other three arrays.
+var _circuit: Array[String] = []
+# name -> {"scale": float, "target": float}. NOT rebuilt by collect_lights —
+# this is the state that has to outlive it. Entries are added when a circuit is
+# first seen and then kept: circuit names are a handful of authored strings for
+# the whole game, so nothing grows without bound, and keeping them is what lets
+# a room reloaded while dark come back dark.
+var _circuits := {}
+# The circuit names present in the CURRENTLY loaded room, so set_all_circuits
+# ("the breaker for the whole bay") cannot reach into a stale name left behind
+# by a room that is no longer in the tree.
+var _present_circuits: Array[String] = []
 
 var _env: Environment = null
 var _fog_begin_base := 0.0
@@ -72,9 +155,14 @@ func collect_lights(room: Node) -> void:
 	_base_energy.clear()
 	_base_color.clear()
 	_dip.clear()
+	_circuit.clear()
+	_present_circuits.clear()
 	if room == null:
 		return
 	_collect(room)
+	# Deliberately NOT clearing _circuits: see its declaration. A circuit that
+	# was switched off before this reload is still off after it, and the fresh
+	# light nodes pick that up by name on their very first frame.
 
 
 func _collect(node: Node) -> void:
@@ -84,8 +172,48 @@ func _collect(node: Node) -> void:
 		_base_energy.append(l.light_energy)
 		_base_color.append(l.light_color)
 		_dip.append(0.0)
+		var circuit := str(node.get_meta("circuit", DEFAULT_CIRCUIT))
+		_circuit.append(circuit)
+		if not _circuits.has(circuit):
+			_circuits[circuit] = {"scale": 1.0, "target": 1.0}
+		if not _present_circuits.has(circuit):
+			_present_circuits.append(circuit)
 	for child in node.get_children():
 		_collect(child)
+
+
+## Throw one named circuit. `instant` skips the fade — used on room load, where
+## a room authored to open dark must already BE dark on its first frame rather
+## than visibly dimming as the player arrives.
+func set_circuit_on(circuit: String, on: bool, instant := false) -> void:
+	if not _circuits.has(circuit):
+		_circuits[circuit] = {"scale": 1.0, "target": 1.0}
+	var target := 1.0 if on else DARK_CIRCUIT_SCALE
+	_circuits[circuit]["target"] = target
+	if instant:
+		_circuits[circuit]["scale"] = target
+
+
+## Throw every circuit in the CURRENT room at once — "someone threw the breaker
+## for the whole bay", which is what the room-wide light axis actually is (see
+## the design doc's "why room-wide, not per-zone"). A future per-zone room calls
+## set_circuit_on directly instead; nothing here needs to change for it.
+func set_all_circuits(on: bool, instant := false) -> void:
+	for circuit in _present_circuits:
+		set_circuit_on(circuit, on, instant)
+
+
+## Current eased scale of a circuit, 1.0 when nothing has ever switched it.
+## Exists for tools/test_room16.gd, which has no other way to see this.
+func circuit_scale(circuit: String) -> float:
+	if not _circuits.has(circuit):
+		return 1.0
+	return float(_circuits[circuit]["scale"])
+
+
+## The circuits the loaded room actually declares, in first-seen order.
+func present_circuits() -> Array[String]:
+	return _present_circuits.duplicate()
 
 
 ## Set by main.gd from the MOOD table on every state change.
@@ -124,6 +252,10 @@ func _process(delta: float) -> void:
 	# together — a tint arriving after the energy already has would read as a
 	# visible second event instead of one crossfade.
 	_light_tint = _light_tint.lerp(_light_tint_target, minf(1.0, delta * 12.0))
+	# Circuits ease on their own, much slower rate — see CIRCUIT_EASE.
+	for circuit in _circuits:
+		var c: Dictionary = _circuits[circuit]
+		c["scale"] = lerpf(c["scale"], c["target"], minf(1.0, delta * CIRCUIT_EASE))
 	var unmed := not StateManager.is_lucid()
 	_tick_flicker(delta, unmed)
 	_tick_fog(unmed)
@@ -134,7 +266,13 @@ func _tick_flicker(delta: float, unmed: bool) -> void:
 		var l := _lights[i]
 		if not is_instance_valid(l):
 			continue
-		var base := _base_energy[i] * _light_scale
+		# THE LIGHT AXIS, folded in here and nowhere else. Read, never written:
+		# this loop owns light_energy, so the breaker cannot be a write to it
+		# (it would be stomped on the next frame). It is a multiplier on the
+		# base the loop is already deriving everything else from, which means
+		# a dark room still buzzes, dips and drops out — at 12% — instead of
+		# freezing at a flat value. See the CIRCUITS block at the top.
+		var base := _base_energy[i] * _light_scale * _circuit_scale_at(i)
 
 		if unmed:
 			# Poisson-ish: probability of a dip starting this frame, scaled by
@@ -166,6 +304,16 @@ func _tick_flicker(delta: float, unmed: bool) -> void:
 		# a cool ceiling tube stay distinct fixtures, they just both pick up
 		# the state's cast.
 		l.light_color = _base_color[i] * _light_tint
+
+
+## Circuit scale for collected light `i`. Defensive about a short _circuit
+## array (a light added to the room AFTER collect_lights ran — nothing does
+## that today, but a room script spawning a fixture would) rather than
+## indexing out of bounds mid-frame.
+func _circuit_scale_at(i: int) -> float:
+	if i >= _circuit.size():
+		return 1.0
+	return circuit_scale(_circuit[i])
 
 
 func _tick_fog(unmed: bool) -> void:

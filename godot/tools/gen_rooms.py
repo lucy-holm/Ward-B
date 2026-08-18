@@ -49,6 +49,11 @@ EYE_HEIGHT = 1.62
 OMNI_RANGE = 6.0
 OMNI_ATTENUATION = 2.3
 
+# Godot group every phosphor-painted node joins, so core/phosphor.gd can find
+# the room's paint without the room script enumerating it. Must match
+# WardPhosphor.GROUP.
+PHOSPHOR_GROUP = "phosphor"
+
 LAYER_WORLD = 2
 LAYER_LUCID = 4
 LAYER_UNMED = 8
@@ -80,6 +85,10 @@ FIXTURES = {
     "door":        {"path": "res://fixtures/door.tscn",        "size": (2.00, 3.00, 0.20)},
     "pill_cup":    {"path": "res://fixtures/pill_cup.tscn",    "size": (0.18, 0.22, 0.18)},
     "pill_pickup": {"path": "res://fixtures/pill_pickup.tscn", "size": (0.18, 0.18, 0.18)},
+    # Room 16's lighting breaker. Base size matches kit.ts's SWITCH_FOOTPRINT
+    # ([thin 0.16, height 0.60, along 0.50]) in canonical orientation, so a
+    # switch authored through Room.light_switch() instances at scale 1.
+    "switch":      {"path": "res://fixtures/breaker.tscn",     "size": (0.50, 0.60, 0.16)},
 }
 # Drop any fixture whose scene has not been authored yet.
 FIXTURES = {
@@ -130,6 +139,14 @@ MATERIALS = {
     # Like every other entry here this is only the historical flat placeholder;
     # materials/plate.tres is the authored ShaderMaterial and the real thing.
     "plate":     ("0.235 0.25 0.245", 0.25),
+    # THE LIGHT AXIS's two MatNames are deliberately absent from this table.
+    #   'breaker' renders as fixtures/breaker.tscn (materials/breaker.tres is a
+    #     never-drawn fallback; see its header).
+    #   'phosphor' is not an ext_resource at all — it is emitted as a
+    #     resource_local_to_scene sub-resource of the room scene, because a
+    #     charge/fade room writes its alpha at runtime and a shared .tres would
+    #     leak that write into the next room to use the same MatName. See
+    #     Emitter.phosphor_material() and core/phosphor.gd.
 }
 
 
@@ -183,16 +200,23 @@ class Room:
         self.spawn = spawn            # (x, z, yaw)
         self.exits = exits            # [(to, min_x, max_x, min_z, max_z)]
         self.script = script or "%s.gd" % rid
-        # (mesh_size, mesh_pos, mat, state, collider|None, name|None, level|None)
+        # (mesh_size, mesh_pos, mat, state, collider|None, name|None, level|None,
+        #  light|None)
         # `level` is the stacked-level tag — see the verticality block below.
+        # `light` is the LIGHT-AXIS tag ('lit' | 'dark' | None) — see block().
         self.walls = []
-        self.walls = []               # (mesh_size, mesh_pos, mat, state, collider|None, name|None)
         self.movers = []              # (name, size, pos, mat) — AnimatableBody3D, see mover()
         self.props = []
         self.scrawls = []
         self.interactables = []
         self.lights = []
         self.triggers = []            # (tid, min_x, max_x, min_z, max_z, state)
+        # --- the light axis (see core/light_object.gd, autoload/room_light.gd)
+        # Whether this room's lights are OFF when the player walks in. Emitted
+        # as metadata/start_dark on the room root and read by main.gd's
+        # load_room BEFORE the room enters the tree. Default False, so every
+        # room built before this axis existed opens lit and is byte-identical.
+        self.start_dark = False
         # Door-top shape-lock progress panels (room 15's mechanic). Additive:
         # a room with none emits no IconPanels node at all, so every scene
         # generated before this existed is byte-identical.
@@ -254,17 +278,44 @@ class Room:
         self._wall((0.24, WALL_H, z1 - z0), (x, WALL_Y, (z0 + z1) / 2.0), mat, state,
                    (x - WALL_HALF, x + WALL_HALF, z0, z1), level=level)
 
-    def _wall(self, size, pos, mat, state, collider, name=None, level=None):
-        self.walls.append((size, pos, mat, state, collider, name, level))
+    def _wall(self, size, pos, mat, state, collider, name=None, level=None, light=None):
+        self.walls.append((size, pos, mat, state, collider, name, level, light))
 
-    def block(self, size, pos, mat="wall", state=None, collider=None, name=None, level=None):
-        """Mesh, optionally with its own collider footprint."""
-        self.walls.append((size, pos, mat, state, collider, name, level))
+    def block(self, size, pos, mat="wall", state=None, collider=None, name=None,
+              level=None, light=None):
+        """Mesh, optionally with its own collider footprint.
+
+        `light` is the LIGHT-AXIS filter: None/'both' (always drawn), 'lit'
+        (dies with the breaker — house lighting) or 'dark' (glow-in-the-dark
+        paint, invisible until the lights go out). The mesh gets a
+        core/light_object.gd wrapper; nothing else changes.
+
+        A LIGHT-GATED COLLIDER IS AN ERROR, NOT AN OPTION, and the raise below
+        is the whole soft-lock guarantee expressed as code. The Three.js build
+        made it structural by giving ColliderDef no light field at all; the
+        generator has one call that carries both, so the invariant has to be
+        asserted here instead. If darkness could move, add or remove a
+        collider, then a dark room would no longer be geometrically identical
+        to a lit one, and room 16's "a 0-pill unmed player can always walk back
+        to a dispenser, in EITHER light state" audit would stop being
+        unconditional. Author the mesh and the collider as two calls if you
+        genuinely need a permanent solid behind disappearing paint.
+        """
+        if light in ("lit", "dark") and collider is not None:
+            raise ValueError(
+                "light-gated block at %r carries a collider %r. The light axis "
+                "gates meshes and raycasts ONLY, never collision — see "
+                "core/light_object.gd. Emit the collider as a separate solid()."
+                % (pos, collider))
+        self.walls.append((size, pos, mat, state, collider, name, level, light))
 
     def solid(self, min_x, max_x, min_z, max_z, state=None, name=None, level=None):
         """Collider with no mesh. `name` gives it a stable node name so a room
-        script can find it later (door colliders are unlocked by name)."""
-        self.walls.append((None, None, None, state, (min_x, max_x, min_z, max_z), name, level))
+        script can find it later (door colliders are unlocked by name).
+
+        No `light` parameter, on purpose — see block()."""
+        self.walls.append((None, None, None, state, (min_x, max_x, min_z, max_z),
+                           name, level, None))
 
     def band_x(self, x0, x1, z, y0=WALL_H, y1=None, mat="wall"):
         """Upper wall band, NO COLLIDER — cosmetic only.
@@ -379,11 +430,24 @@ class Room:
         self.movers.append((name, size, pos, mat))
 
     # content --------------------------------------------------------------
-    def scrawl(self, text, pos, rot_y, size, sid=None):
-        self.scrawls.append((text, pos, rot_y, size, sid))
+    def scrawl(self, text, pos, rot_y, size, sid=None, light=None, ink=None):
+        """Wall handwriting. Always unmed-only (the Scrawls wrapper).
+
+        `light` gates it on the LIGHT axis too, on top of that: a
+        light='dark' scrawl is only drawn while the room is dark AND the
+        player is raw, which is the both-gated case core/light_object.gd's
+        header describes.
+
+        `ink` is cosmetic only ('phosphor' = pale glow-green paint instead of
+        the usual red). It does NOT affect visibility — `light` does that —
+        but it does put the label in the phosphor group, so a room's
+        charge/fade dial (main.set_glow_fade) dims its ink along with the
+        painted floor.
+        """
+        self.scrawls.append((text, pos, rot_y, size, sid, light, ink))
 
     def interactable(self, iid, itype, size, pos, mat, label, state=None, facing=None,
-                     model_script=None, model_props=None):
+                     model_script=None, model_props=None, light=None):
         """One fixture: an Area3D on the interactable layer, plus a model.
 
         The model is chosen in this order: an explicit `model_script` (a Node3D
@@ -395,10 +459,18 @@ class Room:
         literal.
         """
         self.interactables.append((iid, itype, size, pos, mat, label, state, facing,
-                                   model_script, model_props))
+                                   model_script, model_props, light))
 
-    def light(self, x, z, y=2.7):
-        self.lights.append((x, y, z))
+    def light(self, x, z, y=2.7, circuit=None):
+        """A ceiling fitting (plus its floor bounce, added by the emitter).
+
+        `circuit` names which breaker owns it — see core/atmosphere.gd's
+        CIRCUITS block for why ownership is an authored string rather than an
+        index or a node name. Omitted means the default "house" circuit, which
+        nothing in the game ever switches, so every room built before the light
+        axis existed emits byte-identically and behaves identically.
+        """
+        self.lights.append((x, y, z, circuit))
 
     # --- shape keys / shape lock / icon panel -------------------------------
     # Room 15's mechanic, ported from kit.ts's shapeKeyProp / shapeLockDoor /
@@ -448,6 +520,24 @@ class Room:
                           facing=facing,
                           model_script="res://fixtures/shape_lock.gd",
                           model_props={"shapes": _string_array(shapes)})
+
+    def light_switch(self, sid, pos, facing, label="the breaker switch",
+                     size=(0.16, 0.6, 0.5)):
+        """The room-wide lighting breaker (room 16). Ported from kit.ts's
+        lightSwitch(); renders as fixtures/breaker.tscn.
+
+        `size` is in WORLD axes like every other interactable here, so it
+        needs reordering per wall orientation: an east/west mount is
+        (thin, height, along), a north/south one is (along, height, thin).
+        `facing` is PINNED, never inferred — a switch lives on an alcove end
+        cap, which is exactly the case the room-centre heuristic gets wrong.
+
+        NOTE it is authored with NO light filter of its own: the switch is an
+        always-present fixture in both light states, and has to be, or throwing
+        the room dark would delete the only way to throw it back. What refuses
+        an unmedicated hand is room policy in the room script, not this.
+        """
+        self.interactable(sid, "switch", size, pos, "breaker", label, facing=facing)
 
     def icon_panel(self, pid, shapes, colors, pos, rot_y, size=2.4):
         """The door-top progress panel: one dim outline per shape, lit as each
@@ -511,6 +601,7 @@ class Emitter:
         self._mesh_cache = {}
         self._shape_cache = {}
         self._mat_ids = {}
+        self._phosphor_mat = None
 
     def mat(self, name):
         if name not in self._mat_ids:
@@ -555,6 +646,13 @@ class Emitter:
         body = []
         body.append('[node name="Room" type="Node3D"]')
         body.append('script = ExtResource("s_room")')
+        # THE LIGHT AXIS's opening state, read by main.gd's load_room off the
+        # un-parented instance BEFORE add_child, so every LightObject in the
+        # room sees the right value in its own _ready and the first frame is
+        # already correct. Emitted only when a room asks for it — absent means
+        # "opens lit", which is every room built before this axis existed.
+        if r.start_dark:
+            body.append("metadata/start_dark = true")
         body.append("")
 
         # spawn
@@ -591,7 +689,7 @@ class Emitter:
         body.append('[node name="Geometry" type="Node3D" parent="."]')
         body.append("")
         wi = 0
-        for size, pos, mat, state, collider, cname, wlevel in r.walls:
+        for size, pos, mat, state, collider, cname, wlevel, wlight in r.walls:
             wi += 1
             parent = "Geometry"
             nm = cname if cname else "W%d" % wi
@@ -608,6 +706,12 @@ class Emitter:
                 body.append("")
                 parent = "Geometry/%s" % nm
                 nm = "Body"
+
+            if wlight in ("lit", "dark"):
+                # block() has already refused a light-gated collider, so this
+                # can only ever wrap a bare mesh — the light axis never reaches
+                # a StaticBody3D.
+                parent, nm = self._emit_light_wrapper(body, nm, parent, wlight)
 
             layer = LAYER_WORLD
             if state == "lucid":
@@ -636,18 +740,10 @@ class Emitter:
                 body.append('shape = SubResource("%s")' % sh)
                 body.append("")
                 if size is not None:
-                    m = self.box_mesh(size, mat)
                     rel = (pos[0] - cpos[0], pos[1] - cpos[1], pos[2] - cpos[2])
-                    body.append('[node name="Mesh" type="MeshInstance3D" parent="%s/%s"]' % (parent, nm))
-                    body.append("transform = %s" % _xform(rel))
-                    body.append('mesh = SubResource("%s")' % m)
-                    body.append("")
+                    self._emit_mesh(body, "Mesh", "%s/%s" % (parent, nm), size, rel, mat)
             elif size is not None:
-                m = self.box_mesh(size, mat)
-                body.append('[node name="%s" type="MeshInstance3D" parent="%s"]' % (nm, parent))
-                body.append("transform = %s" % _xform(pos))
-                body.append('mesh = SubResource("%s")' % m)
-                body.append("")
+                self._emit_mesh(body, nm, parent, size, pos, mat)
 
         # movers — runtime-driven walls (room 13's closing slabs). Same
         # Geometry parent as everything else so WardCollision.rebuild_from
@@ -676,9 +772,23 @@ class Emitter:
             body.append('script = ExtResource("s_stateobj")')
             body.append("visible_in_state = 2")
             body.append("")
-            for i, (text, pos, rot_y, size, sid) in enumerate(r.scrawls):
+            for i, (text, pos, rot_y, size, sid, slight, ink) in enumerate(r.scrawls):
                 nm = sid if sid else "Scrawl%d" % i
-                body.append('[node name="%s" type="Label3D" parent="Scrawls"]' % nm)
+                parent = "Scrawls"
+                if slight in ("lit", "dark"):
+                    # Inside the Scrawls StateObject, not beside it: a gated
+                    # scrawl is unmed-only AND light-filtered, and both have to
+                    # agree. Keeps its own node name so find_child(id) — which
+                    # main.update_scrawl_text uses — still resolves.
+                    self._ensure_light_script()
+                    body.append('[node name="%s_light" type="Node3D" parent="Scrawls"]' % nm)
+                    body.append('script = ExtResource("s_lightobj")')
+                    body.append("visible_in_light = %d" % (1 if slight == "lit" else 2))
+                    body.append("")
+                    parent = "Scrawls/%s_light" % nm
+                phosphor_ink = ink == "phosphor"
+                groups = ' groups=["%s"]' % PHOSPHOR_GROUP if phosphor_ink else ""
+                body.append('[node name="%s" type="Label3D" parent="%s"%s]' % (nm, parent, groups))
                 body.append("transform = %s" % _xform_yaw_roll(rot_y, _scrawl_tilt(text, pos), pos))
                 # ScrawlDef.size was a canvas-texture scale in the TS build, not
                 # a world measurement, so it does not port directly. At the
@@ -695,10 +805,23 @@ class Emitter:
                 # not a substitute for a proper hand-scrawled typeface, but it
                 # takes a lot of the "computery" look off.
                 body.append("outline_size = 14")
-                body.append("outline_modulate = Color(0.18, 0.05, 0.04, 0.85)")
+                if not phosphor_ink:
+                    body.append("outline_modulate = Color(0.18, 0.05, 0.04, 0.85)")
                 # Duller and less saturated than the old near-pure red, which
                 # read as UI rather than something smeared on a wall.
-                body.append("modulate = Color(0.62, 0.16, 0.12, 0.92)")
+                #
+                # ink='phosphor' swaps it for pale glow-green, matching the
+                # painted floor tiles' colour. PURELY COSMETIC — what makes a
+                # phosphor scrawl invisible until the lights go out is its
+                # light='dark' gate, not this. It also joins the phosphor group
+                # above, so the room's charge/fade dial dims ink and floor
+                # together instead of the paint outliving the writing.
+                if phosphor_ink:
+                    body.append("modulate = Color(0.749, 1.0, 0.788, 0.92)")
+                    body.append("outline_modulate = Color(0.04, 0.13, 0.06, 0.85)")
+                    body.append("metadata/phosphor_alpha = 0.92")
+                else:
+                    body.append("modulate = Color(0.62, 0.16, 0.12, 0.92)")
                 # NEAREST filtering roughens the glyph edge instead of letting
                 # it resolve to a crisp anti-aliased curve.
                 body.append("texture_filter = 0")
@@ -713,7 +836,7 @@ class Emitter:
             body.append('[node name="Interactables" type="Node3D" parent="."]')
             body.append("")
             for (iid, itype, size, pos, mat, label, state, facing,
-                 model_script, model_props) in r.interactables:
+                 model_script, model_props, ilight) in r.interactables:
                 parent = "Interactables"
                 nm = iid
                 if state in ("lucid", "unmed"):
@@ -724,6 +847,19 @@ class Emitter:
                     body.append("visible_in_state = %d" % aff)
                     body.append("")
                     parent = "Interactables/%s_state" % iid
+                if ilight in ("lit", "dark"):
+                    # Nests inside the state wrapper when both apply, same as
+                    # geometry. Interactable.is_focusable() walks the whole
+                    # ancestor chain looking for either kind of wrapper, so a
+                    # light-gated fixture is refused by the interact ray as
+                    # well as hidden — visibility alone would not do it,
+                    # because an invisible Area3D is still raycastable.
+                    self._ensure_light_script()
+                    body.append('[node name="%s_light" type="Node3D" parent="%s"]' % (iid, parent))
+                    body.append('script = ExtResource("s_lightobj")')
+                    body.append("visible_in_light = %d" % (1 if ilight == "lit" else 2))
+                    body.append("")
+                    parent = "%s/%s_light" % (parent, iid)
 
                 # Resolve which way the faceplate points, then author the
                 # fixture in CANONICAL orientation (width X, height Y, depth Z,
@@ -811,7 +947,7 @@ class Emitter:
         if r.lights:
             body.append('[node name="Lights" type="Node3D" parent="."]')
             body.append("")
-            for i, (x, y, z) in enumerate(r.lights):
+            for i, (x, y, z, circuit) in enumerate(r.lights):
                 # Shadows are the single biggest realism lever available in the
                 # Compatibility renderer — without them nothing is occluded, so
                 # every object floats and the whole ward reads flat and
@@ -849,6 +985,15 @@ class Emitter:
                 # them.
                 body.append('[node name="L%d" type="OmniLight3D" parent="Lights"]' % i)
                 body.append("transform = %s" % _xform((x, y, z)))
+                # THE LIGHT AXIS's per-light OWNER. Emitted only when a room
+                # names one, so every previously generated room is unchanged
+                # and falls back to Atmosphere's default "house" circuit, which
+                # nothing switches. See core/atmosphere.gd's CIRCUITS block for
+                # why the owner is an authored string and not an index or a
+                # node name (both are rebuilt/renumbered by generation and by
+                # every room reload; a string is not).
+                if circuit:
+                    body.append('metadata/circuit = "%s"' % circuit)
                 body.append("light_color = Color(0.949, 1.0, 0.98, 1)")
                 body.append("light_energy = 0.95")
                 body.append("omni_range = %.1f" % r.light_range)
@@ -893,6 +1038,11 @@ class Emitter:
                 # which reproduces the old constant exactly.
                 body.append('[node name="L%d_bounce" type="OmniLight3D" parent="Lights"]' % i)
                 body.append("transform = %s" % _xform((x, r.floor_y_under(x, z) + 0.22, z)))
+                # Same circuit as the fitting it belongs to: killing a fixture
+                # while its fake floor bounce kept burning would read as a
+                # glowing floor under a dead lamp.
+                if circuit:
+                    body.append('metadata/circuit = "%s"' % circuit)
                 body.append("light_color = Color(1.0, 0.79, 0.6, 1)")
                 body.append("light_energy = 0.3")
                 body.append("omni_range = 2.6")
@@ -1051,6 +1201,68 @@ class Emitter:
     def _ensure_state_script(self):
         if not any(e[2] == "s_stateobj" for e in self.ext):
             self.ext.append(("Script", "res://core/state_object.gd", "s_stateobj", None))
+
+    def _ensure_light_script(self):
+        if not any(e[2] == "s_lightobj" for e in self.ext):
+            self.ext.append(("Script", "res://core/light_object.gd", "s_lightobj", None))
+
+    def phosphor_material(self):
+        """The room's glow-in-the-dark paint, as a LOCAL-TO-SCENE sub-resource.
+
+        Not an ext_resource in materials/, and that is the whole point:
+        main.set_glow_fade writes this material's alpha at runtime (room 16's
+        charge/fade dial), and a shared .tres would carry that write into the
+        next room to use mat='phosphor' — the exact leak the Three.js build
+        avoided by cloning MATERIALS.phosphor once per room
+        (src/game/world.ts's phosphorBlockMats). resource_local_to_scene gives
+        each INSTANCE of this room scene its own copy, so the clone-per-room
+        property holds by construction and two rooms instanced at once in a
+        headless test cannot fight over one alpha.
+
+        Unshaded for the same reason every 'glow' block is: paint that is only
+        visible in the dark must not itself be dimmed by the dark. What decides
+        whether it is SEEN is the light='dark' gate, never this material.
+        """
+        if self._phosphor_mat is None:
+            rid = "phosphor_mat"
+            self.sub.append(("StandardMaterial3D", rid, [
+                "resource_local_to_scene = true",
+                "shading_mode = 0",
+                "transparency = 1",
+                "albedo_color = Color(0.749, 1.0, 0.788, 1)",
+                "roughness = 0.9",
+            ]))
+            self._phosphor_mat = rid
+        return self._phosphor_mat
+
+    def _emit_mesh(self, body, nm, parent, size, pos, mat):
+        """One MeshInstance3D, with the phosphor special-case folded in."""
+        groups = ' groups=["%s"]' % PHOSPHOR_GROUP if mat == "phosphor" else ""
+        m = self.box_mesh(size, None if mat == "phosphor" else mat)
+        body.append('[node name="%s" type="MeshInstance3D" parent="%s"%s]' % (nm, parent, groups))
+        body.append("transform = %s" % _xform(pos))
+        body.append('mesh = SubResource("%s")' % m)
+        if mat == "phosphor":
+            body.append('material_override = SubResource("%s")' % self.phosphor_material())
+            body.append("metadata/phosphor_alpha = 1.0")
+        body.append("")
+
+    def _emit_light_wrapper(self, body, nm, parent, light):
+        """A core/light_object.gd wrapper node. Returns (parent, child_name).
+
+        Mirrors the StateObject wrapper exactly, and NESTS INSIDE it when a
+        thing is gated on both axes (StateObject > LightObject > mesh), which
+        is what makes the two filters compose instead of one overwriting the
+        other: Godot hides a whole subtree when an ancestor is invisible, so
+        both have to agree for anything to draw.
+        """
+        self._ensure_light_script()
+        wrapper = nm if nm != "Body" else "Light"
+        body.append('[node name="%s" type="Node3D" parent="%s"]' % (wrapper, parent))
+        body.append('script = ExtResource("s_lightobj")')
+        body.append("visible_in_light = %d" % (1 if light == "lit" else 2))
+        body.append("")
+        return ("%s/%s" % (parent, wrapper), "Body")
 
     def _ensure_interactable_script(self):
         if not any(e[2] == "s_interactable" for e in self.ext):
@@ -3033,6 +3245,210 @@ def room15():
     return r
 
 
+
+# --- ROOM 16 — the Breaker Bay ----------------------------------------------
+# THE LIGHT AXIS's only consumer. Ported from src/rooms/room16.ts (spec:
+# docs/superpowers/specs/2026-07-19-room16-light-axis-design.md, as reworked by
+# Tom's two design overrides — no keypad/no digits, and the charge/fade loop).
+# Behaviour — the switch's lucid gate, the door's two-condition gate, the
+# charge/fade dial, the orderly — is rooms/room16/room16.gd; this is geometry.
+#
+# A GENUINE 2x2, all four cells load-bearing:
+#
+#              LIT (default)                 DARK (after the switch)
+#   UNMED   inkScrawl16: the only place    phosphorScrawl16: the only place
+#           you learn the breaker exists   you learn what the door wants.
+#           at all. Charge only accrues    Painted floor path appears.
+#           while lit, in the open bay.
+#   LUCID   lightSwitch16 answers — the    exitdoor16 answers — the only
+#           only state that can throw it.  state it ever opens in.
+#
+# TWO DELIBERATE DEVIATIONS FROM room16.ts, both forced by this engine:
+#
+# 1. THE NOOKS ARE 3.2m x 3.2m CHAMBERS BEHIND A 1.6m MOUTH, not the flat
+#    1.6m x 1.6m recesses room16.ts authors (x[-9.6,-8] / x[8,9.6]).
+#    Two independent reasons, both measured rather than assumed:
+#      WIDTH. A Label3D renders FAR wider than its authored `size` — see
+#    tools/measure_scrawls.gd's header and room 15's measured table. Both of
+#    this room's clue scrawls live on ONE nook wall; at 1.6m they would have
+#    had to shrink to ~10 characters a line, or punch through the walls either
+#    side. Measured here at 2.24m and 2.25m wide, which needs a 3.2m run.
+#      VIEWING DISTANCE. The first cut got the width right by deepening the
+#    nook and mounting the scrawls on a side wall — and was unreadable, because
+#    you then stood 1.2m from a 2.24m scrawl and could see about a third of it
+#    (verified by screenshot, which is the only way this class of defect ever
+#    shows up). A wall you have to read needs BOTH: 3.2m of run to write on,
+#    and 3.2m of room to back away into. Hence a square chamber, with the
+#    scrawls (and, mirrored, the breaker) on the end cap.
+#    THE MOUTH STAYS 1.6m, which is the part that matters for the reaction-time
+#    audit: in this engine the Orderly raycasts REAL wall geometry rather than
+#    consulting an authored AABB the way room16.ts does, so the mouth IS the
+#    occlusion, and it is exactly as narrow as the original's. The end cap is
+#    6.05m from the nearest patrol leg — past his 6.0m sight range outright.
+#    The floor rect widens to +-11.2 to cover the protrusions, same fix room 10
+#    and room 15 already carry.
+# 2. ELEVEN FITTINGS, not room16.ts's six. Godot's omni falloff (range 6.0,
+#    attenuation 2.3) is far tighter than three.js's, and this is a 19x22m
+#    room; six would leave the bay in pools with black between them, and the
+#    two nooks — where every clue in the room is — as pure black voids, which
+#    is exactly the defect room 10's own light list documents fixing. Both
+#    nooks get their own fitting for that reason.
+#
+# ONE FAITHFUL PORT OF A DISCREPANCY, flagged rather than "fixed":
+# room16.ts's comment above inkScrawl16 says "LIT + UNMED — the only cell this
+# exists in", but the code authors NO lightState on it, so it is 'both' and
+# stays readable in the dark. Ported as the code behaves, not as the comment
+# claims. The four cells are still each uniquely load-bearing without it (the
+# ink scrawl is still the only teach of the breaker, and CHARGE still only
+# accrues while lit), so this is a fidelity call, not a design change. If Tom
+# wants the comment to win, add light="lit" to that scrawl and nothing else
+# changes.
+
+def room16():
+    # Floor rect covers x[-11.2, 11.2], wider than the room's own walls at
+    # x=+-8, so the two deepened nooks get floor and ceiling instead of a black
+    # void. Same fix room 10 (+-9.6) and room 15 (+-10.8) already carry; the
+    # overhang beyond the outer walls is sealed between floor and ceiling and
+    # unreachable.
+    r = Room("room16", "the Breaker Bay",
+             floor=(-11.2, 11.2, -16, 6),
+             spawn=(0, 5, 0),
+             exits=[("room17", -1, 1, -15.9, -14.9)])
+
+    # --- Z1, the vestibule: z[2,6]. Safe, no patrol reach.
+    r.wall_x(-8, 8, 6)            # south cap, behind spawn
+    r.wall_z(2, 6, -8)
+    r.wall_z(2, 6, 8)
+
+    # Z1/Z2 boundary at z=2 — an OPEN 2m doorway, deliberately ungated. The
+    # player's first crossing is unmed; gating it would only add a pointless
+    # pill sink before the room has taught anything (room 10's Z1/Z2 rule).
+    r.wall_x(-8, -1, 2)
+    r.wall_x(1, 8, 2)
+
+    # --- Z2, the bay: z[-14,2]. West and east walls broken at the nook mouths.
+    r.wall_z(-6.9, 2, -8)         # west, south of the read nook's mouth
+    r.wall_z(-14, -8.5, -8)       # west, north of the read nook's mouth
+    r.wall_z(-3.2, 2, 8)          # east, south of the switch nook's mouth
+    r.wall_z(-14, -4.8, 8)        # east, north of the switch nook's mouth
+
+    # NOOK_W — the read chamber: x[-11.2,-8] z[-9.6,-6.4], entered through the
+    # 1.6m gap the west wall runs above already leave at z[-8.5,-6.9]. Both
+    # clue scrawls mount on the end cap, stacked, and you back off across the
+    # chamber to read them. See the header's deviation note.
+    r.wall_x(-11.2, -8, -9.6)     # chamber south wall
+    r.wall_x(-11.2, -8, -6.4)     # chamber north wall
+    r.wall_z(-9.6, -6.4, -11.2)   # end cap — both clues live here
+
+    # NOOK_E — the switch chamber, mirrored: x[8,11.2] z[-5.6,-2.4], mouth
+    # z[-4.8,-3.2]. lightSwitch16 mounts on its end cap.
+    r.wall_x(8, 11.2, -5.6)       # chamber south wall
+    r.wall_x(8, 11.2, -2.4)       # chamber north wall
+    r.wall_z(-5.6, -2.4, 11.2)    # end cap — the breaker lives here
+
+    # Glow lintels over both mouths — a lit threshold marks "there is a space
+    # here" from across the bay (playtest 6's lesson, room 10). light='lit'
+    # DELIBERATELY, unlike the dispenser and exit glow below: these are part of
+    # the room's own house lighting and go out with the rest of it. That is the
+    # point — once the breaker is thrown, the ONLY thing marking the way back
+    # to NOOK_W is the painted path.
+    r.block((0.12, 0.14, 1.6), (-8, 2.7, -7.7), "glow", light="lit")
+    r.block((0.12, 0.14, 1.6), (8, 2.7, -4.0), "glow", light="lit")
+
+    # Phosphor floor path — visible ONLY once the room is dark (light='dark'),
+    # opacity driven by the room's charge/fade dial (main.set_glow_fade, see
+    # room16.gd). Marks the one stretch nothing else lights: NOOK_E's mouth
+    # back to NOOK_W. Deliberately does NOT extend south toward dispenser16a
+    # or north toward exitdoor16 — both already have their own ungated glow
+    # (see the soft-lock audit in room16.gd), so painting a redundant trail
+    # there would dilute what fading is supposed to threaten: your sense of
+    # direction across the one leg with no other light. Never your body, never
+    # access to a pill, never the way out.
+    #
+    # NO COLLIDERS, and Room.block would refuse to emit one anyway — see its
+    # docstring. The paint is paint.
+    for tile_x, tile_z in [(7, -4), (3, -3), (-1, -3.5), (-4, -5.0), (-7, -7.0)]:
+        r.block((0.4, 0.04, 0.4), (tile_x, 0.02, tile_z), "phosphor", light="dark")
+
+    # --- north wall (gate to Z3) at z=-14, 2m doorway gap x[-1,1]. No lock on
+    # the wall itself; exitdoor16 sits in the gap and its collider is dropped
+    # by name when the door finally answers.
+    r.wall_x(-8, -1, -14)
+    r.wall_x(1, 8, -14)
+    r.solid(-1, 1, -14.13, -13.87, name="DoorCollider")
+
+    # --- Z3, the exit vestibule: z[-16,-14]. Safe, no patrol reach.
+    r.wall_z(-16, -14, -1)
+    r.wall_z(-16, -14, 1)
+    r.wall_x(-1, 1, -16)
+    # Exit glow — NOT light-gated (no `light` argument): per the soft-lock
+    # audit the way out stays locatable in the dark, same as every dispenser's
+    # slot glow. materials/glow.tres is unshaded, so it reads at full
+    # brightness however dark the room gets.
+    r.block((1.8, 2.6, 0.06), (0, 1.4, -15.9), "glow")
+
+    # --- scrawls.
+    #
+    # Widths were MEASURED, not assumed:
+    #   godot --headless --path godot tools/measure_scrawls.tscn -- \
+    #       res://rooms/room16/room16.tscn
+    # See the numbers in the commit; the two nook scrawls share one 3.2m
+    # bracket wall and are stacked vertically, so both their WIDTH (against the
+    # bracket run) and their HEIGHT (against each other) are real constraints.
+    #
+    # Flavour line on the Z1/Z2 partition's south face, facing +Z back at the
+    # player as they walk up to it — room 10's gate-2 placement.
+    r.scrawl("they never turn\nthe lights off. someone\nmust be afraid too.",
+             (-4.5, 1.7, 2.15), 0.0, 1.8)
+    # LIT + UNMED's clue. Ordinary red ink, read exactly like any other room's.
+    # Teaches all three things the room needs it to: the breaker exists, it is
+    # east, it wants medicated hands — and (this pass's addition) that the room
+    # has to have held the light a while first, which is the only explicit
+    # teach of the charge mechanic anywhere in the game.
+    r.scrawl("the breaker's east.\nsteady hands only —\nand a fed room.",
+             (-11.05, 2.20, -8.0), math.pi / 2, 1.1, sid="inkScrawl16")
+    # DARK + UNMED's clue, on the SAME wall, one metre lower. It was physically
+    # here the whole time; light='dark' just kept it invisible until now — the
+    # retroactive beat the whole room is built around. ink='phosphor' makes it
+    # LOOK like glow paint and puts it on the charge/fade dial with the floor
+    # tiles; what makes it invisible while lit is the gate, not the ink.
+    r.scrawl("the door opens only\nfor calm eyes, dark.",
+             (-11.05, 0.80, -8.0), math.pi / 2, 1.1, sid="phosphorScrawl16",
+             light="dark", ink="phosphor")
+
+    # --- fixtures.
+    # Z1's dispenser, three steps from spawn and behind the room's only ungated
+    # doorway: the 0-pill escape hatch, reachable in EITHER light state.
+    # kit.ts's wall-face math: face -7.88, plus half the 0.16 thin axis.
+    r.interactable("dispenser16a", "dispenser", (0.16, 0.75, 0.55), (-7.8, 1.45, 4),
+                   "dispenser", "use the dispenser", facing="px")
+    # LUCID + LIT throws it; LUCID + DARK throws it back. Never light-gated
+    # itself — a breaker that vanished in the dark could not be un-thrown, and
+    # the two-way toggle is this room's whole soft-lock fix. End cap face
+    # 11.08, plus half the 0.16 thin axis. facing PINNED (alcove mount).
+    r.light_switch("lightSwitch16", (11.0, 1.45, -4.0), "nx")
+    # The terminal interactable. No keypad and no digits anywhere in this room:
+    # the door itself is gated on light state + ward state directly, in
+    # room16.gd's on_interact. Scenery until then.
+    r.interactable("exitdoor16", "door", (2, 3, 0.2), (0, 1.5, -14),
+                   "door", "the exit door", facing="pz")
+
+    # --- fittings. ALL on the "bay" circuit: the breaker is for the whole bay,
+    # not for one bulb (see the design doc's "why room-wide, not per-zone").
+    # Naming the circuit rather than relying on the default "house" is what
+    # makes the switch's off-state survive both Atmosphere's per-frame flicker
+    # writes and a room reload — see core/atmosphere.gd's CIRCUITS block.
+    for lx, lz in [(0, 4), (0, 0), (-3, -4), (3, -4), (-3, -8), (3, -8),
+                   (-3, -11), (3, -11), (0, -15)]:
+        r.light(lx, lz, circuit="bay")
+    # One inside each nook. Without these both recesses render as pure black
+    # voids and everything shaded in them disappears — room 10 verified that by
+    # A/B screenshot, and here it would swallow the switch the player is hunting.
+    r.light(-10.0, -8.0, circuit="bay")
+    r.light(10.0, -4.0, circuit="bay")
+    return r
+
+
 if __name__ == "__main__":
     # write_materials() is DELIBERATELY NOT CALLED — see its definition.
     #
@@ -3064,4 +3480,5 @@ if __name__ == "__main__":
     write_room(room14())
     write_room(room17())
     write_room(room15())
+    write_room(room16())
     print("done")

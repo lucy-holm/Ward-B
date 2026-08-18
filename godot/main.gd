@@ -98,6 +98,63 @@ const STYLE_UNMED := {
 	"lift": 1.3,
 }
 
+# --- THE LIGHT AXIS, as atmosphere ------------------------------------------
+#
+# The deterministic half of the light axis (what is visible, what the interact
+# ray will accept) lives in core/light_object.gd and never comes near this
+# file. These four numbers are the FELT half: what the ward looks like once
+# someone throws the breaker.
+#
+# They are MULTIPLIERS ON THE CURRENT STATE'S MOOD, applied before the 0.45s
+# crossfade tween below rather than instead of it, which is what makes "dark"
+# COMPOSE with the lucid/unmed axis instead of fighting it: dark-lucid is a
+# dimmed version of clinical over-lighting and dark-unmed is a dimmed version
+# of the sick green murk, so the state shift still reads at a glance in either
+# light state. Ported from renderer.ts's DARK_MULTIPLIER (0.12 on hemi/amb/
+# point intensity, 0.5/0.45 on fog near/far), layered the same way.
+#
+# THE FITTINGS ARE NOT HERE. Their dimming is Atmosphere's circuit scale (see
+# core/atmosphere.gd's CIRCUITS block), deliberately a separate multiplier on
+# the same light_energy that MOOD's light_scale drives: one is the ward-state
+# axis, the other is the light axis, and keeping them as two independent
+# factors is what makes the 2x2 orthogonal rather than a four-way lookup table.
+#
+# EXPOSURE IS NOT TOUCHED, on purpose. tonemap_exposure is the player's display
+# calibration (see _target_exposure's HARD CONSTRAINT comment) — dimming the
+# ward through it would fight a setting the player made about their screen, and
+# a player who calibrated for a bright room would experience a different
+# breaker than one who did not.
+const DARK_AMBIENT_MULT := 0.12
+# Softer than renderer.ts's 0.5/0.45, and for the reason MOOD's own comment
+# block gives above: TUNE AGAINST A LARGE ROOM AND A SMALL ONE. The Three.js
+# figures applied to a build whose unmed fog_far was 30m; here it is 16m, so
+# 0.45 would put fog_end at 7.2m — the exact number that comment records as
+# having rendered room 4 (a 12m hall) as two smears on black. Room 16's bay is
+# 16m x 22m and its phosphor path is 16m long, so an aggressive fog_end
+# deletes most of the wayfinding the dark is supposed to hand back. 0.7 still
+# reads as the walls closing in without erasing the room.
+const DARK_FOG_BEGIN_MULT := 0.7
+const DARK_FOG_END_MULT := 0.7
+# Fog COLOUR, and this one is not in the Three.js original — it is a defect the
+# straight port shipped and a screenshot caught. renderer.ts pulls fog near/far
+# in while dark but leaves fogColor at the state's own value, and LUCID's is
+# near-white bone (0.843, 0.894, 0.875). Pulling bright fog CLOSER in an unlit
+# room fills the frame with a glowing white void: the first dark-lucid shot of
+# room 16 was about 70% blown-out white, which is the exact opposite of "the
+# lights just went out". Scaling the luminance while keeping the hue is what
+# composes with MOOD rather than overriding it — dark-lucid is still cold bone,
+# dark-unmed is still sick sage, both just no longer lit from inside.
+const DARK_FOG_COLOR_MULT := 0.15
+# Posterise lift while dark. NOT cosmetic, and this is the one number the
+# Three.js build had no analogue for: quantisation is a floor function, so a
+# frame that sits below one step lands entirely in bucket 0 and the ward
+# renders as a flat void with no dither pattern at all — exactly the failure
+# STYLE_UNMED's own `lift` exists to fix (see its comment). A dark room is
+# dimmer than either state was tuned for, so it needs the same treatment, in
+# BOTH states. Multiplies the per-state lift rather than replacing it, so
+# dark-unmed still lifts more than dark-lucid.
+const DARK_STYLE_LIFT := 1.6
+
 # Environment mood targets, ported from renderer.ts:25-45.
 #
 # NOTE: these values OVERRIDE whatever main.tscn's Environment carries, from
@@ -471,10 +528,24 @@ func _apply_mood(state: int, instant: bool) -> void:
 	if _mood_tween != null and _mood_tween.is_valid():
 		_mood_tween.kill()
 
+	# The light axis, folded into the state's own targets — see the
+	# DARK_* constants above. Read here (rather than pushed in by whoever threw
+	# the switch) so that EVERY path that recomputes the mood — a state change,
+	# a brightness slider drag, a room load — carries the current light state
+	# automatically and none of them can forget it.
+	var dark := RoomLight.is_dark()
+	var fog_begin := float(m["fog_begin"]) * (DARK_FOG_BEGIN_MULT if dark else 1.0)
+	var fog_end := float(m["fog_end"]) * (DARK_FOG_END_MULT if dark else 1.0)
+	var ambient := float(m["ambient"]) * (DARK_AMBIENT_MULT if dark else 1.0)
+	var fog_color: Color = m["fog"]
+	if dark:
+		fog_color = Color(fog_color.r * DARK_FOG_COLOR_MULT,
+			fog_color.g * DARK_FOG_COLOR_MULT, fog_color.b * DARK_FOG_COLOR_MULT, 1.0)
+
 	# Hand the target fog to Atmosphere so its "breathing" oscillates around
 	# the new base rather than the old one.
 	if atmosphere != null:
-		atmosphere.set_fog_base(m["fog_begin"], m["fog_end"])
+		atmosphere.set_fog_base(fog_begin, fog_end)
 		# The fittings themselves dim in unmed, on top of the ambient drop.
 		# Ambient alone cannot get dark enough without flattening the light
 		# pools too, which is what makes a room read as unlit rather than
@@ -488,12 +559,12 @@ func _apply_mood(state: int, instant: bool) -> void:
 	_set_style(state, instant)
 
 	if instant:
-		env.fog_light_color = m["fog"]
-		env.fog_depth_begin = m["fog_begin"]
-		env.fog_depth_end = m["fog_end"]
-		env.ambient_light_energy = m["ambient"]
+		env.fog_light_color = fog_color
+		env.fog_depth_begin = fog_begin
+		env.fog_depth_end = fog_end
+		env.ambient_light_energy = ambient
 		env.tonemap_exposure = _target_exposure(state)
-		env.background_color = m["fog"]
+		env.background_color = fog_color
 		return
 
 	# The brief specifically asked for a crossfade rather than an instant
@@ -501,11 +572,11 @@ func _apply_mood(state: int, instant: bool) -> void:
 	# Environment + Tween combo actually earns the migration.
 	_mood_tween = create_tween().set_parallel(true)
 	_mood_tween.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
-	_mood_tween.tween_property(env, "fog_light_color", m["fog"], 0.45)
-	_mood_tween.tween_property(env, "background_color", m["fog"], 0.45)
-	_mood_tween.tween_property(env, "fog_depth_begin", m["fog_begin"], 0.45)
-	_mood_tween.tween_property(env, "fog_depth_end", m["fog_end"], 0.45)
-	_mood_tween.tween_property(env, "ambient_light_energy", m["ambient"], 0.45)
+	_mood_tween.tween_property(env, "fog_light_color", fog_color, 0.45)
+	_mood_tween.tween_property(env, "background_color", fog_color, 0.45)
+	_mood_tween.tween_property(env, "fog_depth_begin", fog_begin, 0.45)
+	_mood_tween.tween_property(env, "fog_depth_end", fog_end, 0.45)
+	_mood_tween.tween_property(env, "ambient_light_energy", ambient, 0.45)
 	_mood_tween.tween_property(env, "tonemap_exposure", _target_exposure(state), 0.45)
 
 
@@ -592,6 +663,12 @@ func _set_style(state: int, instant: bool) -> void:
 		return
 	var s: Dictionary = STYLE_LUCID if state == StateManager.State.LUCID else STYLE_UNMED
 	var lift: float = float(s["lift"]) * WardSettings.get_style(WardSettings.KEY_STYLE_EXPOSURE)
+	# The light axis composes with the posterise ramp rather than fighting it:
+	# same duotone tints (the state still reads as the state), more pre-quantise
+	# lift so the geometry survives the quantiser at a fraction of the light.
+	# See DARK_STYLE_LIFT.
+	if RoomLight.is_dark():
+		lift *= DARK_STYLE_LIFT
 
 	if instant:
 		mat.set_shader_parameter("tint_lo", s["lo"])
@@ -716,6 +793,22 @@ func load_room(id: String) -> void:
 
 	var packed: PackedScene = load(path)
 	current_room = packed.instantiate()
+
+	# THE LIGHT AXIS RESETS HERE, AND IT MUST HAPPEN BEFORE add_child.
+	#
+	# Every LightObject in the room reads RoomLight.is_dark() in its own _ready
+	# (see core/light_object.gd), and _ready fires the moment the node enters
+	# the tree. Resetting after add_child would give the room one frame of the
+	# PREVIOUS room's light state — visible as a flash of glow-in-the-dark paint
+	# on entry to any lit room reached from a dark one, and as the reverse on
+	# re-entry. Reading the metadata off the un-parented instance is fine:
+	# get_meta does not need the node to be in a tree.
+	#
+	# `start_dark` is per-room authored data (gen_rooms.py emits it only for a
+	# room that asks), so no room can inherit another room's darkness and every
+	# room built before this axis existed opens lit exactly as before.
+	RoomLight.reset(bool(current_room.get_meta("start_dark", false)))
+
 	world_root.add_child(current_room)
 	current_room_id = id
 
@@ -734,6 +827,13 @@ func load_room(id: String) -> void:
 	# Fluorescents are per-room, so the flicker set has to be rebuilt on load.
 	if atmosphere != null:
 		atmosphere.collect_lights(current_room)
+		# ...and the fresh fittings are told which way the breaker is, instantly
+		# (a room authored to open dark must already be dark on frame one, not
+		# fade down while the player walks in). collect_lights re-attaches
+		# circuit state by name on its own, so this is belt-and-braces for the
+		# common case and load-bearing for the "arrive at a lit room from a dark
+		# one" case, where the reset above has just turned the lights back on.
+		atmosphere.set_all_circuits(not RoomLight.is_dark(), true)
 
 	GameState.enter_room(id)
 
@@ -833,6 +933,44 @@ func unlock_door(node_name: String) -> void:
 func rebuild_collision() -> void:
 	if current_room != null:
 		collision.rebuild_from(current_room)
+
+
+# --- the light axis ---------------------------------------------------------
+# The room-script surface of the second state dimension, mirroring GameCtx
+# .isRoomDark / .setRoomDark / .setGlowFade in the Three.js build. Room 16 is
+# the first consumer; see autoload/room_light.gd for the axis itself.
+
+## True while the current room's lights are out.
+func is_room_dark() -> bool:
+	return RoomLight.is_dark()
+
+
+## Throw the room's breaker. Drives BOTH halves of the axis in one call: the
+## deterministic visibility/raycast gate (RoomLight -> every LightObject) and
+## the atmosphere (the Environment's fog/ambient mood and the fittings'
+## circuits), so a room script can never end up with one flipped and the other
+## not. Both halves ease over ~0.45s, so this reads as a fade rather than a cut.
+##
+## The LUCID REQUIREMENT IS NOT HERE. Room 16 refuses the switch to raw hands,
+## but that is room policy — a different room may well want a breaker anyone
+## can throw — so it lives in room16.gd's on_interact, not in the engine.
+func set_room_dark(dark: bool) -> void:
+	if dark == RoomLight.is_dark():
+		return
+	RoomLight.set_dark(dark)
+	if atmosphere != null:
+		atmosphere.set_all_circuits(not dark, false)
+	# Recomputes fog/ambient/posterise-lift from the CURRENT state times the new
+	# light state, and crossfades on the usual 0.45s curve.
+	_apply_mood(StateManager.state, false)
+	Telemetry.event("room_dark", {"dark": dark})
+
+
+## The phosphor charge/fade dial (room 16's "the paint drinks the light").
+## Opacity only — see core/phosphor.gd's header for why this can never affect
+## what is visible in the gating sense, what is reachable, or what is solvable.
+func set_glow_fade(level: float) -> void:
+	WardPhosphor.apply(current_room, level)
 
 
 ## Rewrite a wall scrawl in place — used by the randomize-codes wiring so a

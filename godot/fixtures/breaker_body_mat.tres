@@ -1,0 +1,14 @@
+[gd_resource type="StandardMaterial3D" format=3 uid="uid://wardbfxbb01"]
+
+; Breaker-panel body. Deliberately a DIFFERENT hue family from both the
+; dispenser (warm gray-green) and the keypad (cool slate-blue): near-neutral
+; industrial charcoal, darker than either, so a player who has learned "teal
+; box = keypad, pale box = dispenser" does not read this as a third keypad —
+; which is the entire reason the Three.js build gave the switch its own
+; MatName ('breaker') rather than reusing 'pad'. Metallic pinned low per
+; MIGRATION_NOTES (no sky, no reflection probes).
+
+[resource]
+albedo_color = Color(0.148, 0.155, 0.158, 1)
+roughness = 0.62
+metallic = 0.06

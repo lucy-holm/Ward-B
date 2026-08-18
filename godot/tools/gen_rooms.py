@@ -380,8 +380,8 @@ class Room:
         """
         self.movers.append((name, size, pos, mat))
 
-    def push_block(self, name, iid, cell_x, cell_z, size=0.86, mat="prop",
-                   label="push it"):
+    def push_block(self, name, iid, cell_x, cell_z, size=0.86, height=None,
+                   mat="prop", label="push it"):
         """A pushable crate: room 20's mechanic, and the only thing in the ward
         that is a solid, an occluder and a raycast target at once.
 
@@ -416,8 +416,24 @@ class Room:
         No `states` filter, ever: the crate's value is that it is the one tool
         in the game that does not care which reality you are in (design doc
         §2c, which rules a state-filtered block out explicitly).
+
+        `size` IS THE XZ FOOTPRINT AND ONLY THE XZ FOOTPRINT. Every clearance
+        number in a push-block room is derived from it (0.86m inside a 1.0m
+        cell leaves 0.07m of margin a side, which is what makes per-cell
+        corridor reasoning independent of push history), so it is not a knob.
+
+        `height` defaults to `size` — a cube, matching the Three.js authoring —
+        but a block meant to be COVER must override it, and this is a real
+        engine difference rather than a style choice. The TS build tested
+        occlusion as a zero-width XZ segment against a hand-authored occluder
+        list, so a block occluded regardless of how tall it was drawn. Godot's
+        Orderly._occluded() casts a REAL RayCast3D from his eye (y 1.5) to the
+        player's (y 1.62), so anything shorter than ~1.62m is scenery the
+        sightline passes straight over. A 0.86m cube blocks nothing at all.
+        Cover has to be at least eye-high to be cover.
         """
-        self.push_blocks.append((name, iid, cell_x, cell_z, size, mat, label))
+        self.push_blocks.append((name, iid, cell_x, cell_z, size,
+                                 size if height is None else height, mat, label))
 
     # content --------------------------------------------------------------
     def scrawl(self, text, pos, rot_y, size, sid=None):
@@ -715,12 +731,12 @@ class Emitter:
         # separate `Visual` child the room script tweens.
         if r.push_blocks:
             self._ensure_interactable_script()
-        for (pname, piid, pcx, pcz, psize, pmat, plabel) in r.push_blocks:
-            cube = (psize, psize, psize)
+        for (pname, piid, pcx, pcz, psize, pheight, pmat, plabel) in r.push_blocks:
+            cube = (psize, pheight, psize)
             sh = self.box_shape(cube)
             pm = self.box_mesh(cube, pmat)
             body.append('[node name="%s" type="AnimatableBody3D" parent="Geometry"]' % pname)
-            body.append("transform = %s" % _xform((pcx, psize / 2.0, pcz)))
+            body.append("transform = %s" % _xform((pcx, pheight / 2.0, pcz)))
             body.append("collision_layer = %d" % LAYER_WORLD)
             body.append("collision_mask = 0")
             body.append("sync_to_physics = false")
@@ -3176,7 +3192,12 @@ def room20():
     # ISLAND_C — static solid + sightline occluder, not pushable. Deliberately
     # insufficient on its own: the room's thesis is that only static cover
     # PLUS the crate clears the gauntlet.
-    r.block((2, 1.0, 1), (3, 0.5, -5.5), "prop")
+    #
+    # 1.7m tall, not the TS build's 1.0m, for the reason spelled out in
+    # Room.push_block(): occlusion here is a real 3D raycast between eye
+    # heights, so a waist-high block is scenery. Everything the design doc says
+    # about this obstacle is about WHERE it is, never how tall it is drawn.
+    r.block((2, 1.7, 1), (3, 0.85, -5.5), "prop")
     r.solid(2, 4, -6, -5)
 
     # PLATE_1 / PLATE_2 — one call each, trigger + flush 4cm disc, no collider
@@ -3188,7 +3209,18 @@ def room20():
     r.plate("plate2", 0.5, 1.5, -15.5, -14.5)
 
     # THE CRATE. Rest cell (2,1) — in Z1, off the causeway, 4.1m from spawn.
-    r.push_block("Crate", "crate", 2, 1, size=0.86, label="push the crate")
+    #
+    # 0.86m footprint (the number every clearance argument in this room rests
+    # on) and 1.7m TALL. The Three.js crate is a 0.86m cube because occlusion
+    # there was a 2D XZ segment test that never looked at height; here it is a
+    # real raycast from the orderly's eye at y=1.5 to the player's at y=1.62,
+    # which a 0.86m cube passes straight over. The crate's SECOND JOB IS BEING
+    # COVER — it is the only cover on the gauntlet floor — so it has to be tall
+    # enough to break that line or the middle act of the room does not exist.
+    # tools/test_room20.gd probes Orderly._occluded() directly to prove it,
+    # because nothing about this is visible in a screenshot.
+    r.push_block("Crate", "crate", 2, 1, size=0.86, height=1.7,
+                 label="push the crate")
 
     # zone triggers — objective beats only, no mechanism hangs off them
     r.trigger("enterZ2", -6, 6, -16, 0)

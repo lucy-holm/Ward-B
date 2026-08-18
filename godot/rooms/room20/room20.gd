@@ -112,7 +112,17 @@ const ORDERLY := preload("res://orderly/orderly.tscn")
 
 # --- the grid --------------------------------------------------------------
 const CELL_M := 1.0
-const CRATE_HALF := 0.43            # 0.86m cube, 0.07m margin to the cell edge
+## XZ half-extent. 0.86m footprint in a 1.0m cell, 0.07m margin a side — the
+## number every clearance argument in this room rests on. Not a knob.
+const CRATE_HALF := 0.43
+## Height, and it is NOT cosmetic. The Three.js crate is a 0.86m cube because
+## occlusion there was a zero-width XZ segment test that never looked at
+## height. Orderly._occluded() casts a real RayCast3D from his eye (y 1.5) to
+## the player's (y 1.62); a 0.86m cube is scenery that line passes straight
+## over, and the crate's second job — being the only cover on the gauntlet
+## floor — would silently not exist. 1.7m clears both eye heights.
+const CRATE_H := 1.7
+const CRATE_Y := CRATE_H / 2.0
 const REST_CELL := Vector2(2, 1)
 ## "Standing at its face" — checked ON TOP of the crosshair raycast (which
 ## Tuning.INTERACT_MAX_DISTANCE already caps at 2.7m). Aiming at the crate from
@@ -210,7 +220,7 @@ func _ready() -> void:
 	# Put the crate where the code thinks it is even when the scene is
 	# instantiated without a main (tools/shoot.gd, check_rooms.gd), so a
 	# screenshot of the raw scene is never a lie about the rest cell.
-	_crate_body.position = Vector3(REST_CELL.x, CRATE_HALF, REST_CELL.y)
+	_crate_body.position = Vector3(REST_CELL.x, CRATE_Y, REST_CELL.y)
 	_crate_visual.position = Vector3.ZERO
 
 
@@ -269,7 +279,7 @@ func _set_crate_cell(x: float, z: float) -> void:
 	_crate_x = x
 	_crate_z = z
 	if _crate_body != null:
-		_crate_body.position = Vector3(x, CRATE_HALF, z)
+		_crate_body.position = Vector3(x, CRATE_Y, z)
 	_sync_crate_box()
 
 

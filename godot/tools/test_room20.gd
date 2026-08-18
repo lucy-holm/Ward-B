@@ -146,6 +146,7 @@ func _ready() -> void:
 	_test_gate_close_defers_rather_than_freezing()
 	_test_soft_lock_enumeration()
 	_test_intended_solve()
+	await _test_the_crate_is_actually_cover()
 	_finish()
 
 
@@ -1110,11 +1111,6 @@ func _test_intended_solve() -> void:
 	_check(room.crate_cell() == PLATE2_CELL, "the route must end with the crate on PLATE_2")
 	_check(room.is_gate_open(2), "and GATE_2 must latch open")
 
-	# The cover beats have to actually be cover: the crate on COVER_A must sit
-	# on the sightline from Orderly A's danger leg to the causeway crossing.
-	_check(absf(-1.0) < 2.0 and true, "")  # placeholder removed below
-	failures = failures  # no-op
-
 	# The crate's job is done and the vestibule is walkable end to end.
 	var col: WardCollision = (f["main"] as StubMain).collision
 	var walkable := true
@@ -1125,6 +1121,90 @@ func _test_intended_solve() -> void:
 	_check(walkable,
 		"with GATE_2 open the causeway from the gap to the doorway must be "
 		+ "walkable end to end")
+
+	_teardown(f)
+
+
+# --- 9. THE CRATE IS ACTUALLY COVER ---------------------------------------
+#
+# The crate's second job, and the only one no other test touches. It is also
+# the one thing about this room that does NOT port across engines by itself.
+#
+# src/game/orderly.ts tested occlusion as a zero-width XZ segment against a
+# hand-authored occluder list — a 2D test that never looked at height, so a
+# 0.86m crate blocked sight because the author said it did. Orderly._occluded()
+# here casts a real RayCast3D from his eye (y 1.5) to the player's (y 1.62). A
+# faithfully-ported 0.86m cube is a box that line passes straight over: the
+# crate would still open both gates, still block movement, still read correctly
+# in every screenshot, and would silently not be cover at all. The middle act
+# of the room would be missing and nothing else in this suite would notice.
+#
+# So this is a runtime probe of the real sight path, at the two cover cells the
+# design doc picks, with the control case (crate one cell off the line) run
+# alongside so a pass cannot come from the ray hitting something else.
+func _test_the_crate_is_actually_cover() -> void:
+	var f := _make_room()
+	var room: Node3D = f["room"]
+	var player: Node3D = f["player"]
+
+	# Static bodies have to be registered with the physics space before a
+	# raycast can hit them.
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+
+	var a: Node3D = room._orderly_a
+	var b: Node3D = room._orderly_b
+
+	# COVER_A: his danger leg is the whole line z=-2, x in [-5,-2]; the player
+	# crosses at (0,-2). Any sightline between them runs along z=-2 and through
+	# x=-1, which is exactly the cell the design doc parks the crate in.
+	a.global_position = Vector3(-3.0, 0.0, -2.0)
+	player.global_position = Vector3(0.0, 0.0, -2.0)
+	room._set_crate_cell(2, 1)
+	_check(not a._occluded(),
+		"control: with the crate back in Z1 the causeway crossing must be in "
+		+ "the clear, or this probe proves nothing")
+
+	room._set_crate_cell(-1, -2)
+	_check(a._occluded(),
+		"COVER_A MUST BE COVER: the crate on (-1,-2) has to break the sightline "
+		+ "from Orderly A's danger leg to the crossing point. A 0.86m cube does "
+		+ "NOT — occlusion here is a real ray between eye heights, not the TS "
+		+ "build's 2D segment test")
+
+	room._set_crate_cell(-1, -3)
+	_check(not a._occluded(),
+		"and one cell off the line it must stop being cover — otherwise the "
+		+ "ray is hitting something that is not the crate")
+
+	# COVER_B, mirrored against Orderly B's z=-9 leg.
+	b.global_position = Vector3(3.0, 0.0, -9.0)
+	player.global_position = Vector3(0.0, 0.0, -9.0)
+	room._set_crate_cell(2, 1)
+	_check(not b._occluded(), "control: the z=-9 crossing is clear with the crate away")
+	room._set_crate_cell(1, -9)
+	_check(b._occluded(), "COVER_B MUST BE COVER, on the same terms")
+
+	# ISLAND_C is authored as an occluder too, and is subject to the identical
+	# rule — it was 1.0m tall in the TS build and would have been scenery here.
+	room._set_crate_cell(2, 1)
+	a.global_position = Vector3(5.0, 0.0, -5.5)
+	player.global_position = Vector3(0.0, 0.0, -5.5)
+	_check(a._occluded(),
+		"ISLAND_C must occlude too — it is authored as static cover and is "
+		+ "subject to the same eye-height rule the crate is")
+
+	# And the crate must never occlude from BELOW the ray: a crouch-height box
+	# is the failure mode this whole test exists to catch, so assert the
+	# authored height directly as well.
+	var shape: CollisionShape3D = room.get_node("Geometry/Crate/Shape")
+	var box: BoxShape3D = shape.shape
+	_check(box.size.y > Tuning.PLAYER_EYE_HEIGHT,
+		"the crate must stand taller than the player's 1.62m eye or it cannot "
+		+ "break a sightline at all (authored %.2fm)" % box.size.y)
+	_check(is_equal_approx(box.size.x, 0.86) and is_equal_approx(box.size.z, 0.86),
+		"but its FOOTPRINT must stay exactly 0.86m — every clearance number in "
+		+ "the room is derived from it")
 
 	_teardown(f)
 

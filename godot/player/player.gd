@@ -86,7 +86,14 @@ func set_input_enabled(enabled: bool) -> void:
 	# outside a user gesture, so asking here is at best a no-op and at worst
 	# misleading — it makes the code look like capture is handled when it is
 	# not. Capture is requested on the first click, in _unhandled_input.
-	if not enabled or _is_touch():
+	# Only release the cursor when input is actually being taken away. This
+	# used to also fire whenever a touchscreen existed, which on an iPad with a
+	# trackpad attached fought every capture attempt: the device reports a
+	# touchscreen, so the cursor was forced back to VISIBLE and look was dead.
+	# A pure touch device never asks for capture in the first place (capture is
+	# requested only from a real mouse button, and touch->mouse emulation is
+	# off), so dropping the _is_touch() term costs nothing there.
+	if not enabled:
 		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 
 
@@ -96,6 +103,28 @@ func is_input_enabled() -> bool:
 
 func _is_touch() -> bool:
 	return DisplayServer.is_touchscreen_available()
+
+
+## True once a REAL pointer has been used. Not the same question as
+## _is_touch(): an iPad with a trackpad is both at once, which is exactly the
+## case that was broken. Reliable only because touch->mouse emulation is
+## disabled in project.godot — with it on, every touch drag would set this.
+var _pointer_seen := false
+
+## Set when we have asked for pointer lock and it did not take. iPadOS Safari
+## may refuse the request outright, and _apply_look only ran while the mouse
+## was CAPTURED, so a refused request meant no look at all. When this is set we
+## use the motion event's `relative` directly instead: the cursor stays visible
+## and will eventually reach a screen edge, which is worse than pointer lock
+## but far better than a camera that cannot turn.
+var _capture_refused := false
+
+## Set the moment we actually REQUEST pointer lock. The refusal check below is
+## gated on this rather than on _pointer_seen, because _pointer_seen is set by
+## mouse MOTION too — so on desktop, merely moving the cursor across the canvas
+## before clicking would otherwise latch "refused" and make the camera swing on
+## hover, with no click and no capture.
+var _capture_attempted := false
 
 
 ## `spawn_y` seats the player at the spawn point's floor height immediately
@@ -137,12 +166,32 @@ func _unhandled_input(event: InputEvent) -> void:
 	# clicking the viewport did nothing at all. Re-requesting here, inside a
 	# real click, is the only thing that works in a browser.
 	if event is InputEventMouseButton and (event as InputEventMouseButton).pressed:
-		if not _is_touch() and Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
+		_pointer_seen = true
+		if Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
+			_capture_attempted = true
 			Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+			# Whether the request was honoured is decided by the browser, not
+			# here, so _process checks the outcome a frame later rather than
+			# assuming it worked.
 			return
 
-	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
-		_look_accum += (event as InputEventMouseMotion).relative
+	if event is InputEventMouseMotion:
+		_pointer_seen = true
+		var motion := event as InputEventMouseMotion
+		if Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
+			# Pointer lock granted: every motion is look, cursor is hidden.
+			_look_accum += motion.relative
+		elif _capture_refused and motion.button_mask != 0:
+			# NO POINTER LOCK — DRAG TO LOOK, and only while a button is held.
+			#
+			# iPadOS Safari refuses pointer lock, so the cursor stays visible
+			# and is the only way to press the touch buttons, the keypad and
+			# the start screen. An earlier version of this let ANY motion turn
+			# the camera once lock was refused, which made the pointer unusable
+			# for anything else: moving to a button spun the view. Requiring a
+			# held button makes it behave like the touch drag it sits beside —
+			# free movement points, dragging looks.
+			_look_accum += motion.relative
 
 	elif event is InputEventScreenTouch:
 		_handle_touch(event as InputEventScreenTouch)
@@ -304,6 +353,16 @@ func _move_axes() -> Vector2:
 # Head bob and the unmed sway are cosmetic and run on the render frame so
 # they stay smooth independent of the physics tick.
 func _process(delta: float) -> void:
+	# DID POINTER LOCK ACTUALLY HAPPEN? The browser decides, asynchronously, so
+	# the only honest way to know is to look a frame later. If a real pointer
+	# has been used, input is live, and the mouse still is not captured, then
+	# the request was refused — switch to reading motion deltas directly so an
+	# iPad trackpad can still turn the camera. Latches, because a refusal is a
+	# property of the platform rather than of one frame.
+	if _capture_attempted and _input_enabled and not _capture_refused:
+		if Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
+			_capture_refused = true
+
 	var t := _bob_clock
 	var bob := sin(t * 9.0) * 0.035 if is_moving else 0.0
 	var sway := sin(Time.get_ticks_msec() * 0.0007) * 0.02 if not StateManager.is_lucid() else 0.0

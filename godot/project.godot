@@ -88,6 +88,17 @@ ui_release_mouse={
 ]
 }
 
+[input_devices]
+
+# OFF, deliberately. Godot's default is true, which synthesises
+# InputEventMouseMotion from every touch drag. player.gd handles
+# InputEventScreenTouch/Drag natively AND now also accepts real mouse motion
+# for look (so an iPad with a trackpad works), so leaving emulation on would
+# make a single phone swipe drive the look twice — once as a drag, once as
+# fake mouse motion. It also makes "has a real pointer been used?"
+# undecidable, which is what the trackpad fix keys off.
+input_devices/pointing/emulate_mouse_from_touch=false
+
 [layer_names]
 
 3d_physics/layer_1="player"

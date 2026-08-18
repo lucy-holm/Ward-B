@@ -7,7 +7,27 @@
 #   3. medication expiry     (here, AFTER orderlies — so an orderly can
 #                             never react to a revert in the same tick)
 #   4. exit check            (Area3D signals, effectively last)
-# process_priority is set so this node ticks after the player and the room.
+# process_priority is set to 100 intending that this node tick after the player
+# and the room — but IT DOES NOT DO THAT, and the ordering above is not
+# currently enforced by it.
+#
+# _physics_process ordering in Godot 4.2+ is governed by
+# process_physics_priority, NOT process_priority (which only orders _process).
+# This node's per-frame work is in _physics_process, so the value below is
+# inert for it. What actually orders the tick is tree position, and main.tscn
+# lists WorldEnvironment, WorldRoot, Player — with this script on the root, so
+# it ticks BEFORE the player moves and before the rooms under WorldRoot.
+#
+# Consequence: _update_focus() raycasts from the camera transform of the
+# PREVIOUS tick. At 60Hz that is 16.7ms of lag on the interaction prompt,
+# which is why nobody has noticed. Left as-is deliberately rather than
+# "fixed" mid-port: setting process_physics_priority would re-time every
+# existing room and orderly at once, and that is a change to make
+# deliberately with a playtest, not as a drive-by.
+#
+# core/trigger_poll.gd works around this by taking the head of the tick
+# (process_physics_priority = -100) so its callbacks are always fresh before
+# any room updates. See its header for the full reasoning.
 #
 # Trigger volumes (core/trigger_poll.gd) sit OUTSIDE that list on purpose: they
 # poll at the head of the physics tick, ahead of every room's own

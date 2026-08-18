@@ -1108,6 +1108,75 @@ def room7():
     return r
 
 
+# --- ROOM 9 — the Doctor's Office -------------------------------------------
+# A breather after the east ward: no orderly, nothing hunting. Reuses room7's
+# shell shape (south cap behind spawn, west/east walls, north wall split by a
+# staff-door gap, a -Z vestibule with a warm glow past the door) with simpler
+# guts — a desk and a coatrack, no maze, no nook.
+#
+# The coat on the rack holds a found pill: a calm top-up with nothing chasing
+# you, so it actually registers. The exit still asks for the established two
+# things (a code read unmed, a keypad worked lucid) so the player feels the
+# oscillation once while it is still free of consequence, right before room 10
+# makes it expensive.
+
+def room9():
+    r = Room("room9", "the Doctor's Office",
+             floor=(-5, 5, -8, 5),
+             spawn=(0, 4.3, 0),
+             exits=[("room10", -1, 1, -7.9, -6.8)])
+
+    # shell, x [-5,5] z [-6,5]
+    r.wall_x(-5, 5, 5)            # south cap, behind spawn
+    r.wall_z(-6, 5, -5)           # west wall
+    r.wall_z(-6, 5, 5)            # east wall
+    r.wall_x(-5, -1, -6)          # north, west of the staff-door gap
+    r.wall_x(1, 5, -6)            # north, east of the staff-door gap
+
+    # vestibule beyond the staff door, x [-1,1] z [-8,-6]
+    r.wall_z(-8, -6, -1)
+    r.wall_z(-8, -6, 1)
+    r.wall_x(-1, 1, -8)
+    r.block((1.8, 2.6, 0.06), (0, 1.4, -7.8), "glow")  # warm glow beyond the exit
+
+    # staff door collider — locked until the code is entered
+    r.solid(-1, 1, -6.13, -5.87, name="DoorCollider")
+
+    # the doctor's desk, dead center — flavor and a collider, nothing more
+    r.block((2.0, 0.9, 1.0), (1.0, 0.45, -2.5), "prop", collider=(0.0, 2.0, -3.0, -2.0))
+
+    # the coatrack against the west wall — the coat itself is a separate
+    # interactable ('bottle'), hung at chest height beside it
+    r.block((0.16, 1.9, 0.16), (-4.4, 0.95, -3.6), "prop",
+            collider=(-4.48, -4.32, -3.68, -3.52))
+
+    r.scrawl("they dose you small\nso you stay small", (4.85, 1.7, -1), -math.pi / 2, 2.6)
+    r.scrawl("his coat still smells\nlike the ward", (-4.85, 1.7, -3.6), math.pi / 2, 2.4)
+    r.scrawl("5 2 1 6", (-4.85, 1.7, 1), math.pi / 2, 2.2, sid="codeScrawl")
+
+    # A loose pill in the coat pocket. Typed pill_pickup, but room9.gd
+    # intercepts it to vary the toast on an already-full carry — the builtin
+    # branch in main.gd has one flat toast and no objective change.
+    r.interactable("bottle", "pill_pickup", (0.22, 0.28, 0.22), (-4.4, 1.55, -3.4),
+                   "pill", "search the coat")
+    # Mounted on the east wall (x=5), thin in x, so the faceplate points -X
+    # into the room. PINNED 'nx': inferFacing lands on it here, but the two
+    # dispensers above document what happens when it does not.
+    r.interactable("dispenser9", "dispenser", (0.16, 0.75, 0.55), (4.72, 1.45, 1.0),
+                   "dispenser", "use the dispenser", facing="nx")
+    r.interactable("keypad9", "keypad", (0.4, 0.5, 0.14), (1.35, 1.45, -5.75),
+                   "pad", "use the keypad")
+    r.interactable("exitdoor", "door", (2, 3, 0.2), (0, 1.5, -6),
+                   "door", "the exit door")
+
+    r.light(0, 4)
+    r.light(-3, 1)
+    r.light(3, 1)
+    r.light(0, -1.5)
+    r.light(0, -4.5)
+    return r
+
+
 if __name__ == "__main__":
     # write_materials() is DELIBERATELY NOT CALLED — see its definition.
     write_room(room1())
@@ -1117,4 +1186,5 @@ if __name__ == "__main__":
     write_room(room5())
     write_room(room6())
     write_room(room7())
+    write_room(room9())
     print("done")

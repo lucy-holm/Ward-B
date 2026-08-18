@@ -14,6 +14,7 @@
 #   - every exit target resolves to a registered room (or END)
 #   - the exit chain from room1 is unbroken and reaches every room
 #   - interactable ids are unique within a room
+#   - trigger ids are unique within a room, and no trigger rect is degenerate
 #   - the collider cache is non-empty
 extends Node
 
@@ -48,7 +49,7 @@ const EXPECTED_MATERIAL_TYPE := {
 	"prop": "ShaderMaterial", "bed": "ShaderMaterial",
 	"door": "ShaderMaterial", "chain": "ShaderMaterial",
 	"dispenser": "ShaderMaterial", "pad": "ShaderMaterial",
-	"keypad": "ShaderMaterial",
+	"keypad": "ShaderMaterial", "plate": "ShaderMaterial",
 	# Deliberately NOT shaders: glow is unshaded so a light panel reads at full
 	# brightness regardless of room lighting, and pill is kept clean/ungrimed
 	# because it is a gameplay-readable affordance.
@@ -166,6 +167,9 @@ func _check_room(id: String, path: String, registry: Dictionary) -> void:
 	# --- unique interactable ids ---
 	_collect_ids(room, {}, id)
 
+	# --- trigger volumes ---
+	_check_triggers(id, room)
+
 	# --- patrol clearance ---
 	_check_patrol(id, col)
 
@@ -279,6 +283,30 @@ func _seg_box_dist(x0: float, z0: float, x1: float, z1: float, b) -> float:
 	for c in [[b.min_x, b.min_z], [b.max_x, b.min_z], [b.max_x, b.max_z], [b.min_x, b.max_z]]:
 		best = minf(best, _point_seg_dist(c[0], c[1], x0, z0, x1, z1))
 	return best
+
+
+# TRIGGER VOLUMES — the same class of check as interactable ids, plus one that
+# only exists because containment is deliberately STRICT (see
+# core/trigger_volume.gd): a rect with min >= max on either axis contains no
+# point at all, so it is silently dead rather than merely small. That is very
+# easy to author by transposing two numbers, and the symptom — "the plate does
+# nothing" — looks identical to a room-script bug.
+func _check_triggers(room_id: String, room: Node) -> void:
+	var seen := {}
+	for v in TriggerVolume.collect(room):
+		var tid := v.trigger_id
+		if tid.is_empty():
+			_fail("%s: trigger volume with empty trigger_id" % room_id)
+			continue
+		if seen.has(tid):
+			_fail("%s: duplicate trigger id '%s' — the poll keys its active set "
+				% [room_id, tid] + "on the id, so the second one can never fire "
+				+ "independently of the first")
+		seen[tid] = true
+		if v.min_x >= v.max_x or v.min_z >= v.max_z:
+			_fail("%s: trigger '%s' has a degenerate rect x[%.2f,%.2f] z[%.2f,%.2f] — "
+				% [room_id, tid, v.min_x, v.max_x, v.min_z, v.max_z]
+				+ "containment is strict (> / <), so it can never fire")
 
 
 func _collect_ids(node: Node, seen: Dictionary, room_id: String) -> void:

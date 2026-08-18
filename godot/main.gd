@@ -56,6 +56,43 @@ const ROOM_SCENES := {
 	"room15": "res://rooms/room15/room15.tscn",
 }
 
+# --- ROOM VARIANTS ----------------------------------------------------------
+#
+# One room id, more than one authored scene, chosen at load time from a
+# run-scoped GameState flag. Room 19 ("the Undercroft") is the only user: room
+# 18's relay lever writes "room18.power", and room 19 is a structurally
+# different room per value — different geometry, different exit, a differently
+# shaped patrol — so it ships as two real scene files rather than one scene
+# that prunes itself at runtime. Two files are independently openable in the
+# editor, independently screenshot-testable and independently auditable for
+# soft-locks; a self-pruning scene is a file whose actual contents depend on
+# runtime state, which is exactly what makes a room hard to audit.
+#
+# Kept as a SEPARATE table from ROOM_SCENES on purpose: that map must stay a
+# plain id -> path dictionary, because tools/check_rooms.gd parses it straight
+# out of this file line by line and a nested value would break it.
+#
+# WIRING THE CHAIN (for whoever owns it): registering "room19" in ROOM_SCENES
+# above, pointing at the DEFAULT variant, gives check_rooms and its chain walk
+# something to resolve for room 18's exit. This table still decides what
+# actually loads, so the registered path is only ever the fallback. Note
+# check_rooms' patrol validator looks for rooms/<id>/<id>.gd and will not find
+# one for "room19"; both variants' patrols are validated by
+# tools/test_rooms1819.gd instead.
+#
+# "default" is the fail-safe: an unset or unrecognised flag degrades to the
+# SAFER branch (lights: longer, lit, with a breather), never the riskier one.
+const ROOM_VARIANTS := {
+	"room19": {
+		"flag": "room18.power",
+		"default": "lights",
+		"scenes": {
+			"lights": "res://rooms/room19_lights/room19_lights.tscn",
+			"doors": "res://rooms/room19_doors/room19_doors.tscn",
+		},
+	},
+}
+
 const HUD_SCENE := preload("res://ui/hud.tscn")
 const KEYPAD_SCENE := preload("res://ui/keypad.tscn")
 const TOUCH_SCENE := preload("res://ui/touch_controls.tscn")
@@ -700,6 +737,20 @@ func _find_interactable(node: Node, id: String) -> Interactable:
 
 # --- rooms -----------------------------------------------------------------
 
+## Which scene file a room id resolves to. A plain registry lookup for every
+## room in the game except the one variant room, which reads its flag HERE —
+## at the single moment it is entered, since rooms are one-way.
+func room_scene_path(id: String) -> String:
+	if not ROOM_VARIANTS.has(id):
+		return str(ROOM_SCENES.get(id, ""))
+	var variant: Dictionary = ROOM_VARIANTS[id]
+	var scenes: Dictionary = variant["scenes"]
+	var choice := str(GameState.get_flag(str(variant["flag"]), variant["default"]))
+	if scenes.has(choice):
+		return str(scenes[choice])
+	return str(scenes[variant["default"]])
+
+
 func load_room(id: String) -> void:
 	if current_room != null:
 		if current_room.has_method("on_leave"):
@@ -709,7 +760,9 @@ func load_room(id: String) -> void:
 		current_room = null
 	_focused = null
 
-	var path: String = ROOM_SCENES.get(id, "")
+	# Variant rooms resolve their scene from a flag here; everything else is a
+	# straight ROOM_SCENES lookup. See ROOM_VARIANTS.
+	var path := room_scene_path(id)
 	if path.is_empty():
 		push_error("Unknown room id: %s" % id)
 		return

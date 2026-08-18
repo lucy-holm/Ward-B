@@ -36,6 +36,27 @@ var pills_are_scarce := false:
 		pills_are_scarce = value
 		scarcity_changed.emit(value)
 
+# --- cross-room flags -------------------------------------------------------
+#
+# A tiny key/value bag written by one room and read by another. Room 18's relay
+# lever writes "room18.power"; main.gd's ROOM_VARIANTS reads it to decide which
+# of the two room 19 scenes to load. Keys are namespaced by the writing room,
+# "<room>.<name>", which avoids collisions without needing a registry.
+#
+# WHY IT LIVES HERE and not in StateManager or Settings. StateManager is
+# specifically the lucid/unmed machine plus the pill economy and says so in its
+# own header; Settings is per-INSTALL and persisted to disk. A room flag is a
+# third thing: a fact about THIS RUN. That is exactly what this autoload
+# already is, so it goes here and is cleared by reset_run() with everything
+# else — a second playthrough must not inherit the first one's undercroft.
+#
+# Never persisted. A catch does NOT clear it (nothing calls reset_run on a
+# catch, by design), so a player caught after throwing the relay comes back to
+# a room where they already decided, which is the whole point of the choice.
+var flags := {}
+
+
+
 # --- run stats (telemetry) ---
 var run_started_unix := 0
 var deaths := 0
@@ -46,6 +67,20 @@ var rooms_completed: Array[String] = []
 
 func has_pill() -> bool:
 	return pills > 0
+
+
+## Write a cross-room flag. One-way as far as the engine is concerned — no
+## room script has any business clearing another room's flag.
+func set_flag(key: String, value: Variant) -> void:
+	flags[key] = value
+
+
+func get_flag(key: String, fallback: Variant = null) -> Variant:
+	return flags.get(key, fallback)
+
+
+func has_flag(key: String) -> bool:
+	return flags.has(key)
 
 
 func consume_pill() -> void:
@@ -71,6 +106,7 @@ func complete_room(id: String) -> void:
 
 func reset_run() -> void:
 	pills = 0
+	flags.clear()
 	current_room = ""
 	pills_are_scarce = false
 	deaths = 0

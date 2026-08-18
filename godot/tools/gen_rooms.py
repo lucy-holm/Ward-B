@@ -78,6 +78,10 @@ FIXTURES = {
     "dispenser":   {"path": "res://fixtures/dispenser.tscn",   "size": (0.55, 0.75, 0.16)},
     "keypad":      {"path": "res://fixtures/keypad.tscn",      "size": (0.40, 0.50, 0.14)},
     "door":        {"path": "res://fixtures/door.tscn",        "size": (2.00, 3.00, 0.20)},
+    # The breaker switch (room 18's relay levers; room 16's light switch will
+    # want the same fixture). Canonical width/height/depth, faceplate toward
+    # -Z, matching kit.ts's SWITCH_FOOTPRINT [thin 0.16, h 0.6, along 0.5].
+    "switch":      {"path": "res://fixtures/switch.tscn",      "size": (0.50, 0.60, 0.16)},
     "pill_cup":    {"path": "res://fixtures/pill_cup.tscn",    "size": (0.18, 0.22, 0.18)},
     "pill_pickup": {"path": "res://fixtures/pill_pickup.tscn", "size": (0.18, 0.18, 0.18)},
 }
@@ -3033,6 +3037,317 @@ def room15():
     return r
 
 
+
+# --- ROOM 18 — the Relay Room ----------------------------------------------
+# One irreversible mechanical choice, and nothing else. A two-position power
+# relay feeds either the ward's LIGHTS or its DOORS, never both; throwing one
+# lever physically removes the other and swings the sealed exit door open in
+# the same beat. The consequence is invisible until room 19, which is BUILT
+# TWICE off the flag this room writes (GameState "room18.power" ->
+# main.gd's ROOM_VARIANTS -> rooms/room19_lights or rooms/room19_doors).
+# Deliberately no codes and no keypad: the throw IS the lock.
+#
+# Zones, south to north:
+#   Z1 entry hall   z[2.3,5]  — spawn, dispenser18 behind a stub wall
+#   Z2 relay hall   z[-3,2.3] — one orderly, rectangular belt, low console
+#   Z3 choice nook  z[-7,-3]  — the two levers flank the sealed exit door
+#
+# PORT NOTE vs src/rooms/room18.ts. The TS build protected the dispenser and
+# the nook with hand-authored occluder AABBs and room10's "a sightline into a
+# box always crosses the box" argument. Godot's Orderly does not take an
+# occluder list at all — _occluded() casts a real RayCast3D against the actual
+# world_static colliders — so that argument does not port, and the protection
+# here is the REAL geometry doing the work instead: the stub wall for the
+# dispenser, the two nook-mouth walls (x[-6,-2] and x[2,6] at z=-3) for the
+# levers, plus his facing for the last few metres. That is a BEHAVIOURAL
+# guarantee, weaker than room 19's platform (proved cone-free against geometry
+# alone), and room18.gd's header says so rather than papering over it.
+def room18():
+    r = Room("room18", "the Relay Room",
+             floor=(-6, 6, -9, 5),
+             spawn=(0, 4, 0),
+             exits=[("room19", -1, 1, -8.9, -7.9)])
+
+    # shell — floor x[-6,6] z[-9,5], spawn end at +z (south)
+    r.wall_x(-6, 6, 5)            # south cap, behind spawn
+    r.wall_z(-7, 5, -6)           # west
+    r.wall_z(-7, 5, 6)            # east
+
+    # Z1/Z2 stub — occludes the dispenser pocket from the belt.
+    r.wall_x(-6, -2.6, 2.3)
+
+    # Low centre console: one piece of cover to duck behind mid-crossing, and
+    # the only interior collider in the belt zone.
+    r.block((2, 1.0, 0.9), (0, 0.5, 0), "prop",
+            collider=(-1, 1, -0.45, 0.45), name="Console")
+
+    # Z2/Z3 mouth walls — the nook opens x[-2,2]
+    r.wall_x(-6, -2, -3)
+    r.wall_x(2, 6, -3)
+
+    # nook side walls + north cap with the exit gap x[-1,1]
+    r.wall_z(-7, -3, -2)
+    r.wall_z(-7, -3, 2)
+    r.wall_x(-6, -1, -7)
+    r.wall_x(1, 6, -7)
+    # THE EXIT DOOR'S COLLIDER. Solid until a lever is thrown; room18.gd drops
+    # its layer via main.unlock_door("DoorCollider"), the room14/room16 trick.
+    # The choice is the room's ONLY gate, so a player literally cannot leave
+    # without deciding.
+    r.solid(-1, 1, -7.1, -6.9, name="DoorCollider")
+
+    # exit vestibule beyond the doorway, x[-1,1] z[-9,-7]
+    r.wall_z(-9, -7, -1)
+    r.wall_z(-9, -7, 1)
+    r.wall_x(-1, 1, -9)
+    r.block((1.8, 2.6, 0.06), (0, 1.4, -8.8), "glow")
+
+    # --- scrawls (all unmed-only, like every scrawl in the ward) -----------
+    # Sizes are held small on purpose: a scrawl renders far wider than its
+    # authored number (see tools/measure_scrawls.gd) and the nook is only
+    # 3.76m of usable wall between its mouth and its north cap.
+    # 1.2, not larger: the Z1 pocket is only the 2.46m between the stub wall
+    # (z=2.42) and the south cap's face (z=4.88). Measured, not guessed.
+    r.scrawl("one relay.\nthe whole ward.", (-5.85, 1.65, 3.65), math.pi / 2, 1.2)
+    r.scrawl("it only moves once.\nthey made sure.", (-1.85, 1.65, -5.0), math.pi / 2, 1.3)
+    r.scrawl("lights: the long way, lit.\ndoors: the short way, dark.",
+             (1.85, 1.65, -5.0), -math.pi / 2, 1.2)
+    # Stencilled above each lever, so which throw is which reads before you
+    # touch either one. (The interact prompt carries the same information in
+    # BOTH ward states — these are flavour, not the only channel.)
+    r.scrawl("LIGHTS", (-1.5, 2.25, -6.85), 0.0, 1.0)
+    r.scrawl("DOORS", (1.5, 2.25, -6.85), 0.0, 1.0)
+
+    # --- interactables -----------------------------------------------------
+    # West wall, so the faceplate points east — PINNED, never inferred.
+    r.interactable("dispenser18", "dispenser", (0.16, 0.75, 0.55), (-5.8, 1.45, 4),
+                   "dispenser", "use the dispenser", facing="px")
+    # THE RELAY. Both levers are states:'both' — legible and throwable in
+    # either ward state, because room18+room19 together are audited to cost
+    # ZERO pills beyond whatever the belt crossing already cost. Sizes are in
+    # WORLD axes: these hang off a Z wall, so thin in Z.
+    r.interactable("leverLights", "switch", (0.5, 0.6, 0.16), (-1.6, 1.45, -6.8),
+                   "pad", "pull: power to the LIGHTS", facing="pz")
+    r.interactable("leverDoors", "switch", (0.5, 0.6, 0.16), (1.6, 1.45, -6.8),
+                   "pad", "pull: power to the DOORS", facing="pz")
+    # Scenery the room script swings; room18.gd's availability filter makes it
+    # permanently un-interactable — the levers are the key, not the door.
+    r.interactable("exitdoor18", "door", (2, 3, 0.2), (0, 1.5, -7),
+                   "door", "the relay door", facing="pz")
+
+    for x, z in [(0, 4), (-4.6, 3.4), (-3, -0.5), (3, -0.5), (0, -5), (0, -8.6)]:
+        r.light(x, z)
+    return r
+
+
+# --- ROOM 19 — the Undercroft ----------------------------------------------
+# THE PAYOFF, and the one room in the ward that ships as TWO scene files.
+# room18's lever writes GameState flag "room18.power"; main.gd's ROOM_VARIANTS
+# resolves "room19" to room19_lights or room19_doors at load. The two builds
+# share a vestibule and nothing else — different geometry, different exit, a
+# differently shaped patrol, and a different lighting rig.
+#
+# WHY TWO SCENES rather than one that prunes itself: a scene whose contents
+# depend on runtime state cannot be opened, screenshotted or soft-lock-audited
+# as an artifact. Both of these can. The cost is the duplicated shell below.
+#
+# SHARED between the builds, and it must STAY shared (the vestibule is the
+# player's fixed, safe first three seconds in either world):
+#   floor x[-7,7] z[-8,4]; spawn (-4.5, 3.2) facing north; south/east/west
+#   shell walls; dispenser19 on the west wall at z=3; the south-cap scrawl.
+
+R19_FLOOR = (-7, 7, -8, 4)
+R19_SPAWN = (-4.5, 3.2, 0)
+
+
+def _room19_shell(r):
+    """Everything both builds of the Undercroft have in common."""
+    r.wall_x(-7, 7, 4)            # south cap, behind spawn
+    r.wall_z(-8, 4, -7)           # west
+    r.wall_z(-8, 4, 7)            # east
+    r.scrawl("the undercroft hums.\nsomething was decided\nbefore you got here.",
+             (-3.5, 1.65, 3.85), math.pi, 1.6)
+    # Vestibule dispenser, west wall, faceplate east — PINNED. Reachable unmed
+    # on entry with 0 pills, before either build's hazard geometry starts, and
+    # occluded from every patrol point in BOTH builds (see each build's note).
+    r.interactable("dispenser19", "dispenser", (0.16, 0.75, 0.55), (-6.8, 1.45, 3),
+                   "dispenser", "use the dispenser", facing="px")
+
+
+# ROOM 19 / 'doors' — the short, dark way.
+#
+# A 3m unlit corridor x[-6,-3] running the room's full length, entered through
+# a gap in the z=2 divider, with one orderly patrolling nearly all of it. He
+# effectively IS the corridor: no cover, no console, no nook. You read his
+# position and time a single pass. The east half of the room is never built —
+# a solid wall stands where the mezzanine would be.
+#
+# NO LUCID GATE, and no state-filtered collider anywhere: crossing is always
+# physically possible unmed, and the catch (forced lucid + teleport to spawn,
+# pills kept) is the backstop. The branch is shorter in distance and in
+# time-under-threat, not cheaper in pills — that is the trade.
+#
+# DISPENSER SIGHTLINE: he is confined to the corridor, whose west wall (x=-6,
+# z[-8,2]) stands between every patrol point and dispenser19 at (-6.8, 3).
+def room19_doors():
+    r = Room("room19_doors", "the Undercroft",
+             floor=R19_FLOOR,
+             spawn=R19_SPAWN,
+             exits=[("room20", -5.5, -3.5, -7.9, -7.2)])
+    _room19_shell(r)
+
+    # Divider at z=2 (vestibule z[2,4]); the corridor mouth is the gap
+    # x[-5.2,-3], offset to the corridor's east side rather than centred on it.
+    #
+    # THE OFFSET IS LOAD-BEARING, not a stylistic choice. With the TS build's
+    # full-width x[-6,-3] gap, a patrol point at (-3.8,-1.5) has an unblocked
+    # 5.05m line to a player standing at dispenser19 — inside sight range and,
+    # at that phase of his loop, inside his cone: he spots you at the
+    # dispenser, which the spec's reaction-time audit says cannot happen.
+    # Extending the west segment to x=-5.2 puts every such line through solid
+    # wall (worst case crosses z=2 at x=-5.525). Caught by test_rooms1819.gd,
+    # not by reading. The mouth is still 1.5m of clear walking at the player's
+    # radius.
+    r.wall_x(-7, -5.2, 2)
+    r.wall_x(-3, 7, 2)
+    # The corridor itself, full length z[-8,2]. Its east wall also seals the
+    # dead east half off for good.
+    r.wall_z(-8, 2, -6)
+    r.wall_z(-8, 2, -3)
+    # north cap, exit gap x[-5.5,-3.5] at the corridor's north end
+    r.wall_x(-7, -5.5, -8)
+    r.wall_x(-3.5, 7, -8)
+    r.block((1.8, 2.6, 0.06), (-4.5, 1.4, -7.8), "glow")   # the way out, far down the dark
+
+    r.scrawl("wrong wiring for this door.\nit never opens.",
+             (-3.15, 1.65, -4.0), -math.pi / 2, 1.3)
+    r.scrawl("straight line.\ndark as a mouth.", (-5.85, 1.65, -6.0), math.pi / 2, 1.3)
+
+    # SPARSE, and this is the branch's whole texture: one pool in the
+    # vestibule, one at the mouth, NONE in the corridor. Not a blackout — the
+    # renderer keeps a base ambient regardless — a legibility lever.
+    r.light(-4.5, 3)
+    r.light(1.0, 3)
+    r.light(-4.5, 0.6)
+    return r
+
+
+# ROOM 19 / 'lights' — the long, lit way, and the fail-safe default.
+#
+# Vestibule -> east archway -> across the lower floor -> up a 2.5m-wide ramp
+# in the room's south-east corner -> onto a railed platform at y=0.9 that is a
+# PROVABLY unseeable safe breather -> back down -> a second ground crossing to
+# the exit. Roughly double the doors branch's travel, two exposure windows
+# instead of one, full visibility throughout.
+#
+# TIER 1 VERTICALITY (core/levels.gd): height zones and a ramp, folded into
+# the synthetic '__flat' level. ZERO collision impact — a raised region is
+# never a collider, only a height the rendered Y eases toward. Everything that
+# keeps a body on the platform, and everything that blocks a sightline into
+# it, is an ordinary authored collider below.
+#
+# THE PROMISE, AND HOW IT IS KEPT. Godot's Orderly takes no occluder list: it
+# casts a real ray against world_static colliders, and every collider in this
+# game is a 3m-tall box, so a knee-high railing blocks his line of sight just
+# as a wall does. The raised region is therefore ENCLOSED — east and north by
+# the room's real walls, west by RailWest (x=2, z[-8,-0.88]), south by
+# RailSouth (x[2.12,4.5], z=-1) — with exactly ONE opening, the ramp mouth at
+# x[4.5,7], z=-1. From his patrol (x<=1, z in [-6,0.5]) no straight line can
+# reach any point of the platform or the lip through that mouth: the crossing
+# of z=-1 lands at most at x = 1 + (1.5/3.5)*6 = 3.57, well west of 4.5. Every
+# other line into the raised region crosses a rail. tools/test_rooms1819.gd
+# proves this by dense sampling against the REAL raycast, not by this
+# argument.
+#
+# DEVIATION FROM SPEC §4.2: one ramp, not two. The player climbs and descends
+# the same ramp; the two-crossings-bracketing-a-breather shape and the pill
+# economy are untouched, and a single ramp keeps the platform's guarded edge
+# one continuous L instead of four seams to prove.
+#
+# DEVIATION FROM src/rooms/room19.ts: the archway is x[-4,-1], not x[-6,-1].
+# With the wider TS gap a patrol point on the (-4,0.5)-(1,0.5) leg has an
+# unblocked 5.9m line to dispenser19 in the vestibule, which the spec's
+# reaction-time audit says cannot happen. Extending the divider to x=-4 puts
+# every in-range patrol point's sightline through solid wall.
+def room19_lights():
+    PLAT_Y = 0.9
+
+    r = Room("room19_lights", "the Undercroft",
+             floor=R19_FLOOR,
+             spawn=R19_SPAWN,
+             exits=[("room20", -1, 1, -7.9, -7.2)])
+    _room19_shell(r)
+
+    # Divider at z=2; the archway is x[-4,-1] (see the deviation note).
+    r.wall_x(-7, -4, 2)
+    r.wall_x(-1, 7, 2)
+    # north cap, exit gap x[-1,1]; x[1,7] backs the platform.
+    r.wall_x(-7, -1, -8)
+    r.wall_x(1, 7, -8)
+    r.block((1.8, 2.6, 0.06), (0, 1.4, -7.8), "glow")
+
+    # --- the walkable verticality — three lines, zero collision impact ----
+    r.height_zone(2, 7, -8, -3, PLAT_Y)      # the platform: the breather
+    r.height_zone(2, 4.5, -3, -1, PLAT_Y)    # the lip, overlooking the floor
+    r.ramp(4.5, 7, -3, -1, "z", PLAT_Y, 0.0)  # climbs north, y 0 -> 0.9
+
+    # The raised floor's own opaque slabs. NO COLLIDER — a collider here would
+    # wall the platform off instead of holding it up. Their undersides are
+    # what the lower floor sees.
+    r.block((5, PLAT_Y, 5), (4.5, PLAT_Y / 2.0, -5.5), "wall2", name="PlatformSlab")
+    r.block((2.5, PLAT_Y, 2), (3.25, PLAT_Y / 2.0, -2), "wall2", name="LipSlab")
+
+    # Visual ramp: 3 steps of 0.3m across the 2m run, full 2.5m width, rising
+    # from the mouth (z=-1) to the platform edge (z=-3). Also no colliders —
+    # the walkable slope is the RAMP above, which is smooth.
+    RAMP_STEPS = 3
+    for i in range(RAMP_STEPS):
+        step_top = PLAT_Y * (i + 1) / RAMP_STEPS
+        z_center = -1 - 0.333 - i * 0.667
+        r.block((2.5, step_top, 0.667), (5.75, step_top / 2.0, z_center), "wall2",
+                name="RampStep%d" % i)
+
+    # --- the guarded edge -------------------------------------------------
+    # RAILWEST — the platform's and the lip's whole open west edge, one
+    # collider z[-8,-0.88] so it meets RailSouth with no seam. The visual is a
+    # 0.9m rail standing ON the slab edge, so nothing floats.
+    r.block((0.24, 0.9, 7.12), (2.0, PLAT_Y + 0.45, -4.44), "chain",
+            collider=(1.88, 2.12, -8, -0.88), name="RailWest")
+    # RAILSOUTH — the lip's south edge, above the archway floor.
+    r.block((2.38, 0.9, 0.24), (3.31, PLAT_Y + 0.45, -1.0), "chain",
+            collider=(2.12, 4.5, -1.12, -0.88), name="RailSouth")
+    # RAMPWALL — between the lip (flat, 0.9) and the ramp (sloping 0.9 -> 0).
+    # A knee wall rather than a railing, because the two sides sit at
+    # different heights along its whole run and a rail would float over the
+    # ramp's low end (room 11 shipped exactly that bug).
+    r.block((0.24, 1.8, 2), (4.5, 0.9, -2), "wall2",
+            collider=(4.38, 4.62, -3, -1), name="RampWall")
+    # Glow lintel at the ramp mouth — "there is a way up here", readable from
+    # across the lower floor.
+    r.block((2.5, 0.14, 0.12), (5.75, 2.7, -0.94), "glow")
+
+    r.scrawl("no door here.\nthey fed the bulbs instead.",
+             (-6.85, 1.65, -3.5), math.pi / 2, 1.2)
+    # ON THE PLATFORM, hung at PLAT_Y + 1.25 rather than the usual +1.65: it
+    # renders ~1.3m tall and at platform eye height it punches the 3m ceiling.
+    # Ground height would put it below the platform floor entirely — it reads
+    # only to someone who has climbed. (0.9 + 1.65) rather than ground
+    # height — it only reads to someone who has climbed.
+    r.scrawl("up, and over, and down.\ntake the breath while you can.",
+             (6.85, PLAT_Y + 1.25, -5.5), -math.pi / 2, 1.2)
+
+    # GENEROUS, and visibly so: this is the branch you can see him coming in.
+    # (1.5, -4.5) is not decoration: RailWest is a 7m solid block standing on
+    # the slab edge, and with nothing lighting its WEST face from the lower
+    # floor the whole raised region rendered as a black mass with a mottled
+    # skirt — the platform read as a wall rather than as somewhere to climb.
+    # Confirmed by screenshot, both before and after.
+    for x, z in [(-2.5, 3), (-1, 0.5), (3, 0.5), (5.75, -1.8), (1.5, -4.5),
+                 (-4, -3), (-1, -6), (4.5, -4.5), (4.5, -7)]:
+        r.light(x, z)
+    return r
+
+
 if __name__ == "__main__":
     # write_materials() is DELIBERATELY NOT CALLED — see its definition.
     #
@@ -3064,4 +3379,7 @@ if __name__ == "__main__":
     write_room(room14())
     write_room(room17())
     write_room(room15())
+    write_room(room18())
+    write_room(room19_lights())
+    write_room(room19_doors())
     print("done")

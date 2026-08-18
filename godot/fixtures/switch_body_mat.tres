@@ -1,0 +1,16 @@
+[gd_resource type="StandardMaterial3D" format=3 uid="uid://wardbfxsb01"]
+
+; Breaker-switch body — worn dark olive metal. Deliberately a THIRD hue
+; family: the dispenser is warm gray-green, the keypad cool slate-blue, and
+; this is neither, because room 18's whole failure mode in playtest was that
+; the relay levers read as "another wall pad". A fixture you throw once, ever,
+; must not look administrative. Metallic pinned low per MIGRATION_NOTES (no
+; sky, no reflection probes — metallic reads as flat black without one), and
+; the albedo is deliberately NOT as dark as the keypad's: at 0.155 the whole
+; fixture rendered as a black rectangle against the pale plaster, which is
+; exactly the "inert wall panel" failure this fixture exists to fix.
+
+[resource]
+albedo_color = Color(0.255, 0.272, 0.215, 1)
+roughness = 0.62
+metallic = 0.06

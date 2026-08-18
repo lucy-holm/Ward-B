@@ -3193,10 +3193,14 @@ def room20():
     # insufficient on its own: the room's thesis is that only static cover
     # PLUS the crate clears the gauntlet.
     #
-    # 1.7m tall, not the TS build's 1.0m, for the reason spelled out in
-    # Room.push_block(): occlusion here is a real 3D raycast between eye
-    # heights, so a waist-high block is scenery. Everything the design doc says
-    # about this obstacle is about WHERE it is, never how tall it is drawn.
+    # The MESH is 1.7m, not the TS build's 1.0m, and this is a cosmetic
+    # correction rather than a mechanical one: solid() emits a full 3m-tall
+    # collider like every other collider in the ward, so this island already
+    # occluded Orderly._occluded()'s eye-height ray while being drawn
+    # waist-high. Raising the mesh stops the picture lying about what blocks
+    # sight. (The CRATE is the genuinely different case — push_block() emits
+    # its authored box AS the collider, so its height is load-bearing. See
+    # Room.push_block().)
     r.block((2, 1.7, 1), (3, 0.85, -5.5), "prop")
     r.solid(2, 4, -6, -5)
 

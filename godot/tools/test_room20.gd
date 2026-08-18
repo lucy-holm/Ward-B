@@ -81,6 +81,8 @@ var notes: Array[String] = []
 var _player_r := 0.0
 var _free_static := {}       # cfg -> PackedByteArray over the lattice
 var _cell_legal := {}        # cfg -> PackedByteArray over crate cells
+var _cell_occ := {}          # cfg -> can the crate sit here (geometry only)
+var _cell_stance := {}       # cfg -> can the player stand here (geometry only)
 var _label_cache := {}       # "cfg:cx:cz" -> PackedByteArray component labels
 var _exit_idx := -1
 
@@ -136,18 +138,35 @@ func _ready() -> void:
 	StateManager.force_state(StateManager.State.UNMED, "test")
 	_player_r = Tuning.PLAYER_RADIUS + LAT * 0.7071067812
 
-	_test_authoring_invariants()
-	_test_crate_is_a_real_moving_collider()
-	_test_push_rule()
-	_test_push_refusals()
-	_test_collider_snaps_and_only_the_drawing_tweens()
-	_test_plates_track_the_crate_not_you()
-	_test_gates_latch_one_way()
-	_test_gate_close_defers_rather_than_freezing()
-	_test_soft_lock_enumeration()
-	_test_intended_solve()
-	await _test_the_crate_is_actually_cover()
+	_stage("authoring"); _test_authoring_invariants()
+	_stage("collider"); _test_crate_is_a_real_moving_collider()
+	_stage("push rule"); _test_push_rule()
+	_stage("refusals"); _test_push_refusals()
+	_stage("tween"); _test_collider_snaps_and_only_the_drawing_tweens()
+	_stage("plates"); _test_plates_track_the_crate_not_you()
+	_stage("gates"); _test_gates_latch_one_way()
+	_stage("deferred close"); _test_gate_close_defers_rather_than_freezing()
+	_stage("win rule"); _test_the_win_rule_is_load_bearing()
+	_stage("soft-lock"); _test_soft_lock_enumeration()
+	_stage("solve"); _test_intended_solve()
+	_stage("cover"); await _test_the_crate_is_actually_cover()
+	_stage("done")
 	_finish()
+
+
+var _stage_t := 0
+
+
+## Progress marker. A suite that hangs must say WHERE — run_tests.sh reports a
+## timeout with no output at all otherwise, which is indistinguishable from a
+## parse failure.
+func _stage(name: String) -> void:
+	var now := Time.get_ticks_msec()
+	if _stage_t > 0:
+		print("  [%6d ms] %s" % [now - _stage_t, name])
+	else:
+		print("  stage: %s" % name)
+	_stage_t = now
 
 
 func _check(cond: bool, what: String) -> void:
@@ -164,6 +183,9 @@ func _check(cond: bool, what: String) -> void:
 ## parks both orderlies far outside the room so they neither see, catch, nor
 ## block anything until a test puts them somewhere on purpose.
 func _make_room(frozen := true) -> Dictionary:
+	# Earlier tests force LUCID via _on_caught(); start every fixture from the
+	# same known state so a later test cannot inherit one.
+	StateManager.force_state(StateManager.State.UNMED, "test")
 	var world := Node3D.new()
 	add_child(world)
 
@@ -306,8 +328,9 @@ func _test_authoring_invariants() -> void:
 	for i in range(col.boxes.size() - 1, -1, -1):
 		if col.boxes[i].source == crate_shape:
 			col.boxes.remove_at(i)
+	var consts: Dictionary = (room.get_script() as GDScript).get_script_constant_map()
 	for route_name in ["WAYPOINTS_A", "WAYPOINTS_B"]:
-		var pts: Array = room.get(route_name)
+		var pts: Array = consts[route_name]
 		var blocked := 0
 		for i in pts.size():
 			var a: Vector3 = pts[i]
@@ -417,27 +440,31 @@ func _test_push_rule() -> void:
 
 	# Direction is DERIVED from the player->crate vector and always continues
 	# AWAY from the player: walking into a face is what pushes it.
-	_check(_push_from(f, 3.0, 1.0) == Vector2(1, 1), "standing east pushes it west")
-	_check(_push_from(f, 0.0, 1.0) == Vector2(2, 1), "standing west pushes it east")
-	_check(_push_from(f, 2.0, 2.0) == Vector2(2, 0), "standing north pushes it south")
-	_check(_push_from(f, 2.0, -1.0) == Vector2(2, 1), "standing south pushes it north")
-
-	# The larger axis wins outright — there are no diagonal pushes.
-	_check(_push_from(f, 2.9, 1.4) == Vector2(1, 1),
-		"a diagonal stance resolves to the LARGER axis, never to a diagonal move")
+	#
+	# Run at (-3,3), open floor in the middle of Z1. NOT at the rest cell: (2,1)
+	# is one cell north of GATE_1's wall row, so a southward push from there is
+	# legitimately refused and would read as a broken direction test.
+	for leg: Array in [[-2.0, 3.0, Vector2(-4, 3), "standing east pushes it west"],
+			[-4.0, 3.0, Vector2(-2, 3), "standing west pushes it east"],
+			[-3.0, 4.0, Vector2(-3, 2), "standing north pushes it south"],
+			[-3.0, 2.0, Vector2(-3, 4), "standing south pushes it north"],
+			[-3.9, 3.4, Vector2(-2, 3),
+				"a diagonal stance resolves to the LARGER axis, never to a diagonal move"]]:
+		room._set_crate_cell(-3, 3)
+		_check(_push_from(f, leg[0], leg[1]) == leg[2], leg[3])
 
 	# Reach: the crosshair can focus the crate from 2.7m, but a push needs you
 	# at its face. 1.15m is the line, and it is exclusive on the far side.
-	room._set_crate_cell(2, 1)
-	_check(_push_from(f, 2.0, 2.2) == Vector2(2, 1),
+	room._set_crate_cell(-3, 3)
+	_check(_push_from(f, -3.0, 4.2) == Vector2(-3, 3),
 		"focusing the crate from 1.2m away must NOT push it — reach is 1.15m")
-	_check(_push_from(f, 2.0, 2.1) == Vector2(2, 0),
+	_check(_push_from(f, -3.0, 4.1) == Vector2(-3, 2),
 		"and 1.1m away must")
 
 	# Degenerate stance: exactly on the centre. Cannot happen (the crate is
 	# solid) but must not push in a random direction if it ever did.
-	room._set_crate_cell(2, 1)
-	_check(_push_from(f, 2.0, 1.0) == Vector2(2, 1),
+	room._set_crate_cell(-3, 3)
+	_check(_push_from(f, -3.0, 3.0) == Vector2(-3, 3),
 		"a player exactly on the crate's centre must be a no-op, not a coin flip")
 
 	# A push can never place the crate ON the player, because it always moves
@@ -445,12 +472,12 @@ func _test_push_rule() -> void:
 	var worst := 999.0
 	for i in 240:
 		var ang := TAU * float(i) / 240.0
-		for d in [0.79, 0.9, 1.0, 1.1, 1.15]:
-			var px := 2.0 + cos(ang) * d
-			var pz := 1.0 + sin(ang) * d
-			room._set_crate_cell(2, 1)
+		for d: float in [0.79, 0.9, 1.0, 1.1, 1.15]:
+			var px := -3.0 + cos(ang) * d
+			var pz := 3.0 + sin(ang) * d
+			room._set_crate_cell(-3, 3)
 			var got := _push_from(f, px, pz)
-			if got == Vector2(2, 1):
+			if got == Vector2(-3, 3):
 				continue  # refused; nothing to check
 			var gap := maxf(maxf(got.x - CRATE_HALF - px, px - got.x - CRATE_HALF),
 				maxf(got.y - CRATE_HALF - pz, pz - got.y - CRATE_HALF))
@@ -490,7 +517,8 @@ func _test_push_refusals() -> void:
 	# (c) ANOTHER STATE'S collider. Room 20 authors none, so one is injected
 	# into the cache to prove the state filter is honoured rather than assumed:
 	# a lucid-only blocker must stop a lucid push and not an unmed one.
-	var ghost := WardCollision.Box.new(-0.43, 0.43, -2.43, -1.57,
+	# Cell (0,-1): the destination of a push south from (0,0).
+	var ghost := WardCollision.Box.new(-0.43, 0.43, -1.43, -0.57,
 		StateManager.State.LUCID)
 	main.collision.boxes.append(ghost)
 	room._set_crate_cell(0, 0)
@@ -510,8 +538,16 @@ func _test_push_refusals() -> void:
 	room._orderly_a.global_position = Vector3(0.0, 0.0, -2.9)
 	_check(_push_from(f, 0.0, 0.0) == Vector2(0, -2),
 		"and must succeed once he has walked far enough clear of it")
-	_check(not room._push_blocked(0.0, -3.0, StateManager.State.UNMED),
-		"the orderly test is a body circle, not the whole cell: 0.4m radius")
+
+	# It is his 0.4m BODY CIRCLE against the destination AABB, not a "is he
+	# anywhere in that cell" test — the crate is allowed to land beside him.
+	# Cell (0,-2) spans z[-2.43,-1.57], so these two stances are 0.47m and
+	# 0.27m clear of it.
+	_check(not room._push_blocked(0.0, -2.0, StateManager.State.UNMED),
+		"0.47m clear of the destination must NOT block — it is a 0.4m circle")
+	room._orderly_a.global_position = Vector3(0.0, 0.0, -2.7)
+	_check(room._push_blocked(0.0, -2.0, StateManager.State.UNMED),
+		"0.27m clear is inside his 0.4m radius and must block")
 
 	_teardown(f)
 
@@ -765,7 +801,7 @@ func _test_soft_lock_enumeration() -> void:
 		var rep: int = st["rep"]
 		var lab := _label(cfg, cx, cz)
 
-		for d in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+		for d: Vector2i in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
 			var nx := cx + d.x
 			var nz := cz + d.y
 			if not _cell_ok(cfg, nx, nz):
@@ -794,9 +830,16 @@ func _test_soft_lock_enumeration() -> void:
 	# --- which states are already finished, and which can get there ---
 	var goals := {}
 	var cells := {}
+	# Cells reached while the crate still has a plate left to seat. A corner is
+	# only fatal then; once both gates have latched the crate has no job left to
+	# lose and may be abandoned anywhere, which the winnability search above
+	# checks directly rather than by proxy.
+	var cells_with_job := {}
 	for key: String in states:
 		var st: Dictionary = states[key]
 		cells["%d:%d" % [st["cx"], st["cz"]]] = true
+		if int(st["cfg"]) != 3:
+			cells_with_job["%d:%d:%d" % [st["cfg"], st["cx"], st["cz"]]] = true
 		var lab := _label(st["cfg"], st["cx"], st["cz"])
 		if lab[_exit_idx] != BLOCKED and lab[_exit_idx] == st["rep_id"]:
 			goals[key] = true
@@ -827,6 +870,15 @@ func _test_soft_lock_enumeration() -> void:
 			stuck.append(key)
 	stuck.sort()
 
+	var stuck_cells := {}
+	for key: String in stuck:
+		var st: Dictionary = states[key]
+		stuck_cells["%d:%d (gates %d)" % [st["cx"], st["cz"], st["cfg"]]] = true
+	var sc: Array = stuck_cells.keys()
+	sc.sort()
+	notes.append("crate cells appearing in unrecoverable states: %d %s"
+		% [sc.size(), str(sc)])
+
 	_check(stuck.is_empty(),
 		"NO UNRECOVERABLE STATE: %d of %d reachable states cannot reach the exit "
 		% [stuck.size(), states.size()]
@@ -849,30 +901,34 @@ func _test_soft_lock_enumeration() -> void:
 
 	# Two-wall corners: the only shape single-crate sokoban can actually
 	# dead-end on. There should be none in the reachable set.
-	var corners: Array = []
-	for ck: String in cells:
+	# The structural half of the same claim, independent of the search above and
+	# stated as the thing that actually matters rather than as the design doc's
+	# "no two-wall corner" proxy. A push needs BOTH a destination the crate can
+	# occupy and a stance the player can occupy; a crate flush against a wall
+	# fails the second half while looking perfectly fine on the first. So: every
+	# cell the crate can reach while it still has a plate to seat must have at
+	# least one direction where both hold.
+	var trapped: Array = []
+	for ck: String in cells_with_job:
 		var parts := ck.split(":")
-		var cx := int(parts[0])
-		var cz := int(parts[1])
-		var blocked_x := 0
-		var blocked_z := 0
-		for d in [Vector2i(1, 0), Vector2i(-1, 0)]:
-			if not _cell_ok(3, cx + d.x, cz):
-				blocked_x += 1
-		for d in [Vector2i(0, 1), Vector2i(0, -1)]:
-			if not _cell_ok(3, cx, cz + d.y):
-				blocked_z += 1
-		if blocked_x > 0 and blocked_z > 0:
-			corners.append(ck)
-	corners.sort()
+		var cfg := int(parts[0])
+		var cx := int(parts[1])
+		var cz := int(parts[2])
+		var has_escape := false
+		for e: Vector2i in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+			if _occ_ok(cfg, cx + e.x, cz + e.y) and _stance_ok(cfg, cx - e.x, cz - e.y):
+				has_escape = true
+		if not has_escape:
+			trapped.append(ck)
+	trapped.sort()
 	notes.append("reachable crate cells: %d; reachable states: %d; pushes: %d"
 		% [cells.size(), states.size(), edges.size()])
-	notes.append("reachable cells that are two-wall corners: %d %s"
-		% [corners.size(), str(corners.slice(0, 8))])
-	_check(corners.is_empty(),
-		"NO REACHABLE CELL MAY BE A TWO-WALL CORNER — that is the one shape "
-		+ "single-crate sokoban dead-ends on (%d found: %s)"
-			% [corners.size(), str(corners.slice(0, 8))])
+	notes.append("cells reachable while the crate still has a job: %d"
+		% cells_with_job.size())
+	_check(trapped.is_empty(),
+		"EVERY CELL THE CRATE CAN REACH WHILE IT STILL HAS A JOB MUST HAVE A "
+		+ "LEGAL PUSH OUT — a destination it can occupy AND a stance the player "
+		+ "can occupy (%d trapped: %s)" % [trapped.size(), str(trapped.slice(0, 8))])
 
 	# The named risk from the design doc, confirmed as live rather than
 	# theoretical: the crate CAN be over-pushed onto Orderly A's own waypoint,
@@ -903,17 +959,48 @@ func _snapshot_config(room: Node3D, main: StubMain, cfg: int) -> void:
 				StateManager.State.UNMED) else 1
 	_free_static[cfg] = free
 
+	var n := CELL_W * (CELL_MAX_Z - CELL_MIN_Z + 1)
 	var legal := PackedByteArray()
-	legal.resize(CELL_W * (CELL_MAX_Z - CELL_MIN_Z + 1))
+	legal.resize(n)
+	# The room's own GEOMETRY-ONLY predicates, recorded alongside: "could the
+	# crate sit here" and "could the player stand here", with no win-set filter
+	# and no orderlies. The escape check below needs the raw geometry, because
+	# a cell the win set excludes is not a wall.
+	var occ := PackedByteArray()
+	occ.resize(n)
+	var stance := PackedByteArray()
+	stance.resize(n)
 	for cz in range(CELL_MIN_Z, CELL_MAX_Z + 1):
 		for cx in range(CELL_MIN_X, CELL_MAX_X + 1):
-			legal[_cell_idx(cx, cz)] = 0 if room._push_blocked(float(cx), float(cz),
+			var i := _cell_idx(cx, cz)
+			legal[i] = 0 if room._push_blocked(float(cx), float(cz),
 				StateManager.State.UNMED) else 1
+			occ[i] = 1 if room._cell_occupiable(cx, cz) else 0
+			stance[i] = 1 if room._stance_standable(cx, cz) else 0
 	_cell_legal[cfg] = legal
+	_cell_occ[cfg] = occ
+	_cell_stance[cfg] = stance
 
 
 func _cell_idx(cx: int, cz: int) -> int:
 	return (cz - CELL_MIN_Z) * CELL_W + (cx - CELL_MIN_X)
+
+
+func _in_cells(cx: int, cz: int) -> bool:
+	return cx >= CELL_MIN_X and cx <= CELL_MAX_X and cz >= CELL_MIN_Z and cz <= CELL_MAX_Z
+
+
+## Geometry only — no win-set filter, no orderlies.
+func _occ_ok(cfg: int, cx: int, cz: int) -> bool:
+	if not _in_cells(cx, cz):
+		return false
+	return (_cell_occ[cfg] as PackedByteArray)[_cell_idx(cx, cz)] == 1
+
+
+func _stance_ok(cfg: int, cx: int, cz: int) -> bool:
+	if not _in_cells(cx, cz):
+		return false
+	return (_cell_stance[cfg] as PackedByteArray)[_cell_idx(cx, cz)] == 1
 
 
 func _cell_ok(cfg: int, cx: int, cz: int) -> bool:
@@ -981,8 +1068,7 @@ func _label(cfg: int, cx: int, cz: int) -> PackedByteArray:
 
 	var lab := PackedByteArray()
 	lab.resize(LAT_NX * LAT_NZ)
-	for n in lab.size():
-		lab[n] = BLOCKED
+	lab.fill(BLOCKED)
 
 	var next_id := 0
 	var queue := PackedInt32Array()
@@ -1055,6 +1141,86 @@ func _stances_for(lab: PackedByteArray, rep: int, cx: int, cz: int,
 			if int(sx) == d.x and int(sz) == d.y and (d.x != 0 or d.y != 0):
 				out.append(n)
 	return out
+
+
+# --- 7b. the win rule is load-bearing -------------------------------------
+#
+# The rule added in room20.gd (_rebuild_win_cells) is not in the design doc,
+# so this test states exactly what it is for and would fail loudly if someone
+# deleted it as unnecessary ceremony.
+#
+# The doc's dead-state argument is "every push is trivially reversible — walk
+# to the opposite face and push back". That is true everywhere it was checked
+# and false against a wall, where the opposite face is inside the wall. The
+# worst case is not merely costly, it is terminal: shove the crate east along
+# z=1 before ever seating PLATE_1 and it ends flush against the east wall at
+# (5,1), where every one of the four pushes out is impossible — two into
+# geometry, two with the stance inside a wall. GATE_1 can then never open. The
+# player is sealed in Z1 with no second crate, and cannot even be caught into
+# the crate reset, because both orderlies are on the far side of the gate.
+func _test_the_win_rule_is_load_bearing() -> void:
+	var f := _make_room()
+	var room: Node3D = f["room"]
+	room._orderly_a = null
+	room._orderly_b = null
+
+	# With the rule off, walk the crate east into the corner.
+	room._win_enforced = false
+	room._set_crate_cell(2, 1)
+	for stance_x in [1.0, 2.0, 3.0, 4.0]:
+		_push_from(f, stance_x, 1.0)
+	_check(room.crate_cell() == Vector2(5, 1),
+		"with the rule off the crate must reach the east wall at (5,1) — if it "
+		+ "cannot, this test is no longer describing the room")
+	_check(not room.is_gate_open(1), "and PLATE_1 has not been seated on the way")
+
+	# Every escape, from every face. A push needs two things — a destination the
+	# crate can occupy and a stance the player can occupy — and at (5,1) no
+	# direction has both. Asserted structurally, because _push_from teleports
+	# the stub player anywhere including inside the east wall, which is exactly
+	# the move a real player cannot make.
+	var escapes: Array = []
+	for e: Vector2i in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+		if room._cell_occupiable(5 + e.x, 1 + e.y) and room._stance_standable(5 - e.x, 1 - e.y):
+			escapes.append(str(e))
+	_check(escapes.is_empty(),
+		"THE TERMINAL STATE: a crate flush against the east wall at (5,1) has no "
+		+ "legal push out in any direction (found %s) — the doc's 'every push is "
+			% str(escapes)
+		+ "reversible' argument holds away from walls and nowhere else, which is "
+		+ "the whole finding here")
+	_check(not room._stance_standable(6, 1),
+		"specifically because the one stance that would push it back west is "
+		+ "inside the east wall")
+
+	# And the live push agrees, from the two faces a player can actually reach.
+	for stance: Array in [[4.0, 1.0], [5.0, 2.0]]:
+		_push_from(f, stance[0], stance[1])
+	_check(room.crate_cell() == Vector2(5, 1),
+		"so no reachable stance moves it, and GATE_1 can never open")
+
+	# And with the rule on, the push that would have created it is refused.
+	room._win_enforced = true
+	room._rebuild_win_cells()
+	room._set_crate_cell(4, 1)
+	_check(_push_from(f, 3.0, 1.0) == Vector2(4, 1),
+		"with the rule on, the push INTO (5,1) must be refused — the crate will "
+		+ "not go somewhere it could never come back from")
+	_check(_push_from(f, 5.0, 1.0) == Vector2(3, 1),
+		"but the same crate must still push freely the other way")
+
+	# The rule must not be a blanket ban on the perimeter: the route's own
+	# seat cells sit one cell off a wall row and have to stay legal.
+	_check(room._cell_wins(PLATE1_CELL.x, PLATE1_CELL.y),
+		"PLATE_1's seat cell must stay pushable-into")
+	room._open_gate(1)
+	_check(room._cell_wins(PLATE2_CELL.x, PLATE2_CELL.y),
+		"and PLATE_2's, once GATE_1 has latched and it becomes the objective")
+	_check(room._cell_wins(0.0, -15.0),
+		"including the cell it is approached from, which is itself one cell "
+		+ "north of GATE_2's wall row")
+
+	_teardown(f)
 
 
 # --- 8. the intended solve -------------------------------------------------
@@ -1166,6 +1332,7 @@ func _test_the_crate_is_actually_cover() -> void:
 		+ "the clear, or this probe proves nothing")
 
 	room._set_crate_cell(-1, -2)
+	await get_tree().physics_frame
 	_check(a._occluded(),
 		"COVER_A MUST BE COVER: the crate on (-1,-2) has to break the sightline "
 		+ "from Orderly A's danger leg to the crossing point. A 0.86m cube does "
@@ -1173,6 +1340,7 @@ func _test_the_crate_is_actually_cover() -> void:
 		+ "build's 2D segment test")
 
 	room._set_crate_cell(-1, -3)
+	await get_tree().physics_frame
 	_check(not a._occluded(),
 		"and one cell off the line it must stop being cover — otherwise the "
 		+ "ray is hitting something that is not the crate")
@@ -1181,13 +1349,18 @@ func _test_the_crate_is_actually_cover() -> void:
 	b.global_position = Vector3(3.0, 0.0, -9.0)
 	player.global_position = Vector3(0.0, 0.0, -9.0)
 	room._set_crate_cell(2, 1)
+	await get_tree().physics_frame
 	_check(not b._occluded(), "control: the z=-9 crossing is clear with the crate away")
 	room._set_crate_cell(1, -9)
+	await get_tree().physics_frame
 	_check(b._occluded(), "COVER_B MUST BE COVER, on the same terms")
 
-	# ISLAND_C is authored as an occluder too, and is subject to the identical
-	# rule — it was 1.0m tall in the TS build and would have been scenery here.
+	# ISLAND_C is authored as an occluder too. Its COLLIDER is a full 3m box
+	# like every other solid() in the ward, so unlike the crate it never had
+	# this problem — it is asserted here as the control that says the crate's
+	# failure was about the crate's own authored height and nothing else.
 	room._set_crate_cell(2, 1)
+	await get_tree().physics_frame
 	a.global_position = Vector3(5.0, 0.0, -5.5)
 	player.global_position = Vector3(0.0, 0.0, -5.5)
 	_check(a._occluded(),

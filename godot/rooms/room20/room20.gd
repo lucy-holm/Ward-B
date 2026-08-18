@@ -131,6 +131,24 @@ const PUSH_REACH_M := 1.15
 ## Cosmetic only. The collider is already at the destination when this starts.
 const PUSH_TWEEN_SEC := 0.18
 
+## The two plate seat cells, as cells. The crate's remaining job at any moment
+## is to reach one of these, which is what _rebuild_win_cells() searches for.
+const PLATE1_CELL := Vector2i(1, 1)
+const PLATE2_CELL := Vector2i(1, -15)
+
+## The floor rect, mirroring gen_rooms.py's room20() — the outer bound on where
+## anything in this room can be.
+const FLOOR_MIN_X := -6.0
+const FLOOR_MAX_X := 6.0
+const FLOOR_MIN_Z := -19.0
+const FLOOR_MAX_Z := 6.0
+
+## Every integer cell centre inside the floor rect.
+const CELL_MIN_X := -5
+const CELL_MAX_X := 5
+const CELL_MIN_Z := -18
+const CELL_MAX_Z := 5
+
 # --- catch penalty ---------------------------------------------------------
 const SPAWN_X := 0.0
 const SPAWN_Z := 5.0
@@ -207,6 +225,14 @@ var _orderly_b: CharacterBody3D = null
 ## This room's always-on geometry MINUS the crate, by identity. See the header.
 var _orderly_collision: WardCollision = null
 
+## Cells from which the crate's REMAINING JOB is still possible. Empty means
+## "no constraint" — see _rebuild_win_cells(). Rebuilt on entry and whenever a
+## gate latches, because opening a gate only ever adds cells.
+var _win_cells := {}
+## Flipped off by tools/test_room20.gd to re-derive the soft-lock this rule
+## exists to prevent. Never touched in play.
+var _win_enforced := true
+
 var _saw_unmed_toast := false
 var _saw_push_fail_toast := false
 var _saw_enter_z2 := false
@@ -238,6 +264,7 @@ func on_enter(main: Node) -> void:
 
 	_reassert_gates_shut()
 	_reset_crate()
+	_rebuild_win_cells()
 
 	for node in _all_interactables():
 		node.availability = _is_available
@@ -348,7 +375,119 @@ func _push_blocked(dest_x: float, dest_z: float, state: int) -> bool:
 		if sqrt(dx * dx + dz * dz) < Tuning.ORDERLY_RADIUS:
 			return true
 
+	# And the destination must be somewhere the crate can still do its job
+	# from. See the block comment above _cell_occupiable.
+	if not _cell_wins(dest_x, dest_z):
+		return true
+
 	return false
+
+
+# --- THE CRATE NEVER GOES WHERE IT CAN NEVER COME BACK FROM ----------------
+#
+# THIS RULE IS NOT IN THE DESIGN DOC, AND IT IS HERE BECAUSE THE DESIGN DOC IS
+# WRONG. Its dead-state analysis (§5, and the TS header that inherits it)
+# argues that every push is trivially reversible — "walk to the opposite face
+# and push back" — and checks that claim against the cells on the INTENDED
+# ROUTE, all of which sit >=3m from a perimeter wall. The crate's actual
+# reachable set is the whole floor: 238 cells, not the ~20 on the route.
+#
+# The reversal argument fails the moment the crate is flush against a wall,
+# because the opposite face is INSIDE that wall and there is nowhere to stand.
+# tools/test_room20.gd enumerates it: with this rule disabled, 50 of 465
+# reachable states are unrecoverable, and the worst of them is terminal in the
+# strongest sense — shove the crate east to (5,1) before ever seating PLATE_1
+# and GATE_1 can never open, so the player is sealed in Z1 with the one tool
+# the room has, unable even to get caught (both orderlies are past the gate)
+# and reset it. No pill count, no ward state and no amount of walking recovers
+# that. It is not a soft-lock in the "costly" sense the doc uses; the room
+# simply cannot be finished.
+#
+# THE FIX IS THE ONE THE GRID PAYS FOR. Because a push is discrete, "can the
+# crate still do its remaining job from cell C" is a finite backward search
+# over the push relation, run once at entry and again whenever a gate latches.
+# A push into a cell outside that set is refused exactly like a push into a
+# wall — same silent no-op, same one-time toast. In fiction: the crate will not
+# go somewhere you could never get behind it again.
+#
+# Deliberately NOT a general "the crate must always be movable" rule, which is
+# weaker and does not work: a crate parked against the east wall can be shoved
+# up and down that wall forever without ever leaving it. The question has to be
+# "can it still reach the plate it has left to seat", not "can it still move".
+
+## Can the crate physically sit centred on (x, z)? Static geometry only — the
+## crate's own box excluded by identity, orderlies excluded because they never
+## stop moving, and NO state filter at all: a cell blocked in either reality is
+## treated as blocked, so the win set can never depend on a shift.
+func _cell_occupiable(x: int, z: int) -> bool:
+	if x < CELL_MIN_X or x > CELL_MAX_X or z < CELL_MIN_Z or z > CELL_MAX_Z:
+		return false
+	if _main == null or _main.collision == null:
+		return true
+	var min_x := float(x) - CRATE_HALF
+	var max_x := float(x) + CRATE_HALF
+	var min_z := float(z) - CRATE_HALF
+	var max_z := float(z) + CRATE_HALF
+	for b in _main.collision.boxes:
+		if b.source == _crate_shape:
+			continue
+		if min_x < b.max_x and max_x > b.min_x and min_z < b.max_z and max_z > b.min_z:
+			return false
+	return true
+
+
+## Could the player stand at cell centre (x, z)? Same static geometry, inflated
+## by the player radius the way try_move inflates it. Used only to ask whether a
+## pushing stance exists at all; the live push still runs the real reach test.
+func _stance_standable(x: int, z: int) -> bool:
+	# Outside the floor rect there is no standing anywhere, wall box or not —
+	# without this the query simply misses every collider and reads as open.
+	if float(x) <= FLOOR_MIN_X or float(x) >= FLOOR_MAX_X \
+			or float(z) <= FLOOR_MIN_Z or float(z) >= FLOOR_MAX_Z:
+		return false
+	if _main == null or _main.collision == null:
+		return true
+	var r := Tuning.PLAYER_RADIUS
+	for b in _main.collision.boxes:
+		if b.source == _crate_shape:
+			continue
+		if float(x) > b.min_x - r and float(x) < b.max_x + r \
+				and float(z) > b.min_z - r and float(z) < b.max_z + r:
+			return false
+	return true
+
+
+## Backward search from the crate's next objective. See the block comment above.
+func _rebuild_win_cells() -> void:
+	_win_cells = {}
+	var goal := PLATE1_CELL
+	if _gate1_open:
+		if _gate2_open:
+			return  # both plates seated: the crate has no job left to lose
+		goal = PLATE2_CELL
+
+	var frontier: Array[Vector2i] = [goal]
+	_win_cells["%d:%d" % [goal.x, goal.y]] = true
+	while not frontier.is_empty():
+		var b: Vector2i = frontier.pop_back()
+		for e: Vector2i in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+			# `a` pushed one cell in direction `e` lands on `b`, which needs the
+			# player standing one cell back from `a` on the same axis.
+			var a := b - e
+			var key := "%d:%d" % [a.x, a.y]
+			if _win_cells.has(key) or not _cell_occupiable(a.x, a.y):
+				continue
+			if not _stance_standable(a.x - e.x, a.y - e.y):
+				continue
+			_win_cells[key] = true
+			frontier.append(a)
+
+
+## Is (x, z) a cell the crate is allowed to be pushed into?
+func _cell_wins(x: float, z: float) -> bool:
+	if not _win_enforced or _win_cells.is_empty():
+		return true
+	return _win_cells.has("%d:%d" % [int(round(x)), int(round(z))])
 
 
 ## One press, one cell. Direction is DERIVED, never aimed: the axis with the
@@ -392,6 +531,10 @@ func _try_push() -> bool:
 	_tween_elapsed = 0.0
 	_tweening = true
 	_set_crate_cell(dest_x, dest_z)
+	# Apply the offset NOW rather than waiting for the next _tick_tween, or the
+	# drawing snaps to the destination for exactly one frame and then slides
+	# back to start the tween — a visible stutter on every single push.
+	_crate_visual.position = Vector3(_tween_offset.x, 0.0, _tween_offset.y)
 	Telemetry.event("push")
 	return true
 
@@ -437,6 +580,10 @@ func _apply_gate(index: int, open: bool) -> void:
 	# same as always.
 	_build_orderly_collision()
 	_retarget_orderlies()
+	# A latched gate adds cells the crate can occupy and stances the player can
+	# take, so the win set only ever grows here — but it has to be re-derived
+	# before the next push is resolved against it.
+	_rebuild_win_cells()
 	_main.move_interactable(
 		"gate1" if index == 1 else "gate2",
 		(GATE1_OPEN_POS if index == 1 else GATE2_OPEN_POS) if open

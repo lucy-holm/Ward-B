@@ -242,8 +242,14 @@ func _test_authoring_invariants() -> void:
 	_check(ids.has("gate14"), "the gate fixture must exist to be swung")
 
 	var exit := room.get_node_or_null("Exits/Exit0")
-	_check(exit != null and str(exit.exit_to) == "room15",
-		"room14 must exit to the real room15")
+	# Room 15 is not ported yet, so room14 is currently the chain terminator and
+	# exits to "END" — check_rooms.gd fails on an exit to an unregistered room.
+	# Keyed off the registry rather than hard-coded, so this assertion tightens
+	# by itself the moment room15 lands instead of needing to be remembered.
+	var room15_exists: bool = load("res://main.gd").ROOM_SCENES.has("room15")
+	var want := "room15" if room15_exists else "END"
+	_check(exit != null and str(exit.exit_to) == want,
+		"room14 must exit to %s (room15 registered: %s)" % [want, room15_exists])
 
 	room.queue_free()
 

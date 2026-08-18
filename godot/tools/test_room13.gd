@@ -377,7 +377,7 @@ func _fail(what: String) -> void:
 
 func _finish() -> void:
 	if failures.is_empty():
-		print("room13: OK — %d checks passed" % passes)
+		print("room13: OK - %d checks passed" % passes)
 		get_tree().quit(0)
 		return
 	print("room13: %d PASSED, %d FAILED" % [passes, failures.size()])

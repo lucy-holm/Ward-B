@@ -29,7 +29,7 @@ TIMEOUT_S="${TIMEOUT_S:-300}"
 SUITES=("$@")
 if [ ${#SUITES[@]} -eq 0 ]; then
   SUITES=(check_rooms test_mechanics test_settings test_triggers test_flicker \
-          test_room13 test_room14 test_room17)
+          test_room13 test_room14 test_room15 test_room17)
 fi
 
 echo "==> rebuilding the import cache (this is the load-bearing step)"

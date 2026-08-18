@@ -388,7 +388,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0000, 1.5000, -16.5500)
 collision_layer = 64
 collision_mask = 1
 script = ExtResource("s_exit")
-exit_to = "END"
+exit_to = "room15"
 
 [node name="Shape" type="CollisionShape3D" parent="Exits/Exit0"]
 shape = SubResource("bs_6")

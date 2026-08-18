@@ -53,6 +53,7 @@ const ROOM_SCENES := {
 	"room12": "res://rooms/room12/room12.tscn",
 	"room13": "res://rooms/room13/room13.tscn",
 	"room14": "res://rooms/room14/room14.tscn",
+	"room15": "res://rooms/room15/room15.tscn",
 }
 
 const HUD_SCENE := preload("res://ui/hud.tscn")

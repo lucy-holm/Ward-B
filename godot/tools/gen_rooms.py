@@ -192,6 +192,8 @@ class Room:
         self.walls = []
         self.walls = []               # (mesh_size, mesh_pos, mat, state, collider|None, name|None)
         self.movers = []              # (name, size, pos, mat) — AnimatableBody3D, see mover()
+        # (name, iid, cell_x, cell_z, size, mat, label) — see push_block()
+        self.push_blocks = []
         self.props = []
         self.scrawls = []
         self.interactables = []
@@ -381,6 +383,61 @@ class Room:
         origin, so the room script can move both with one position write.
         """
         self.movers.append((name, size, pos, mat))
+
+    def push_block(self, name, iid, cell_x, cell_z, size=0.86, height=None,
+                   mat="prop", label="push it"):
+        """A pushable crate: room 20's mechanic, and the only thing in the ward
+        that is a solid, an occluder and a raycast target at once.
+
+        Emitted as ONE AnimatableBody3D (like mover(), and for the same reason:
+        StaticBody3D means "never moves" by contract) carrying, in this order:
+
+            Crate                AnimatableBody3D, layer world_static
+              Shape              CollisionShape3D — THE collider, and the box
+                                 WardCollision caches. Never offset from the
+                                 body, so the body's transform IS the collider,
+                                 and a stray rebuild_collision() self-heals.
+              Visual             Node3D — the ONLY thing the room tweens
+                Mesh             MeshInstance3D
+                <iid>            Area3D + Interactable, layer interactable
+
+        THE SPLIT BETWEEN Shape AND Visual IS THE WHOLE POINT. The push is
+        discrete: the collider must be at the destination cell the instant a
+        push is accepted, or a player following the crate can end up standing
+        where the solid AABB already is. The MOTION is cosmetic, so the room
+        slides `Visual` (mesh + ray target together, so the crosshair never
+        drifts off the thing you can see) over ~0.18s while the body — and
+        therefore the collider — is already there. Move the body, not Visual,
+        and the tween becomes a moving collider; move Visual only, and the
+        crate is solid where it isn't drawn.
+
+        The Interactable rides INSIDE the body rather than under the room's
+        Interactables node so that one transform write moves the crate, its
+        collider and its focus target together — main.move_interactable() is
+        never called for it, which is what stops the mesh and the AABB from
+        drifting the way the Three.js build's two-object crate could.
+
+        No `states` filter, ever: the crate's value is that it is the one tool
+        in the game that does not care which reality you are in (design doc
+        §2c, which rules a state-filtered block out explicitly).
+
+        `size` IS THE XZ FOOTPRINT AND ONLY THE XZ FOOTPRINT. Every clearance
+        number in a push-block room is derived from it (0.86m inside a 1.0m
+        cell leaves 0.07m of margin a side, which is what makes per-cell
+        corridor reasoning independent of push history), so it is not a knob.
+
+        `height` defaults to `size` — a cube, matching the Three.js authoring —
+        but a block meant to be COVER must override it, and this is a real
+        engine difference rather than a style choice. The TS build tested
+        occlusion as a zero-width XZ segment against a hand-authored occluder
+        list, so a block occluded regardless of how tall it was drawn. Godot's
+        Orderly._occluded() casts a REAL RayCast3D from his eye (y 1.5) to the
+        player's (y 1.62), so anything shorter than ~1.62m is scenery the
+        sightline passes straight over. A 0.86m cube blocks nothing at all.
+        Cover has to be at least eye-high to be cover.
+        """
+        self.push_blocks.append((name, iid, cell_x, cell_z, size,
+                                 size if height is None else height, mat, label))
 
     # content --------------------------------------------------------------
     def scrawl(self, text, pos, rot_y, size, sid=None):
@@ -671,6 +728,42 @@ class Emitter:
             body.append("")
             body.append('[node name="Mesh" type="MeshInstance3D" parent="Geometry/%s"]' % mname)
             body.append('mesh = SubResource("%s")' % mm)
+            body.append("")
+
+        # push blocks — room 20's crate. See Room.push_block() for why the
+        # collider sits on the body and the mesh + Interactable sit on a
+        # separate `Visual` child the room script tweens.
+        if r.push_blocks:
+            self._ensure_interactable_script()
+        for (pname, piid, pcx, pcz, psize, pheight, pmat, plabel) in r.push_blocks:
+            cube = (psize, pheight, psize)
+            sh = self.box_shape(cube)
+            pm = self.box_mesh(cube, pmat)
+            body.append('[node name="%s" type="AnimatableBody3D" parent="Geometry"]' % pname)
+            body.append("transform = %s" % _xform((pcx, pheight / 2.0, pcz)))
+            body.append("collision_layer = %d" % LAYER_WORLD)
+            body.append("collision_mask = 0")
+            body.append("sync_to_physics = false")
+            body.append("")
+            body.append('[node name="Shape" type="CollisionShape3D" parent="Geometry/%s"]' % pname)
+            body.append('shape = SubResource("%s")' % sh)
+            body.append("")
+            body.append('[node name="Visual" type="Node3D" parent="Geometry/%s"]' % pname)
+            body.append("")
+            body.append('[node name="Mesh" type="MeshInstance3D" parent="Geometry/%s/Visual"]' % pname)
+            body.append('mesh = SubResource("%s")' % pm)
+            body.append("")
+            body.append('[node name="%s" type="Area3D" parent="Geometry/%s/Visual"]' % (piid, pname))
+            body.append("collision_layer = %d" % LAYER_INTERACTABLE)
+            body.append("collision_mask = 0")
+            body.append('script = ExtResource("s_interactable")')
+            body.append('interactable_id = "%s"' % piid)
+            body.append('interactable_type = "push_block"')
+            body.append('label = "%s"' % plabel)
+            body.append("")
+            body.append('[node name="Shape" type="CollisionShape3D" parent="Geometry/%s/Visual/%s"]'
+                        % (pname, piid))
+            body.append('shape = SubResource("%s")' % sh)
             body.append("")
 
         # scrawls — always unmed-only, one wrapper for all of them
@@ -3345,6 +3438,139 @@ def room19_lights():
     for x, z in [(-2.5, 3), (-1, 0.5), (3, 0.5), (5.75, -1.8), (1.5, -4.5),
                  (-4, -3), (-1, -6), (4.5, -4.5), (4.5, -7)]:
         r.light(x, z)
+    return r
+
+# --- ROOM 20 — the Loading Bay -----------------------------------------------
+# The wing's capstone and the last room in the game: its exit is END, and that
+# is correct rather than a terminator hack. Ported from src/rooms/room20.ts,
+# which carries the full design reasoning; the Godot-specific decisions are in
+# rooms/room20/room20.gd's header and in Room.push_block() above.
+#
+# One new verb, PUSH, asked to do everything at once. A single crate seats
+# PLATE_1 to open GATE_1 out of the intake pocket, then serves as mobile cover
+# against two orderlies on the gauntlet floor, then seats PLATE_2 to open
+# GATE_2 and the way to END. Three zones, spawn to exit, +Z toward spawn:
+#
+#   Z1 the intake room     z [ 2, 6]   safe — dispenser, PLATE_1, the crate
+#   Z2 the gauntlet floor  z [-15, 1]  two orderlies, the crate's whole route
+#   Z3 the exit vestibule  z [-19,-16] safe, no lock, the open doorway to END
+#
+# THE PLATES SIT AT CELL x=1, NOT x=0, AND THAT IS LOAD-BEARING. Both gates
+# are 1m gaps on the x=0 causeway; a 0.86m crate parked in one leaves 0.07m of
+# clearance a side, i.e. functionally sealed against a 0.7m-wide player. With
+# a plate on the causeway itself, ONE ordinary extra push — an intended one at
+# GATE_1, an easy accidental one at GATE_2 — wedges the crate in the only
+# opening on the map that matters. Off-causeway plates mean the push that
+# follows a seating hits the gate's flanking wall (solid at x>=0.5 on both
+# gate rows) and is silently refused. See the TS header's PASSAGE-CLEARANCE
+# FIX, and tools/test_room20.gd's solver, which re-proves the whole thing by
+# enumeration rather than by argument.
+#
+# ISLAND_C is at x[2,4], NOT the design doc's x[-1,1]: the doc's own footprint
+# straddles the causeway the crate has to travel down, so the intended solve
+# would block itself on it. Same "static cover is not enough on its own" beat,
+# moved off the one line the crate must use.
+#
+# REACTION-TIME AUDIT: no keypad, no scrawl read under threat, no modal —
+# both plates trigger on the CRATE's position, polled per frame, with no
+# player dwell at all, so the 8.2m inspection-point floor does not apply. The
+# scrawl sits in Z1, 12m+ from the nearest patrol point. Everything else here
+# is a live crossing, held to the ordinary moving-target standard.
+def room20():
+    r = Room("room20", "the Loading Bay",
+             floor=(-6, 6, -19, 6),
+             spawn=(0, 5, 0),
+             exits=[("END", -1, 1, -19, -18.9)])
+
+    # perimeter — floor x[-6,6] z[-19,6], spawn end at +z
+    r.wall_x(-6, 6, 6)            # south cap, behind spawn
+    r.wall_z(-19, 6, -6)          # west
+    r.wall_z(-19, 6, 6)           # east
+    r.wall_x(-6, -1, -19)         # north cap, west of the doorway
+    r.wall_x(1, 6, -19)           # north cap, east of the doorway
+    r.block((1.8, 2.6, 0.06), (0, 1.4, -18.95), "glow")   # the way out
+
+    # GATE_1 — the Z1/Z2 boundary at z=0, a partition wall with a 1-cell gap.
+    # The gap's collider is NAMED so room20.gd can drop its layer the instant
+    # the crate seats PLATE_1; it is a one-way latch and never comes back.
+    r.wall_x(-6, -0.5, 0)
+    r.wall_x(0.5, 6, 0)
+    r.solid(-0.5, 0.5, -0.1, 0.1, name="Gate1Collider")
+
+    # GATE_2 — the Z2/Z3 boundary at z=-16. Same shape, same latch.
+    r.wall_x(-6, -0.5, -16)
+    r.wall_x(0.5, 6, -16)
+    r.solid(-0.5, 0.5, -16.1, -15.9, name="Gate2Collider")
+
+    # ISLAND_C — static solid + sightline occluder, not pushable. Deliberately
+    # insufficient on its own: the room's thesis is that only static cover
+    # PLUS the crate clears the gauntlet.
+    #
+    # The MESH is 1.7m, not the TS build's 1.0m, and this is a cosmetic
+    # correction rather than a mechanical one: solid() emits a full 3m-tall
+    # collider like every other collider in the ward, so this island already
+    # occluded Orderly._occluded()'s eye-height ray while being drawn
+    # waist-high. Raising the mesh stops the picture lying about what blocks
+    # sight. (The CRATE is the genuinely different case — push_block() emits
+    # its authored box AS the collider, so its height is load-bearing. See
+    # Room.push_block().)
+    r.block((2, 1.7, 1), (3, 0.85, -5.5), "prop")
+    r.solid(2, 4, -6, -5)
+
+    # PLATE_1 / PLATE_2 — one call each, trigger + flush 4cm disc, no collider
+    # (a plate stays walkable and never joins an orderly's collider set). Both
+    # are tripped by the CRATE's centre, tested by room20.gd against these same
+    # rects; the engine's poll fires them for the player too and the room
+    # ignores that — your weight is not the crate's weight in this room.
+    r.plate("plate1", 0.5, 1.5, 0.5, 1.5)
+    r.plate("plate2", 0.5, 1.5, -15.5, -14.5)
+
+    # THE CRATE. Rest cell (2,1) — in Z1, off the causeway, 4.1m from spawn.
+    #
+    # 0.86m footprint (the number every clearance argument in this room rests
+    # on) and 1.7m TALL. The Three.js crate is a 0.86m cube because occlusion
+    # there was a 2D XZ segment test that never looked at height; here it is a
+    # real raycast from the orderly's eye at y=1.5 to the player's at y=1.62,
+    # which a 0.86m cube passes straight over. The crate's SECOND JOB IS BEING
+    # COVER — it is the only cover on the gauntlet floor — so it has to be tall
+    # enough to break that line or the middle act of the room does not exist.
+    # tools/test_room20.gd probes Orderly._occluded() directly to prove it,
+    # because nothing about this is visible in a screenshot.
+    r.push_block("Crate", "crate", 2, 1, size=0.86, height=1.7,
+                 label="push the crate")
+
+    # zone triggers — objective beats only, no mechanism hangs off them
+    r.trigger("enterZ2", -6, 6, -16, 0)
+    r.trigger("vestibule20", -6, 6, -19, -16)
+
+    r.scrawl("it doesn't care\nwhat you are.\npush it.",
+             (-5.85, 1.75, 2.5), math.pi / 2, 1.6)
+
+    # One dispenser, Z1 west wall, right past spawn before any threat exists.
+    # Nothing in this room is lucid-gated — pushing works in both states — so
+    # it is here for pressure/economy consistency and as the panic button.
+    r.interactable("dispenser20", "dispenser", (0.16, 0.75, 0.55),
+                   (-5.8, 1.45, 4), "dispenser", "use the dispenser", facing="px")
+
+    # Both gate panels are scenery the room script swings. room20.gd's
+    # availability filter makes them permanently un-interactable: these open
+    # for the crate's weight and for nothing else.
+    r.interactable("gate1", "door", (1, 3, 0.2), (0, 1.5, 0),
+                   "door", "the gate", facing="pz")
+    r.interactable("gate2", "door", (1, 3, 0.2), (0, 1.5, -16),
+                   "door", "the gate", facing="pz")
+
+    r.light(0, 4)
+    r.light(0, 0.5)
+    r.light(-3, -3)
+    r.light(3, -3)
+    r.light(-3, -8)
+    r.light(3, -8)
+    r.light(0, -11)
+    r.light(-3, -13)
+    r.light(3, -13)
+    r.light(0, -15.5)
+    r.light(0, -17.5)
     return r
 
 

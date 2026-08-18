@@ -2,11 +2,12 @@
 # and enforces the frame ordering the original main.ts loop guaranteed.
 #
 # ORDERING CONTRACT (from src/main.ts:515-569) — load-bearing:
-#   1. player moves          (Player._physics_process)
+#   1. player moves          (Player._physics_process, XZ only)
 #   2. orderlies move        (Orderly._physics_process)
-#   3. medication expiry     (here, AFTER orderlies — so an orderly can
+#   3. level resolve, then Y ease  (here, FIRST — see _physics_process)
+#   4. medication expiry     (here, AFTER orderlies — so an orderly can
 #                             never react to a revert in the same tick)
-#   4. exit check            (Area3D signals, effectively last)
+#   5. exit check            (Area3D signals, effectively last)
 # process_priority is set so this node ticks after the player and the room.
 extends Node3D
 
@@ -169,6 +170,11 @@ const MOOD := {
 @onready var world_environment: WorldEnvironment = $WorldEnvironment
 
 var collision := WardCollision.new()
+# Verticality — floor heights and stacked levels for the CURRENT room. Always
+# valid: a room that authors none resolves to the single synthetic '__flat'
+# level and answers 0.0 everywhere, exactly as before this existed. Public so
+# room scripts can hand it to their orderlies (Orderly.setup's third arg).
+var levels := WardLevels.new()
 var hud: CanvasLayer
 var keypad: CanvasLayer
 var touch_controls: CanvasLayer
@@ -303,8 +309,34 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _physics_process(_delta: float) -> void:
+	_update_verticality()
 	_update_focus()
 	_update_revert_guard()
+
+
+# Verticality, run before anything else this node does — main.ts:527-542's
+# order exactly: move, then resolve level, then ease Y, then everything that
+# reads either.
+#
+# RESOLVE BEFORE EASE, always. The ease asks "how high is the floor for the
+# level I am on", so resolving second would spend the tick you step off a
+# staircase reading the height of the level you just left.
+#
+# The ease factor is per-TICK, not per-second, in both engines — main.ts
+# clamps dt to 0.05 s and then applies a bare 0.35, and Godot's physics tick
+# is a fixed 1/60 s, so the two match at the 60 Hz the original ran at and
+# the clamp can never bind here. Deliberately not made dt-proportional: 0.35
+# is a tuned feel value, and rewriting it as an exponential decay would
+# change how a ramp reads.
+#
+# This is the ONLY thing in the game that writes the player's Y. Collision
+# stays strictly 2D/XZ; there is no jumping, no falling and no vertical
+# collision anywhere, and none is being added.
+func _update_verticality() -> void:
+	var p := player.global_position
+	player.level = levels.resolve_level(player.level, p.x, p.z)
+	var target := levels.floor_height_at(player.level, p.x, p.z)
+	player.global_position.y += (target - p.y) * WardLevels.Y_EASE
 
 
 # --- state -----------------------------------------------------------------
@@ -350,7 +382,9 @@ func _update_revert_guard() -> void:
 		return
 
 	var p := player.global_position
-	if collision.circle_hits_solid_unmed(p.x, p.z, Tuning.PLAYER_RADIUS):
+	# Level-filtered, so the trap guard agrees with the mover about which
+	# geometry exists on the player's current floor.
+	if collision.circle_hits_solid_unmed(p.x, p.z, Tuning.PLAYER_RADIUS, player.level):
 		if not _medication_trapped:
 			_medication_trapped = true
 			hud_toast("wearing off — keep moving.")
@@ -663,6 +697,9 @@ func load_room(id: String) -> void:
 	# load; state-conditional colliders are filtered at query time by their
 	# layer, so a state change never needs a rebuild.
 	collision.rebuild_from(current_room)
+	# Verticality is per-room data with no geometry of its own, read off an
+	# optional "Verticality" node. A room without one resets to flat.
+	levels.rebuild_from(current_room)
 
 	# Fluorescents are per-room, so the flicker set has to be rebuilt on load.
 	if atmosphere != null:
@@ -672,7 +709,15 @@ func load_room(id: String) -> void:
 
 	var spawn: Node3D = current_room.get_node_or_null("Spawn")
 	if spawn != null:
-		player.spawn_at(spawn.global_position.x, spawn.global_position.z, spawn.rotation.y)
+		# A stacked room can spawn the player on a named level by putting a
+		# `level` metadata string on its Spawn marker; everything else gets
+		# the room's first (or synthetic '__flat') level. The spawn Y is
+		# looked up rather than eased into, so a raised spawn does not open
+		# the room with the floor rising into view.
+		var sx: float = spawn.global_position.x
+		var sz: float = spawn.global_position.z
+		var slevel: String = str(spawn.get_meta("level", levels.default_level()))
+		player.spawn_at(sx, sz, spawn.rotation.y, slevel, levels.floor_height_at(slevel, sx, sz))
 
 	if current_room.has_method("on_enter"):
 		current_room.on_enter(self)
@@ -692,8 +737,18 @@ func complete_room(to: String) -> void:
 	load_room(to)
 
 
-func teleport_player(x: float, z: float, level := "") -> void:
-	player.teleport(x, z, level)
+## A multi-level room MUST pass `to_level` on any catch/reset teleport — see
+## Player.teleport. Omitting it keeps the player's current level, which is
+## right for every single-level room and wrong for every stacked one.
+func teleport_player(x: float, z: float, to_level := "") -> void:
+	player.teleport(x, z, to_level)
+
+
+## Floor height for a room script — e.g. to seat a prop or a room-owned actor
+## on a raised zone. Rooms with orderlies should prefer handing `levels`
+## straight to Orderly.setup's third argument.
+func floor_height_at(level_id: String, x: float, z: float) -> float:
+	return levels.floor_height_at(level_id, x, z)
 
 
 # --- room-script API -------------------------------------------------------

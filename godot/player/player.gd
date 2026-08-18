@@ -19,7 +19,22 @@ var world_collision: WardCollision
 var yaw := 0.0
 var pitch := 0.0
 var is_moving := false
-var level := "__flat"
+
+# Stacked floors — the player's persistent "which floor am I on" answer.
+#
+# Level is NOT a pure function of (x, z): a gallery and the floor beneath it
+# legitimately share an XZ rectangle with two different correct heights, and
+# what disambiguates them for any one traveler is this field. It is only ever
+# changed by WardLevels.resolve_level, driven from main.gd once per tick
+# after movement, and only ever by physically walking a stairwell end to end.
+# '__flat' is the synthetic level every room without authored levels uses, so
+# this never differs from its default in rooms 1-16.
+#
+# global_position.y is the matching RENDERED height, eased toward
+# WardLevels.floor_height_at each tick (also in main.gd). Movement below
+# stays strictly 2D/XZ — y is never simulated, never collided against, and
+# never integrated. There is no jumping and no falling in this game.
+var level := WardLevels.FLAT_LEVEL_ID
 
 # Accumulated look delta in pixels, consumed once per frame — mirrors
 # input.ts's consumeLook(), so a dropped frame accumulates rather than
@@ -78,14 +93,27 @@ func _is_touch() -> bool:
 	return DisplayServer.is_touchscreen_available()
 
 
-func spawn_at(x: float, z: float, spawn_yaw: float, spawn_level := "__flat") -> void:
-	global_position = Vector3(x, 0.0, z)
+## `spawn_y` seats the player at the spawn point's floor height immediately
+## rather than letting the per-tick ease climb to it from 0 over ~10 ticks,
+## which on a raised spawn would render as the room dropping out from under
+## you on arrival. Ported from player.ts's `at.y ?? 0`. Defaults to 0, so a
+## caller that does not care is unchanged.
+func spawn_at(x: float, z: float, spawn_yaw: float,
+		spawn_level := WardLevels.FLAT_LEVEL_ID, spawn_y := 0.0) -> void:
+	global_position = Vector3(x, spawn_y, z)
 	yaw = spawn_yaw
 	pitch = 0.0  # deliberately reset, matching player.ts:34-41
 	level = spawn_level
 	_apply_rotation()
 
 
+## A multi-level room MUST pass `to_level` explicitly on any catch/reset
+## teleport. Otherwise a catch on the balcony drops the player at the ground
+## spawn's XZ while still tagged 'balcony', where they would read the
+## balcony's floor height, be blocked by the balcony's railings, and be
+## invisible to every ground-level orderly. Y is left alone deliberately: the
+## per-tick ease in main.gd resolves it to the destination's floor height
+## within a few ticks, which reads as a stumble rather than a snap.
 func teleport(x: float, z: float, to_level := "") -> void:
 	global_position = Vector3(x, global_position.y, z)
 	if not to_level.is_empty():
@@ -188,7 +216,10 @@ func _physics_process(delta: float) -> void:
 
 		var from := Vector2(global_position.x, global_position.z)
 		var to := from + Vector2(dx, dz)
-		var resolved := world_collision.try_move(from, to, Tuning.PLAYER_RADIUS, StateManager.state)
+		# `level` filters level-tagged colliders (a balcony railing must not
+		# block the floor under it). XZ only — y is never touched here.
+		var resolved := world_collision.try_move(
+			from, to, Tuning.PLAYER_RADIUS, StateManager.state, level)
 		global_position.x = resolved.x
 		global_position.z = resolved.y
 

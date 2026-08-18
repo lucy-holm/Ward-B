@@ -2328,6 +2328,341 @@ def room14():
     return r
 
 
+
+# --- ROOM 17 — the Gallery Ward ---------------------------------------------
+# THE VERTICALITY SPIKE, and the first room in the ward built on TIER 2 of
+# core/levels.gd: two genuinely stacked walkable surfaces over the SAME XZ
+# rectangle. Room 11 faked a mezzanine with one height zone on one level; this
+# room hangs a railed GALLERY (level 'balcony', y 3.4) over a sealed POCKET
+# (level 'ground', y 0) on the exact same x[-9,9] z[-6,10] footprint, each with
+# its own orderly, and the engine means it literally.
+#
+# THE SHAPE. The room obviously continues north of spawn, and a wall SEALS it
+# at z=16 across the whole width — no keypad, no gate, no unmed-only panel,
+# just wall, forever. The only way on is UP the east stairwell (x[6,8],
+# z[16]->z[10]), ACROSS the gallery, and back DOWN a hole cut in the gallery's
+# own decking (the west shaft, x[-8,-6] z[4,8]) into the pocket, where the exit
+# keypad and its code clue live. Up, across, down — the flat route was never on
+# the table.
+#
+#   ground   base_y 0.0   floor x[-9,9] z[-8,34]   vestibule + pocket + hall
+#   balcony  base_y 3.4   floor x[-9,9] z[-6,10]   overhangs the pocket exactly
+#   ceiling_y 6.0         balcony headroom 6.0 - 3.4 - 1.62 = 0.98m
+#
+# WHAT IS AUTHORED HERE THAT NOTHING GENERATES:
+#
+#  1. THE BALCONY'S OWN FLOOR. There is one ceiling plane per room and no
+#     engine draws a level's floor, so the gallery deck is four authored
+#     opaque BOXES (never planes — a plane is single-sided and would be
+#     invisible from the pocket) with their top face at exactly 3.4. Their
+#     underside IS the pocket's ceiling, for free, by ordinary opaque
+#     occlusion. They carry NO collider: a collider there would wall the
+#     gallery off instead of holding it up. The four pieces leave the west
+#     shaft's x[-8,-6] z[4,8] rectangle open — that hole is the descent.
+#
+#  2. UPPER VISUAL BANDS. wall_x/wall_z meshes are 3m tall, so above every
+#     wall this room would be open to the 6m ceiling. band_x/band_z close
+#     y3..6. They are deliberately collider-free: containment is the 0..3m
+#     wall's job and colliders are infinite in Y anyway.
+#
+#  3. LEVEL-TAGGED RAILINGS. Every open gallery edge that is not a real wall
+#     or a stair mouth gets a railing whose collider is tagged level
+#     'balcony'. THE TAG IS THE WHOLE POINT: an untagged collider blocks on
+#     every level, which is exactly right for a real wall and catastrophically
+#     wrong for a railing — an untagged rail at z=10 would be an invisible
+#     wall across the middle of the pocket 3.4m below it.
+#
+# THE TWO SEAM FIXES, carried from the design doc as room content:
+#
+#  A. THE LANDING GUARD IS ENTIRELY SOUTH OF z=10, WITH MARGIN. A ground
+#     traveler in the pocket walking SOUTH across z=10 at x[6,8] enters the
+#     east stairwell's footprint, where floor_height_at('ground', ...) answers
+#     the stair's y_low end — a 3.4m instant lift with no climb. The guard
+#     x[6.6,8] z[9.1,9.4] (tagged 'ground', so balcony travelers descending
+#     are never subject to it) closes that. The FIRST version of it straddled
+#     z=10 itself and walled the gallery off permanently: a climber arriving
+#     from the south hall is ALSO level 'ground' for the entire ascent — the
+#     flip only fires on FULLY CLEARING the stairwell (resolve_level, z<=10) —
+#     so a guard whose radius-expanded footprint covered z=10 pushed him back
+#     before he could ever land at z<=10, the flip never fired, and the
+#     balcony was unreachable. Radius-expanded this guard ends at z=9.75, and
+#     the biggest possible single frame step is 3.4 m/s * main.gd's 0.05s dt
+#     clamp = 0.17m, so a climber stepping off z=10.0 lands no further south
+#     than 9.83 — clear, flip fires, guard goes inert. DO NOT MOVE IT NORTH.
+#     Its x starts at 6.6 rather than 6 so it stays >0.5m (orderly radius 0.4
+#     + patrol margin 0.1) from ORDERLY-POCKET's (6,9) waypoint; the sliver
+#     x[6,6.6] is not a gap, because the stair's flanking wall at x=6 already
+#     blocks x<6.47 radius-expanded down to z=9.65 and this guard's own
+#     expanded zone starts at x=6.25 — they overlap with no seam.
+#
+#  B. THE GROUND ORDERLIES GET A STAIRWELL-AWARE HEIGHT LOOKUP, and get it
+#     for free — see room17.gd's _spawn_one. Orderly.setup's third argument
+#     hands him WardLevels, and floor_height_at checks stairwells FIRST and
+#     matches when the queried level is EITHER end of the stair, so a
+#     'ground' orderly whose chase carries him into a stair mouth rides the
+#     interpolated tread instead of keeping his root at y=0 and sinking into
+#     the stepped blocks (which read as solid wall). It cannot change his
+#     `level`: he never calls resolve_level, so the cross-level sight/catch
+#     gates still hold categorically.
+#
+# THE PROOF THIS ROOM EXISTS FOR. ORDERLY-BALCONY (level 'balcony') and
+# ORDERLY-POCKET (level 'ground') both patrol inside x[-9,9] z[-6,10] — the
+# same rectangle — at 3.4 and 0. Orderly._player_is_vulnerable() gates BOTH
+# sight and the contact catch on `_player_level() == level` BEFORE any
+# distance, cone or occlusion math, so neither can ever perceive or catch the
+# other's target, at any XZ distance, even standing directly on top of one
+# another. Categorical, not "provably far enough" the way room 11's layout
+# guarantee is.
+#
+# REACTION-TIME AUDIT (min inspection distance ~8.2m, which also clears the
+# flat 6m sight range outright — distances from the NEAREST reachable point
+# on the relevant patrol):
+#   code digits, pocket north wall (3.0, -5.85) vs ORDERLY-POCKET
+#     (x[0,6] z[3,9]; nearest (3,3)): 8.85m
+#   code clue line (-4.5, -5.85) vs ORDERLY-POCKET (nearest (0,3)): 9.97m
+#   west-shaft hint, balcony (-8.85, 3.5) vs ORDERLY-BALCONY (x[2,6];
+#     nearest (2,3.5)): 10.85m
+#   dispenser17a (8.8, 31) vs ORDERLY-SOUTH (nearest (5,25)): 6.97m
+#   dispenser17c (-8.8, 9) vs ORDERLY-POCKET (nearest (0,9)): 8.8m
+# Stair mouths and the balcony landing are crossings, not stand-and-read
+# spots, and are held to the moving-target standard rooms 5-12 use.
+#
+# EVERY COLLIDER IN THIS ROOM IS STATE-UNFILTERED. There is no unmed-sealed
+# gate anywhere — the sealed wall is a permanent wall, not a paid gate — so
+# circle_hits_solid_unmed can never find a trapped case at any XZ on either
+# level, and the 45s medication timer expiring on the gallery, mid-stair or
+# in the pocket is always a free instant revert. Exposure, never a soft-lock.
+#
+# CODE: 9137 (fresh against 4118/1907/6329/0452/2846/5216/3175/8563/2593).
+# EXIT targets room18, which is not ported yet — room 17 is deliberately NOT
+# registered in main.gd, so check_rooms' chain walk never reaches it.
+def room17():
+    GROUND_Y = 0.0
+    BALCONY_Y = 3.4
+    CEIL = 6.0
+    SLAB_TH = 0.3
+    SLAB_YC = BALCONY_Y - SLAB_TH / 2.0   # deck top face lands exactly on 3.4
+    RAIL_Y = BALCONY_Y + 0.45             # 0.9m rail, standing on the deck
+
+    r = Room("room17", "the Gallery Ward",
+             floor=(-9, 9, -8, 34),
+             spawn=(0, 32, 0.0),
+             exits=[("room18", -1, 1, -7.9, -6.8)])
+    # Set BEFORE any band_*/level call: band_x/band_z read self.ceiling_y for
+    # their upper edge, and the headroom warning reads it per level.
+    r.ceiling_y = CEIL
+
+    # --- the two levels and the two stairwells -----------------------------
+    # levels[0] is what the Spawn marker is tagged with, so 'ground' first.
+    #
+    # 'balcony' declares NO height zone of its own on purpose: base_y already
+    # answers 3.4 everywhere the level is queried (floor_rect is not consulted
+    # by floor_height_at), so a zone equal to base_y would be dead data that a
+    # later edit could silently desync from it.
+    r.level("ground", GROUND_Y, (-9, 9, -8, 34))
+    r.level("balcony", BALCONY_Y, (-9, 9, -6, 10))
+
+    # y_low/level_at_low name the AXIS's MIN end, not the lower height: both
+    # of these DESCEND as z increases, so y_low (3.4) > y_high (0).
+    r.stairwell("stairEast", 6, 8, 10, 16, "z", BALCONY_Y, "balcony", GROUND_Y, "ground")
+    r.stairwell("stairWest", -8, -6, 4, 8, "z", BALCONY_Y, "balcony", GROUND_Y, "ground")
+
+    # --- shell -------------------------------------------------------------
+    # Perimeter colliders are UNTAGGED, i.e. active on every level: a wall is
+    # a wall on both floors. Their meshes stop at y=3, so each gets a band.
+    r.wall_x(-9, 9, 34)                   # south cap, behind spawn
+    r.wall_z(-8, 34, -9)                  # west perimeter
+    r.wall_z(-8, 34, 9)                   # east perimeter
+    r.band_x(-9, 9, 34)
+    r.band_z(-8, 34, -9)
+    r.band_z(-8, 34, 9)
+
+    # Pocket north wall, z=-6, door gap x[-1,1]. Banded SOLID across the full
+    # width: the doorway is a ground-level opening only, and the gallery's own
+    # north edge sits on this line.
+    r.wall_x(-9, -1, -6)
+    r.wall_x(1, 9, -6)
+    r.band_x(-9, 9, -6)
+
+    # Vestibule beyond the exit door, x[-1,1] z[-8,-6]. Banded too, or the
+    # 6m ceiling leaves it open over the top of its own walls.
+    r.wall_z(-8, -6, -1)
+    r.wall_z(-8, -6, 1)
+    r.wall_x(-1, 1, -8)
+    r.band_z(-8, -6, -1)
+    r.band_z(-8, -6, 1)
+    r.band_x(-1, 1, -8)
+    r.block((1.8, 2.6, 0.06), (0, 1.4, -7.82), "glow")   # "way out" marker
+
+    # THE SEALED WALL, z=16 — the room's whole thesis. The only gap in it is
+    # the east stair's own x[6,8] mouth. Permanent, unfiltered, on every
+    # level. Nothing in this room opens it.
+    r.wall_x(-9, 6, 16)
+    r.wall_x(8, 9, 16)
+    r.band_x(-9, 6, 16)
+    r.band_x(8, 9, 16)
+
+    # --- east stairwell ----------------------------------------------------
+    # Flanked by walls on both long sides: the inner face at x=6 and the outer
+    # at x=8, which also closes the 1m dead gap to the east perimeter. Authored
+    # full-height (y0..6) rather than wall+band, because this run climbs to the
+    # gallery landing and a 3m wall would leave the top of it open.
+    #
+    # NOTE (generator limitation, cosmetic-adjacent): the emitter always builds
+    # a collider's SHAPE 3m tall at y=1.5 regardless of the mesh, so these read
+    # as 6m walls but their physics shape stops at y=3. WardCollision ignores Y
+    # entirely, so blocking is unaffected on both levels; only Orderly's
+    # RayCast3D occlusion test sees the difference, and there is nothing on the
+    # gallery for it to occlude.
+    for x in (6, 8):
+        r.block((0.24, CEIL, 6), (x, CEIL / 2.0, 13), "wall2",
+                collider=(x - WALL_HALF, x + WALL_HALF, 10, 16),
+                name="StairEastWall%d" % x)
+
+    # Lit threshold in the stair mouth — the ward's standing "a glow marks a
+    # way through" convention (room 11 puts the same bar at its ramp mouth).
+    # It earns its place here more than anywhere: at true UNMED ambient this
+    # ward is near-black beyond a fitting's pool, and this 2m gap in the
+    # sealed wall is the ONLY route out of the south hall.
+    r.block((2, 0.14, 0.12), (7, 2.7, 16.0), "glow")
+
+    # Stepped visual stand-ins. The WALKABLE slope is the StairwellDef's
+    # smooth interpolation; a BoxMesh cannot tilt, so these just read as
+    # stairs. NO COLLIDERS — a collider on a tread is a wall across the run.
+    EAST_STEPS = 6
+    for i in range(EAST_STEPS):
+        top = BALCONY_Y * (i + 1) / EAST_STEPS      # rises going north
+        r.block((2, top, 1), (7, top / 2.0, 16 - i - 0.5), "wall2",
+                name="StairEastStep%d" % i)
+
+    # --- west shaft --------------------------------------------------------
+    # A hole cut straight through the gallery's own decking, not a walled run:
+    # its long sides are open air on the balcony (that is what makes the
+    # descent read as stepping off the walkway), so it gets no flanking walls
+    # and no railing. The west perimeter at x=-9 is the only wall it hugs.
+    WEST_STEPS = 5
+    for i in range(WEST_STEPS):
+        top = BALCONY_Y * (i + 1) / WEST_STEPS
+        r.block((2, top, 0.8), (-7, top / 2.0, 8 - i * 0.8 - 0.4), "wall2",
+                name="StairWestStep%d" % i)
+
+    # --- the gallery deck --------------------------------------------------
+    # Four opaque boxes, top face exactly on 3.4, covering x[-9,9] z[-6,10]
+    # MINUS the west shaft's x[-8,-6] z[4,8]. No colliders, by the same rule
+    # room 11's MezzSlab follows. The undersides are the pocket's ceiling.
+    def deck(min_x, max_x, min_z, max_z, name):
+        r.block((max_x - min_x, SLAB_TH, max_z - min_z),
+                ((min_x + max_x) / 2.0, SLAB_YC, (min_z + max_z) / 2.0),
+                "wall2", name=name)
+
+    # Edge strip on the deck at the shaft's head. Same convention as the stair
+    # mouth above, and the same reason: the shaft is a black rectangle in a
+    # dim floor, and it is the only way down.
+    r.block((2, 0.06, 0.14), (-7, BALCONY_Y + 0.03, 3.9), "glow")
+
+    deck(-9, -8, -6, 10, "DeckWestLedge")   # 1m ledge west of the shaft
+    deck(-6, 9, -6, 10, "DeckMain")         # everything east of the shaft
+    deck(-8, -6, -6, 4, "DeckShaftNorth")
+    deck(-8, -6, 8, 10, "DeckShaftSouth")
+    # (x[-8,-6] z[4,8] deliberately left open — that hole is stairWest)
+
+    # --- railings ----------------------------------------------------------
+    # LEVEL-TAGGED, every one of them. Untagged, the z=10 rail alone would be
+    # an invisible wall straight across the pocket 3.4m underneath it.
+    def rail_x(min_x, max_x, z, name):
+        r.block((max_x - min_x, 0.9, 0.24), ((min_x + max_x) / 2.0, RAIL_Y, z),
+                "chain", collider=(min_x, max_x, z - WALL_HALF, z + WALL_HALF),
+                name=name, level="balcony")
+
+    # South edge, z=10 — the open drop into the pocket, broken only by the
+    # east stair's landing mouth at x[6,8].
+    rail_x(-9, 6, 10, "RailSouthWest")
+    rail_x(8, 9, 10, "RailSouthEast")
+    # North edge: the pocket's own walls already close z=-6 on every level, so
+    # only the door gap needs a rail — without it a gallery traveler walks out
+    # over the vestibule the moment the keypad drops DoorCollider.
+    rail_x(-1, 1, -6, "RailNorthDoorGap")
+
+    # THE LANDING SEAM GUARD — ground-only, entirely south of z=10. See the
+    # header's seam fix A before touching any of these four numbers.
+    r.solid(6.6, 8, 9.1, 9.4, name="LandingGuard", level="ground")
+
+    # --- exit door ---------------------------------------------------------
+    # Untagged, so it blocks a gallery traveler too until the keypad drops it;
+    # after that RailNorthDoorGap is what keeps the gallery closed.
+    r.solid(-1, 1, -6.1, -5.9, name="DoorCollider")
+
+    # --- scrawls -----------------------------------------------------------
+    # Label3D renders MUCH wider than the authored `size` suggests; every one
+    # of these is measured against the walls it sits on by tools/test_room17.
+    r.scrawl("they raised the roof\nso no one has to share a floor",
+             (8.85, 1.65, 24), -math.pi / 2, 2.6)
+    # y 1.75 and size 2.4, not the usual 1.65/2.6: MEASURED, this two-liner's
+    # rendered box is 3.12m tall (Label3D's box is the font's full line box,
+    # not the inked glyphs) and at 1.65 its lower edge dipped below the floor.
+    r.scrawl("the stairs are the only door\nthat opens both ways",
+             (-8.85, 1.75, 21), math.pi / 2, 2.4)
+    # Gallery eye height, west wall by the shaft: only readable from up here,
+    # because the deck is the pocket's ceiling and hides it from below. The
+    # timing tell for ORDERLY-POCKET. Size 1.8 at 3.4+1.5 rather than the
+    # usual 2.6 at +1.65 because MEASURED it is 7.65m x 1.72m — at 2.0 its top
+    # edge reached the 6m ceiling exactly.
+    r.scrawl("his floor creaks the same beat, every lap.\nseven strides north, he turns.",
+             (-8.85, BALCONY_Y + 1.5, 3.5), math.pi / 2, 1.8)
+    # The code, split clue-line / digits across the pocket's north wall, clear
+    # of the door gap at x[-1,1] in both directions.
+    r.scrawl("the last door\nremembers this:", (-4.5, 1.65, -5.85), 0.0, 2.4)
+    r.scrawl("9 1 3 7", (3.0, 1.65, -5.85), 0.0, 3.4, sid="codeScrawl")
+
+    # --- interactables -----------------------------------------------------
+    # Both dispensers hang off a wall_z wall, so they are thin in X and their
+    # facing is PINNED, never inferred.
+    #
+    # dispenser17a: south hall, east wall, near spawn and outside
+    # ORDERLY-SOUTH's loop (nearest patrol point (5,25) is 6.97m away, past
+    # his 6m sight range). The room's only pre-lucid station on the way out.
+    r.interactable("dispenser17a", "dispenser", (0.16, 0.75, 0.55),
+                   (8.8, 1.45, 31), "dispenser", "use the dispenser", facing="nx")
+    # dispenser17c: THE PRESSURE-RULE STATION — one per sealed pocket, at the
+    # near end. The pocket has no walk-back (the sealed wall plus the fact
+    # that the east stair cannot be re-entered from the pocket side make
+    # retracing the whole crossing the only alternative), so it sits a couple
+    # of metres from the west shaft's ground landing at (-7,8).
+    r.interactable("dispenser17c", "dispenser", (0.16, 0.75, 0.55),
+                   (-8.8, 1.45, 9), "dispenser", "use the dispenser", facing="px")
+    r.interactable("keypad17", "keypad", (0.4, 0.5, 0.14),
+                   (1.35, 1.45, -5.81), "pad", "use the keypad", facing="pz")
+    r.interactable("exitdoor", "door", (2, 3, 0.2), (0, 1.5, -6),
+                   "door", "the exit door", facing="pz")
+
+    # --- lights ------------------------------------------------------------
+    # Y IS EXPLICIT HERE, unlike every flat room, because this room has two
+    # floors and one default. A fitting at the usual 2.7 anywhere over
+    # x[-9,9] z[-6,10] is UNDER the gallery deck and lights the pocket; the
+    # gallery needs its own at 5.7 (0.3 below the 6m ceiling, the same offset
+    # a 3m room gives a 2.7 fitting).
+    #
+    # NOTHING IS BURIED IN THE DECK: the slab occupies y[3.1,3.4] and no
+    # fitting sits in that band (asserted by tools/test_room17).
+    #
+    # KNOWN GENERATOR LIMITATION, NOT FIXED HERE (the emitter is shared): each
+    # fitting also emits a "bounce" OmniLight3D hardcoded at y=0.22. For the
+    # three gallery fittings that lands on the POCKET floor, 3.4m below the
+    # light it belongs to — so the gallery gets no bounce and the pocket gets
+    # three faint unauthored warm pools. For the stair fitting the bounce ends
+    # up inside the solid stepped blocks and contributes nothing. Both are
+    # cosmetic and neither can be fixed room-side; the bounce Y needs to
+    # follow its fitting's level in Emitter.emit().
+    for x, z, y in [
+        (0, 32, 2.7), (0, 26, 2.7), (0, 20, 2.7),          # south hall
+        (7, 13, 4.0),                                       # east stairwell
+        (4, 4, 2.7), (-5, 6, 2.7), (-4, 0, 2.7), (0, -4, 2.7),   # pocket
+        (5, 7, 5.7), (0, 1, 5.7), (-4, -4, 5.7),            # gallery
+    ]:
+        r.light(x, z, y)
+    return r
+
+
 if __name__ == "__main__":
     # write_materials() is DELIBERATELY NOT CALLED — see its definition.
     #
@@ -2357,4 +2692,5 @@ if __name__ == "__main__":
     write_room(room13())
     write_room(room11())
     write_room(room14())
+    write_room(room17())
     print("done")

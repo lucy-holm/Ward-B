@@ -98,7 +98,7 @@ const DOOR_OPEN_ROT := PI + PI / 2.0
 # which in a real 3D scene reads as the breaker falling off its mounting rather
 # than as a handle being pulled.
 const LEVER_NODE_PATH := "Model/Lever"
-const THROWN_ROT_X := -2.2
+const THROWN_ROT_X := -2.5
 
 var _main: Node = null
 var _orderly: CharacterBody3D = null

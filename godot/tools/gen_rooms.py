@@ -3337,7 +3337,12 @@ def room19_lights():
              (6.85, PLAT_Y + 1.25, -5.5), -math.pi / 2, 1.2)
 
     # GENEROUS, and visibly so: this is the branch you can see him coming in.
-    for x, z in [(-2.5, 3), (-1, 0.5), (3, 0.5), (5.75, -1.8),
+    # (1.5, -4.5) is not decoration: RailWest is a 7m solid block standing on
+    # the slab edge, and with nothing lighting its WEST face from the lower
+    # floor the whole raised region rendered as a black mass with a mottled
+    # skirt — the platform read as a wall rather than as somewhere to climb.
+    # Confirmed by screenshot, both before and after.
+    for x, z in [(-2.5, 3), (-1, 0.5), (3, 0.5), (5.75, -1.8), (1.5, -4.5),
                  (-4, -3), (-1, -6), (4.5, -4.5), (4.5, -7)]:
         r.light(x, z)
     return r

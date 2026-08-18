@@ -1,4 +1,4 @@
-[gd_scene load_steps=10 format=3 uid="uid://wardbfixswitch01"]
+[gd_scene load_steps=12 format=3 uid="uid://wardbfixswitch01"]
 
 ; Wall-mounted BREAKER SWITCH — the fixture you throw, as opposed to the one
 ; you type on. Canonical size 0.50W x 0.60H x 0.16D, origin at the centre of
@@ -14,9 +14,9 @@
 ;
 ;     fixture.get_node("Model/Lever").rotation.x = <angle>
 ;
-; Rest is 0 — the arm stands straight up off the boss, unambiguously "not
-; thrown". rooms/room18/room18.gd swings it to THROWN_ROT_X and never puts it
-; back. Rotating the pivot rather than moving the whole Area3D matters: the
+; Rest is -0.5 rad — up and out of the wall, unambiguously "not thrown".
+; rooms/room18/room18.gd swings it to THROWN_ROT_X (-2.5, i.e. down and still
+; proud, a ~115 degree throw) and never puts it back. Rotating the pivot rather than moving the whole Area3D matters: the
 ; three.js build
 ; expressed "thrown" by sliding the entire fixture 0.28m down the wall, which
 ; in a real 3D scene reads as the breaker falling off its mounting rather than
@@ -28,6 +28,8 @@
 [ext_resource type="Material" uid="uid://wardbfxsb01" path="res://fixtures/switch_body_mat.tres" id="m_body"]
 [ext_resource type="Material" uid="uid://wardbfxsg01" path="res://fixtures/switch_glow_mat.tres" id="m_glow"]
 [ext_resource type="Material" uid="uid://wardbfxhw01" path="res://fixtures/hardware_mat.tres" id="m_hw"]
+[ext_resource type="Material" uid="uid://wardbfxsk01" path="res://fixtures/switch_knob_mat.tres" id="m_knob"]
+[ext_resource type="Material" uid="uid://wardbfxsl01" path="res://fixtures/switch_lever_mat.tres" id="m_lever"]
 
 [sub_resource type="BoxMesh" id="bm_body"]
 size = Vector3(0.5, 0.6, 0.16)
@@ -36,18 +38,18 @@ size = Vector3(0.5, 0.6, 0.16)
 size = Vector3(0.4, 0.48, 0.02)
 
 [sub_resource type="BoxMesh" id="bm_arm"]
-size = Vector3(0.045, 0.24, 0.045)
+size = Vector3(0.055, 0.24, 0.055)
 
 [sub_resource type="BoxMesh" id="bm_knob"]
-size = Vector3(0.075, 0.06, 0.075)
+size = Vector3(0.095, 0.08, 0.095)
 
 [sub_resource type="BoxMesh" id="bm_lamp"]
-size = Vector3(0.07, 0.045, 0.02)
+size = Vector3(0.1, 0.055, 0.02)
 
 [sub_resource type="CylinderMesh" id="cm_boss"]
-top_radius = 0.055
-bottom_radius = 0.055
-height = 0.035
+top_radius = 0.065
+bottom_radius = 0.065
+height = 0.045
 radial_segments = 12
 
 [node name="Switch" type="Node3D"]
@@ -65,27 +67,34 @@ surface_material_override/0 = ExtResource("m_hw")
 ; The pivot boss the lever turns on — a disc lying in the XY plane, so it is
 ; rotated 90 degrees about X to point its axis down -Z.
 [node name="Boss" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0, -0.09, -0.105)
+transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0, 0, -0.1)
 mesh = SubResource("cm_boss")
-surface_material_override/0 = ExtResource("m_hw")
+surface_material_override/0 = ExtResource("m_lever")
 
-; THE LEVER PIVOT. Room scripts write rotation.x on THIS node; at rest it is
-; identity, so the arm points straight up out of the boss and the "thrown"
-; pose is a single unambiguous sign of rotation away from it.
+; THE LEVER PIVOT. Room scripts write rotation.x on THIS node. Rest is
+; -0.5 rad, which carries the arm UP AND OUT of the faceplate (a negative
+; x-rotation maps local +Y toward -Z), so the fixture's silhouette is a bar
+; sticking ~0.14m out of a box — the one shape nothing else in the ward has.
+; Flush against the plate it rendered as a black rectangle and read as wall
+; panelling, which is the exact complaint this fixture exists to answer.
+;
+; The pivot sits on the fixture's centreline and the arm is 0.24 long on
+; purpose: the whole sweep from rest to thrown stays inside the body's own
+; 0.6m height, so a thrown handle never hangs below its own mounting.
 [node name="Lever" type="Node3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.09, -0.105)
+transform = Transform3D(1, 0, 0, 0, 0.87758, 0.47943, 0, -0.47943, 0.87758, 0, 0, -0.1)
 
 [node name="Arm" type="MeshInstance3D" parent="Lever"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.12, 0)
 mesh = SubResource("bm_arm")
-surface_material_override/0 = ExtResource("m_hw")
+surface_material_override/0 = ExtResource("m_lever")
 
 [node name="Knob" type="MeshInstance3D" parent="Lever"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.255, 0)
 mesh = SubResource("bm_knob")
-surface_material_override/0 = ExtResource("m_body")
+surface_material_override/0 = ExtResource("m_knob")
 
 [node name="Lamp" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.215, -0.095)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.16, 0.19, -0.092)
 mesh = SubResource("bm_lamp")
 surface_material_override/0 = ExtResource("m_glow")

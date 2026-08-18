@@ -177,6 +177,10 @@ class Room:
         self.interactables = []
         self.lights = []
         self.triggers = []            # (tid, min_x, max_x, min_z, max_z, state)
+        # Door-top shape-lock progress panels (room 15's mechanic). Additive:
+        # a room with none emits no IconPanels node at all, so every scene
+        # generated before this existed is byte-identical.
+        self.icon_panels = []         # (pid, shapes, colors, pos, rot_y, size)
         self.ceiling_y = 3.0
         # --- verticality (see core/levels.gd) -----------------------------
         # TIER 1: a single-valued floor height. Zones and ramps declared here
@@ -336,11 +340,89 @@ class Room:
     def scrawl(self, text, pos, rot_y, size, sid=None):
         self.scrawls.append((text, pos, rot_y, size, sid))
 
-    def interactable(self, iid, itype, size, pos, mat, label, state=None, facing=None):
-        self.interactables.append((iid, itype, size, pos, mat, label, state, facing))
+    def interactable(self, iid, itype, size, pos, mat, label, state=None, facing=None,
+                     model_script=None, model_props=None):
+        """One fixture: an Area3D on the interactable layer, plus a model.
+
+        The model is chosen in this order: an explicit `model_script` (a Node3D
+        script that builds itself, for fixtures whose LOOK is per-instance —
+        see shape_key below, where shape and colour differ per key), else the
+        FIXTURES entry for `itype` if one exists, else a plain box. The script
+        is handed `fixture_size` (the canonical, facing-corrected size) plus
+        whatever `model_props` says, each value already rendered as a Godot
+        literal.
+        """
+        self.interactables.append((iid, itype, size, pos, mat, label, state, facing,
+                                   model_script, model_props))
 
     def light(self, x, z, y=2.7):
         self.lights.append((x, y, z))
+
+    # --- shape keys / shape lock / icon panel -------------------------------
+    # Room 15's mechanic, ported from kit.ts's shapeKeyProp / shapeLockDoor /
+    # iconPanel. The three helpers below are the AUTHORING surface only — the
+    # held-shape bookkeeping lives in core/shape_lock.gd, owned by the room
+    # script, because a catch must never un-collect a key and room-script state
+    # is what survives a catch (a catch teleports; it does not reload).
+    #
+    # Positions are authored explicitly, like every other fixture in this file
+    # (see room10's dispensers), rather than derived from a wall side the way
+    # kit.ts does it. The formulas, for hand-computing them:
+    #   wall face      = wall_at +- 0.12          (walls are 0.24 thick)
+    #   fixture centre = face +- thin / 2         (sits fully proud of the wall)
+    #   panel centre   = face +- 0.03             (kit.ts's DEFAULT_SCRAWL_PROUD)
+
+    def shape_key(self, kid, shape, color, pos, label="take it", size=(0.5, 0.9, 0.5)):
+        """A free-standing shape-key pickup.
+
+        ALWAYS states='unmed', and that is the entire visibility design: the
+        generator wraps it in a StateObject, so the prop is not rendered while
+        lucid and Interactable.is_focusable() refuses the ray for it. There is
+        no bespoke hiding code anywhere in the mechanic.
+
+        NO COLLIDER — a key is a raycast target and nothing else, so a player
+        walks through it and a patrol crosses it as bare floor. `facing` is
+        pinned rather than inferred (the heuristic is meaningless for a
+        free-standing prop, and pinning is the rule this file learned the hard
+        way in room 7).
+        """
+        self.interactable(kid, "shape_key", size, pos, "prop", label,
+                          state="unmed", facing="pz",
+                          model_script="res://fixtures/shape_key.gd",
+                          model_props={"shape": '"%s"' % shape,
+                                       "color": _color_literal(color)})
+
+    def shape_lock(self, lid, pos, facing, shapes, label="use the lock",
+                   size=(0.4, 0.5, 0.14)):
+        """The wall fixture that opens the door once every shape is held.
+
+        Keypad-shaped and keypad-sized (kit.ts reuses KEYPAD_FOOTPRINT), no
+        collider, `facing` PINNED. `size` is in WORLD axes like every other
+        interactable here, so it needs reordering per wall orientation: a
+        north/south wall mount is (along, height, thin), an east/west one is
+        (thin, height, along).
+        """
+        self.interactable(lid, "shape_lock", size, pos, "pad", label,
+                          facing=facing,
+                          model_script="res://fixtures/shape_lock.gd",
+                          model_props={"shapes": _string_array(shapes)})
+
+    def icon_panel(self, pid, shapes, colors, pos, rot_y, size=2.4):
+        """The door-top progress panel: one dim outline per shape, lit as each
+        key is collected.
+
+        NOT an interactable and NOT state-filtered — it reads in both ward
+        states, from across the room. `size` is the quad's WIDTH IN METRES (the
+        height is size / len(shapes)); unlike a scrawl's `size`, which is a
+        texture scale and renders far wider than it reads, this is a real
+        measurement.
+        """
+        self.icon_panels.append((pid, list(shapes), [_color(c) for c in colors],
+                                 pos, rot_y, size))
+
+    # Kept next to the helpers above rather than with the emitter's other
+    # serialisers: these are part of the authoring surface (a room hands in
+    # '#3fa9dd', not four floats).
 
     # triggers ---------------------------------------------------------------
     def trigger(self, tid, min_x, max_x, min_z, max_z, state=None):
@@ -588,7 +670,8 @@ class Emitter:
         if r.interactables:
             body.append('[node name="Interactables" type="Node3D" parent="."]')
             body.append("")
-            for (iid, itype, size, pos, mat, label, state, facing) in r.interactables:
+            for (iid, itype, size, pos, mat, label, state, facing,
+                 model_script, model_props) in r.interactables:
                 parent = "Interactables"
                 nm = iid
                 if state in ("lucid", "unmed"):
@@ -628,7 +711,24 @@ class Emitter:
                 # complaint the three.js build's buildDispenser() comment
                 # warns about.
                 fx = FIXTURES.get(itype)
-                if fx is not None:
+                if model_script is not None:
+                    # A model that builds ITSELF, for fixtures whose look is
+                    # per-instance (shape_key's shape+colour). Emitted as a bare
+                    # Node3D carrying the script — no PackedScene and no scale
+                    # factor, because the script is handed the real size and
+                    # builds to it rather than being stretched to fit.
+                    #
+                    # `script` MUST come first: Godot applies these lines in
+                    # order, and an exported property does not exist until the
+                    # script that declares it is attached.
+                    body.append('[node name="Model" type="Node3D" parent="%s/%s"]'
+                                % (parent, nm))
+                    body.append('script = ExtResource("%s")' % self.model_script(model_script))
+                    body.append("fixture_size = Vector3(%.4f, %.4f, %.4f)" % canon)
+                    for k in sorted((model_props or {}).keys()):
+                        body.append("%s = %s" % (k, model_props[k]))
+                    body.append("")
+                elif fx is not None:
                     rid = self.fixture(itype)
                     base = fx["size"]
                     sc = (canon[0] / base[0], canon[1] / base[1], canon[2] / base[2])
@@ -642,6 +742,28 @@ class Emitter:
                     body.append('mesh = SubResource("%s")' % m)
                     body.append("")
             self._ensure_interactable_script()
+
+        # icon panels — the shape-lock progress display. One Node3D per panel;
+        # fixtures/icon_panel.gd builds the quad and bakes its texture, and the
+        # room script rewrites it in place on each pickup (set_lit), the same
+        # way main.update_scrawl_text rewrites a Label3D. No collider, no
+        # Interactable, no state filter: it reads in both ward states.
+        if r.icon_panels:
+            self._ensure_icon_panel_script()
+            body.append('[node name="IconPanels" type="Node3D" parent="."]')
+            body.append("")
+            for (pid, shapes, colors, pos, rot_y, size) in r.icon_panels:
+                body.append('[node name="%s" type="Node3D" parent="IconPanels"]' % pid)
+                body.append("transform = %s" % _xform_yaw(rot_y, pos))
+                # script first — an exported property does not exist before it.
+                body.append('script = ExtResource("s_iconpanel")')
+                body.append("shapes = %s" % _string_array(shapes))
+                # A PackedColorArray serialises as a FLAT list of components,
+                # not as a list of Color() literals.
+                body.append("colors = PackedColorArray(%s)"
+                            % ", ".join(", ".join("%.4f" % v for v in c) for c in colors))
+                body.append("panel_size = %.4f" % size)
+                body.append("")
 
         # lights
         if r.lights:
@@ -885,6 +1007,18 @@ class Emitter:
         if not any(e[2] == "s_interactable" for e in self.ext):
             self.ext.append(("Script", "res://core/interactable.gd", "s_interactable", None))
 
+    def model_script(self, path):
+        """Register a self-building fixture model script, e.g.
+        res://fixtures/shape_key.gd -> ext id s_model_shape_key."""
+        rid = "s_model_%s" % os.path.splitext(os.path.basename(path))[0]
+        if not any(e[2] == rid for e in self.ext):
+            self.ext.append(("Script", path, rid, None))
+        return rid
+
+    def _ensure_icon_panel_script(self):
+        if not any(e[2] == "s_iconpanel" for e in self.ext):
+            self.ext.append(("Script", "res://fixtures/icon_panel.gd", "s_iconpanel", None))
+
     def _ensure_trigger_script(self):
         if not any(e[2] == "s_trigger" for e in self.ext):
             self.ext.append(("Script", "res://core/trigger_volume.gd", "s_trigger", None))
@@ -918,6 +1052,32 @@ class Emitter:
 
 def _num(v):
     return "%.4f" % float(v)
+
+
+def _color(spec):
+    """'#3fa9dd' (or an (r,g,b[,a]) tuple of 0..1 floats) -> (r, g, b, a).
+
+    Hex, because that is what the room specs and the Three.js kit are written
+    in — a room author should never be converting colours by hand.
+    """
+    if isinstance(spec, (tuple, list)):
+        vals = [float(v) for v in spec]
+        return tuple(vals + [1.0] * (4 - len(vals)))
+    s = str(spec).lstrip("#")
+    if len(s) == 3:
+        s = "".join(ch * 2 for ch in s)
+    if len(s) != 6:
+        raise ValueError("bad colour %r — want '#rrggbb'" % spec)
+    return (int(s[0:2], 16) / 255.0, int(s[2:4], 16) / 255.0,
+            int(s[4:6], 16) / 255.0, 1.0)
+
+
+def _color_literal(spec):
+    return "Color(%.4f, %.4f, %.4f, %.4f)" % _color(spec)
+
+
+def _string_array(items):
+    return "PackedStringArray(%s)" % ", ".join('"%s"' % s for s in items)
 
 
 def _rect(rect):

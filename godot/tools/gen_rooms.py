@@ -20,6 +20,10 @@ Geometry conventions mirror src/rooms/build.ts exactly:
 Collision layers (see project.godot [layer_names]):
     1 player, 2 world_static, 4 solid_lucid_only, 8 solid_unmed_only,
     16 orderly, 32 interactable, 64 trigger
+
+Note that trigger VOLUMES (Room.trigger/Room.plate) use no collision layer at
+all — layer 64 belongs to the exit Area3Ds. A trigger volume is not a physics
+object in any form; it is a rect polled per frame. See core/trigger_volume.gd.
 """
 
 import os
@@ -108,6 +112,10 @@ MATERIALS = {
     "floor":     ("0.29 0.302 0.294", 0.0),
     "ceil":      ("0.337 0.349 0.341", 0.0),
     "keypad":    ("0.263 0.29 0.31", 0.15),
+    # Floor-mounted mechanism plate — the visible marker for a trigger volume.
+    # Like every other entry here this is only the historical flat placeholder;
+    # materials/plate.tres is the authored ShaderMaterial and the real thing.
+    "plate":     ("0.235 0.25 0.245", 0.25),
 }
 
 
@@ -150,6 +158,7 @@ class Room:
         self.scrawls = []
         self.interactables = []
         self.lights = []
+        self.triggers = []            # (tid, min_x, max_x, min_z, max_z, state)
         self.ceiling_y = 3.0
 
     # geometry -------------------------------------------------------------
@@ -182,6 +191,39 @@ class Room:
 
     def light(self, x, z, y=2.7):
         self.lights.append((x, y, z))
+
+    # triggers ---------------------------------------------------------------
+    def trigger(self, tid, min_x, max_x, min_z, max_z, state=None):
+        """A rectangular XZ sensor region (core/trigger_volume.gd).
+
+        Polled per frame against the player by main.gd's TriggerPoll, which
+        fires the room script's optional on_trigger_enter/on_trigger_exit; the
+        room tests its own actors (an orderly, a pushable crate) against the
+        SAME rect via TriggerVolume.contains(). Containment is strict
+        point-in-rect on XZ, so a rect needs min < max on both axes or it can
+        never fire — check_rooms.gd rejects degenerate ones.
+
+        NEVER emits a collider. A trigger is a floor-level sensor; if a region
+        must also block movement, author a separate solid() for it.
+        """
+        self.triggers.append((tid, min_x, max_x, min_z, max_z, state))
+
+    def plate(self, tid, min_x, max_x, min_z, max_z, state=None, y=0.02):
+        """Pressure plate: one call, two shapes — a trigger and the thin flush
+        'plate' box that marks it, sharing one footprint so the visible plate
+        and its firing bounds can never drift apart. Ported from kit.ts's
+        pressurePlate(); `y` is the visual half-height, so the box is y*2 tall
+        (4cm at the default) and sits flush at floor level.
+
+        DELIBERATELY NO COLLIDER, and this is the mechanic rather than an
+        oversight: a plate must stay walkable, and with no collider it never
+        enters the orderly's collider set either, so a patrol crosses one as
+        bare floor with zero special-casing in Orderly.
+        """
+        self.trigger(tid, min_x, max_x, min_z, max_z, state)
+        self.block((max_x - min_x, y * 2.0, max_z - min_z),
+                   ((min_x + max_x) / 2.0, y, (min_z + max_z) / 2.0),
+                   "plate", state, collider=None, name="%s_plate" % tid)
 
 
 # --- emitter ---------------------------------------------------------------
@@ -493,6 +535,26 @@ class Emitter:
                 body.append("shadow_enabled = false")
                 body.append("")
 
+        # triggers — plain Nodes, NOT Area3Ds: containment is a strict
+        # point-in-rect test on the body's XZ run every frame by
+        # core/trigger_poll.gd, not a physics overlap. See trigger_volume.gd.
+        if r.triggers:
+            self._ensure_trigger_script()
+            body.append('[node name="Triggers" type="Node3D" parent="."]')
+            body.append("")
+            for (tid, t_min_x, t_max_x, t_min_z, t_max_z, state) in r.triggers:
+                body.append('[node name="%s" type="Node" parent="Triggers"]' % tid)
+                body.append('script = ExtResource("s_trigger")')
+                body.append('trigger_id = "%s"' % tid)
+                body.append("min_x = %.4f" % t_min_x)
+                body.append("max_x = %.4f" % t_max_x)
+                body.append("min_z = %.4f" % t_min_z)
+                body.append("max_z = %.4f" % t_max_z)
+                # TriggerVolume.States mirrors StateObject.Affinity: 0/1/2.
+                if state in ("lucid", "unmed"):
+                    body.append("states = %d" % (1 if state == "lucid" else 2))
+                body.append("")
+
         # exits
         body.append('[node name="Exits" type="Node3D" parent="."]')
         body.append("")
@@ -527,6 +589,10 @@ class Emitter:
     def _ensure_interactable_script(self):
         if not any(e[2] == "s_interactable" for e in self.ext):
             self.ext.append(("Script", "res://core/interactable.gd", "s_interactable", None))
+
+    def _ensure_trigger_script(self):
+        if not any(e[2] == "s_trigger" for e in self.ext):
+            self.ext.append(("Script", "res://core/trigger_volume.gd", "s_trigger", None))
 
     def _ensure_exit_script(self):
         if not any(e[2] == "s_exit" for e in self.ext):

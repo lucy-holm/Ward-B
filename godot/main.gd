@@ -8,6 +8,13 @@
 #                             never react to a revert in the same tick)
 #   4. exit check            (Area3D signals, effectively last)
 # process_priority is set so this node ticks after the player and the room.
+#
+# Trigger volumes (core/trigger_poll.gd) sit OUTSIDE that list on purpose: they
+# poll at the head of the physics tick, ahead of every room's own
+# _physics_process, so a room script sees on_trigger_enter/on_trigger_exit
+# already fired for this frame by the time it updates. See trigger_poll.gd's
+# header for why that slot rather than "right after the player" (main.tscn puts
+# WorldRoot before Player, so nothing can sit between them).
 extends Node3D
 
 const ROOM_SCENES := {
@@ -177,6 +184,10 @@ var posterize: CanvasLayer
 var dev_panel: CanvasLayer
 var start_overlay: CanvasLayer
 var atmosphere: Atmosphere
+# Per-frame point-in-rect poll of the current room's TriggerVolumes against the
+# player, firing the room's optional on_trigger_enter / on_trigger_exit. NOT an
+# Area3D — see core/trigger_volume.gd.
+var triggers: TriggerPoll
 
 var current_room: Node = null
 var current_room_id := ""
@@ -259,6 +270,15 @@ func _ready() -> void:
 	player.add_to_group("player")
 	player.world_collision = collision
 	Telemetry.snapshot_provider = player.get_snapshot
+
+	triggers = TriggerPoll.new()
+	triggers.name = "TriggerPoll"
+	triggers.body = player
+	# The analogue of main.ts polling only inside `if (started && !ended)`:
+	# nothing fires behind the ADMIT ME overlay, on the end card, or while the
+	# dev panel has taken input.
+	triggers.poll_when = player.is_input_enabled
+	add_child(triggers)
 
 	StateManager.medication_depleted.connect(_on_medication_depleted)
 	StateManager.state_changed.connect(_on_state_changed)
@@ -645,6 +665,7 @@ func load_room(id: String) -> void:
 	if current_room != null:
 		if current_room.has_method("on_leave"):
 			current_room.on_leave()
+		triggers.bind_room(null)
 		current_room.queue_free()
 		current_room = null
 	_focused = null
@@ -663,6 +684,10 @@ func load_room(id: String) -> void:
 	# load; state-conditional colliders are filtered at query time by their
 	# layer, so a state change never needs a rebuild.
 	collision.rebuild_from(current_room)
+
+	# Collects the new room's TriggerVolumes and clears the active set WITHOUT
+	# firing exit callbacks — the old room's script is already torn down.
+	triggers.bind_room(current_room)
 
 	# Fluorescents are per-room, so the flicker set has to be rebuilt on load.
 	if atmosphere != null:

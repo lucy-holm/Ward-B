@@ -2,39 +2,40 @@
 # and enforces the frame ordering the original main.ts loop guaranteed.
 #
 # ORDERING CONTRACT (from src/main.ts:515-569) — load-bearing:
-#   1. player moves          (Player._physics_process)
+#   1. player moves, then resolves its level, then eases its Y
+#                            (all three in Player._physics_process, in that
+#                             order — see the note on ordering below)
 #   2. orderlies move        (Orderly._physics_process)
 #   3. medication expiry     (here, AFTER orderlies — so an orderly can
 #                             never react to a revert in the same tick)
 #   4. exit check            (Area3D signals, effectively last)
-# process_priority is set to 100 intending that this node tick after the player
-# and the room — but IT DOES NOT DO THAT, and the ordering above is not
-# currently enforced by it.
+# ORDERING IS NOT ENFORCED BY process_priority BELOW. That property orders
+# _process only; the physics equivalent is process_physics_priority, which
+# nothing here sets. Measured in Godot 4.7: this node's _physics_process runs
+# BEFORE the player's, because a parent ticks before its children and
+# main.tscn orders WorldEnvironment, WorldRoot, Player. So anything here that
+# reads the player's position is reading last tick's.
 #
-# _physics_process ordering in Godot 4.2+ is governed by
-# process_physics_priority, NOT process_priority (which only orders _process).
-# This node's per-frame work is in _physics_process, so the value below is
-# inert for it. What actually orders the tick is tree position, and main.tscn
-# lists WorldEnvironment, WorldRoot, Player — with this script on the root, so
-# it ticks BEFORE the player moves and before the rooms under WorldRoot.
+# Two things follow, and both are deliberate rather than oversights:
 #
-# Consequence: _update_focus() raycasts from the camera transform of the
-# PREVIOUS tick. At 60Hz that is 16.7ms of lag on the interaction prompt,
-# which is why nobody has noticed. Left as-is deliberately rather than
-# "fixed" mid-port: setting process_physics_priority would re-time every
-# existing room and orderly at once, and that is a change to make
-# deliberately with a playtest, not as a drive-by.
+#  * The verticality step lives in Player._physics_process, directly after the
+#    movement it depends on, NOT here. That makes "move, then resolve level,
+#    then ease Y" structural instead of a property nobody can see is
+#    load-bearing. Putting it here resolved against last tick's position and
+#    landed every level flip one tick late — proven by a test that fails with
+#    "crossed at tick 1, flipped at tick 2" when the logic is moved back.
 #
-# core/trigger_poll.gd works around this by taking the head of the tick
-# (process_physics_priority = -100) so its callbacks are always fresh before
-# any room updates. See its header for the full reasoning.
+#  * core/trigger_poll.gd takes the HEAD of the tick
+#    (process_physics_priority = -100) so its callbacks are always fresh
+#    before any room's _physics_process. It cannot use the literal Three.js
+#    slot of "right after the player", because main.tscn puts WorldRoot before
+#    Player and nothing can sit between them. See that file's header.
 #
-# Trigger volumes (core/trigger_poll.gd) sit OUTSIDE that list on purpose: they
-# poll at the head of the physics tick, ahead of every room's own
-# _physics_process, so a room script sees on_trigger_enter/on_trigger_exit
-# already fired for this frame by the time it updates. See trigger_poll.gd's
-# header for why that slot rather than "right after the player" (main.tscn puts
-# WorldRoot before Player, so nothing can sit between them).
+# Left un-"fixed": _update_focus() therefore raycasts from the PREVIOUS tick's
+# camera transform, 16.7ms of lag on the interaction prompt, which is why it
+# went unnoticed. Setting process_physics_priority here would re-time every
+# existing room and orderly at once — a change to make deliberately, with a
+# playtest, not as a drive-by during a port.
 extends Node3D
 
 const ROOM_SCENES := {
@@ -196,6 +197,11 @@ const MOOD := {
 @onready var world_environment: WorldEnvironment = $WorldEnvironment
 
 var collision := WardCollision.new()
+# Verticality — floor heights and stacked levels for the CURRENT room. Always
+# valid: a room that authors none resolves to the single synthetic '__flat'
+# level and answers 0.0 everywhere, exactly as before this existed. Public so
+# room scripts can hand it to their orderlies (Orderly.setup's third arg).
+var levels := WardLevels.new()
 var hud: CanvasLayer
 var keypad: CanvasLayer
 var touch_controls: CanvasLayer
@@ -289,6 +295,9 @@ func _ready() -> void:
 
 	player.add_to_group("player")
 	player.world_collision = collision
+	# Same injection pattern as world_collision: the player owns the timing of
+	# its own verticality step, this node owns the data.
+	player.world_levels = levels
 	Telemetry.snapshot_provider = player.get_snapshot
 
 	triggers = TriggerPoll.new()
@@ -390,7 +399,9 @@ func _update_revert_guard() -> void:
 		return
 
 	var p := player.global_position
-	if collision.circle_hits_solid_unmed(p.x, p.z, Tuning.PLAYER_RADIUS):
+	# Level-filtered, so the trap guard agrees with the mover about which
+	# geometry exists on the player's current floor.
+	if collision.circle_hits_solid_unmed(p.x, p.z, Tuning.PLAYER_RADIUS, player.level):
 		if not _medication_trapped:
 			_medication_trapped = true
 			hud_toast("wearing off — keep moving.")
@@ -704,6 +715,9 @@ func load_room(id: String) -> void:
 	# load; state-conditional colliders are filtered at query time by their
 	# layer, so a state change never needs a rebuild.
 	collision.rebuild_from(current_room)
+	# Verticality is per-room data with no geometry of its own, read off an
+	# optional "Verticality" node. A room without one resets to flat.
+	levels.rebuild_from(current_room)
 
 	# Collects the new room's TriggerVolumes and clears the active set WITHOUT
 	# firing exit callbacks — the old room's script is already torn down.
@@ -717,7 +731,15 @@ func load_room(id: String) -> void:
 
 	var spawn: Node3D = current_room.get_node_or_null("Spawn")
 	if spawn != null:
-		player.spawn_at(spawn.global_position.x, spawn.global_position.z, spawn.rotation.y)
+		# A stacked room can spawn the player on a named level by putting a
+		# `level` metadata string on its Spawn marker; everything else gets
+		# the room's first (or synthetic '__flat') level. The spawn Y is
+		# looked up rather than eased into, so a raised spawn does not open
+		# the room with the floor rising into view.
+		var sx: float = spawn.global_position.x
+		var sz: float = spawn.global_position.z
+		var slevel: String = str(spawn.get_meta("level", levels.default_level()))
+		player.spawn_at(sx, sz, spawn.rotation.y, slevel, levels.floor_height_at(slevel, sx, sz))
 
 	if current_room.has_method("on_enter"):
 		current_room.on_enter(self)
@@ -737,8 +759,18 @@ func complete_room(to: String) -> void:
 	load_room(to)
 
 
-func teleport_player(x: float, z: float, level := "") -> void:
-	player.teleport(x, z, level)
+## A multi-level room MUST pass `to_level` on any catch/reset teleport — see
+## Player.teleport. Omitting it keeps the player's current level, which is
+## right for every single-level room and wrong for every stacked one.
+func teleport_player(x: float, z: float, to_level := "") -> void:
+	player.teleport(x, z, to_level)
+
+
+## Floor height for a room script — e.g. to seat a prop or a room-owned actor
+## on a raised zone. Rooms with orderlies should prefer handing `levels`
+## straight to Orderly.setup's third argument.
+func floor_height_at(level_id: String, x: float, z: float) -> float:
+	return levels.floor_height_at(level_id, x, z)
 
 
 # --- room-script API -------------------------------------------------------

@@ -159,6 +159,22 @@ def _uid_frag(name):
 
 # --- spec builder ----------------------------------------------------------
 
+
+def _surface_y(base_y, zones, ramps, x, z):
+    """Ramps beat zones beat base_y, matching core/levels.gd."""
+    for min_x, max_x, min_z, max_z, axis, y_low, y_high in (ramps or []):
+        if min_x <= x <= max_x and min_z <= z <= max_z:
+            span = (max_x - min_x) if axis == "x" else (max_z - min_z)
+            if span <= 0:
+                return y_low
+            t = ((x - min_x) / span) if axis == "x" else ((z - min_z) / span)
+            return y_low + (y_high - y_low) * max(0.0, min(1.0, t))
+    for min_x, max_x, min_z, max_z, y in (zones or []):
+        if min_x <= x <= max_x and min_z <= z <= max_z:
+            return y
+    return base_y
+
+
 class Room:
     def __init__(self, rid, name, floor, spawn, exits, script=None):
         self.rid = rid
@@ -264,6 +280,32 @@ class Room:
         self.block((0.24, y1 - y0, z1 - z0), (x, (y0 + y1) / 2.0, (z0 + z1) / 2.0), mat)
 
     # verticality ----------------------------------------------------------
+    def floor_y_under(self, x, z):
+        """Best-guess walkable floor height at (x, z), for placing bounce lights.
+
+        Mirrors WardLevels' precedence — a level's ramps beat its zones beat its
+        base_y — but deliberately does NOT consult stairwells: a bounce light
+        belongs on a floor, not on a flight of steps, and a stairwell's height
+        is a function of where you are along it rather than a surface to pool
+        light on.
+
+        Where levels genuinely stack, the HIGHEST surface under the fitting
+        wins. A ceiling fitting hangs from the ceiling of the topmost level it
+        is inside, so that is the floor its bounce should land on.
+        """
+        best = 0.0
+        if self.levels:
+            for _lid, base_y, floor, zones, ramps in self.levels:
+                if floor is not None:
+                    fx0, fx1, fz0, fz1 = floor
+                    if not (fx0 <= x <= fx1 and fz0 <= z <= fz1):
+                        continue
+                best = max(best, _surface_y(base_y, zones, ramps, x, z))
+        else:
+            best = _surface_y(0.0, self.height_zones, self.ramps, x, z)
+        return best
+
+
     def height_zone(self, min_x, max_x, min_z, max_z, y):
         """A flat raised (or sunken) rectangle. NOT a collider."""
         self.height_zones.append((min_x, max_x, min_z, max_z, y))
@@ -720,8 +762,15 @@ class Emitter:
                 # light_scale/flicker still apply (it is just another
                 # OmniLight3D under "Lights"), so it dims and buzzes with the
                 # fitting above it instead of staying eerily constant.
+                # Bounce Y is RELATIVE TO THE FLOOR UNDER THE FITTING, not a
+                # hardcoded 0.22. Rooms 11 and 17 both hit this: a fitting above
+                # a raised zone or a gallery deck dropped its bounce onto the
+                # storey BELOW, so the raised floor got no bounce at all and the
+                # floor beneath collected unauthored warm pools it was never lit
+                # with. Flat rooms are unaffected — floor_y_under returns 0.0,
+                # which reproduces the old constant exactly.
                 body.append('[node name="L%d_bounce" type="OmniLight3D" parent="Lights"]' % i)
-                body.append("transform = %s" % _xform((x, 0.22, z)))
+                body.append("transform = %s" % _xform((x, r.floor_y_under(x, z) + 0.22, z)))
                 body.append("light_color = Color(1.0, 0.79, 0.6, 1)")
                 body.append("light_energy = 0.3")
                 body.append("omni_range = 2.6")

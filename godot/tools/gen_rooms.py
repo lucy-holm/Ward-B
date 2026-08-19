@@ -83,15 +83,29 @@ FIXTURES = {
     "dispenser":   {"path": "res://fixtures/dispenser.tscn",   "size": (0.55, 0.75, 0.16)},
     "keypad":      {"path": "res://fixtures/keypad.tscn",      "size": (0.40, 0.50, 0.14)},
     "door":        {"path": "res://fixtures/door.tscn",        "size": (2.00, 3.00, 0.20)},
-    # The breaker switch (room 18's relay levers; room 16's light switch will
-    # want the same fixture). Canonical width/height/depth, faceplate toward
-    # -Z, matching kit.ts's SWITCH_FOOTPRINT [thin 0.16, h 0.6, along 0.5].
-    "switch":      {"path": "res://fixtures/switch.tscn",      "size": (0.50, 0.60, 0.16)},
     "pill_cup":    {"path": "res://fixtures/pill_cup.tscn",    "size": (0.18, 0.22, 0.18)},
     "pill_pickup": {"path": "res://fixtures/pill_pickup.tscn", "size": (0.18, 0.18, 0.18)},
-    # Room 16's lighting breaker. Base size matches kit.ts's SWITCH_FOOTPRINT
-    # ([thin 0.16, height 0.60, along 0.50]) in canonical orientation, so a
-    # switch authored through Room.light_switch() instances at scale 1.
+    # The lever fixture, used by BOTH room 18's relay levers and room 16's
+    # lighting breaker. Base size matches kit.ts's SWITCH_FOOTPRINT ([thin
+    # 0.16, height 0.60, along 0.50]) in canonical orientation, so a switch
+    # authored through Room.light_switch() instances at scale 1.
+    #
+    # NAMING TRAP, and the reason this comment is long: the key is "switch"
+    # but the scene is breaker.tscn. There used to be a SECOND "switch" entry
+    # above this one pointing at fixtures/switch.tscn; being an earlier
+    # duplicate key in the same dict literal, Python silently discarded it and
+    # this entry always won. Both scenes expose the same Model/Lever node that
+    # room16.gd and room18.gd rotate, so nothing ever looked wrong and the
+    # shadowed entry survived unnoticed.
+    #
+    # The dead entry is now removed rather than the live one, deliberately:
+    # every shipped scene already instances breaker.tscn, so pointing "switch"
+    # at switch.tscn would silently restyle room 16's breaker and room 18's
+    # two relay levers. That is a design decision, not a cleanup.
+    #
+    # CONSEQUENCE: fixtures/switch.tscn is currently UNREACHABLE from the DSL
+    # and renders nowhere. Leave it, delete it, or make it reachable under its
+    # own key — but know that it is dead today.
     "switch":      {"path": "res://fixtures/breaker.tscn",     "size": (0.50, 0.60, 0.16)},
 }
 # Drop any fixture whose scene has not been authored yet.
@@ -649,6 +663,349 @@ class Room:
         self.block((max_x - min_x, y * 2.0, max_z - min_z),
                    ((min_x + max_x) / 2.0, y, (min_z + max_z) / 2.0),
                    "plate", state, collider=None, name="%s_plate" % tid)
+
+    # --- semantic props / lighting presets ---------------------------------
+    # wall_x/wall_z/block/solid are the primitives every room, including this
+    # section, is still built from — nothing below is a new emission path,
+    # every preset here bottoms out in block()/solid()/light(). What they add
+    # is a name for a convention that was previously ONLY visible as a
+    # repeated arithmetic pattern across call sites: "a prop's collider is its
+    # mesh's own XZ footprint", "an island's ring skirt sits flush to its
+    # solid footprint", "a railing stands 0.45m above the surface it guards".
+    # None of that was written down anywhere before this — a room author had
+    # to reverse-engineer it from an existing call site and hope they copied
+    # the arithmetic right. These presets are that reverse-engineering, done
+    # once, with the invariant asserted (or simply unbreakable, where the
+    # signature has no room to violate it) instead of repeated by hand.
+    #
+    # GROUNDING: every preset below is checked against every real instance in
+    # the shipped ward (Part 1 of the tools/gen_rooms.py semantic-layer pass;
+    # see the room functions for the `.prop()`/`.island()`/etc. call sites
+    # that replaced the raw block()/solid() calls this was reverse-engineered
+    # from). None of these invent a look nothing in the game uses — the
+    # acceptance test for the whole pass was a byte-identical regenerate of
+    # all 21 rooms, tools/check_roundtrip.sh, run after every conversion.
+    #
+    # Deliberately NOT covered here: FIXTURES-backed interactables (dispenser,
+    # keypad, door, switch...) already have a semantic layer — interactable()
+    # plus its FIXTURES table — and the shape-key/shape-lock/light-switch/
+    # icon-panel helpers just above. This section is for the geometry that had
+    # NO semantic layer at all: furniture, islands, shelving, railings, decks,
+    # stair dressing, the one chain barrier, TV panels, and a plural light
+    # helper.
+
+    def prop(self, size, xz, name=None, mat="prop", state=None, level=None, y=None):
+        """A free-standing prop box: mesh AND its own collider share one
+        footprint. This is the convention EVERY hand-authored prop in the
+        shipped ward already follows — eleven instances across eight rooms go
+        through this method (room1's nightstand, room3's two tables, room4's
+        two tables, room8's filing block, room9's desk and coatrack, room12's
+        cabinet, room14's crate, room18's console), none of them different in
+        any way that matters: `mat` is "prop" unless the room says otherwise,
+        the mesh sits on the floor (`pos.y == size.y / 2`), and the
+        collider's XZ rectangle is EXACTLY the mesh's XZ footprint, centred
+        on `xz`.
+
+        A TWELFTH — room5's seating block — fits this same invariant on paper
+        and is NOT converted: its shipped collider (4.95, 5.65, -1.2, 1.2) is
+        a hand-typed literal whose midpoint lands one float64 ULP off the
+        5.3 this method derives from x +- size/2, which is invisible at the
+        collider's own 4-decimal formatting but flips the sign of the mesh's
+        (now not-quite-zero) relative offset — a real byte difference in the
+        committed .tscn. See that call site (room5) for the full account; it
+        is left as a raw block() rather than "fixed" by nudging emitted
+        geometry to fit, which this preset must never do.
+
+        `xz` is a plain (x, z) pair, not a 3-tuple — the y is DERIVED, never
+        authored, which is the entire point of wrapping block(): a room
+        author no longer computes pos.y or hand-expands the collider
+        rectangle and risks it drifting a decimal off the mesh.
+
+        `y`, if given, OVERRIDES the derived `size.y / 2`. None of the eleven
+        instances above use it — it exists solely so bed() can reuse this
+        method's collider math: room1's bed is shipped at pos.y 0.28, not the
+        exact half-height 0.275, and that 0.005 rounding is real committed
+        geometry this file must reproduce, not a typo this preset gets to
+        silently correct.
+
+        No light-gating parameter: a light-filtered prop with a footprint
+        collider is not a combination anything in the ward uses, and block()
+        already refuses a light-gated collider outright (see its docstring) —
+        there is nothing extra to guard here.
+
+        Friendly aliases (desk/table/nightstand/console) were considered and
+        rejected: every shipped call already carries its own descriptive
+        `name=`, so a `desk()` wrapper would just be `prop()` with one
+        argument pre-filled and no invariant it enforces that this doesn't —
+        noise, not clarity.
+        """
+        sx, sy, sz = size
+        x, z = xz
+        pos = (x, (sy / 2.0) if y is None else y, z)
+        collider = (x - sx / 2.0, x + sx / 2.0, z - sz / 2.0, z + sz / 2.0)
+        self.block(size, pos, mat, state, collider=collider, name=name, level=level)
+
+    def bed(self, xz, facing="ew", name=None):
+        """room1's bed — `mat="bed"`, used nowhere else in the ward, and the
+        ward's only instance of bedroom furniture. Reproduces the shipped
+        footprint (2m along the headboard, 0.55m tall, 1m deep) via the same
+        "collider is the mesh's XZ footprint" convention prop() encodes — a
+        bed is just a prop with its own material name, so this is (almost) a
+        one-line call to it.
+
+        ALMOST: the shipped pos.y is 0.28, not the exact half-height 0.275 —
+        someone hand-typed a 2-decimal round number instead of computing
+        size.y/2, and the committed .tscn has that 0.005 baked into it. Since
+        this pass's whole acceptance test is a byte-identical regenerate,
+        that rounding is reproduced verbatim via prop()'s `y` override rather
+        than "corrected" to the mathematically cleaner value — see prop()'s
+        own docstring for why the override exists at all.
+
+        `facing` picks which world axis the 2m headboard run sits on: "ew"
+        (east-west — width along X, the shipped room1 orientation) or "ns"
+        (north-south — width along Z), for a future room whose bed sits
+        against a Z wall. The authored size stays the canonical (2, 0.55, 1)
+        either way; this swaps X/Z like an interactable's canonical-size
+        swap (`_canonical_size`), not a second hand-typed size tuple.
+        """
+        w, h, d = 2.0, 0.55, 1.0
+        if facing == "ew":
+            size = (w, h, d)
+        elif facing == "ns":
+            size = (d, h, w)
+        else:
+            raise ValueError("bed facing must be 'ew' or 'ns', got %r" % facing)
+        self.prop(size, xz, name=name, mat="bed", y=0.28)
+
+    def island(self, min_x, max_x, min_z, max_z, core_width, name=None):
+        """The nurse-station / filing-island composite — room5's Nurse
+        Station and room8's East Ward island, the ward's only two instances,
+        and IDENTICAL down to every Y offset and every thickness; only the
+        footprint and the raised core's along-width differ (1.8m in room5,
+        1.6m in room8). Six nodes, one call:
+
+            solid()  the ONE real footprint — the only thing an orderly's
+                     loop routes around, and the only collider in the group
+            block()  raised 'wall2' core counter, full height 2.0, y=1.0
+            block() x4  'prop' ring skirt, height 1.1, y=0.55, thickness 0.5,
+                     flush to the solid footprint's four edges
+
+        The ring is MESH ONLY (like the core) — nothing pathfinds around its
+        pieces individually, which is why one solid() beneath the lot is the
+        only thing that needs to agree with the orderly's clearance math.
+
+        `core_width` is the one number NOT derivable from the footprint (the
+        core's height 2.0, depth 0.9 and y 1.0, and the ring's thickness 0.5,
+        height 1.1 and y 0.55, are shipped-identical constants baked in
+        below); everything else — including BOTH ring dimensions — comes out
+        of (min_x, max_x, min_z, max_z) alone, because the ring is authored
+        flush to the footprint on all four sides: the south/north pieces run
+        the footprint's FULL width, the west/east pieces run HALF its depth
+        (centred, not reaching the corners — confirmed against both shipped
+        instances, not assumed for symmetry).
+        """
+        self.solid(min_x, max_x, min_z, max_z, name=name)
+        cx, cz = (min_x + max_x) / 2.0, (min_z + max_z) / 2.0
+        half_w, half_d = (max_x - min_x) / 2.0, (max_z - min_z) / 2.0
+        self.block((core_width, 2.0, 0.9), (cx, 1.0, cz), "wall2")
+        self.block((max_x - min_x, 1.1, 0.5), (cx, 0.55, cz + half_d - 0.25), "prop")
+        self.block((max_x - min_x, 1.1, 0.5), (cx, 0.55, cz - half_d + 0.25), "prop")
+        self.block((0.5, 1.1, half_d), (cx - half_w + 0.25, 0.55, cz), "prop")
+        self.block((0.5, 1.1, half_d), (cx + half_w - 0.25, 0.55, cz), "prop")
+
+    def shelf_row(self, x_centre, z_centre, length, height, thickness=0.8,
+                 mat="wall2", name=None):
+        """A shelving/storage run along X — room4's tall occluder unit and
+        room7's three-row serpentine maze, four instances total. Depth
+        (thickness along Z) is a CONSTANT 0.8 in every shipped shelf — only
+        `length` (the X run) and `height` vary — and, exactly like prop(),
+        the collider is the mesh's XZ footprint and pos.y = height / 2. This
+        IS prop() under a different name and a different default material;
+        kept as its own method because "shelving" and "furniture" read as
+        different intents on the page even though the math is identical.
+        """
+        self.prop((length, height, thickness), (x_centre, z_centre), name=name, mat=mat)
+
+    def railing(self, axis, along_lo, along_hi, cross, platform_y, thickness=0.24,
+               collider=True, level=None, name=None):
+        """A 0.9m-tall guard rail standing on a raised surface, at
+        y = platform_y + 0.45 — the ONE fixed offset every railing in the
+        ward uses (rooms 11, 17, 19_lights; eleven boxes total). `axis` is
+        which world axis the run travels along ('x' or 'z'); `along_lo`/
+        `along_hi` bound it on that axis; `cross` is its fixed position on
+        the OTHER axis. Always `mat="chain"`.
+
+        `collider` defaults to True, which derives a collider matching the
+        mesh's own XZ footprint exactly — the convention room17's rail_x()
+        closure and room19_lights's two rails both follow (in fact `railing`
+        replaces room17's exact local helper).  Pass an explicit 4-tuple to
+        widen the collider PAST the mesh: room11's RailWest is the one
+        exception, one physics run covering the platform AND the ramp treads
+        below it, even though the ramp's own rail segments (below) are drawn
+        as short, unconnected boxes with no collider of their own. Pass
+        collider=None/False for a mesh-only segment, which is exactly what
+        those ramp segments need — a collider on every short run would be
+        pure redundancy with RailWest's one wide collider underneath them.
+
+        `level`, when given, tags the collider the way every railing over a
+        stacked level must be (see WardCollision._level_tag_of): an untagged
+        rail blocks on every level, which is catastrophic for a railing that
+        floats over a lower storey (room17's header works this out in full).
+        """
+        if axis == "x":
+            size = (along_hi - along_lo, 0.9, thickness)
+            pos = ((along_lo + along_hi) / 2.0, platform_y + 0.45, cross)
+            mesh_collider = (along_lo, along_hi,
+                             cross - thickness / 2.0, cross + thickness / 2.0)
+        elif axis == "z":
+            size = (thickness, 0.9, along_hi - along_lo)
+            pos = (cross, platform_y + 0.45, (along_lo + along_hi) / 2.0)
+            mesh_collider = (cross - thickness / 2.0, cross + thickness / 2.0,
+                             along_lo, along_hi)
+        else:
+            raise ValueError("railing axis must be 'x' or 'z', got %r" % axis)
+        if collider is True:
+            collider = mesh_collider
+        elif collider is False:
+            collider = None
+        self.block(size, pos, "chain", collider=collider, name=name, level=level)
+
+    def platform(self, min_x, max_x, min_z, max_z, platform_y, thickness=None,
+                name=None):
+        """A raised floor's own opaque slab, top face landing EXACTLY on
+        `platform_y` — seven instances across three rooms (room11's
+        MezzSlab, room17's four-piece gallery deck, room19_lights's
+        PlatformSlab and LipSlab).
+
+        DELIBERATELY NO COLLIDER, in every one of the seven — a collider here
+        would wall the platform off instead of holding it up (a raised region
+        is never a collider; what keeps a player up there is a railing,
+        authored separately). Every call site this replaced carried that same
+        comment by hand; it is restated here, in the ONE place, as the
+        absence of a `collider` parameter at all — this preset structurally
+        cannot emit one, which is a stronger guarantee than a comment.
+
+        `thickness` defaults to `platform_y` itself: the slab then runs the
+        full floor-to-platform column (room11's MezzSlab, room19_lights's two
+        slabs — the platform sits directly over bare ground with nothing
+        below it to leave room for). room17's gallery deck passes an explicit
+        thin `thickness` (0.3m) instead, because its underside IS the
+        pocket's ceiling 3.4m below — a full-height slab there would eat the
+        pocket's own headroom. Either way the TOP face is exactly
+        `platform_y`; only how far down the slab reaches changes.
+        """
+        thickness = platform_y if thickness is None else thickness
+        size = (max_x - min_x, thickness, max_z - min_z)
+        pos = ((min_x + max_x) / 2.0, platform_y - thickness / 2.0,
+              (min_z + max_z) / 2.0)
+        self.block(size, pos, "wall2", name=name)
+
+    def stair_steps(self, n, platform_y, width, run, cross, start, axis="z",
+                    name_fmt="Step%d", mat="wall2"):
+        """PURELY COSMETIC stepped visual stand-ins for a ramp — eighteen
+        boxes across three authorings (room11's four-piece RampStep, room17's
+        six-piece east stair and five-piece west shaft, room19_lights's
+        three-piece RampStep).
+
+        A BoxMesh cannot tilt, so these are dumb stacked boxes that just READ
+        as stairs. THE WALKABLE SLOPE IS A SEPARATE ramp() (or, for a
+        two-level room, a stairwell()) CALL THAT THIS PRESET NEVER EMITS ON
+        YOUR BEHALF — deliberately. Folding a ramp() call in here would be
+        convenient right up until its numbers and this preset's silently
+        diverged: nothing would catch a mismatch, because ramps/zones and
+        their cosmetic dressing are two entirely separate systems (see room
+        11's header — a raised region carries ZERO collision impact of its
+        own; the walkable height comes from the ramp/zone data, never from
+        what is drawn here). Author them side by side, as every existing room
+        does, so both are visible in one diff if they ever need to move
+        together.
+
+        NO COLLIDERS, ever — a collider on a tread is a wall across the run.
+
+        Step `i` (0-indexed) rises to `platform_y * (i+1) / n` and is centred
+        `i * run` back from `start` along `axis`; `width` is the across-run
+        size, `run` the per-step depth along the axis, `cross` the fixed
+        position on the other axis. Every shipped instance uses axis='z' —
+        'x' is supported for symmetry with railing()/stair geometry that
+        climbs the other way, but has no shipped call site to verify against.
+        """
+        for i in range(n):
+            top = platform_y * (i + 1) / n
+            along = start - i * run
+            if axis == "z":
+                size = (width, top, run)
+                pos = (cross, top / 2.0, along)
+            elif axis == "x":
+                size = (run, top, width)
+                pos = (along, top / 2.0, cross)
+            else:
+                raise ValueError("stair_steps axis must be 'x' or 'z', got %r" % axis)
+            self.block(size, pos, mat, name=name_fmt % i)
+
+    def chain_barrier(self, xs, z, padlock_xz=None, height=2.7, thickness=0.06,
+                      padlock_size=(0.22, 0.28, 0.14), padlock_y=1.05,
+                      state="lucid"):
+        """Hanging chain strands + a padlock: room3's exit chains, the ward's
+        only chain_barrier — five 'chain' boxes, states='lucid', and NEVER a
+        collider. This is the mechanic, not an oversight: "the chains are a
+        hallucination, they never block anything" (room3's own comment) — the
+        exit is truly locked by the DoorCollider room3.gd disables on the
+        unmed-only beat, never by these.
+
+        `xs` is a list of strand X positions (room3 authors four, evenly
+        spaced, but nothing here assumes exactly four); each strand is a
+        thin vertical box centred on WALL_Y (the standard wall midline, 1.5),
+        NOT on its own half-height — a hanging chain's centre is where it is
+        anchored, not where its mass sits, which is why this does not go
+        through prop(). `padlock_xz`, if given, adds the stubby box that
+        reads as the lock; room3 centres it under the strands.
+        """
+        for x in xs:
+            self.block((thickness, height, thickness), (x, WALL_Y, z), "chain", state)
+        if padlock_xz is not None:
+            px, pz = padlock_xz
+            self.block(padlock_size, (px, padlock_y, pz), "chain", state)
+
+    def tv_panel(self, x, y, z, width, height, thickness=0.1, name=None):
+        """A wall-mounted TV, endless static — 'glow' dressing only, no
+        interactable and no collider. Three instances (room4's day-room set,
+        room5's two waiting-room sets): width and height vary (1.3x0.9 vs
+        1.1x0.8) but the material ('glow') and the thin flush-to-wall
+        dimension (0.1) do not. `y` is an independently authored mount
+        height in every instance — there is no formula for it, so unlike
+        prop() this preset does not derive it.
+
+        Every shipped TV is mounted on a wall_x wall (thin along Z); there is
+        no wall_z-mounted instance to verify a swapped-axis version against,
+        so this preset does not offer one — say so here rather than guess.
+        """
+        self.block((width, height, thickness), (x, y, z), "glow", name=name)
+
+    def ward_lights(self, points, circuit=None):
+        """Plural convenience over light() — see light()'s own docstring for
+        the fitting/bounce pair it emits per call. THERE IS EXACTLY ONE
+        LIGHTING PRESET IN THIS GAME: every one of the 366 fittings across
+        all 21 rooms carries the identical fitting (Color(0.949,1.0,0.98,1),
+        energy 0.95, range/attenuation from the room's light_range/
+        light_attenuation, y 2.7 by default) plus bounce (Color(1.0,0.79,0.6,
+        1), energy 0.3, range 2.6, attenuation 1.1, at floor_y_under(x,z) +
+        0.22) pair, decided once — see the light-constants drift history at
+        the top of this file — and never varied per-fixture. This helper
+        exists ONLY so a room can author a list of points once instead of N
+        separate light() calls; it must never grow a second lighting look.
+
+        `points` is an iterable of (x, z) or (x, z, y) tuples — the 3-tuple
+        form for a room with more than one floor height (room17,
+        room19_lights), where a single default y would be wrong for some of
+        the fittings.
+        """
+        for pt in points:
+            if len(pt) == 3:
+                x, z, y = pt
+                self.light(x, z, y, circuit=circuit)
+            else:
+                x, z = pt
+                self.light(x, z, circuit=circuit)
 
 
 # --- emitter ---------------------------------------------------------------
@@ -1552,8 +1909,8 @@ def room1():
     r.block((1.8, 2.6, 0.06), (0, 1.4, -1.84), "glow")  # warm glow beyond
 
     # props
-    r.block((2, 0.55, 1), (1.7, 0.28, 4.6), "bed", collider=(0.7, 2.7, 4.1, 5.1))
-    r.block((1, 0.8, 0.7), (-2.2, 0.4, 4.7), "prop", collider=(-2.7, -1.7, 4.35, 5.05))
+    r.bed((1.7, 4.6))
+    r.prop((1, 0.8, 0.7), (-2.2, 4.7))
 
     r.scrawl("don't\nswallow", (-2.85, 1.8, 4.7), math.pi / 2, 2.2)
     r.scrawl("there was a door\nhere once", (0, 1.9, 0.2), 0, 3.0)
@@ -1672,15 +2029,11 @@ def room3():
     # chains + padlock — MESH ONLY, and only in the LUCID group, so it simply
     # isn't there once the player shifts. Deliberately no collider: the chains
     # are a hallucination, they never block anything.
-    r.block((0.06, 2.7, 0.06), (-0.7, 1.5, -4.95), "chain", "lucid")
-    r.block((0.06, 2.7, 0.06), (-0.25, 1.5, -4.95), "chain", "lucid")
-    r.block((0.06, 2.7, 0.06), (0.25, 1.5, -4.95), "chain", "lucid")
-    r.block((0.06, 2.7, 0.06), (0.7, 1.5, -4.95), "chain", "lucid")
-    r.block((0.22, 0.28, 0.14), (0, 1.05, -4.9), "chain", "lucid")
+    r.chain_barrier([-0.7, -0.25, 0.25, 0.7], -4.95, padlock_xz=(0, -4.9))
 
     # props
-    r.block((1.4, 0.5, 1.4), (-2.5, 0.25, -1), "prop", collider=(-3.2, -1.8, -1.7, -0.3))
-    r.block((0.6, 0.9, 0.6), (-0.5, 0.45, 1.5), "prop", collider=(-0.8, -0.2, 1.2, 1.8))
+    r.prop((1.4, 0.5, 1.4), (-2.5, -1))
+    r.prop((0.6, 0.9, 0.6), (-0.5, 1.5))
 
     r.scrawl("you weren't supposed\nto make it this far", (-4.85, 1.7, 2), math.pi / 2, 3)
     r.scrawl("it only holds\nif you believe it", (4.85, 1.7, -3), -math.pi / 2, 3.4)
@@ -1732,10 +2085,10 @@ def room4():
             collider=(-1, 1, -5.13, -4.87))
 
     # TV mounted high on the north wall, east of the gap — glow of endless static
-    r.block((1.3, 0.9, 0.1), (4, 2.25, -4.8), "glow")
+    r.tv_panel(4, 2.25, -4.8, 1.3, 0.9)
 
     # tables
-    r.block((1.5, 0.5, 0.9), (2, 0.25, 0.3), "prop", collider=(1.25, 2.75, -0.15, 0.75))
+    r.prop((1.5, 0.5, 0.9), (2, 0.3))
     # MOVED EAST, x 3.2 -> 4.9 (collider 2.45..3.95 -> 4.15..5.65).
     #
     # At its authored position this table sat directly on top of patrol
@@ -1758,11 +2111,11 @@ def room4():
     # intent. At 0.5m tall this one is also far below the 1.5m occlusion ray,
     # so moving it cannot change any sight line. It now sits against the east
     # wall (inner face x = 5.88), clearing the x = 3.5 leg by 0.65m.
-    r.block((1.5, 0.5, 0.9), (4.9, 0.25, 2.6), "prop", collider=(4.15, 5.65, 2.15, 3.05))
+    r.prop((1.5, 0.5, 0.9), (4.9, 2.6))
 
     # tall shelving unit — the occluder. Sits between the patrol loop and the
     # west wall's safe lane, so hiding in its shadow actually works.
-    r.block((1.6, 2.9, 0.8), (-2.2, 1.45, -1), "wall2", collider=(-3.0, -1.4, -1.4, -0.6))
+    r.shelf_row(-2.2, -1, length=1.6, height=2.9)
 
     r.scrawl("he counts\nyour blinks", (-5.85, 1.7, 1.5), math.pi / 2, 2.8)
     r.scrawl("the door is only there\nwhen you are honest", (-5.85, 1.7, -3), math.pi / 2, 3.4)
@@ -1822,15 +2175,21 @@ def room5():
     # collider) ringed by a lower counter skirt. One solid footprint —
     # nothing pathfinds around its interior, the orderly's loop just runs
     # outside it.
-    r.solid(-2.2, 2.2, -1.3, 1.3)
-    r.block((1.8, 2.0, 0.9), (0, 1.0, 0), "wall2")        # raised core counter
-    r.block((4.4, 1.1, 0.5), (0, 0.55, 1.05), "prop")     # ring, south face
-    r.block((4.4, 1.1, 0.5), (0, 0.55, -1.05), "prop")    # ring, north face
-    r.block((0.5, 1.1, 1.3), (-1.95, 0.55, 0), "prop")    # ring, west face
-    r.block((0.5, 1.1, 1.3), (1.95, 0.55, 0), "prop")     # ring, east face
+    r.island(-2.2, 2.2, -1.3, 1.3, core_width=1.8)
 
     # seating, east corridor (between the patrol lane and the east wall) — a
     # couch-ish block the second code half sits behind.
+    #
+    # NOT converted to prop(), despite fitting the invariant on paper: the
+    # shipped collider (4.95, 5.65, -1.2, 1.2) is a hand-typed literal, and
+    # (4.95 + 5.65) / 2.0 lands one ULP off exactly 5.3 in float64 — where
+    # prop()'s own x +- size/2 derivation lands EXACTLY on 5.3. The two
+    # differ only in the last bit, invisible at the collider's own 4dp
+    # formatting, but it flips the sign of the (now not-quite-zero) MESH's
+    # relative-offset x, which %.4f then renders as -0.0000 vs 0.0000 — a
+    # real byte diff in the committed .tscn. A genuine variant, not a bug in
+    # the preset: left as a raw block() rather than "fixed" by nudging
+    # emitted geometry to match, which the brief for this pass forbids.
     r.block((0.7, 0.5, 2.4), (5.3, 0.25, 0), "prop", collider=(4.95, 5.65, -1.2, 1.2))
 
     # medication-window alcove, west corridor — shutter + glow strip, flush
@@ -1839,8 +2198,8 @@ def room5():
     r.block((0.08, 0.12, 1.6), (-6.92, 2.25, -0.9), "glow")
 
     # wall TVs — endless static, dressing only
-    r.block((1.3, 0.9, 0.1), (-4, 2.25, 4.85), "glow")
-    r.block((1.1, 0.8, 0.1), (5.5, 2.2, -5.85), "glow")
+    r.tv_panel(-4, 2.25, 4.85, 1.3, 0.9)
+    r.tv_panel(5.5, 2.2, -5.85, 1.1, 0.8)
 
     r.scrawl("1 9 – –", (-6.85, 1.6, 0.6), math.pi / 2, 2.2, sid="codeScrawlA")
     r.scrawl("– – 0 7", (6.85, 1.6, 0), -math.pi / 2, 2.2, sid="codeScrawlB")
@@ -1980,9 +2339,9 @@ def room7():
     # three shelving rows, gaps alternating east/west/east — a proper
     # serpentine between spawn and the door. Each is both a collider and a
     # sight occluder.
-    r.block((4.5, 2.6, 0.8), (-3.75, 1.3, 2.2), "wall2", collider=(-6, -1.5, 1.8, 2.6))
-    r.block((4.5, 2.6, 0.8), (3.75, 1.3, 0), "wall2", collider=(1.5, 6, -0.4, 0.4))
-    r.block((4.5, 2.6, 0.8), (-3.75, 1.3, -2.2), "wall2", collider=(-6, -1.5, -2.6, -1.8))
+    r.shelf_row(-3.75, 2.2, length=4.5, height=2.6)
+    r.shelf_row(3.75, 0, length=4.5, height=2.6)
+    r.shelf_row(-3.75, -2.2, length=4.5, height=2.6)
 
     # the hidden dispenser nook — carved into the west wall, tucked directly
     # behind row A: its mass sits between the nook and spawn, so nothing about
@@ -2057,12 +2416,11 @@ def room9():
     r.solid(-1, 1, -6.13, -5.87, name="DoorCollider")
 
     # the doctor's desk, dead center — flavor and a collider, nothing more
-    r.block((2.0, 0.9, 1.0), (1.0, 0.45, -2.5), "prop", collider=(0.0, 2.0, -3.0, -2.0))
+    r.prop((2.0, 0.9, 1.0), (1.0, -2.5))
 
     # the coatrack against the west wall — the coat itself is a separate
     # interactable ('bottle'), hung at chest height beside it
-    r.block((0.16, 1.9, 0.16), (-4.4, 0.95, -3.6), "prop",
-            collider=(-4.48, -4.32, -3.68, -3.52))
+    r.prop((0.16, 1.9, 0.16), (-4.4, -3.6))
 
     r.scrawl("they dose you small\nso you stay small", (4.85, 1.7, -1), -math.pi / 2, 2.6)
     r.scrawl("his coat still smells\nlike the ward", (-4.85, 1.7, -3.6), math.pi / 2, 2.4)
@@ -2123,14 +2481,9 @@ def room8():
     # The central island — A's inner orbit runs around it; B's figure-eight
     # waist grazes its north and south faces, which is exactly where the split
     # code lives. One solid footprint, ringed by a lower counter skirt; the
-    # ring/core blocks are MESH ONLY, the single r.solid below is the collider,
+    # ring/core blocks are MESH ONLY, the single solid() is the collider,
     # same division as room5's island.
-    r.solid(-1.9, 1.9, -1.3, 1.3)
-    r.block((1.6, 2.0, 0.9), (0, 1.0, 0), "wall2")        # raised core
-    r.block((3.8, 1.1, 0.5), (0, 0.55, 1.05), "prop")     # ring, south face
-    r.block((3.8, 1.1, 0.5), (0, 0.55, -1.05), "prop")    # ring, north face
-    r.block((0.5, 1.1, 1.3), (-1.65, 0.55, 0), "prop")    # ring, west face
-    r.block((0.5, 1.1, 1.3), (1.65, 0.55, 0), "prop")     # ring, east face
+    r.island(-1.9, 1.9, -1.3, 1.3, core_width=1.6)
 
     # Dispenser alcove — off the east wall, out along orderly B's eastern leg.
     # Inside patrolled ground, but lucid is always safe, so finding it is the
@@ -2149,8 +2502,7 @@ def room8():
     # A filing block against the west wall — the one stretch of orderly B's
     # loop that runs close along a bare wall gets a shadow to duck into. Its
     # collider is also what forces B's west legs to x=-7.3 (see room8.gd).
-    r.block((0.6, 1.6, 1.2), (-8.19, 0.8, -3), "prop",
-            collider=(-8.49, -7.89, -3.6, -2.4))
+    r.prop((0.6, 1.6, 1.2), (-8.19, -3))
 
     r.scrawl("two sets of footsteps.\nonly one of them is yours",
              (8.75, 1.7, 4), -math.pi / 2, 2.8)
@@ -2395,7 +2747,7 @@ def room12():
     # against the west wall outside A's west leg — multiple shadows across the
     # one patrolled space, not just the nook itself.
     r.block((1, 1.8, 2), (1.5, 0.9, 6), "wall2", collider=(1, 2, 5, 7))
-    r.block((1, 1.6, 2), (-8.8, 0.8, 13), "prop", collider=(-9.3, -8.3, 12, 14))
+    r.prop((1, 1.6, 2), (-8.8, 13))
 
     # GATE C — the Z3/Z4 boundary at z=-8, the far end of the no-refill
     # stretch. Same unmed-only seal as GATE B.
@@ -2544,8 +2896,8 @@ def room13():
     r.scrawl("it lets you out.\nit just wanted to see you choose.",
              (-3.85, 1.6, -27), math.pi / 2, 2.4)
 
-    for z in (20, 16, 10, 4, -2, -8, -14, -20, -24, -26, -29):
-        r.light(0, z)
+    r.ward_lights([(0, z) for z in
+                  (20, 16, 10, 4, -2, -8, -14, -20, -24, -26, -29)])
     return r
 
 
@@ -2636,16 +2988,13 @@ def room11():
     # The platform's own floor: an opaque slab, top face exactly at MEZZ_Y.
     # NO COLLIDER — a collider here would wall the platform off instead of
     # holding it up.
-    r.block((8, MEZZ_Y, 8), (5, MEZZ_Y / 2.0, 4), "wall2", name="MezzSlab")
+    r.platform(1, 9, 0, 8, MEZZ_Y, name="MezzSlab")
 
     # Visual ramp: 4 steps of 0.5m across the 2m run, full width, rising from
     # the ground mouth (z=10) to the platform edge (z=8). Also no colliders.
     RAMP_STEPS = 4
-    for i in range(RAMP_STEPS):
-        step_top = MEZZ_Y * (i + 1) / RAMP_STEPS
-        z_center = 10 - 0.25 - i * 0.5
-        r.block((8, step_top, 0.5), (5, step_top / 2.0, z_center), "wall2",
-                name="RampStep%d" % i)
+    r.stair_steps(RAMP_STEPS, MEZZ_Y, width=8, run=0.5, cross=5, start=9.75,
+                 name_fmt="RampStep%d")
 
     # RAILINGS — the only thing keeping anyone on the platform. West is the
     # full combined edge of platform AND ramp (a sideways step off either drops
@@ -2660,15 +3009,14 @@ def room11():
     # the step tops instead. Purely cosmetic: the collider is unchanged and
     # full-height either way, so nothing about blocking, occlusion or patrol
     # clearance moves.
-    r.block((0.24, 0.9, 8), (1, MEZZ_Y + 0.45, 4), "chain",
-            collider=(0.88, 1.12, 0, 10), name="RailWest")
+    r.railing("z", 0, 8, cross=1, platform_y=MEZZ_Y,
+             collider=(0.88, 1.12, 0, 10), name="RailWest")
     for i in range(RAMP_STEPS):
         step_top = MEZZ_Y * (i + 1) / RAMP_STEPS
         z_center = 10 - 0.25 - i * 0.5
-        r.block((0.24, 0.9, 0.5), (1, step_top + 0.45, z_center), "chain",
-                name="RailWestRamp%d" % i)
-    r.block((8, 0.9, 0.24), (5, MEZZ_Y + 0.45, 0), "chain",
-            collider=(1, 9, -0.12, 0.12), name="RailNorth")
+        r.railing("z", z_center - 0.25, z_center + 0.25, cross=1,
+                 platform_y=step_top, collider=False, name="RailWestRamp%d" % i)
+    r.railing("x", 1, 9, cross=0, platform_y=MEZZ_Y, name="RailNorth")
 
     # Lit threshold at the ramp's ground-level mouth — the same "a glow marks
     # a way through" convention every nook mouth in the ward uses.
@@ -2738,9 +3086,8 @@ def room11():
     # --- lights ------------------------------------------------------------
     # Two of these (z=12 and z=-10) sit on a gate's plane by design — see
     # room11.gd's header for the shadow audit.
-    for x, z in [(0, 20), (0, 16), (0, 12), (-7, 8), (-7, 1), (-7, -6),
-                 (5, 6), (5, 2), (0, -10), (0, -14), (0, -17)]:
-        r.light(x, z)
+    r.ward_lights([(0, 20), (0, 16), (0, 12), (-7, 8), (-7, 1), (-7, -6),
+                  (5, 6), (5, 2), (0, -10), (0, -14), (0, -17)])
     return r
 
 
@@ -2804,7 +3151,7 @@ def room14():
     r.plate("plate14", -1.3, 1.3, -12.5, -11.3)
 
     # waiting crate near the gate — occluder + cover for route B
-    r.block((0.9, 1.0, 0.6), (3, 0.5, -13), "prop", collider=(2.55, 3.45, -13.3, -12.7))
+    r.prop((0.9, 1.0, 0.6), (3, -13))
 
     # vestibule glow — the way out reads from across the room once it opens
     r.block((1.8, 2.6, 0.06), (0, 1.4, -16.8), "glow")
@@ -2955,8 +3302,9 @@ def room17():
     BALCONY_Y = 3.4
     CEIL = 6.0
     SLAB_TH = 0.3
-    SLAB_YC = BALCONY_Y - SLAB_TH / 2.0   # deck top face lands exactly on 3.4
-    RAIL_Y = BALCONY_Y + 0.45             # 0.9m rail, standing on the deck
+    # SLAB_YC (deck top face at 3.4) and RAIL_Y (0.45 above the deck) are now
+    # computed inside platform()/railing() themselves — see those presets —
+    # so both former local constants are gone rather than left unused.
 
     r = Room("room17", "the Gallery Ward",
              floor=(-9, 9, -8, 34),
@@ -3044,10 +3392,8 @@ def room17():
     # smooth interpolation; a BoxMesh cannot tilt, so these just read as
     # stairs. NO COLLIDERS — a collider on a tread is a wall across the run.
     EAST_STEPS = 6
-    for i in range(EAST_STEPS):
-        top = BALCONY_Y * (i + 1) / EAST_STEPS      # rises going north
-        r.block((2, top, 1), (7, top / 2.0, 16 - i - 0.5), "wall2",
-                name="StairEastStep%d" % i)
+    r.stair_steps(EAST_STEPS, BALCONY_Y, width=2, run=1, cross=7, start=15.5,
+                 name_fmt="StairEastStep%d")
 
     # --- west shaft --------------------------------------------------------
     # A hole cut straight through the gallery's own decking, not a walled run:
@@ -3055,19 +3401,15 @@ def room17():
     # descent read as stepping off the walkway), so it gets no flanking walls
     # and no railing. The west perimeter at x=-9 is the only wall it hugs.
     WEST_STEPS = 5
-    for i in range(WEST_STEPS):
-        top = BALCONY_Y * (i + 1) / WEST_STEPS
-        r.block((2, top, 0.8), (-7, top / 2.0, 8 - i * 0.8 - 0.4), "wall2",
-                name="StairWestStep%d" % i)
+    r.stair_steps(WEST_STEPS, BALCONY_Y, width=2, run=0.8, cross=-7, start=7.6,
+                 name_fmt="StairWestStep%d")
 
     # --- the gallery deck --------------------------------------------------
     # Four opaque boxes, top face exactly on 3.4, covering x[-9,9] z[-6,10]
     # MINUS the west shaft's x[-8,-6] z[4,8]. No colliders, by the same rule
     # room 11's MezzSlab follows. The undersides are the pocket's ceiling.
     def deck(min_x, max_x, min_z, max_z, name):
-        r.block((max_x - min_x, SLAB_TH, max_z - min_z),
-                ((min_x + max_x) / 2.0, SLAB_YC, (min_z + max_z) / 2.0),
-                "wall2", name=name)
+        r.platform(min_x, max_x, min_z, max_z, BALCONY_Y, thickness=SLAB_TH, name=name)
 
     # Edge strip on the deck at the shaft's head. Same convention as the stair
     # mouth above, and the same reason: the shaft is a black rectangle in a
@@ -3084,9 +3426,8 @@ def room17():
     # LEVEL-TAGGED, every one of them. Untagged, the z=10 rail alone would be
     # an invisible wall straight across the pocket 3.4m underneath it.
     def rail_x(min_x, max_x, z, name):
-        r.block((max_x - min_x, 0.9, 0.24), ((min_x + max_x) / 2.0, RAIL_Y, z),
-                "chain", collider=(min_x, max_x, z - WALL_HALF, z + WALL_HALF),
-                name=name, level="balcony")
+        r.railing("x", min_x, max_x, cross=z, platform_y=BALCONY_Y,
+                 level="balcony", name=name)
 
     # South edge, z=10 — the open drop into the pocket, broken only by the
     # east stair's landing mouth at x[6,8].
@@ -3167,13 +3508,12 @@ def room17():
     # up inside the solid stepped blocks and contributes nothing. Both are
     # cosmetic and neither can be fixed room-side; the bounce Y needs to
     # follow its fitting's level in Emitter.emit().
-    for x, z, y in [
+    r.ward_lights([
         (0, 32, 2.7), (0, 26, 2.7), (0, 20, 2.7),          # south hall
         (7, 13, 4.0),                                       # east stairwell
         (4, 4, 2.7), (-5, 6, 2.7), (-4, 0, 2.7), (0, -4, 2.7),   # pocket
         (5, 7, 5.7), (0, 1, 5.7), (-4, -4, 5.7),            # gallery
-    ]:
-        r.light(x, z, y)
+    ])
     return r
 
 # --- ROOM 15 — the Sorting Room --------------------------------------------
@@ -3380,8 +3720,7 @@ def room18():
 
     # Low centre console: one piece of cover to duck behind mid-crossing, and
     # the only interior collider in the belt zone.
-    r.block((2, 1.0, 0.9), (0, 0.5, 0), "prop",
-            collider=(-1, 1, -0.45, 0.45), name="Console")
+    r.prop((2, 1.0, 0.9), (0, 0), name="Console")
 
     # Z2/Z3 mouth walls — the nook opens x[-2,2]
     r.wall_x(-6, -2, -3)
@@ -3437,8 +3776,7 @@ def room18():
     r.interactable("exitdoor18", "door", (2, 3, 0.2), (0, 1.5, -7),
                    "door", "the relay door", facing="pz")
 
-    for x, z in [(0, 4), (-4.6, 3.4), (-3, -0.5), (3, -0.5), (0, -5), (0, -8.6)]:
-        r.light(x, z)
+    r.ward_lights([(0, 4), (-4.6, 3.4), (-3, -0.5), (3, -0.5), (0, -5), (0, -8.6)])
     return r
 
 
@@ -3596,28 +3934,23 @@ def room19_lights():
     # The raised floor's own opaque slabs. NO COLLIDER — a collider here would
     # wall the platform off instead of holding it up. Their undersides are
     # what the lower floor sees.
-    r.block((5, PLAT_Y, 5), (4.5, PLAT_Y / 2.0, -5.5), "wall2", name="PlatformSlab")
-    r.block((2.5, PLAT_Y, 2), (3.25, PLAT_Y / 2.0, -2), "wall2", name="LipSlab")
+    r.platform(2, 7, -8, -3, PLAT_Y, name="PlatformSlab")
+    r.platform(2, 4.5, -3, -1, PLAT_Y, name="LipSlab")
 
     # Visual ramp: 3 steps of 0.3m across the 2m run, full 2.5m width, rising
     # from the mouth (z=-1) to the platform edge (z=-3). Also no colliders —
     # the walkable slope is the RAMP above, which is smooth.
     RAMP_STEPS = 3
-    for i in range(RAMP_STEPS):
-        step_top = PLAT_Y * (i + 1) / RAMP_STEPS
-        z_center = -1 - 0.333 - i * 0.667
-        r.block((2.5, step_top, 0.667), (5.75, step_top / 2.0, z_center), "wall2",
-                name="RampStep%d" % i)
+    r.stair_steps(RAMP_STEPS, PLAT_Y, width=2.5, run=0.667, cross=5.75,
+                 start=-1.333, name_fmt="RampStep%d")
 
     # --- the guarded edge -------------------------------------------------
     # RAILWEST — the platform's and the lip's whole open west edge, one
     # collider z[-8,-0.88] so it meets RailSouth with no seam. The visual is a
     # 0.9m rail standing ON the slab edge, so nothing floats.
-    r.block((0.24, 0.9, 7.12), (2.0, PLAT_Y + 0.45, -4.44), "chain",
-            collider=(1.88, 2.12, -8, -0.88), name="RailWest")
+    r.railing("z", -8, -0.88, cross=2.0, platform_y=PLAT_Y, name="RailWest")
     # RAILSOUTH — the lip's south edge, above the archway floor.
-    r.block((2.38, 0.9, 0.24), (3.31, PLAT_Y + 0.45, -1.0), "chain",
-            collider=(2.12, 4.5, -1.12, -0.88), name="RailSouth")
+    r.railing("x", 2.12, 4.5, cross=-1.0, platform_y=PLAT_Y, name="RailSouth")
     # RAMPWALL — between the lip (flat, 0.9) and the ramp (sloping 0.9 -> 0).
     # A knee wall rather than a railing, because the two sides sit at
     # different heights along its whole run and a rail would float over the
@@ -3644,9 +3977,8 @@ def room19_lights():
     # floor the whole raised region rendered as a black mass with a mottled
     # skirt — the platform read as a wall rather than as somewhere to climb.
     # Confirmed by screenshot, both before and after.
-    for x, z in [(-2.5, 3), (-1, 0.5), (3, 0.5), (5.75, -1.8), (1.5, -4.5),
-                 (-4, -3), (-1, -6), (4.5, -4.5), (4.5, -7)]:
-        r.light(x, z)
+    r.ward_lights([(-2.5, 3), (-1, 0.5), (3, 0.5), (5.75, -1.8), (1.5, -4.5),
+                  (-4, -3), (-1, -6), (4.5, -4.5), (4.5, -7)])
     return r
 
 # --- ROOM 20 — the Loading Bay -----------------------------------------------
@@ -3974,27 +4306,26 @@ def room16():
     # Naming the circuit rather than relying on the default "house" is what
     # makes the switch's off-state survive both Atmosphere's per-frame flicker
     # writes and a room reload — see core/atmosphere.gd's CIRCUITS block.
-    for lx, lz in [(0, 4), (0, 0), (-3, -4), (3, -4), (-3, -8), (3, -8),
-                   (-3, -11), (3, -11), (0, -15)]:
-        r.light(lx, lz, circuit="bay")
-    # One inside each nook. Without these both recesses render as pure black
-    # voids and everything shaded in them disappears — room 10 verified that by
-    # A/B screenshot, and here it would swallow the switch the player is hunting.
-    r.light(-10.0, -8.0, circuit="bay")
-    r.light(10.0, -4.0, circuit="bay")
+    # The last two are one inside each nook — without them both recesses
+    # render as pure black voids and everything shaded in them disappears
+    # (room 10 verified that by A/B screenshot, and here it would swallow the
+    # switch the player is hunting).
+    r.ward_lights([(0, 4), (0, 0), (-3, -4), (3, -4), (-3, -8), (3, -8),
+                   (-3, -11), (3, -11), (0, -15), (-10.0, -8.0), (10.0, -4.0)],
+                  circuit="bay")
     return r
 
 
 if __name__ == "__main__":
     # write_materials() is DELIBERATELY NOT CALLED — see its definition.
     #
-    # THINK BEFORE RUNNING THIS WHOLESALE. Since the light constants at the top
-    # of this file were brought back in line with the shipped scenes (see
-    # OMNI_RANGE/OMNI_ATTENUATION), a full run reproduces every committed room
-    # byte-for-byte with exactly TWO exceptions: room4's "L1" and room5's "L1"
-    # were hand-promoted to shadow casters in the .tscn, outside the "every
-    # third fitting casts" rule emitted below, and a regenerate reverts both to
-    # shadow_enabled = false. Nothing else drifts.
+    # A full run reproduces every committed room byte-for-byte — all 21
+    # scenes, INCLUDING room20 (see below) — verified by tools/check_roundtrip.sh,
+    # which this list must stay in sync with. Room4's and room5's "L1"
+    # fittings, once a two-exception carve-out here, are no longer one: both
+    # rooms now set `shadow_extra = [1]` (see Room.shadow_extra) precisely so
+    # a full regenerate reproduces their hand-promoted shadow caster instead
+    # of reverting it. Nothing drifts.
     #
     # To emit a single room without touching its neighbours:
     #   python3 -c "import sys; sys.path.insert(0, 'tools'); \
@@ -4019,5 +4350,10 @@ if __name__ == "__main__":
     write_room(room18())
     write_room(room19_lights())
     write_room(room19_doors())
+    # room20 was defined above but never written here — the one omission
+    # that let it silently drift, since nothing regenerated it to diff
+    # against the committed .tscn. Restored so a full run, and
+    # tools/check_roundtrip.sh's diff, both cover every shipped room.
+    write_room(room20())
     write_room(room16())
     print("done")

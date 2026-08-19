@@ -1,0 +1,115 @@
+[gd_resource type="ShaderMaterial" load_steps=8 format=3 uid="uid://wardbmatc9222fe"]
+
+[ext_resource type="Shader" path="res://materials/shaders/triplanar_worn.gdshader" id="1_shader"]
+
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_plate_mottle"]
+noise_type = 3
+seed = 771
+frequency = 0.09
+fractal_octaves = 3
+fractal_gain = 0.5
+
+[sub_resource type="NoiseTexture2D" id="NoiseTexture2D_plate_mottle"]
+generate_mipmaps = true
+seamless = true
+seamless_blend_skirt = 0.2
+width = 192
+height = 192
+noise = SubResource("FastNoiseLite_plate_mottle")
+
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_plate_normal"]
+noise_type = 3
+seed = 772
+frequency = 0.22
+fractal_octaves = 3
+fractal_gain = 0.5
+
+[sub_resource type="NoiseTexture2D" id="NoiseTexture2D_plate_normal"]
+generate_mipmaps = true
+seamless = true
+seamless_blend_skirt = 0.2
+width = 192
+height = 192
+as_normal_map = true
+bump_strength = 4.0
+noise = SubResource("FastNoiseLite_plate_normal")
+
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_plate_chip"]
+noise_type = 2
+seed = 773
+frequency = 0.14
+cellular_jitter = 1.0
+cellular_return_type = 0
+
+[sub_resource type="NoiseTexture2D" id="NoiseTexture2D_plate_chip"]
+generate_mipmaps = true
+seamless = true
+seamless_blend_skirt = 0.2
+width = 192
+height = 192
+noise = SubResource("FastNoiseLite_plate_chip")
+
+[resource]
+render_priority = 0
+shader = ExtResource("1_shader")
+; Floor-mounted mechanism plate — the visible marker for a trigger volume
+; (see core/trigger_volume.gd, gen_rooms.py's Room.plate()).
+;
+; It has one job the wall materials do not: read as a DELIBERATE, TRODDEN-ON
+; MECHANISM from standing eye height, on a floor it is only 4cm proud of,
+; without ever reading as a step or an obstacle. So:
+;
+;   - Darker and cooler than every other surface in the ward (floor.tres sits
+;     at 0.44/0.455/0.395 khaki; this is roughly half that, blue-shifted), so
+;     the plate is a dark patch against the tile rather than another shade of
+;     the same beige. Value contrast is what carries at a shallow viewing
+;     angle; a same-value plate disappears into the floor entirely.
+;   - metallic_base 0.45 with a lowish roughness_base: the only properly metallic
+;     material in the set (pad/prop/wall are all 0.0). Under the ward's tight
+;     omni pools that gives a moving specular sheen as the player walks around
+;     it, which is the single strongest "this is steel, it is not paint on the
+;     floor" cue available in the Compatibility renderer.
+;   - Heavy floor_grime and strong rust bleed: it is set INTO the floor, so the
+;     grime that collects around a floor fixture belongs here more than
+;     anywhere else, and it ties the plate's hard edge back into the tile so it
+;     reads as installed rather than dropped on top.
+;   - A faint sage emission (the TS build's 0x8a9a72 at 0.25). Deliberately
+;     small: the ward is near-black unmedicated and the plate is a thing the
+;     player must be able to FIND, but a plate that glows is a lamp, and rooms
+;     14/20 both want it noticed by a player who is looking, not announced from
+;     across the room.
+;
+; Values retuned against tools/plate_probe.tscn shot in BOTH states (see
+; .artifacts/plate_close*.png): the first pass at base_color 0.235 / metallic
+; 0.6 rendered as a near-black rectangle that read as a HOLE in the floor
+; rather than a plate set into it — actively wrong for a thing the room wants
+; the player to step on. Lifting the base value and trading some metallic for
+; diffuse keeps the steel read while putting the surface back above the tile's
+; shadow line.
+shader_parameter/decay = 0.35
+shader_parameter/base_color = Color(0.33, 0.345, 0.335, 1)
+shader_parameter/substrate_color = Color(0.14, 0.135, 0.12, 1)
+shader_parameter/rust_bleed_color = Color(0.42, 0.26, 0.18, 1)
+shader_parameter/mottle_tex = SubResource("NoiseTexture2D_plate_mottle")
+shader_parameter/normal_tex = SubResource("NoiseTexture2D_plate_normal")
+shader_parameter/chip_tex = SubResource("NoiseTexture2D_plate_chip")
+shader_parameter/mottle_scale = 2.6
+shader_parameter/normal_scale = 5.0
+shader_parameter/chip_scale = 4.5
+shader_parameter/stretch_y = 1.0
+shader_parameter/mottle_strength = 0.3
+shader_parameter/normal_strength = 0.7
+shader_parameter/roughness_base = 0.44
+shader_parameter/roughness_substrate = 0.8
+shader_parameter/metallic_base = 0.45
+shader_parameter/chip_coverage = 0.6
+shader_parameter/chip_edge_width = 0.03
+shader_parameter/chip_lip_strength = 1.0
+shader_parameter/chip_ao_strength = 0.35
+shader_parameter/rust_bleed_strength = 0.5
+shader_parameter/rust_bleed_reach = 0.2
+shader_parameter/rust_bleed_distance = 0.12
+shader_parameter/floor_grime = 0.7
+shader_parameter/floor_grime_height = 0.5
+shader_parameter/emission_color = Color(0.54, 0.6, 0.45, 1)
+shader_parameter/emission_strength = 0.4

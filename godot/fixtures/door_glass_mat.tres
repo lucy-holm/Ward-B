@@ -1,0 +1,12 @@
+[gd_resource type="StandardMaterial3D" format=3 uid="uid://wardbfxdglass01"]
+
+; Vision-light glazing. Low roughness for a tight specular highlight (the
+; closest this project gets to "glass" without metallic or a reflection
+; probe — see MIGRATION_NOTES on why metallic is unusable here), dark
+; blue-black albedo so it reads as an opening into a dim corridor beyond
+; rather than a painted rectangle.
+
+[resource]
+albedo_color = Color(0.045, 0.055, 0.065, 1)
+roughness = 0.12
+metallic = 0.0

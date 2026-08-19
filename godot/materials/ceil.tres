@@ -1,0 +1,92 @@
+[gd_resource type="ShaderMaterial" load_steps=8 format=3 uid="uid://wardbmatd5eaba5"]
+
+[ext_resource type="Shader" path="res://materials/shaders/triplanar_tile.gdshader" id="1_shader"]
+
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_ceil_mottle"]
+noise_type = 3
+seed = 401
+frequency = 0.025
+fractal_octaves = 5
+fractal_lacunarity = 2.1
+fractal_gain = 0.6
+
+[sub_resource type="NoiseTexture2D" id="NoiseTexture2D_ceil_mottle"]
+generate_mipmaps = true
+seamless = true
+seamless_blend_skirt = 0.2
+width = 256
+height = 256
+noise = SubResource("FastNoiseLite_ceil_mottle")
+
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_ceil_normal"]
+noise_type = 2
+seed = 402
+frequency = 0.4
+cellular_jitter = 1.0
+cellular_return_type = 1
+
+[sub_resource type="NoiseTexture2D" id="NoiseTexture2D_ceil_normal"]
+generate_mipmaps = true
+seamless = true
+seamless_blend_skirt = 0.2
+width = 256
+height = 256
+as_normal_map = true
+bump_strength = 3.0
+noise = SubResource("FastNoiseLite_ceil_normal")
+
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_ceil_stain"]
+noise_type = 3
+seed = 403
+frequency = 0.006
+fractal_octaves = 3
+fractal_lacunarity = 2.1
+fractal_gain = 0.5
+
+[sub_resource type="NoiseTexture2D" id="NoiseTexture2D_ceil_stain"]
+generate_mipmaps = true
+seamless = true
+seamless_blend_skirt = 0.2
+width = 256
+height = 256
+noise = SubResource("FastNoiseLite_ceil_stain")
+
+; Palette pass (2026-08, matB): base/decay nudged a touch cooler/greyer to
+; sit with the rest of the retuned palette. stain_color (the water-damage
+; bloom, "WATER-DAMAGED CEILING TILE" board panel) was too close to
+; base_color to read as damage at a glance — darkened and desaturated so
+; the bloom mask actually contrasts, paired with a small stain_strength and
+; ceil_sag_strength bump below for a more legible sag/stain read.
+[resource]
+render_priority = 0
+shader = ExtResource("1_shader")
+shader_parameter/decay = 0.35
+shader_parameter/base_color = Color(0.62, 0.605, 0.55, 1)
+shader_parameter/decay_color = Color(0.20, 0.18, 0.145, 1)
+shader_parameter/grout_color = Color(0.13, 0.12, 0.1, 1)
+shader_parameter/stain_color = Color(0.40, 0.36, 0.29, 1)
+shader_parameter/tile_size = 0.6
+shader_parameter/grout_width = 0.016
+shader_parameter/tile_jitter = 0.07
+shader_parameter/is_ceiling = true
+shader_parameter/groove_depth = 0.006
+shader_parameter/groove_reach = 0.35
+shader_parameter/groove_normal_strength = 4.0
+shader_parameter/ceil_sag_strength = 0.02
+shader_parameter/parallax_strength = 0.25
+shader_parameter/mottle_tex = SubResource("NoiseTexture2D_ceil_mottle")
+shader_parameter/stain_tex = SubResource("NoiseTexture2D_ceil_stain")
+shader_parameter/normal_tex = SubResource("NoiseTexture2D_ceil_normal")
+shader_parameter/mottle_scale = 0.5
+shader_parameter/wear_freq_mult = 3.0
+shader_parameter/stain_scale = 0.09
+shader_parameter/normal_scale = 6.0
+shader_parameter/mottle_strength = 0.34
+shader_parameter/wear_strength = 0.12
+shader_parameter/wear_threshold = 0.6
+shader_parameter/stain_strength = 0.65
+shader_parameter/stain_threshold = 0.5
+shader_parameter/ao_strength = 0.18
+shader_parameter/normal_strength = 0.32
+shader_parameter/roughness_base = 0.95
+shader_parameter/roughness_wet = 0.9

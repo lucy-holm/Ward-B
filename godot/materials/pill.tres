@@ -1,0 +1,19 @@
+[gd_resource type="StandardMaterial3D" format=3 uid="uid://wardbmatf1daa31"]
+
+; Gameplay-readable affordance, NOT a surface-detail material. Deliberately
+; left as a clean StandardMaterial3D with no triplanar grime: the pill is the
+; one thing the player must be able to pick out of dark UNMEDICATED fog at a
+; glance, and mottling it would cost exactly the readability it exists for.
+; Emission is raised over the ported 0.55 (and given the original's teal cast,
+; three.js emissive 0x77e0c8) so it still separates from a wall that now has
+; texture behind it rather than flat grey.
+
+[resource]
+albedo_color = Color(0.949, 1.0, 0.98, 1)
+roughness = 0.35
+metallic = 0.0
+emission_enabled = true
+emission = Color(0.831, 0.98, 0.937, 1)
+emission_energy_multiplier = 1.35
+rim_enabled = true
+rim = 0.6

@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://bwardbpersistw1"]
+
+[ext_resource type="Script" path="res://tools/test_settings_persist_write.gd" id="1_write"]
+
+[node name="PersistWrite" type="Node"]
+script = ExtResource("1_write")

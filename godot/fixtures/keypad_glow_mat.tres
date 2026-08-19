@@ -1,0 +1,14 @@
+[gd_resource type="StandardMaterial3D" format=3 uid="uid://wardbfxkg01"]
+
+; Display-strip glow. Unshaded, same reasoning as dispenser_glow_mat, but
+; cool cyan instead of warm amber — the accent-colour split is the fastest
+; "which fixture is this" cue at distance, before either faceplate is
+; legible.
+
+[resource]
+shading_mode = 0
+albedo_color = Color(0.45, 0.95, 0.9, 1)
+roughness = 0.9
+emission_enabled = true
+emission = Color(0.4, 0.95, 0.92, 1)
+emission_energy_multiplier = 2.2

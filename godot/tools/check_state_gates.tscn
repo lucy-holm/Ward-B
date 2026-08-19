@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://bwardbgates01"]
+
+[ext_resource type="Script" path="res://tools/check_state_gates.gd" id="1_gates"]
+
+[node name="CheckStateGates" type="Node"]
+script = ExtResource("1_gates")

@@ -1,0 +1,91 @@
+[gd_resource type="ShaderMaterial" load_steps=8 format=3 uid="uid://wardbmat1d85f7"]
+
+[ext_resource type="Shader" path="res://materials/shaders/triplanar_worn.gdshader" id="1_shader"]
+
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_pad_mottle"]
+noise_type = 3
+seed = 621
+frequency = 0.06
+fractal_octaves = 3
+fractal_gain = 0.55
+
+[sub_resource type="NoiseTexture2D" id="NoiseTexture2D_pad_mottle"]
+generate_mipmaps = true
+seamless = true
+seamless_blend_skirt = 0.2
+width = 192
+height = 192
+noise = SubResource("FastNoiseLite_pad_mottle")
+
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_pad_normal"]
+noise_type = 2
+seed = 622
+frequency = 0.4
+cellular_jitter = 1.0
+cellular_return_type = 1
+
+[sub_resource type="NoiseTexture2D" id="NoiseTexture2D_pad_normal"]
+generate_mipmaps = true
+seamless = true
+seamless_blend_skirt = 0.2
+width = 192
+height = 192
+as_normal_map = true
+bump_strength = 4.0
+noise = SubResource("FastNoiseLite_pad_normal")
+
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_pad_chip"]
+noise_type = 2
+seed = 623
+frequency = 0.055
+cellular_jitter = 1.0
+cellular_return_type = 0
+
+[sub_resource type="NoiseTexture2D" id="NoiseTexture2D_pad_chip"]
+generate_mipmaps = true
+seamless = true
+seamless_blend_skirt = 0.2
+width = 192
+height = 192
+noise = SubResource("FastNoiseLite_pad_chip")
+
+[resource]
+render_priority = 0
+shader = ExtResource("1_shader")
+; Padded-cell fabric / mattress ticking: fully matte, so roughness_base and
+; roughness_substrate sit close together (no glossy-vs-rough contrast to
+; sell). The chip mechanism here reads as TEARS, not enamel chips — larger,
+; softer-edged patches (low chip_scale, wide chip_edge_width, low lip), and
+; the "rust" tint is repurposed as a dull water/mould stain, not orange
+; rust, at low strength. metallic_base is 0 — fabric has no reason for any.
+; Palette pass (2026-08, matB): the board's "WORN PADDED-CELL WALL FABRIC"
+; panel is a warmer, browner khaki than the previous flat tan (measured
+; average ~0.38-0.45 with R notably > B, vs. this material's near-flat
+; spread) — warmed and darkened base_color to match. substrate/mould-stain
+; nudged toward the same family rather than an independent grey.
+shader_parameter/decay = 0.35
+shader_parameter/base_color = Color(0.52, 0.465, 0.38, 1)
+shader_parameter/substrate_color = Color(0.22, 0.19, 0.15, 1)
+shader_parameter/rust_bleed_color = Color(0.30, 0.31, 0.24, 1)
+shader_parameter/mottle_tex = SubResource("NoiseTexture2D_pad_mottle")
+shader_parameter/normal_tex = SubResource("NoiseTexture2D_pad_normal")
+shader_parameter/chip_tex = SubResource("NoiseTexture2D_pad_chip")
+shader_parameter/mottle_scale = 1.8
+shader_parameter/normal_scale = 6.5
+shader_parameter/chip_scale = 1.3
+shader_parameter/stretch_y = 1.0
+shader_parameter/mottle_strength = 0.26
+shader_parameter/normal_strength = 0.55
+shader_parameter/roughness_base = 0.85
+shader_parameter/roughness_substrate = 0.92
+shader_parameter/metallic_base = 0.0
+shader_parameter/chip_coverage = 0.85
+shader_parameter/chip_edge_width = 0.06
+shader_parameter/chip_lip_strength = 0.5
+shader_parameter/chip_ao_strength = 0.3
+shader_parameter/rust_bleed_strength = 0.2
+shader_parameter/rust_bleed_reach = 0.1
+shader_parameter/rust_bleed_distance = 0.05
+shader_parameter/floor_grime = 0.0
+shader_parameter/floor_grime_height = 0.4
+shader_parameter/emission_strength = 0.0

@@ -1,0 +1,14 @@
+[gd_resource type="StandardMaterial3D" format=3 uid="uid://wardbfxhw01"]
+
+; Small dark-metal hardware shared across dispenser/keypad: hinge barrels,
+; corner screws, latches, lock escutcheons. Kept separate from
+; materials/chain.tres (owned elsewhere, tuned for the door) so this stays
+; under fixtures/ control. Metallic pinned low per MIGRATION_NOTES (no sky,
+; no reflection probes — metallic reads as flat black without one); sold
+; instead with a darker albedo + tighter roughness than the fixture bodies
+; so it still reads as metal against them.
+
+[resource]
+albedo_color = Color(0.075, 0.078, 0.082, 1)
+roughness = 0.45
+metallic = 0.08

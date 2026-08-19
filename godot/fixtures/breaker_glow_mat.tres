@@ -1,0 +1,21 @@
+[gd_resource type="StandardMaterial3D" format=3 uid="uid://wardbfxbg01"]
+
+; Live-circuit indicator. Unshaded for the same reason as every other glow in
+; the game — an emissive/unshaded surface reads at full brightness regardless
+; of the room's own lighting, which is exactly what makes a fixture findable
+; in an UNMEDICATED fog. AMBER, completing the accent split: dispenser amber-
+; warm, keypad cyan, breaker a hotter orange-amber that reads as a mains
+; indicator rather than a display.
+;
+; NOTE it is NOT light-gated. The breaker stays findable after you have thrown
+; it, which is what makes the switch a genuine two-way toggle in practice
+; rather than only on paper (room16's soft-lock fix depends on being able to
+; walk back and turn the lights on again).
+
+[resource]
+shading_mode = 0
+albedo_color = Color(1.0, 0.58, 0.22, 1)
+roughness = 0.9
+emission_enabled = true
+emission = Color(1.0, 0.51, 0.16, 1)
+emission_energy_multiplier = 2.0

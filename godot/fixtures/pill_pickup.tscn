@@ -1,0 +1,67 @@
+[gd_scene load_steps=6 format=3 uid="uid://wardbfixpillpick1"]
+
+; Loose pill on the floor — the scarce resource in later rooms. Must be
+; spottable in a dim room from across it, so it leans hard on the emissive
+; glow world.ts already used (pill.tres), plus the original's full spin/bob
+; (buildPillPickup -> World.animated, rotation.y = t; y = baseY + sin(t*2)*
+; 0.03) via pill_idle.gd. Capsule shape per the brief: a cylinder body +
+; two hemisphere caps (Godot's SphereMesh.is_hemisphere covers what
+; world.ts's buildCapsuleMesh needed a manual theta-range SphereGeometry
+; for). Canonical frame: width +X, height +Y, depth +Z, front faces -Z,
+; origin at the centre of the ~0.18m fixture volume.
+;
+; Root carries the idle script and gets spun/bobbed directly (matching the
+; original's outer "group" in buildPillPickup); the Capsule child holds a
+; FIXED tilt the script never touches (matching the original's inner
+; "wrap" mesh) — spinning the outer node around Y while the child stays
+; tilted gives the same tumbling-in-place read as three.js.
+
+[ext_resource type="Material" uid="uid://wardbmatf1daa31" path="res://materials/pill.tres" id="m_pill"]
+[ext_resource type="Script" path="res://fixtures/pill_idle.gd" id="s_idle"]
+
+[sub_resource type="StandardMaterial3D" id="m_cap"]
+albedo_color = Color(0.349, 0.788, 0.702, 1)
+roughness = 0.35
+metallic = 0.0
+emission_enabled = true
+emission = Color(0.349, 0.788, 0.702, 1)
+emission_energy_multiplier = 1.2
+rim_enabled = true
+rim = 0.6
+
+[sub_resource type="CylinderMesh" id="bm_body"]
+top_radius = 0.0576
+bottom_radius = 0.0576
+height = 0.0648
+radial_segments = 10
+material = ExtResource("m_pill")
+
+[sub_resource type="SphereMesh" id="bm_cap"]
+radius = 0.0576
+height = 0.0576
+is_hemisphere = true
+radial_segments = 10
+rings = 4
+material = SubResource("m_cap")
+
+[node name="PillPickup" type="Node3D"]
+script = ExtResource("s_idle")
+spin_speed = 1.0
+bob_amount = 0.03
+bob_speed = 2.0
+pulse_amount = 0.15
+
+[node name="Capsule" type="Node3D" parent="."]
+position = Vector3(0, 0, 0)
+rotation = Vector3(0.25, 0, 1.3659)
+
+[node name="Body" type="MeshInstance3D" parent="Capsule"]
+mesh = SubResource("bm_body")
+
+[node name="CapTop" type="MeshInstance3D" parent="Capsule"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0, 0.0324, 0.0)
+mesh = SubResource("bm_cap")
+
+[node name="CapBottom" type="MeshInstance3D" parent="Capsule"]
+transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 0.0, -0.0324, 0.0)
+mesh = SubResource("bm_cap")

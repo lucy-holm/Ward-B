@@ -1,0 +1,752 @@
+# The Orderly's body, gait, head-tracking and sight-cone — pure presentation.
+#
+# Attached to `Body` (a Node3D child of the Orderly CharacterBody3D, i.e.
+# `self` in this script IS that Body node). Everything here READS the parent
+# (`orderly.gd`) through its public interface (`watching()`, `is_chasing()`,
+# `sight_range`/`cone_deg`, and this node's own `rotation.y`, which orderly.gd
+# sets every physics frame to the body-facing yaw) and never writes any of
+# orderly.gd's state. No detection/movement logic lives here — see
+# orderly.gd's header for why that script is hands-off.
+#
+# COORDINATE NOTE: orderly.gd sets `rotation.y = atan2(-facing.x, -facing.y)`
+# on this node. That is Godot's standard "aim local -Z at world direction d"
+# formula, so this node's FORWARD is local -Z, exactly like the player rig.
+# Every local-space shape built below (face features, seams, sight cone)
+# points/faces toward -Z.
+#
+# SILHOUETTE (matches the character-sheet reference): faceless-but-uncanny —
+# a small, gaunt, waxy-skinned head with only SUGGESTED features (sunken
+# closed sockets, a faint nose ridge, a closed mouth line, hollow temples,
+# a cranial suture) drooping forward on a long neck, slumped narrow rounded
+# shoulders, limp arms with long splayed fingers reaching mid-thigh, long
+# straight legs, worn shoes. Dirty bone-white institutional uniform with
+# grime concentrated at hems/cuffs/knees, clean at the shoulders. NO
+# emissive eyes anywhere — the read at distance is the pale uniform (+ a
+# fresnel rim, never a glow) against the dark ward, not a light source.
+# All of that lives in orderly_body.gdshader; this file just places geometry
+# and feeds it per-instance shader params.
+#
+# GAIT: "a puppet operated too fast by something that has never watched a
+# person walk" — deliberately NOT a smooth sine-driven cycle. See the block
+# comment above _puppet_wave for the technique breakdown.
+#
+# MUST KEEP: the animation clock (`_anim_clock`) advances ONLY while the
+# parent has actually moved this physics tick (position-delta test, since
+# orderly.gd doesn't expose a stepping flag — see its "DO NOT EDIT" header).
+# That is the whole "operated, not alive" read: he freezes mid-stride the
+# instant he stops at a waypoint, never eases into stillness. The burst
+# mechanism below (`_burst_rate`) only changes how FAST the clock advances
+# while stepping — it never advances the clock while stopped, so the freeze
+# guarantee is untouched.
+extends Node3D
+
+const BODY_SHADER := preload("res://orderly/orderly_body.gdshader")
+
+# Curved/tapered body-part meshes baked once by
+# orderly/_gen/gen_orderly_meshes.gd (read that file's header for the loft
+# technique: smooth-shaded rounded-rectangle cross-sections swept along the
+# limb/torso/shoe). Regenerate after changing the proportions below with:
+#   godot --headless --path . --script res://orderly/_gen/gen_orderly_meshes.gd
+const MESH_LEG_THIGH := preload("res://orderly/meshes/leg_thigh.res")
+const MESH_LEG_SHIN := preload("res://orderly/meshes/leg_shin.res")
+const MESH_ARM_UPPER := preload("res://orderly/meshes/arm_upper.res")
+const MESH_ARM_CUFF := preload("res://orderly/meshes/arm_cuff.res")
+const MESH_CUFF_TURNBACK := preload("res://orderly/meshes/cuff_turnback.res")
+const MESH_WRIST := preload("res://orderly/meshes/wrist.res")
+const MESH_TORSO := preload("res://orderly/meshes/torso.res")
+const MESH_COLLAR := preload("res://orderly/meshes/collar.res")
+const MESH_BACK_VENT := preload("res://orderly/meshes/back_vent.res")
+const MESH_HALF_BELT := preload("res://orderly/meshes/half_belt.res")
+const MESH_PALM := preload("res://orderly/meshes/palm.res")
+const MESH_FINGER := preload("res://orderly/meshes/finger.res")
+const MESH_SHOE := preload("res://orderly/meshes/shoe.res")
+const MESH_HEAD := preload("res://orderly/meshes/head.res")
+
+# --- proportions ------------------------------------------------------------
+# Pushed further than a naturalistic figure on purpose: very long straight
+# legs, a small head relative to the body, narrow torso.
+const LEG_W := 0.26
+const LEG_H := 1.6
+const LEG_D := 0.19
+const TORSO_W := 0.34
+const TORSO_H := 0.85
+const TORSO_D := 0.20
+const NECK_LEN := 0.17
+const NECK_R := 0.05
+const HEAD_R := 0.12
+const HEAD_SCALE := Vector3(0.86, 1.28, 0.96)  # ovoid stretch, gaunt
+const ARM_W := 0.075
+const ARM_D := 0.075
+const ARM_LEN := 1.48                          # hands reach ~mid-thigh
+const HAND_LEN := 0.15
+const FINGER_LEN := 0.09
+
+const HEAD_DROOP := -0.85       # rad, forward pitch (negative = forward/down in
+                                 # this nested local frame) — "neck can't hold it up"
+const NECK_LEAN := -0.1         # rad, small forward lean baked into the neck itself
+const HEAD_BASE_TILT := 0.09    # rad, lateral head-cock (rotation.z)
+const HEAD_TILT_AMP := 0.03     # rad, slow oscillation on top of the cock
+const HEAD_TILT_FREQ := 0.5     # rad/s, rides animClock (freezes when paused)
+const HUNCH_TILT := 0.12        # rad, forward lean baked into torso
+
+# --- gait: puppet, not person -----------------------------------------------
+# "A puppet operated too fast by something that has never watched a person
+# walk." Every technique here rides the SAME frozen _anim_clock:
+#   1. Quantised time — _puppet_wave snaps the clock to a coarse frame grid
+#      (GAIT_HZ) so poses jump between discrete positions instead of sliding.
+#   2. Warped phase — within that grid, sin() is reshaped by an exponent < 1
+#      (1/WHIP_POWER) so the pose HOLDS near the swing extremes and WHIPS
+#      through the neutral middle, instead of easing smoothly like a sine.
+#   3. Decoupled limbs — arms are quantised at a different frame rate AND a
+#      different (non-integer-ratio) stride frequency than the legs, so the
+#      two drift in and out of phase and never resolve into a clean
+#      opposite-arm/leg cycle.
+#   4. Bursts — a few times a minute (more while chasing), the clock's OWN
+#      advance rate spikes 2.6x for ~0.2s then snaps back: "accelerated".
+#   5. Overextension — swing amplitude is pushed past a plausible hip/
+#      shoulder arc, more so while chasing.
+#   6. Lag-and-snap — torso/head yaw trails a waypoint turn (accumulates a
+#      "debt"), then catches up in one discrete jerk once the debt or a
+#      hold timer crosses a threshold, rather than easing back into line.
+const GAIT_HZ := 9.0             # leg quantisation, frames/sec, patrol
+const ARM_HZ_MULT := 0.81        # arms quantised at a DIFFERENT rate — decouples them
+const CHASE_HZ_MULT := 2.15      # legs+arms both scale up together on top of the above
+const GAIT_FREQ := 0.95          # strides/sec BEFORE quantisation/warping
+const ARM_FREQ_RATIO := 0.87     # non-integer ratio vs legs — phase never resolves
+const ARM_PHASE_OFFSET := 0.35   # cycles; arms are not simply "opposite the legs"
+const WHIP_POWER := 3.2          # >1 = hold at extremes, whip through the middle
+# 0.68 rad was 39 deg PER LEG — 78 deg between them, which renders as a
+# near-split and reads as a broken rig rather than an eerie one. A human walk
+# is ~20-25 deg per leg. The wrongness should come from the judder and the
+# arm/leg desync, not from limbs going somewhere anatomically impossible.
+const LEG_SWING_AMP := 0.46      # rad — past a natural hip arc on purpose,
+# 0.46 (26 deg) plus the 1.25x chase overextend and a 23 deg outward lift read
+# as scarecrow arms held out sideways from a three-quarter angle — the axes are
+# right, the magnitudes were not. Arms should hang and swing, not semaphore.
+const ARM_SWING_AMP := 0.28      # but short of the legs visibly scissoring
+const CHASE_OVEREXTEND := 1.25   # extra amplitude while chasing
+const CHASE_ARM_LIFT := 0.12
+const HITCH_AMP := 0.055
+const TORSO_CHASE_PITCH := HUNCH_TILT * 2.1
+
+const BURST_CHANCE := 0.22       # rolled ~once per stride, patrol
+const BURST_CHANCE_CHASE := 0.45
+const BURST_MULT := 2.6
+const BURST_DURATION_SEC := 0.22
+
+const LAG_SNAP_THRESHOLD := 0.35 # rad of accumulated debt before the jerk
+const LAG_MAX_HOLD_SEC := 0.5    # or after this long, whichever comes first
+const TORSO_LAG_FACTOR := 0.6
+const HEAD_LAG_FACTOR := 0.85
+
+const HEAD_WATCH_TURN_RATE := 6.0   # 1/s
+const HEAD_RELAX_RATE := 3.0        # 1/s
+const IDLE_SNAP_MIN_SEC := 6.0
+const IDLE_SNAP_RANGE_SEC := 4.0
+const IDLE_SNAP_ANGLE := 1.3        # rad, half-range of the idle head snap
+
+const SIGHT_CONE_Y := 0.02
+const SIGHT_CONE_SEGMENTS := 20
+
+# Per-tick displacement floor: patrol is 1.5 m/s / 60 Hz = 0.025 m, chase is
+# 4.3 / 60 = 0.072 m. 0.0005 sits far below both and above float noise.
+const STEP_EPSILON := 0.0005
+
+# --- palette ------------------------------------------------------------
+# 2026-08 grime/plastic pass: darker, greyer, more desaturated across the
+# board to match the character-sheet's soiled institutional taupe (was a
+# cleaner, warmer cream that read closer to "new hospital linen" than
+# "worn for years and never properly washed").
+#
+# 2026-08 light-absorption pass: dropped again (~0.66 -> ~0.46 on the cloth).
+# These Colors OVERRIDE the shader's own base_color defaults per body part, so
+# darkening the shader alone did nothing — both have to move together. The
+# goal is a figure that absorbs the ward's light instead of catching it: he
+# resolves as pale dirty cloth only inside a fluorescent pool, and between
+# pools he returns almost nothing. The badge stays comparatively bright on
+# purpose — a small hard glint of officialdom is the one thing that should
+# catch the light on him.
+const UNIFORM_BASE := Color(0.46, 0.44, 0.39)    # soiled bone-tan cloth, light-absorbing
+const UNIFORM_GRIME := Color(0.16, 0.13, 0.09)   # darker, greyer stain (less orange)
+const SKIN_BASE := Color(0.50, 0.47, 0.43)       # waxy dead skin — cooler than the cloth
+const SKIN_GRIME := Color(0.18, 0.14, 0.11)
+const SHOE_BASE := Color(0.24, 0.22, 0.19)       # worn dark leather, near-black in gloom
+const SHOE_GRIME := Color(0.10, 0.07, 0.05)
+const BADGE_BASE := Color(0.62, 0.61, 0.55)      # paper/plastic tag, lightly soiled
+const BUTTON_BASE := Color(0.24, 0.22, 0.18)
+
+var _leg_pivots: Array[Node3D] = []
+var _arm_pivots: Array[Node3D] = []
+var _head_group: Node3D
+var _neck_pivot: Node3D
+var _torso: MeshInstance3D
+var _cone_mat: StandardMaterial3D
+
+var _anim_clock := 0.0
+var _head_yaw := 0.0
+var _idle_pause_timer := 0.0
+var _next_idle_snap_at := IDLE_SNAP_MIN_SEC
+
+var _burst_active := false
+var _burst_ends_at := 0.0
+var _next_burst_roll_at := 0.0
+
+var _prev_body_yaw := 0.0
+var _prev_yaw_valid := false
+var _torso_yaw_debt := 0.0
+var _lag_hold_timer := 0.0
+
+var _prev_pos := Vector3.ZERO
+var _prev_pos_valid := false
+var _player: Node3D = null
+
+
+func _ready() -> void:
+	_next_idle_snap_at = IDLE_SNAP_MIN_SEC + randf() * IDLE_SNAP_RANGE_SEC
+	_next_burst_roll_at = 1.0 / GAIT_FREQ
+	_build_body()
+
+
+func _physics_process(delta: float) -> void:
+	var orderly := get_parent()
+
+	# Stepping = did he actually move this tick? orderly.gd's parent
+	# _physics_process runs before this child's (children process after their
+	# parent in the same frame), so `orderly.global_position` already
+	# reflects this tick's move by the time we read it here.
+	var cur: Vector3 = orderly.global_position
+	if not _prev_pos_valid:
+		_prev_pos = cur
+		_prev_pos_valid = true
+	var moved := Vector2(cur.x - _prev_pos.x, cur.z - _prev_pos.z).length()
+	var stepping := moved > STEP_EPSILON
+	_prev_pos = cur
+
+	var chasing: bool = orderly.is_chasing()
+
+	# Clock only advances while stepping — see the header's MUST KEEP note.
+	# The burst rate only changes HOW FAST it advances, never whether it does.
+	if stepping:
+		_anim_clock += delta * _burst_rate(chasing)
+
+	var watch: float = orderly.watching()
+	var body_yaw := rotation.y  # this node IS Body; orderly.gd set this already
+
+	_update_lag_snap(delta, body_yaw, stepping)
+	_update_head(delta, stepping, watch, body_yaw, orderly)
+	_update_gait(delta, chasing)
+	_update_cone(chasing, watch)
+
+
+# --- body construction -------------------------------------------------------
+
+func _make_material(base: Color, grime: Color, grime_amount: float, roughness: float,
+		rim: float, seam: float, face: float, part_radius: float) -> ShaderMaterial:
+	var mat := ShaderMaterial.new()
+	mat.shader = BODY_SHADER
+	mat.set_shader_parameter("base_color", base)
+	mat.set_shader_parameter("grime_color", grime)
+	mat.set_shader_parameter("grime_amount", grime_amount)
+	mat.set_shader_parameter("grime_scale", 5.0)
+	mat.set_shader_parameter("roughness_base", roughness)
+	mat.set_shader_parameter("rim_strength", rim)
+	mat.set_shader_parameter("seam_strength", seam)
+	mat.set_shader_parameter("face_strength", face)
+	mat.set_shader_parameter("part_radius", part_radius)
+	return mat
+
+
+func _build_body() -> void:
+	var orderly := get_parent()
+
+	# 2026-08 grime/plastic pass: roughness pushed further toward matte
+	# (cloth 0.86 -> ~0.92, skin 0.4 -> ~0.56, shoe 0.7 -> 0.8) and grime_amount
+	# raised at the already-dirty extremities (hem/cuff/shin/shoe) so the
+	# hems/cuffs/knees-dirtiest, shoulders-clean read from the character sheet
+	# is more pronounced. The plastic-sheen cut itself is mostly the shader's
+	# new specular_base/SPECULAR-dimming, not these two columns.
+	var cloth_clean := _make_material(UNIFORM_BASE, UNIFORM_GRIME, 0.06, 0.92, 0.9, 0.0, 0.0, TORSO_W * 0.5)
+	var cloth_body := _make_material(UNIFORM_BASE, UNIFORM_GRIME, 0.20, 0.92, 0.9, 1.0, 0.0, TORSO_W * 0.5)
+	var cloth_hem := _make_material(UNIFORM_BASE, UNIFORM_GRIME, 0.68, 0.93, 0.9, 0.0, 0.0, TORSO_W * 0.5)
+	var cloth_upper_arm := _make_material(UNIFORM_BASE, UNIFORM_GRIME, 0.13, 0.92, 0.85, 0.0, 0.0, ARM_W)
+	var cloth_cuff := _make_material(UNIFORM_BASE, UNIFORM_GRIME, 0.65, 0.93, 0.85, 0.0, 0.0, ARM_W)
+	var cloth_thigh := _make_material(UNIFORM_BASE, UNIFORM_GRIME, 0.25, 0.92, 0.85, 0.0, 0.0, LEG_W)
+	var cloth_shin := _make_material(UNIFORM_BASE, UNIFORM_GRIME, 0.70, 0.93, 0.85, 0.0, 0.0, LEG_W)
+	var skin_head := _make_material(SKIN_BASE, SKIN_GRIME, 0.05, 0.56, 0.55, 1.0, 1.0, HEAD_R)
+	var skin_neck := _make_material(SKIN_BASE, SKIN_GRIME, 0.05, 0.56, 0.5, 1.0, 0.0, NECK_R)
+	var skin_hand := _make_material(SKIN_BASE, SKIN_GRIME, 0.17, 0.58, 0.45, 0.0, 0.0, 0.05)
+	var shoe_mat := _make_material(SHOE_BASE, SHOE_GRIME, 0.55, 0.8, 0.3, 0.0, 0.0, 0.1)
+	var badge_mat := _make_material(BADGE_BASE, SKIN_GRIME, 0.03, 0.58, 0.2, 0.0, 0.0, 0.03)
+	var button_mat := _make_material(BUTTON_BASE, SKIN_GRIME, 0.1, 0.62, 0.15, 0.0, 0.0, 0.02)
+
+	# legs — hip-pivoted so the gait swing rotates from the joint. Thigh/shin
+	# are separate baked lofts (MESH_LEG_*) that share an exact knee
+	# cross-section so they join with no visible step; kept as two meshes
+	# (not fused into one) so the clean-thigh/dirty-shin material split from
+	# the original box build survives the switch to curved geometry.
+	var leg_offset_x := LEG_W * 0.42
+	for side in [-1.0, 1.0]:
+		var pivot := Node3D.new()
+		pivot.position = Vector3(side * leg_offset_x, LEG_H, 0)
+
+		var thigh := MeshInstance3D.new()
+		thigh.mesh = MESH_LEG_THIGH
+		thigh.material_override = cloth_thigh
+		pivot.add_child(thigh)
+
+		var shin := MeshInstance3D.new()
+		shin.mesh = MESH_LEG_SHIN
+		shin.material_override = cloth_shin
+		pivot.add_child(shin)
+
+		var shoe := MeshInstance3D.new()
+		shoe.mesh = MESH_SHOE
+		shoe.material_override = shoe_mat
+		# The leg loft's ankle end is baked at pivot-local y = -LEG_H; the
+		# shoe centres there with a small extra drop so its sole (not its
+		# ankle collar) reads as ground contact.
+		# FIX (found while rebuilding this part): the old box-shoe was left
+		# at y=-0.04 — its own docstring said "-LEG_H" but the code never
+		# matched, stranding it up near the hip pivot instead of the ankle.
+		# Small and dim in every preview shot, so it was never caught.
+		shoe.position = Vector3(0.0, -LEG_H - 0.015, -0.055)
+		pivot.add_child(shoe)
+
+		add_child(pivot)
+		_leg_pivots.append(pivot)
+
+	# torso — narrow, slumped. Decorative trim (hem/collar/placket/pocket/
+	# badge/belt/shoulder caps) is parented to it so it inherits the same
+	# hunch/chase-pitch rotation automatically.
+	_torso = MeshInstance3D.new()
+	_torso.mesh = MESH_TORSO
+	_torso.material_override = cloth_body
+	_torso.position.y = LEG_H + TORSO_H * 0.5
+	_torso.rotation.x = HUNCH_TILT
+	add_child(_torso)
+	_build_torso_trim(_torso, cloth_clean, cloth_hem, badge_mat, button_mat)
+
+	# neck + head, chained off the top of the torso so both inherit its pitch
+	_neck_pivot = Node3D.new()
+	_neck_pivot.position = Vector3(0, TORSO_H * 0.5, 0)
+	_neck_pivot.rotation.x = NECK_LEAN
+	_torso.add_child(_neck_pivot)
+
+	var neck := MeshInstance3D.new()
+	var neck_mesh := CylinderMesh.new()
+	neck_mesh.top_radius = NECK_R * 0.9
+	neck_mesh.bottom_radius = NECK_R
+	neck_mesh.height = NECK_LEN
+	neck_mesh.radial_segments = 20
+	neck.mesh = neck_mesh
+	neck.position.y = NECK_LEN * 0.5
+	neck.material_override = skin_neck
+	_neck_pivot.add_child(neck)
+
+	# Lofted mandarin collar (MESH_COLLAR, see gen_orderly_meshes.gd's
+	# _build_collar) — a short tube standing off the neck with a front
+	# opening, replacing the old plain CylinderMesh (which had no gap and
+	# read as a closed ring, not a jacket collar). Same position the old
+	# cylinder used.
+	var collar := MeshInstance3D.new()
+	collar.mesh = MESH_COLLAR
+	collar.position.y = 0.02
+	collar.material_override = cloth_clean
+	_neck_pivot.add_child(collar)
+
+	_head_group = Node3D.new()
+	_head_group.name = "HeadGroup"  # looked up by path from preview_capture.gd
+	_head_group.position = Vector3(0, NECK_LEN + 0.02, 0)
+	_neck_pivot.add_child(_head_group)
+
+	# Lofted head (MESH_HEAD, see gen_orderly_meshes.gd's _build_head) — a
+	# latitude-swept sphere with SUGGESTED facial detail (brow ridge, sunken
+	# sockets, nose ridge, cheekbone planes, closed mouth, hollow temples)
+	# baked in as subtle radial displacement, replacing the old plain
+	# SphereMesh. Same non-uniform HEAD_SCALE stretch as before — Godot's
+	# renderer applies the correct normal-matrix correction for non-uniform
+	# scale, so the baked-in facial displacement stretches consistently with
+	# the gaunt ovoid shape instead of distorting.
+	var head := MeshInstance3D.new()
+	head.mesh = MESH_HEAD
+	head.scale = HEAD_SCALE
+	head.material_override = skin_head
+	_head_group.add_child(head)
+
+	# arms — shoulder-pivoted, hang past where knees would be, hands to
+	# mid-thigh
+	var shoulder_y := LEG_H + TORSO_H - 0.08
+	var arm_x := TORSO_W * 0.5 + ARM_W * 0.5 + 0.02
+	for side in [-1.0, 1.0]:
+		var pivot := Node3D.new()
+		pivot.position = Vector3(side * arm_x, shoulder_y, 0)
+		pivot.rotation.x = HUNCH_TILT * 0.5
+
+		var upper := MeshInstance3D.new()
+		upper.mesh = MESH_ARM_UPPER
+		upper.material_override = cloth_upper_arm
+		pivot.add_child(upper)
+
+		var cuff := MeshInstance3D.new()
+		cuff.mesh = MESH_ARM_CUFF
+		cuff.material_override = cloth_cuff
+		pivot.add_child(cuff)
+
+		# Turned-back cuff lip (MESH_CUFF_TURNBACK, see gen_orderly_meshes.gd)
+		# — baked in the same absolute pivot-local space as the cuff itself,
+		# so it needs no offset here, same as every other limb mesh.
+		var turnback := MeshInstance3D.new()
+		turnback.mesh = MESH_CUFF_TURNBACK
+		turnback.material_override = cloth_cuff
+		pivot.add_child(turnback)
+
+		# NEW — bare wrist (MESH_WRIST, see gen_orderly_meshes.gd's
+		# _build_wrist), skin-material, bridging the now-shortened cuff to
+		# the hand attach point. This is the "jacket drapes away at the
+		# cuffs" cue: the sleeve ends a few cm short of the hand instead of
+		# fusing straight into it, same absolute-pivot-local convention as
+		# every other limb mesh (no offset needed).
+		var wrist := MeshInstance3D.new()
+		wrist.mesh = MESH_WRIST
+		wrist.material_override = skin_hand
+		pivot.add_child(wrist)
+
+		var hand := _build_hand(skin_hand)
+		hand.position.y = -ARM_LEN
+		pivot.add_child(hand)
+		add_child(pivot)
+		_arm_pivots.append(pivot)
+
+	# sight cone — real gameplay affordance, not decoration
+	var cone := _build_sight_cone(orderly.sight_range, orderly.cone_deg)
+	add_child(cone)
+
+
+# Palm (a short rounded loft, MESH_PALM) plus four long, slightly splayed
+# tapered fingers and a thumb (all MESH_FINGER, mirrored/rotated per digit)
+# — "long bony hands with individually visible fingers" off the character
+# sheet. Attached directly under an arm pivot at y = -ARM_LEN (the wrist);
+# MESH_PALM's own baked origin is already the wrist, so it needs no extra
+# offset here.
+func _build_hand(mat: Material) -> Node3D:
+	var hand := Node3D.new()
+
+	var palm := MeshInstance3D.new()
+	palm.mesh = MESH_PALM
+	palm.material_override = mat
+	hand.add_child(palm)
+
+	var finger_count := 4
+	for i in finger_count:
+		var t := (float(i) / float(finger_count - 1)) - 0.5  # -0.5..0.5
+		var finger := MeshInstance3D.new()
+		finger.mesh = MESH_FINGER
+		finger.position = Vector3(t * 0.068, -HAND_LEN, 0.0)
+		finger.rotation.z = t * 0.5    # slightly splayed
+		finger.rotation.x = 0.14
+		finger.material_override = mat
+		hand.add_child(finger)
+
+	# Thumb — shorter, thicker (reuses MESH_FINGER non-uniformly scaled),
+	# angled out from the base of the palm rather than the knuckle row.
+	var thumb := MeshInstance3D.new()
+	thumb.mesh = MESH_FINGER
+	thumb.scale = Vector3(1.3, 0.72, 1.3)
+	thumb.position = Vector3(0.042, -HAND_LEN * 0.35, 0.012)
+	thumb.rotation = Vector3(0.35, 0.0, 1.05)
+	thumb.material_override = mat
+	hand.add_child(thumb)
+
+	return hand
+
+
+# Richer uniform detail from the revised reference: mandarin collar (built in
+# _build_body alongside the neck), a back centre vent, button placket, chest
+# pocket + hanging ID badge, rounded slumped shoulder caps, and a back
+# half-belt with buttons — all real lofted geometry now (see
+# gen_orderly_meshes.gd), not flat trim. The seam LINE itself (the crease
+# either side of the vent ridge) is still the torso material's own
+# seam_strength, which the shader confines to the +Z (rear) face — the vent
+# mesh added here is the raised fold, the shader still draws the crease.
+func _build_torso_trim(torso: MeshInstance3D, cloth_clean: Material, cloth_hem: Material,
+		badge_mat: Material, button_mat: Material) -> void:
+	# MESH_TORSO (see gen_orderly_meshes.gd's _build_torso) bulges out at the
+	# chest and flares at the hem rather than sitting flush like the old
+	# flat box, so the trim below is offset to those rings' actual
+	# half-extents (hardcoded here to match — keep in sync if the generator
+	# ring values change) instead of a flat TORSO_D/TORSO_W multiple, or it
+	# sinks into (or floats off) the new curved surface.
+	const CHEST_HALF_DEPTH := 0.125    # torso ring "chest"
+	const HEM_HALF_WIDTH := 0.215      # torso ring "hem-flare"
+	const HEM_HALF_DEPTH := 0.130      # torso ring "hem-flare"
+
+	# NO separate hem band. It used to be a BoxMesh wrapped around the torso,
+	# which was fine when the torso was itself a box — but the torso is now a
+	# smooth tapered loft, so a box's corners punched straight out through the
+	# curved surface and read as a black slab floating at the waist. It is also
+	# redundant: the loft already flares at the hem ring, and the cloth material
+	# concentrates its grime there, so the dirty-hem read survives without it.
+	# (cloth_hem is still used by the limb meshes.)
+
+	# NEW — back centre vent (MESH_BACK_VENT, see gen_orderly_meshes.gd's
+	# _build_back_vent): a slim ridge standing proud of the lower back,
+	# real geometry rather than the flat trim the header above warns about.
+	# Baked in absolute torso-local metres already (own cz per ring), so it
+	# needs no offset here — same convention as every limb mesh.
+	var vent := MeshInstance3D.new()
+	vent.mesh = MESH_BACK_VENT
+	vent.material_override = cloth_clean
+	torso.add_child(vent)
+
+	# rounded, narrow, slumped shoulder caps
+	for side in [-1.0, 1.0]:
+		var cap := MeshInstance3D.new()
+		var cap_mesh := SphereMesh.new()
+		cap_mesh.radius = TORSO_W * 0.22
+		cap_mesh.height = TORSO_W * 0.34
+		cap_mesh.radial_segments = 20
+		cap_mesh.rings = 10
+		cap.mesh = cap_mesh
+		cap.position = Vector3(side * TORSO_W * 0.42, TORSO_H * 0.44, 0)
+		cap.material_override = cloth_clean
+		torso.add_child(cap)
+
+	# front button placket
+	var placket := MeshInstance3D.new()
+	var placket_mesh := BoxMesh.new()
+	placket_mesh.size = Vector3(0.028, TORSO_H * 0.92, 0.01)
+	placket.mesh = placket_mesh
+	placket.position = Vector3(0, 0, -(CHEST_HALF_DEPTH + 0.006))
+	placket.material_override = cloth_clean
+	torso.add_child(placket)
+
+	var button_count := 5
+	for i in button_count:
+		var t := (float(i) / float(button_count - 1)) - 0.5
+		var btn := MeshInstance3D.new()
+		var btn_mesh := SphereMesh.new()
+		btn_mesh.radius = 0.011
+		btn_mesh.height = 0.022
+		btn_mesh.radial_segments = 10
+		btn_mesh.rings = 6
+		btn.mesh = btn_mesh
+		btn.position = Vector3(0, t * TORSO_H * 0.8, -(CHEST_HALF_DEPTH + 0.014))
+		btn.material_override = button_mat
+		torso.add_child(btn)
+
+	# chest pocket + hanging ID badge
+	var pocket := MeshInstance3D.new()
+	var pocket_mesh := BoxMesh.new()
+	pocket_mesh.size = Vector3(0.08, 0.09, 0.01)
+	pocket.mesh = pocket_mesh
+	pocket.position = Vector3(TORSO_W * 0.24, TORSO_H * 0.16, -(CHEST_HALF_DEPTH + 0.006))
+	pocket.material_override = cloth_clean
+	torso.add_child(pocket)
+
+	var badge := MeshInstance3D.new()
+	var badge_mesh := BoxMesh.new()
+	badge_mesh.size = Vector3(0.045, 0.06, 0.005)
+	badge.mesh = badge_mesh
+	badge.position = Vector3(TORSO_W * 0.24, TORSO_H * 0.16 - 0.07, -(CHEST_HALF_DEPTH + 0.01))
+	badge.rotation.z = 0.16
+	badge.material_override = badge_mat
+	torso.add_child(badge)
+
+	# back half-belt (MESH_HALF_BELT, see gen_orderly_meshes.gd's
+	# _build_half_belt) — real curved geometry across the back only, not a
+	# flat box wrapped over what is now a curved torso surface (see this
+	# function's header for why the old BoxMesh belt broke). Baked already
+	# centred on local +Z at the belt's own arc radius, so it only needs the
+	# same vertical offset the old box belt used.
+	var belt := MeshInstance3D.new()
+	belt.mesh = MESH_HALF_BELT
+	belt.position = Vector3(0, -TORSO_H * 0.05, 0)
+	belt.material_override = cloth_clean
+	torso.add_child(belt)
+
+	for side in [-1.0, 1.0]:
+		var bb := MeshInstance3D.new()
+		var bb_mesh := SphereMesh.new()
+		bb_mesh.radius = 0.011
+		bb_mesh.height = 0.022
+		bb_mesh.radial_segments = 10
+		bb_mesh.rings = 6
+		bb.mesh = bb_mesh
+		bb.position = Vector3(side * TORSO_W * 0.2, -TORSO_H * 0.05, CHEST_HALF_DEPTH + 0.02)
+		bb.material_override = button_mat
+		torso.add_child(bb)
+
+
+# Flat translucent sector on XZ (procedural ArrayMesh via SurfaceTool),
+# apex at this node's origin, opening toward local -Z (forward — see the
+# coordinate note at the top of this file). Built once; the tint/opacity is
+# then driven every tick by _update_cone from the SAME material instance.
+func _build_sight_cone(range_m: float, cone_deg: float) -> MeshInstance3D:
+	var half_rad := deg_to_rad(cone_deg) * 0.5
+
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var apex := Vector3(0, SIGHT_CONE_Y, 0)
+	for i in SIGHT_CONE_SEGMENTS:
+		var a0 := -half_rad + (2.0 * half_rad * i) / SIGHT_CONE_SEGMENTS
+		var a1 := -half_rad + (2.0 * half_rad * (i + 1)) / SIGHT_CONE_SEGMENTS
+		var p0 := Vector3(sin(a0) * range_m, SIGHT_CONE_Y, -cos(a0) * range_m)
+		var p1 := Vector3(sin(a1) * range_m, SIGHT_CONE_Y, -cos(a1) * range_m)
+		st.add_vertex(apex)
+		st.add_vertex(p0)
+		st.add_vertex(p1)
+
+	var mi := MeshInstance3D.new()
+	mi.name = "SightCone"
+	mi.mesh = st.commit()
+
+	_cone_mat = StandardMaterial3D.new()
+	_cone_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	_cone_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	_cone_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	_cone_mat.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
+	_cone_mat.albedo_color = Color(0.3, 0.05, 0.05, 0.08)
+	mi.material_override = _cone_mat
+
+	return mi
+
+
+# --- per-frame presentation --------------------------------------------------
+
+func _update_head(delta: float, stepping: bool, watch: float, body_yaw: float, orderly: Node) -> void:
+	_head_group.rotation.z = HEAD_BASE_TILT + sin(_anim_clock * HEAD_TILT_FREQ) * HEAD_TILT_AMP
+	_head_group.rotation.x = HEAD_DROOP
+
+	if watch > 0.0:
+		# Watching: head yaw-tracks the player independently of the body —
+		# the body keeps walking its own patrol/chase direction, only the
+		# head diverges from it. The single creepiest cheap trick available.
+		var player := _find_player()
+		if player != null:
+			var dx: float = player.global_position.x - orderly.global_position.x
+			var dz: float = player.global_position.z - orderly.global_position.z
+			var dist := Vector2(dx, dz).length()
+			if dist > 0.001:
+				var world_yaw := atan2(-dx, -dz)
+				var target := world_yaw - body_yaw
+				_head_yaw = lerp_angle(_head_yaw, target, clampf(delta * HEAD_WATCH_TURN_RATE, 0.0, 1.0))
+	elif stepping:
+		# Free head — restored once the watch-ramp has fully decayed. Also
+		# rides the torso's lag-and-snap debt, so it isn't perfectly glued
+		# to the body's yaw either.
+		var target := _torso_yaw_debt * HEAD_LAG_FACTOR
+		_head_yaw = lerp_angle(_head_yaw, target, clampf(delta * HEAD_RELAX_RATE, 0.0, 1.0))
+	else:
+		# Frozen at a waypoint: perfectly still except an occasional sharp
+		# snap to a new angle once enough cumulative pause time has passed.
+		_idle_pause_timer += delta
+		if _idle_pause_timer >= _next_idle_snap_at:
+			_head_yaw = randf_range(-IDLE_SNAP_ANGLE, IDLE_SNAP_ANGLE)
+			_idle_pause_timer = 0.0
+			_next_idle_snap_at = IDLE_SNAP_MIN_SEC + randf() * IDLE_SNAP_RANGE_SEC
+
+	_head_group.rotation.y = _head_yaw
+
+
+# Torso (and, via the read above, the head) trails a body-yaw change rather
+# than turning with it, then snaps straight in one discrete jerk once the
+# accumulated "debt" or a hold timer crosses a threshold. `body_yaw` is
+# authoritative and already applied to this whole node by orderly.gd before
+# this runs, so the debt is expressed as an OPPOSING local Y rotation on the
+# torso (and head), not a delay on Body itself.
+func _update_lag_snap(delta: float, body_yaw: float, stepping: bool) -> void:
+	if not _prev_yaw_valid:
+		_prev_body_yaw = body_yaw
+		_prev_yaw_valid = true
+	var dyaw := wrapf(body_yaw - _prev_body_yaw, -PI, PI)
+	_prev_body_yaw = body_yaw
+
+	if stepping:
+		_torso_yaw_debt -= dyaw
+		_lag_hold_timer += delta
+		if absf(_torso_yaw_debt) > LAG_SNAP_THRESHOLD or _lag_hold_timer > LAG_MAX_HOLD_SEC:
+			_torso_yaw_debt = 0.0  # the catch-up jerk: one frame, not an ease
+			_lag_hold_timer = 0.0
+	else:
+		_torso_yaw_debt = 0.0
+		_lag_hold_timer = 0.0
+
+	_torso.rotation.y = _torso_yaw_debt * TORSO_LAG_FACTOR
+
+
+# Rolls (roughly once per stride) whether a burst starts, and clears one that
+# has run its course. Returns the clock-rate multiplier for THIS tick — 1.0
+# normally, BURST_MULT for the ~0.2s a burst is active. Only ever called
+# while stepping, so it never fights the freeze-on-stop guarantee.
+func _burst_rate(chasing: bool) -> float:
+	if _burst_active and _anim_clock >= _burst_ends_at:
+		_burst_active = false
+
+	if _anim_clock >= _next_burst_roll_at:
+		var stride_period := 1.0 / (GAIT_FREQ * (CHASE_HZ_MULT if chasing else 1.0))
+		_next_burst_roll_at = _anim_clock + stride_period
+		if not _burst_active:
+			var chance := BURST_CHANCE_CHASE if chasing else BURST_CHANCE
+			if randf() < chance:
+				_burst_active = true
+				_burst_ends_at = _anim_clock + BURST_DURATION_SEC
+
+	return BURST_MULT if _burst_active else 1.0
+
+
+# The core puppet-motion primitive: quantises `clock` to a coarse frame grid
+# (stop-motion judder), then reshapes the resulting sine so the pose holds
+# near +-1 (the swing extremes) and whips through 0 (neutral) — a sharp
+# power curve standing in for the smooth ease a real stride would have.
+# Returns roughly -1..1; multiply by an amplitude constant to get radians.
+func _puppet_wave(clock: float, quant_hz: float, stride_freq: float, phase: float) -> float:
+	var q: float = floor(clock * quant_hz) / maxf(quant_hz, 0.001)
+	var s: float = sin(TAU * (q * stride_freq + phase))
+	return sign(s) * pow(absf(s), 1.0 / WHIP_POWER)
+
+
+func _update_gait(delta: float, chasing: bool) -> void:
+	var hz_mult := CHASE_HZ_MULT if chasing else 1.0
+	var amp_mult := CHASE_OVEREXTEND if chasing else 1.0
+
+	var leg_hz := GAIT_HZ * hz_mult
+	var leg_freq := GAIT_FREQ * hz_mult
+	var arm_hz := GAIT_HZ * ARM_HZ_MULT * hz_mult
+	var arm_freq := GAIT_FREQ * ARM_FREQ_RATIO * hz_mult
+
+	var leg0 := _puppet_wave(_anim_clock, leg_hz, leg_freq, 0.0)
+	var leg1 := _puppet_wave(_anim_clock, leg_hz, leg_freq, 0.5)
+	var arm0 := _puppet_wave(_anim_clock, arm_hz, arm_freq, ARM_PHASE_OFFSET)
+	var arm1 := _puppet_wave(_anim_clock, arm_hz, arm_freq, ARM_PHASE_OFFSET + 0.5)
+
+	_leg_pivots[0].rotation.x = leg0 * LEG_SWING_AMP * amp_mult
+	_leg_pivots[1].rotation.x = leg1 * LEG_SWING_AMP * amp_mult
+
+	_arm_pivots[0].rotation.x = HUNCH_TILT * 0.5 + arm0 * ARM_SWING_AMP * amp_mult
+	_arm_pivots[1].rotation.x = HUNCH_TILT * 0.5 + arm1 * ARM_SWING_AMP * amp_mult
+
+	var lift := CHASE_ARM_LIFT if chasing else 0.0
+	_arm_pivots[0].rotation.z = -lift + arm0 * 0.06
+	_arm_pivots[1].rotation.z = lift - arm1 * 0.06
+
+	# Whole-body vertical hitch per footfall, derived from the same quantised
+	# leg wave — deliberately NOT reset when he stops stepping; animClock
+	# freezes mid-phase, so the hitch freezes too, same "operated" tell as
+	# everything else here.
+	position.y = absf(leg0) * HITCH_AMP
+
+	var torso_target := TORSO_CHASE_PITCH if chasing else HUNCH_TILT
+	_torso.rotation.x = lerpf(_torso.rotation.x, torso_target, clampf(delta * 6.0, 0.0, 1.0))
+
+
+func _update_cone(chasing: bool, watch: float) -> void:
+	if chasing:
+		_cone_mat.albedo_color = Color(1.0, 0.0627, 0.0627, 0.45)
+	else:
+		_cone_mat.albedo_color = Color(0.3 + 0.65 * watch, 0.05, 0.05, 0.08 + 0.32 * watch)
+
+
+func _find_player() -> Node3D:
+	if _player == null or not is_instance_valid(_player):
+		_player = get_tree().get_first_node_in_group("player")
+	return _player

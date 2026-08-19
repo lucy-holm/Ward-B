@@ -1,0 +1,83 @@
+[gd_resource type="ShaderMaterial" load_steps=8 format=3 uid="uid://wardbmatd839ab2"]
+
+[ext_resource type="Shader" path="res://materials/shaders/triplanar_worn.gdshader" id="1_shader"]
+
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_door_mottle"]
+noise_type = 3
+seed = 521
+frequency = 0.05
+fractal_octaves = 4
+fractal_gain = 0.6
+
+[sub_resource type="NoiseTexture2D" id="NoiseTexture2D_door_mottle"]
+generate_mipmaps = true
+seamless = true
+seamless_blend_skirt = 0.2
+width = 192
+height = 192
+noise = SubResource("FastNoiseLite_door_mottle")
+
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_door_normal"]
+noise_type = 3
+seed = 522
+frequency = 0.2
+fractal_octaves = 3
+fractal_gain = 0.6
+
+[sub_resource type="NoiseTexture2D" id="NoiseTexture2D_door_normal"]
+generate_mipmaps = true
+seamless = true
+seamless_blend_skirt = 0.2
+width = 192
+height = 192
+as_normal_map = true
+bump_strength = 3.0
+noise = SubResource("FastNoiseLite_door_normal")
+
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_door_chip"]
+noise_type = 2
+seed = 523
+frequency = 0.08
+cellular_jitter = 1.0
+cellular_return_type = 0
+
+[sub_resource type="NoiseTexture2D" id="NoiseTexture2D_door_chip"]
+generate_mipmaps = true
+seamless = true
+seamless_blend_skirt = 0.2
+width = 192
+height = 192
+noise = SubResource("FastNoiseLite_door_chip")
+
+[resource]
+render_priority = 0
+shader = ExtResource("1_shader")
+; Painted timber. stretch_y (0.28) elongates ALL THREE triplanar samples
+; now, including chip_tex — correct, paint peels along the grain. Rust is
+; repurposed as a duller water stain (wood doesn't rust), low strength.
+shader_parameter/decay = 0.35
+shader_parameter/base_color = Color(0.322, 0.372, 0.408, 1)
+shader_parameter/substrate_color = Color(0.24, 0.19, 0.14, 1)
+shader_parameter/rust_bleed_color = Color(0.3, 0.24, 0.18, 1)
+shader_parameter/mottle_tex = SubResource("NoiseTexture2D_door_mottle")
+shader_parameter/normal_tex = SubResource("NoiseTexture2D_door_normal")
+shader_parameter/chip_tex = SubResource("NoiseTexture2D_door_chip")
+shader_parameter/mottle_scale = 1.1
+shader_parameter/normal_scale = 4.0
+shader_parameter/chip_scale = 2.5
+shader_parameter/stretch_y = 0.28
+shader_parameter/mottle_strength = 0.2
+shader_parameter/normal_strength = 0.45
+shader_parameter/roughness_base = 0.62
+shader_parameter/roughness_substrate = 0.88
+shader_parameter/metallic_base = 0.0
+shader_parameter/chip_coverage = 0.68
+shader_parameter/chip_edge_width = 0.03
+shader_parameter/chip_lip_strength = 1.1
+shader_parameter/chip_ao_strength = 0.35
+shader_parameter/rust_bleed_strength = 0.3
+shader_parameter/rust_bleed_reach = 0.15
+shader_parameter/rust_bleed_distance = 0.12
+shader_parameter/floor_grime = 0.5
+shader_parameter/floor_grime_height = 0.5
+shader_parameter/emission_strength = 0.0

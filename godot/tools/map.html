@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>WARD B (Godot) — room map (dev)</title>
+  <style>
+    /* Same dark-monospace look as the Three.js build's map.html/map.ts —
+       this is the SAME TOOL for the other engine, not a redesign. */
+    * { box-sizing: border-box; margin: 0; }
+    html, body { height: 100%; }
+    body {
+      display: flex; background: #14171a; color: #b8c0ba;
+      font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+    #panel {
+      width: 260px; flex: none; padding: 14px; overflow-y: auto;
+      border-right: 1px solid #262b26;
+    }
+    #panel h1 { font-size: 14px; margin-bottom: 10px; color: #d7ddd5; }
+    #room-select, #level-select {
+      width: 100%; margin-bottom: 12px; background: #1d221d; color: inherit;
+      border: 1px solid #333a33; padding: 4px; font: inherit;
+    }
+    #layers label { display: block; margin: 2px 0; cursor: pointer; user-select: none; }
+    #layers .group-label {
+      margin-top: 10px; font-size: 10.5px; text-transform: uppercase;
+      letter-spacing: 0.04em; color: #5c665e;
+    }
+    #status { margin-top: 16px; padding-top: 12px; border-top: 1px solid #262b26; }
+    #status h2 {
+      font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em;
+      color: #7c867e; margin-bottom: 6px; font-weight: normal;
+    }
+    #status-line { font-size: 10.5px; color: #7c867e; word-break: break-word; line-height: 1.4; }
+    #status-line.stale { color: #d9a05f; }
+    #reset-view {
+      margin-top: 10px; width: 100%; background: #1d221d; color: inherit;
+      border: 1px solid #333a33; padding: 5px; font: inherit; cursor: pointer;
+    }
+    #reset-view:hover { border-color: #4a7fb5; }
+    #error {
+      margin-top: 12px; padding: 8px; border: 1px solid #7a3a34;
+      color: #e0897f; white-space: pre-wrap; word-break: break-word; font-size: 11px;
+      max-height: 40vh; overflow-y: auto;
+    }
+    #hint { margin-top: 14px; color: #5c665e; font-size: 11px; }
+    #viewport { flex: 1; min-width: 0; position: relative; }
+    #viewport svg { width: 100%; height: 100%; display: block; cursor: grab; }
+    #viewport svg.panning { cursor: grabbing; }
+  </style>
+</head>
+<body>
+  <aside id="panel">
+    <h1>WARD B (Godot) — room map</h1>
+    <select id="room-select"></select>
+    <select id="level-select" hidden></select>
+    <div id="layers"></div>
+    <button id="reset-view" type="button">reset pan/zoom</button>
+    <div id="status">
+      <h2>live status</h2>
+      <div id="status-line">connecting…</div>
+    </div>
+    <div id="error" hidden></div>
+    <p id="hint">dev-only — not in the build.<br />
+      edit <code>tools/gen_rooms.py</code> or a room's <code>.gd</code>
+      script and save; this redraws in place (pan/zoom/selection survive).
+      <br /><br />
+      no telemetry replay here — there is no Godot telemetry pipeline to
+      feed it (see this tool's header comment and
+      <code>ROOM_AUTHORING_GODOT.md</code> §8).</p>
+  </aside>
+  <main id="viewport"></main>
+  <script src="/map.js"></script>
+</body>
+</html>

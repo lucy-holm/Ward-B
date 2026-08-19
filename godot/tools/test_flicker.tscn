@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://bwardbflick01"]
+
+[ext_resource type="Script" path="res://tools/test_flicker.gd" id="1_flick"]
+
+[node name="TestFlicker" type="Node"]
+script = ExtResource("1_flick")

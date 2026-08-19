@@ -7,6 +7,26 @@ name: Deploy to GitHub Pages
 #   hub (this repo's hub/)  -> site root   https://lucy-holm.github.io/Ward-B/
 #   main                    -> beta/       https://lucy-holm.github.io/Ward-B/beta/
 #   preview/<name>          -> previews/<name>  .../Ward-B/previews/<name>/
+#   main (Three.js)         -> threejs/    .../Ward-B/threejs/
+#
+# beta/ AND previews/ ARE THE GODOT BUILD as of the Godot-port merge. The
+# Three.js game moved to threejs/ rather than being dropped, because it is
+# still the COMPLETE game: Godot covers rooms 1-7 and Three.js covers 1-20
+# (MIGRATION_NOTES.md, "Rooms 8-20 are not ported"). Deleting the only
+# playable 20-room build from staging while the replacement is at a third of
+# the ward would remove the very thing you need to compare against. itch.io
+# still ships Three.js — see deploy-itch.yml, and deploy-itch-godot.yml for
+# the gated Godot path.
+#
+# COST NOTE, because it is easy to miss and hard to undo: the Godot export is
+# a 38 MB index.wasm, and peaceiris commits the published files into the
+# gh-pages BRANCH. Every deploy therefore adds ~38 MB of history that nothing
+# garbage-collects, so the repo grows about that much per push to main or a
+# preview branch. Artifact-based Pages (actions/deploy-pages) would avoid
+# this entirely but replaces the whole site per deploy, which breaks the
+# hub + beta + previews coexistence this file is built around. If the repo
+# approaches GitHub's 1 GB Pages guidance, orphan-reset gh-pages — it is a
+# pure deploy branch and keeps no history worth preserving.
 #
 # The site ROOT is a static "admissions" chooser (hub/index.html) that links
 # to the merged beta and each author's preview. It is published ONLY here, so
@@ -44,6 +64,12 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      # Job level, not step level: a step's own `env:` block is not reliably
+      # visible to that step's `name:`, and both the setup step's name and its
+      # script need this. Must match the editor version the project is
+      # authored in — see the note on the setup step.
+      GODOT_VERSION: 4.7.1
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -51,7 +77,7 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
-      - name: Build
+      - name: Build Three.js (published to threejs/)
         run: npm run build
         env:
           # Build metadata baked into the bundle (see vite.config.ts).
@@ -59,6 +85,50 @@ jobs:
           # VITE_TELEMETRY_URL deliberately unset — Pages is staging/playtest.
           # Telemetry is wired ONLY in deploy-itch.yml. See that file's long
           # comment for the full rationale.
+
+      # --- Godot build (the primary staging build) -----------------------
+      #
+      # Pinned to the exact version the project was authored against.
+      # project.godot declares config/features "4.7"; a mismatched export
+      # template does not warn, it produces a build that fails at runtime.
+      #
+      # This works on GitHub Pages ONLY because export_presets.cfg has
+      # variant/thread_support=false. Thread support requires the
+      # cross-origin-isolation headers (COOP/COEP), and Pages serves static
+      # files with no way to set response headers — a threaded export would
+      # deploy successfully and then refuse to boot in the browser.
+      - name: Set up Godot ${{ env.GODOT_VERSION }}
+        run: |
+          set -euo pipefail
+          base="https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable"
+          curl -fSL -o godot.zip "${base}/Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip"
+          unzip -q godot.zip
+          sudo mv "Godot_v${GODOT_VERSION}-stable_linux.x86_64" /usr/local/bin/godot
+          sudo chmod +x /usr/local/bin/godot
+
+          curl -fSL -o templates.tpz "${base}/Godot_v${GODOT_VERSION}-stable_export_templates.tpz"
+          unzip -q templates.tpz
+          dest="$HOME/.local/share/godot/export_templates/${GODOT_VERSION}.stable"
+          mkdir -p "$dest"
+          mv templates/* "$dest/"
+          godot --version
+
+      - name: Export Godot web build
+        run: |
+          set -euo pipefail
+          mkdir -p godot/build
+          # Import first: a cold checkout has no .godot/ cache, and exporting
+          # without it silently ships an incomplete .pck. --import exits
+          # non-zero on import warnings, which are not failures here.
+          godot --headless --path godot --import || true
+          godot --headless --path godot --export-release "Web" build/index.html
+          # Prove the export actually produced a bootable set of files rather
+          # than trusting the exit code — a missing wasm is the failure mode
+          # that otherwise only shows up as a black canvas for a playtester.
+          for f in index.html index.js index.wasm index.pck; do
+            test -s "godot/build/$f" || { echo "MISSING or empty: godot/build/$f"; exit 1; }
+          done
+          ls -lh godot/build/index.wasm godot/build/index.pck
 
       - name: Compute deploy folder
         id: target
@@ -74,16 +144,32 @@ jobs:
             echo "dir=previews/${slug}" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Publish game build
+      - name: Publish Godot build
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./dist
+          publish_dir: ./godot/build
           destination_dir: ${{ steps.target.outputs.dir }}
           keep_files: true # preserve sibling folders (hub root + other builds)
           user_name: github-actions[bot]
           user_email: github-actions[bot]@users.noreply.github.com
-          commit_message: "deploy ${{ github.ref_name }} -> ${{ steps.target.outputs.dir }} @ ${{ github.sha }}"
+          commit_message: "deploy godot ${{ github.ref_name }} -> ${{ steps.target.outputs.dir }} @ ${{ github.sha }}"
+
+      # Kept alongside, not replaced: Three.js is still the only build with
+      # all 20 rooms, so it stays playable on staging until the Godot port
+      # reaches parity. Main only — a preview branch publishing here would
+      # overwrite another author's comparison build.
+      - name: Publish Three.js build to threejs/ (main only)
+        if: github.ref_name == 'main'
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./dist
+          destination_dir: threejs
+          keep_files: true
+          user_name: github-actions[bot]
+          user_email: github-actions[bot]@users.noreply.github.com
+          commit_message: "deploy threejs (20 rooms) @ ${{ github.sha }}"
 
       - name: Publish hub to site root (main only)
         if: github.ref_name == 'main'

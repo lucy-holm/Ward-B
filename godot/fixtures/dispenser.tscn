@@ -1,0 +1,186 @@
+[gd_scene load_steps=19 format=3 uid="uid://wardbfixdisp001"]
+
+; Wall-mounted medication dispenser. Canonical size 0.55W x 0.75H x 0.16D,
+; origin at the centre of the volume, faceplate faces -Z. Composite so it
+; reads as a fixture rather than a flat wall panel (see godot/MIGRATION_NOTES.md
+; and src/game/world.ts:637 for why a plain box fails against the plaster
+; shaders): dark body, a cream faceplate with a cross + MEDICATION text, a
+; recessed amber-glow dispensing slot, and a tray lip below it. Warm amber is
+; the dispenser's accent colour, distinct from the keypad's cool cyan, so the
+; two never read as the same fixture from across a dim room.
+;
+; Realism pass (see godot/fixtures/_gen/gen_bevel_meshes.gd): body, faceplate
+; and tray are baked chamfered-box meshes (real bevelled edges, not plain
+; BoxMesh corners) instead of the flat slabs this started as. The faceplate
+; reads as a two-leaf glazed cabinet door: a dark seam strip splits it, two
+; vertical hinge barrels sit on the left edge, a latch box sits right of
+; centre, and four corner screws stud the frame — all fixtures/hardware_mat
+; (dark worn metal, metallic pinned low per MIGRATION_NOTES). Two blank
+; notice-card plates flank the dispensing slot per the reference photos.
+; The faceplate is offset +1cm off dead-centre and the right notice card is
+; tilted a few degrees — small manufactured-object asymmetry per the brief,
+; kept well inside the body so it reads as "installed", not "broken".
+;
+; Visuals only — no collision, no gameplay script. The room generator supplies
+; the Area3D + CollisionShape3D this gets instanced under.
+
+[ext_resource type="Material" uid="uid://wardbfxdb01" path="res://fixtures/dispenser_body_mat.tres" id="m_body"]
+[ext_resource type="Material" uid="uid://wardbfxdp01" path="res://fixtures/dispenser_plate_mat.tres" id="m_plate"]
+[ext_resource type="Material" uid="uid://wardbfxds01" path="res://fixtures/dispenser_symbol_mat.tres" id="m_symbol"]
+[ext_resource type="Material" uid="uid://wardbfxdg01" path="res://fixtures/dispenser_glow_mat.tres" id="m_glow"]
+[ext_resource type="Material" uid="uid://wardbfxdt01" path="res://fixtures/dispenser_tray_mat.tres" id="m_tray"]
+[ext_resource type="Material" uid="uid://wardbfxhw01" path="res://fixtures/hardware_mat.tres" id="m_hw"]
+[ext_resource type="ArrayMesh" path="res://fixtures/meshes/disp_body.tres" id="am_body"]
+[ext_resource type="ArrayMesh" path="res://fixtures/meshes/disp_plate.tres" id="am_plate"]
+[ext_resource type="ArrayMesh" path="res://fixtures/meshes/disp_tray.tres" id="am_tray"]
+[ext_resource type="FontFile" path="res://fonts/SpecialElite-Regular.ttf" id="f_sign"]
+
+[sub_resource type="BoxMesh" id="bm_cross_h"]
+size = Vector3(0.09, 0.018, 0.012)
+material = ExtResource("m_symbol")
+
+[sub_resource type="BoxMesh" id="bm_cross_v"]
+size = Vector3(0.018, 0.09, 0.012)
+material = ExtResource("m_symbol")
+
+[sub_resource type="BoxMesh" id="bm_slot"]
+size = Vector3(0.34, 0.09, 0.03)
+material = ExtResource("m_glow")
+
+; Seam is a short stub above the text/cross band only — a full-height seam
+; would cut straight through "MEDICATION", which reads as broken text
+; rather than a door gap. The latch below the text visually terminates it.
+[sub_resource type="BoxMesh" id="bm_seam"]
+size = Vector3(0.007, 0.055, 0.006)
+
+[sub_resource type="BoxMesh" id="bm_latch"]
+size = Vector3(0.05, 0.045, 0.016)
+
+[sub_resource type="CylinderMesh" id="cm_hinge"]
+top_radius = 0.008
+bottom_radius = 0.008
+height = 0.035
+radial_segments = 8
+
+[sub_resource type="CylinderMesh" id="cm_screw"]
+top_radius = 0.0055
+bottom_radius = 0.0055
+height = 0.006
+radial_segments = 8
+
+[sub_resource type="BoxMesh" id="bm_bracket"]
+size = Vector3(0.018, 0.1, 0.018)
+
+[sub_resource type="BoxMesh" id="bm_notice"]
+size = Vector3(0.07, 0.1, 0.006)
+
+[node name="Dispenser" type="Node3D"]
+
+[node name="Body" type="MeshInstance3D" parent="."]
+mesh = ExtResource("am_body")
+surface_material_override/0 = ExtResource("m_body")
+
+[node name="Faceplate" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.01, 0.2, -0.095)
+mesh = ExtResource("am_plate")
+surface_material_override/0 = ExtResource("m_plate")
+
+; Seam splitting the faceplate into two glazed cabinet-door leaves, sitting
+; a couple mm proud of the plate face so it catches light as a real gap
+; rather than a printed line. Runs only above the text/cross band so it
+; doesn't cut through "MEDICATION"; the latch below visually closes it off.
+[node name="Seam" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.01, 0.275, -0.114)
+mesh = SubResource("bm_seam")
+surface_material_override/0 = ExtResource("m_hw")
+
+[node name="HingeTop" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.215, 0.265, -0.112)
+mesh = SubResource("cm_hinge")
+surface_material_override/0 = ExtResource("m_hw")
+
+[node name="HingeBottom" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.215, 0.136, -0.112)
+mesh = SubResource("cm_hinge")
+surface_material_override/0 = ExtResource("m_hw")
+
+[node name="Latch" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.01, 0.125, -0.113)
+mesh = SubResource("bm_latch")
+surface_material_override/0 = ExtResource("m_hw")
+
+[node name="ScrewTL" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, -0.195, 0.29, -0.111)
+mesh = SubResource("cm_screw")
+surface_material_override/0 = ExtResource("m_hw")
+
+[node name="ScrewTR" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0.205, 0.288, -0.111)
+mesh = SubResource("cm_screw")
+surface_material_override/0 = ExtResource("m_hw")
+
+[node name="ScrewBL" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, -0.195, 0.111, -0.111)
+mesh = SubResource("cm_screw")
+surface_material_override/0 = ExtResource("m_hw")
+
+[node name="ScrewBR" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0.207, 0.113, -0.111)
+mesh = SubResource("cm_screw")
+surface_material_override/0 = ExtResource("m_hw")
+
+[node name="NoticeLeft" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.205, -0.15, -0.111)
+mesh = SubResource("bm_notice")
+surface_material_override/0 = ExtResource("m_plate")
+
+[node name="NoticeRight" type="MeshInstance3D" parent="."]
+transform = Transform3D(0.996, 0, 0.087, 0, 1, 0, -0.087, 0, 0.996, 0.205, -0.148, -0.111)
+mesh = SubResource("bm_notice")
+surface_material_override/0 = ExtResource("m_plate")
+
+[node name="CrossH" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.15, 0.2, -0.116)
+mesh = SubResource("bm_cross_h")
+
+[node name="CrossV" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.15, 0.2, -0.116)
+mesh = SubResource("bm_cross_v")
+
+; Yaw-180 so the readable face points -Z into the room, which MIRRORS local X
+; relative to the rest of the fixture: the cross at local x=-0.15 renders on
+; the viewer's RIGHT, so the text must sit at POSITIVE local x to land beside
+; it rather than through it. At the original 0.0016 pixel_size the word was
+; wide enough to overlap the cross entirely.
+[node name="Label" type="Label3D" parent="."]
+font = ExtResource("f_sign")
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0.105, 0.2, -0.116)
+text = "MEDICATION"
+modulate = Color(0.09, 0.27, 0.2, 1)
+outline_modulate = Color(0.83, 0.87, 0.83, 1)
+font_size = 34
+outline_size = 4
+pixel_size = 0.0012
+billboard = 0
+no_depth_test = false
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="Slot" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.15, -0.095)
+mesh = SubResource("bm_slot")
+
+[node name="Tray" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.29, -0.13)
+mesh = ExtResource("am_tray")
+surface_material_override/0 = ExtResource("m_tray")
+
+[node name="BracketLeft" type="MeshInstance3D" parent="."]
+transform = Transform3D(0.906, 0.423, 0, -0.423, 0.906, 0, 0, 0, 1, -0.16, -0.345, -0.115)
+mesh = SubResource("bm_bracket")
+surface_material_override/0 = ExtResource("m_hw")
+
+[node name="BracketRight" type="MeshInstance3D" parent="."]
+transform = Transform3D(0.906, -0.423, 0, 0.423, 0.906, 0, 0, 0, 1, 0.16, -0.345, -0.115)
+mesh = SubResource("bm_bracket")
+surface_material_override/0 = ExtResource("m_hw")

@@ -1,0 +1,86 @@
+[gd_scene load_steps=7 format=3 uid="uid://wardbfixpillcup01"]
+
+; Paper medication cup with a single pill resting inside — Room 1's "take
+; the pill", the first interactable in the game, so it must read as obvious
+; and inviting on a dark table. Cup wall is one CylinderMesh with
+; cap_top = false, cap_bottom = true: Godot's per-cap toggle does in one
+; mesh what world.ts's buildPillCup needed two meshes for (an open-ended
+; CylinderGeometry plus a separate CircleGeometry base). Capsule is the same
+; two-tone construction as pill_pickup.tscn (cylinder body + two hemisphere
+; caps), scaled down and reused per world.ts's buildCapsuleMesh comment
+; ("shared across pill_pickup/pill_cup instances").
+;
+; Canonical frame: width +X, height +Y, depth +Z, front faces -Z, origin at
+; the centre of the 0.18 x 0.22 x 0.18 fixture volume.
+;
+; Idle motion (pill_idle.gd) is dialed down from pill_pickup's: a spinning
+; paper cup on a table reads as a bug, not a hint, so spin/bob are subtle
+; here while the emissive pulse stays at full strength — the glow, not the
+; motion, is what has to carry readability for a gameplay-critical pickup.
+
+[ext_resource type="Material" uid="uid://wardbmatf1daa31" path="res://materials/pill.tres" id="m_pill"]
+[ext_resource type="Script" path="res://fixtures/pill_idle.gd" id="s_idle"]
+
+[sub_resource type="StandardMaterial3D" id="m_cup_paper"]
+albedo_color = Color(0.914, 0.894, 0.839, 1)
+roughness = 0.85
+metallic = 0.0
+
+[sub_resource type="StandardMaterial3D" id="m_cap"]
+albedo_color = Color(0.349, 0.788, 0.702, 1)
+roughness = 0.35
+metallic = 0.0
+emission_enabled = true
+emission = Color(0.349, 0.788, 0.702, 1)
+emission_energy_multiplier = 1.2
+rim_enabled = true
+rim = 0.6
+
+[sub_resource type="CylinderMesh" id="bm_cupwall"]
+top_radius = 0.099
+bottom_radius = 0.0684
+height = 0.22
+radial_segments = 12
+cap_top = false
+cap_bottom = true
+material = SubResource("m_cup_paper")
+
+[sub_resource type="CylinderMesh" id="bm_body"]
+top_radius = 0.04
+bottom_radius = 0.04
+height = 0.045
+radial_segments = 10
+material = ExtResource("m_pill")
+
+[sub_resource type="SphereMesh" id="bm_cap"]
+radius = 0.04
+height = 0.04
+is_hemisphere = true
+radial_segments = 10
+rings = 4
+material = SubResource("m_cap")
+
+[node name="PillCup" type="Node3D"]
+script = ExtResource("s_idle")
+spin_speed = 0.35
+bob_amount = 0.012
+bob_speed = 2.0
+pulse_amount = 0.15
+
+[node name="CupWall" type="MeshInstance3D" parent="."]
+mesh = SubResource("bm_cupwall")
+
+[node name="Capsule" type="Node3D" parent="."]
+position = Vector3(0.005, 0.08, -0.012)
+rotation = Vector3(0.15, 0, 1.2083)
+
+[node name="Body" type="MeshInstance3D" parent="Capsule"]
+mesh = SubResource("bm_body")
+
+[node name="CapTop" type="MeshInstance3D" parent="Capsule"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0, 0.0225, 0.0)
+mesh = SubResource("bm_cap")
+
+[node name="CapBottom" type="MeshInstance3D" parent="Capsule"]
+transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 0.0, -0.0225, 0.0)
+mesh = SubResource("bm_cap")

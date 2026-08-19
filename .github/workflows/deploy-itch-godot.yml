@@ -1,0 +1,173 @@
+name: Publish Godot build to itch.io
+
+# THE GODOT PATH TO ITCH, DELIBERATELY GATED.
+#
+# Separate file from deploy-itch.yml on purpose. That workflow publishes the
+# Three.js game on every push to `release`, and it is left completely
+# untouched — so no branch push can ever ship the Godot build by accident.
+# This one runs on manual dispatch ONLY.
+#
+# WHY THE GATE EXISTS. The Godot port covers rooms 1-7; the Three.js game
+# covers 1-20 (MIGRATION_NOTES.md: "Rooms 8-20 are not ported. Room 7 exits
+# to END"). Publishing Godot to the public playable channel today would take
+# 13 working rooms away from the audience. The `parity check` step below
+# enforces that programmatically rather than trusting anyone to remember it.
+#
+# DEFAULT CHANNEL IS NOT THE PUBLIC ONE. `html5-godot` uploads alongside the
+# live game instead of replacing it: on itch each channel is its own upload,
+# and a new one is not automatically the browser-playable build (the runbook
+# already records that a fresh upload shows a download button until someone
+# ticks "played in the browser" by hand). So this is safe to run now — it
+# gets a Godot build onto the project page for testing without touching what
+# players load. Switching to `html5` is the deliberate, parity-gated step.
+#
+# ONE-TIME SETUP: the BUTLER_API_KEY secret is already configured for
+# deploy-itch.yml and is reused here. Nothing else to do.
+
+on:
+  workflow_dispatch:
+    inputs:
+      channel:
+        description: "itch channel. html5-godot = safe (uploads alongside). html5 = REPLACES the public playable build."
+        required: true
+        default: html5-godot
+        type: choice
+        options:
+          - html5-godot
+          - html5
+      confirm:
+        description: 'Type "ship godot" to confirm you meant to run this.'
+        required: true
+        default: ""
+        type: string
+      force_incomplete:
+        description: "Allow publishing to the PUBLIC html5 channel while rooms are still missing. Leave unchecked."
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  # Never let two butler uploads talk to itch's build servers at once, and
+  # never cancel one mid-upload — same reasoning as deploy-itch.yml.
+  group: itch-release
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    env:
+      GODOT_VERSION: 4.7.1
+    steps:
+      - uses: actions/checkout@v4
+
+      # Cheap guards first: fail before spending five minutes downloading
+      # export templates for a run that was never going to be allowed.
+      - name: Confirm intent
+        run: |
+          set -euo pipefail
+          if [ "${{ inputs.confirm }}" != "ship godot" ]; then
+            echo "::error::confirm must be exactly 'ship godot' (got '${{ inputs.confirm }}')"
+            exit 1
+          fi
+
+      - name: Parity check
+        run: |
+          set -euo pipefail
+          # Source of truth for both counts is the filesystem, not a number
+          # written in a comment that can rot.
+          godot_rooms=$(find godot/rooms -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ')
+          three_rooms=$(ls src/rooms/room*.ts | wc -l | tr -d ' ')
+          echo "Godot rooms:   $godot_rooms"
+          echo "Three.js rooms: $three_rooms"
+
+          if [ "${{ inputs.channel }}" != "html5" ]; then
+            echo "Channel is '${{ inputs.channel }}' — not the public playable channel, parity not required."
+            exit 0
+          fi
+
+          if [ "$godot_rooms" -ge "$three_rooms" ]; then
+            echo "Parity reached ($godot_rooms >= $three_rooms) — clear to publish to html5."
+            exit 0
+          fi
+
+          if [ "${{ inputs.force_incomplete }}" = "true" ]; then
+            echo "::warning::Publishing to the PUBLIC channel with only $godot_rooms of $three_rooms rooms, because force_incomplete was set."
+            exit 0
+          fi
+
+          echo "::error::Refusing to publish to the public html5 channel: Godot has $godot_rooms rooms, Three.js has $three_rooms. Players would lose $((three_rooms - godot_rooms)) rooms. Use channel html5-godot, or set force_incomplete if this is deliberate."
+          exit 1
+
+      - name: Set up Godot ${{ env.GODOT_VERSION }}
+        run: |
+          set -euo pipefail
+          base="https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable"
+          curl -fSL -o godot.zip "${base}/Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip"
+          unzip -q godot.zip
+          sudo mv "Godot_v${GODOT_VERSION}-stable_linux.x86_64" /usr/local/bin/godot
+          sudo chmod +x /usr/local/bin/godot
+
+          curl -fSL -o templates.tpz "${base}/Godot_v${GODOT_VERSION}-stable_export_templates.tpz"
+          unzip -q templates.tpz
+          dest="$HOME/.local/share/godot/export_templates/${GODOT_VERSION}.stable"
+          mkdir -p "$dest"
+          mv templates/* "$dest/"
+          godot --version
+
+      - name: Export Godot web build
+        run: |
+          set -euo pipefail
+          mkdir -p godot/build
+          # A cold checkout has no .godot/ cache; exporting without importing
+          # first ships an incomplete .pck. --import exits non-zero on import
+          # warnings, which are not failures.
+          godot --headless --path godot --import || true
+          godot --headless --path godot --export-release "Web" build/index.html
+          for f in index.html index.js index.wasm index.pck; do
+            test -s "godot/build/$f" || { echo "::error::MISSING or empty: godot/build/$f"; exit 1; }
+          done
+          ls -lh godot/build
+
+      - name: Install butler
+        run: |
+          set -euo pipefail
+          # Same broth URL and the same two traps as deploy-itch.yml: the TLD
+          # is itch.ZONE (itch.OVH is NXDOMAIN), and --fail keeps an HTTP
+          # error from being written into butler.zip as an error page.
+          curl -fSL --retry 3 --retry-delay 5 \
+            -o butler.zip \
+            https://broth.itch.zone/butler/linux-amd64/LATEST/archive/default
+          file butler.zip | grep -q 'Zip archive' \
+            || { echo "::error::butler download was not a zip — has the broth URL changed?"; exit 1; }
+          # butler resolves its sibling libs (7z.so, libc7zip.so) relative to
+          # its own path, so the whole directory goes on PATH.
+          unzip -o butler.zip -d butler-bin
+          chmod +x butler-bin/butler
+          echo "$PWD/butler-bin" >> "$GITHUB_PATH"
+
+      - name: Verify butler
+        run: butler -V
+
+      - name: Push Godot build to itch.io
+        env:
+          BUTLER_API_KEY: ${{ secrets.BUTLER_API_KEY }}
+        run: |
+          set -euo pipefail
+          # Target is tommy-holmes/ward-b — the itch username is independent
+          # of the GitHub owner (lucy-holm); do not "correct" it to match the
+          # repo. Lowercased because itch canonicalises usernames that way.
+          butler push godot/build "tommy-holmes/ward-b:${{ inputs.channel }}" \
+            --userversion "godot-$(git rev-parse --short HEAD)-${{ github.run_number }}"
+
+      - name: What to do next
+        run: |
+          echo "Pushed to channel '${{ inputs.channel }}'."
+          if [ "${{ inputs.channel }}" != "html5" ]; then
+            echo "This upload is NOT the browser-playable build. To try it in a browser on itch,"
+            echo "open the project's Edit page and tick 'This file will be played in the browser'"
+            echo "on the ${{ inputs.channel }} upload — then untick it again when you are done,"
+            echo "or players will get the 7-room build."
+          fi

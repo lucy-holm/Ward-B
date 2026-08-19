@@ -15,9 +15,10 @@
     deploy-config difference, no runtime flag in the game.
 
     Links are relative to the site root:
-      ./beta/            -> merged build from `main`
-      ./previews/tom/    -> Tom's `preview/tom` branch
-      ./previews/edo/    -> Edo's `preview/edo` branch
+      ./beta/            -> merged GODOT build from `main` (rooms 1-7)
+      ./threejs/         -> Three.js build from `main` (all 20 rooms)
+      ./previews/tom/    -> Tom's `preview/tom` branch (Godot)
+      ./previews/edo/    -> Edo's `preview/edo` branch (Godot)
   -->
   <style>
     :root {
@@ -93,17 +94,33 @@
     <div class="kicker">Admissions · Staging</div>
     <h1>WARD <b>B</b></h1>
     <div class="sub">
-      Intake directory. Choose a ward to enter. The merged beta is the
-      combined build; the named wards are each author's work in progress.
+      Intake directory. Choose a ward to enter. The beta and the named wards
+      are the Godot build (rooms 1–7); the Three.js ward is the original
+      engine and still the only complete 20-room run.
     </div>
   </header>
 
   <nav class="wards">
     <a class="ward primary" href="./beta/">
-      <span class="tag">MERGED</span>
+      <span class="tag">GODOT</span>
       <span class="body">
         <span class="name">Ward B — Beta</span>
-        <span class="note">Combined build from <code>main</code>. Both authors' ideas, integrated.</span>
+        <span class="note">
+          Godot build from <code>main</code>. Both authors' ideas, integrated.
+          <b>Rooms 1–7 only</b> — room 7 exits to END.
+        </span>
+      </span>
+      <span class="arrow">→</span>
+    </a>
+
+    <a class="ward" href="./threejs/">
+      <span class="tag">THREE.JS</span>
+      <span class="body">
+        <span class="name">Ward B — Three.js</span>
+        <span class="note">
+          The original engine, and still the only <b>complete</b> ward — all
+          20 rooms. This is what itch.io ships.
+        </span>
       </span>
       <span class="arrow">→</span>
     </a>

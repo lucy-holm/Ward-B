@@ -1,9 +1,16 @@
 ---
 name: adding-a-room
-description: Use when adding a new room/level to Ward B, inserting a room into the game sequence, rewiring room order/exits, or when a room change needs wiring and verification (registration, patrols, keypad codes, map viewer).
+description: Use when adding a new room/level to the THREE.JS build of Ward B (anything under src/), inserting a room into the game sequence, rewiring room order/exits, or when a room change needs wiring and verification (registration, patrols, keypad codes, map viewer). Use adding-a-room-godot instead for the Godot build under godot/.
 ---
 
-# Adding a Room to Ward B
+# Adding a Room to Ward B (Three.js)
+
+> **Which engine?** This repo ships two builds. This skill covers the
+> **Three.js** build under `src/`. For the **Godot** build under `godot/`,
+> use the `adding-a-room-godot` skill instead — the workflow is genuinely
+> different (rooms are authored in a Python DSL, not the editor, and not in
+> TypeScript). Editing the wrong build is the most common way to make a
+> change that appears to do nothing.
 
 ## Overview
 

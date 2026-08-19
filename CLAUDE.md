@@ -19,9 +19,9 @@ to lucid costs the player's one pill, refilled at wall dispensers.
 §4 invariants checklist, §2 coordinates). Design docs live in
 `docs/superpowers/specs/` (`YYYY-MM-DD-name-design.md`).
 
-## Godot port (branch `godot-migration` only)
+## Godot port
 
-`/godot/` holds a Godot 4.7 rebuild of **rooms 1–7**, side by side with the
+`/godot/` holds a Godot 4.7 rebuild of **all 20 rooms**, side by side with the
 Three.js build, which is untouched and remains what ships. Read
 `godot/MIGRATION_NOTES.md` before touching it — it records three deliberate
 deviations from idiomatic Godot (ported axis-separated AABB movement instead
@@ -32,8 +32,15 @@ renderer) plus a catalogue of ported quirks that look like bugs and are not.
   the analogue of `check:rooms`. Run after ANY room change.
 - `godot --headless --path godot tools/test_mechanics.tscn` — behavioural
   assertions (state-conditional geometry, geometry-trap guard, pill economy).
-- `tools/gen_rooms.py` generated the seven room scenes from the TS geometry.
-  **The `.tscn` is now the source of truth** — author new rooms in the editor.
+- **`tools/gen_rooms.py` is the source of truth for room layout — NOT the
+  `.tscn`.** It is a declarative Python DSL and a full run reproduces all 21
+  committed scenes byte-for-byte. Editing a `.tscn` in the editor is silently
+  reverted on the next regenerate. Author rooms by editing the `roomN()`
+  functions; see `godot/ROOM_AUTHORING_GODOT.md` for the `Room` kit API.
+  (This bullet previously said the opposite. It was wrong — see the warning
+  block in `godot/MIGRATION_NOTES.md` §1.)
+- `godot/tools/check_roundtrip.sh` — asserts the generator still reproduces
+  every committed scene byte-for-byte. Run after ANY room change.
 
 ## Commands
 
@@ -61,7 +68,7 @@ Two authors share this repo: **Tom** (`preview/tom`) and **Edo**
   (`hub/index.html`). None of this touches the public audience.
 - **Those staging builds are the GODOT port, not Three.js.** `main` also
   publishes the Three.js build to `…/Ward-B/threejs/`, which is still the only
-  build with all 20 rooms (Godot has 1–7 — `godot/MIGRATION_NOTES.md`). Know
+  build that ships publicly; the Godot port also has all 20 rooms now. Know
   which engine you are changing: edits under `src/` do not reach `beta/`, and
   edits under `godot/` do not reach itch.
 

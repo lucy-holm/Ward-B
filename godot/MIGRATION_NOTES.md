@@ -1,9 +1,12 @@
 # Ward B — Three.js → Godot 4.7 migration notes
 
-Scope of this pass: **rooms 1–7**, i.e. the tutorial arc through the
-Orderly's introduction (room 4) and its three follow-up rooms. The Three.js
-build is untouched and remains the reference implementation and the thing
-that ships.
+Scope of the ORIGINAL pass this document was written for: **rooms 1–7**, i.e.
+the tutorial arc through the Orderly's introduction (room 4) and its three
+follow-up rooms. **The port has since completed — all 20 rooms are in** (see
+§5). Where a section below says "rooms 1–7" as a statement of scope rather
+than of history, read it as "the whole ward"; the per-room specifics it cites
+are still accurate for the rooms named. The Three.js build is untouched and
+remains the reference implementation and the thing that ships.
 
 ---
 
@@ -40,16 +43,38 @@ inspector). Nothing polls a global; a designer can retag a prop without
 touching code. This is the clearest win of the migration.
 
 ### Rooms are real scenes
-`room1.tscn` … `room7.tscn` are genuine Godot scenes — `StaticBody3D` +
+The room `.tscn` files are genuine Godot scenes — `StaticBody3D` +
 `BoxShape3D` walls on tagged collision layers, `Label3D` scrawls, `Area3D`
-interactables and exits, `OmniLight3D` lights. They open and edit in the
-editor.
+interactables and exits, `OmniLight3D` lights. They open in the editor and are
+readable there, which is the point: the port produces real engine-native
+scenes, not an opaque blob. **Open them to inspect; do not edit them** — see
+the warning below.
 
 They were produced by `tools/gen_rooms.py` from the TS geometry, because
-hand-typing seven rooms of coordinates is an error factory and those
-coordinates are audited. **After generation the `.tscn` is the source of
-truth.** The generator exists to port the seven rooms, not to keep rooms as
-data forever — new rooms should be authored in the editor.
+hand-typing rooms of coordinates is an error factory and those coordinates
+are audited.
+
+> ⚠️ **`gen_rooms.py` IS the source of truth. This section used to say the
+> opposite, and that was wrong.** It read "after generation the `.tscn` is the
+> source of truth — new rooms should be authored in the editor". That advice
+> was false and actively harmful: a full generator run reproduces **all 21
+> committed room scenes byte-for-byte, zero diffs** (verified by regenerating
+> into a scratch tree and diffing every file, `room20` included). A room
+> hand-edited in the editor is therefore silently reverted the next time
+> anyone regenerates — no conflict, no warning, the edit just evaporates.
+>
+> Two stale caveats went with it, both also false now. The `__main__` block
+> claimed a full run drifts on "exactly TWO exceptions" (room4's and room5's
+> hand-promoted `L1` shadow casters); the drift is zero. §5 claimed rooms
+> 8–20 were not ported; all 21 are in. `tools/check_roundtrip.sh` now asserts
+> the byte-for-byte property so this cannot rot silently again.
+
+**Author rooms by editing `tools/gen_rooms.py` and regenerating.** The room
+functions there (`room1()` … `room20()`) are the declarative level
+definitions and the `Room` class is the authoring kit — see
+`ROOM_AUTHORING_GODOT.md` for the API. The `.tscn` files are build output
+that happens to be checked in, so the game runs without a Python step and so
+scene diffs stay reviewable.
 
 ### Autoloads
 `Tuning` (a 1:1 mirror of `src/tuning.ts`), `StateManager`, `GameState`,
@@ -379,10 +404,13 @@ wire.
   §6.
 - **`big: true` on scrawls** is not expressed by the generator — affects
   relative scrawl sizing in rooms 2–7.
-- **Rooms 8–20 are not ported.** Room 7 exits to `END`; restore the
-  `("room8", ...)` exit in `gen_rooms.py` when the rest of the ward lands.
-  Rooms 8+ need the kit features this pass skipped: triggers, shape locks,
-  light switches, verticality and stacked levels.
+- ~~**Rooms 8–20 are not ported.**~~ Done — the full ward (rooms 1–20, with
+  room 19 as a two-scene variant) is ported and registered in `main.gd`'s
+  `ROOM_SCENES`. The kit features this list called out as missing all landed
+  with them: triggers (`core/trigger_volume.gd`), shape locks
+  (`core/shape_lock.gd`), light switches (the light axis,
+  `core/light_object.gd`), and verticality including stacked levels
+  (`core/levels.gd`).
 
 ---
 

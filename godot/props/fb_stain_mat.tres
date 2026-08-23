@@ -1,0 +1,35 @@
+[gd_resource type="StandardMaterial3D" format=3 uid="uid://wardbfbrmstn1"]
+
+; Damp/rust wall run — wall_stain. Dark desaturated brown off the palette
+; strip's "dark brown" swatch, fully matte: a stain is a discoloration of the
+; plaster itself, not a wet reflective surface, so this stays well away from
+; props/screen's low-roughness "dead glass" look despite both reading dark.
+; Close in value to props/rust (bed-frame corrosion) but pushed further
+; toward black and away from rust's warmer tan, because a plaster damp stain
+; reads as dirt/mould darkening the wall rather than oxidised iron — the two
+; materials sit near each other on the board but are not the same swatch.
+;
+; Not baked darker for the UNMEDICATED state and not lightened for LUCID —
+; per the brief, the Environment grades both states; an albedo authored dark
+; on purpose would look like cardboard once the lucid grade blows it out.
+;
+; ALBEDO FLOOR, worked out empirically rather than guessed: an earlier pass
+; used Color(0.155, 0.125, 0.10) — darker than this — and it rendered as
+; literal (0,0,0) pure black under tools/shoot.tscn's ambient-only test
+; lighting (verified with a pixel sample, not eyeballed: a same-geometry,
+; same-roughness swatch at flat albedo 0.13 still crushed to (0,0,0), while
+; 0.17 read as a faint (5,8,7)). That is not a geometry or z-fight bug — it
+; is ACES tonemapping plus the harness's adjustment_contrast(1.08) crushing
+; an already-low ambient-only diffuse response the rest of the way to zero —
+; but a "damp stain" prop that vanishes to pure black under flat ambient
+; would vanish even harder under the UNMEDICATED state's much dimmer real
+; lighting, which defeats the point of a decay prop that is meant to be
+; SEEN. Raised just enough to clear that floor with margin while staying the
+; darkest authored material in this file (props/rust sits at 0.215-0.29,
+; noticeably brighter and warmer — this stays below it and cooler, so a
+; stain next to rusted ironwork still reads as a different substance).
+
+[resource]
+albedo_color = Color(0.21, 0.175, 0.14, 1)
+roughness = 0.85
+metallic = 0.0

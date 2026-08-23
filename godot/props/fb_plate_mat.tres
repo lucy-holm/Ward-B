@@ -1,0 +1,24 @@
+[gd_resource type="StandardMaterial3D" format=3 uid="uid://wardbfbrmplat1"]
+
+; Satin plastic/steel accessory plate — light switches, socket plates, the
+; alarm-point backbox, the hand-gel dispenser body. Deliberately a DIFFERENT
+; surface from props/enamel (chipped 1970s cast paint) and props/steel
+; (brushed chair-frame metal): this is the moulded plastic/pressed-steel
+; wiring-accessory family every institutional building repeats on every wall,
+; and it needs to read as its own material family rather than borrowing one
+; already spoken for elsewhere in the kit.
+;
+; Cream/bone rather than clinical white, off the palette strip's "cream/bone"
+; swatch, and pitched between enamel's warm chip (0.70/0.655/0.565) and
+; steel's cool taupe (0.32/0.325/0.335) so a switch plate on a plaster wall
+; reads as a fitting, not as a light source or a shadow. Roughness sits below
+; enamel's 0.5 — a moulded plastic plate takes a tighter, smaller specular
+; highlight than painted cast enamel does, which is most of the "plastic, not
+; paint" read at this scale. Metallic pinned near zero per MIGRATION_NOTES
+; (gl_compatibility, no sky/reflection probes — a metallic surface here would
+; render flat black).
+
+[resource]
+albedo_color = Color(0.58, 0.565, 0.5, 1)
+roughness = 0.38
+metallic = 0.02

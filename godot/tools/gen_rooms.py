@@ -3010,13 +3010,40 @@ def room7():
     r.interactable("exitdoor", "door", (2, 3, 0.2), (0, 1.5, -5),
                    "door", "the exit door")
 
-    r.light(0, 4)
-    r.light(-3.75, 2.2)
-    r.light(3.75, 0)
-    r.light(-3.75, -2.2)
-    r.light(0, -3.5)
-    r.light(-6.5, 1.05)
-    r.light(0, -6)
+    # --- set dressing --------------------------------------------------------
+    # A records room, so: filing cabinets and paper. Faces are south z 4.88,
+    # east x 5.88, north z -4.88, west x -5.88 (broken by the nook at z 0.8..1.8).
+    #
+    # THE THREE shelf_rows ARE A MAZE and the whole room is navigating them:
+    # (-3.75, 2.2), (3.75, 0) and (-3.75, -2.2), each 4.5 long and 0.8 deep. No
+    # collider goes in a lane between them — the cabinets sit against the south
+    # and east walls, in the open water south of the first row.
+    r.prop_run("skirting", "x", -6, 6, 4.88)
+    r.prop_run("skirting", "x", -6, -1, -4.88)
+    r.prop_run("skirting", "x", 1, 6, -4.88)
+    r.prop_run("skirting", "z", -5, 5, 5.88)
+
+    for i, cx in enumerate((2.5, 3.1, 3.7)):
+        r.model("filing_cabinet", (cx, 4.57), facing="nz", name="RecordsS%d" % i)
+    r.model("filing_cabinet", (5.57, 2.6), facing="nx", name="RecordsE0")
+    r.model("filing_cabinet", (5.57, 3.4), facing="nx", name="RecordsE1")
+
+    r.model("reg_notice", (-2.4, -4.88), facing="pz")
+    r.model("door_plate", (2.0, -4.88), facing="pz", text="RECORDS")
+    r.model("radiator", (5.88, -3.6), facing="nx")
+    r.model("wall_vent", (-5.88, 4.2), facing="px")
+    r.model("paper_scatter", (0.4, 1.6))
+    r.model("paper_scatter", (-0.9, -3.2), facing=0.9, name="PaperScatterB")
+    r.model("binder_stack", (1.1, 3.3))
+    r.model("missing_ceiling_tile", (-1.5, 0.4))
+
+    r.light_fitting(0, 4)
+    r.light_fitting(-3.75, 2.2)
+    r.light_fitting(3.75, 0)
+    r.light_fitting(-3.75, -2.2)
+    r.light_fitting(0, -3.5)
+    r.light(-6.5, 1.05)          # the nook — too shallow for a 1.2m troffer
+    r.light_fitting(0, -6)
     return r
 
 
@@ -3080,11 +3107,39 @@ def room9():
     r.interactable("exitdoor", "door", (2, 3, 0.2), (0, 1.5, -6),
                    "door", "the exit door")
 
-    r.light(0, 4)
-    r.light(-3, 1)
-    r.light(3, 1)
-    r.light(0, -1.5)
-    r.light(0, -4.5)
+    # --- set dressing --------------------------------------------------------
+    # Faces: south z 4.88, east x 4.88, west x -4.88, north z -5.88.
+    # The desk is the existing prop box at (1, -2.5), footprint x 0..2, z -3..-2;
+    # the chair and desktop clutter are placed against those real numbers.
+    #
+    # The west wall carries the code scrawl at z 1 and the coat (with the pill
+    # bottle interactable) at z -3.6, so the cabinets sit in the gap between.
+    r.prop_run("skirting", "x", -5, 5, 4.88)
+    r.prop_run("skirting", "x", -5, -1, -5.88)
+    r.prop_run("skirting", "x", 1, 5, -5.88)
+    r.prop_run("skirting", "z", -6, 5, -4.88)
+    r.prop_run("skirting", "z", -6, 5, 4.88)
+
+    r.model("office_chair", (1.0, -3.65), facing="pz")
+    r.model("crt_monitor", (1.45, -2.45), y=0.9, facing="pz")
+    r.model("paper_tray", (0.35, -2.4), y=0.9, facing="pz")
+    r.model("filing_cabinet", (-4.57, -1.0), facing="px", name="OfficeFileA")
+    r.model("filing_cabinet", (-4.57, -1.85), facing="px", name="OfficeFileB")
+
+    r.model("barred_window", (2.6, 4.88), facing="nz")
+    r.model("wall_shelf", (4.88, -2.6), facing="nx")
+    r.model("binder_stack", (4.74, -2.6), y=1.464, facing="nx")
+    r.model("notice_board", (-2.6, -5.88), facing="pz")
+    r.model("wall_clock", (3.2, -5.88), facing="pz")
+    r.model("radiator", (-4.88, 3.0), facing="px")
+    r.model("paper_scatter", (2.2, -0.6))
+    r.model("missing_ceiling_tile", (-2.2, -0.8))
+
+    r.light_fitting(0, 4)
+    r.light_fitting(-3, 1)
+    r.light_fitting(3, 1)
+    r.light_fitting(0, -1.5)
+    r.light_fitting(0, -4.5)
     return r
 
 def room8():

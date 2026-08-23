@@ -4,8 +4,13 @@ Guidance for any AI coding agent (Claude Code, Codex, Cursor, etc.) working in
 this repo. Claude Code users: `CLAUDE.md` is the primary file and covers the
 same rules in more depth; this file mirrors the essentials for other agents.
 
-Ward B is a first-person psychological puzzle game (Vite + TypeScript +
-three.js, grey-box).
+Ward B is a first-person psychological puzzle game built in **Godot 4.7**.
+
+**The game is `godot/`.** `src/` is a frozen Three.js archive — the original
+implementation, kept for reference and rollback, not maintained and not shipped
+(decision record:
+`docs/superpowers/specs/2026-08-23-threejs-deprecation.md`). If you are editing
+`src/`, stop and check you meant to.
 
 ## Which branch you work on (read this first)
 
@@ -29,20 +34,20 @@ Two authors share this repo: **Tom** (`preview/tom`) and **Edo**
 | `preview/tom`   | `…/Ward-B/previews/tom/`                              | Godot    | Tom's WIP       |
 | `preview/edo`   | `…/Ward-B/previews/edo/`                              | Godot    | Edo's WIP       |
 | `main`          | `…/Ward-B/beta/` (merged staging)                    | Godot    | shared playtest |
-| `main`          | `…/Ward-B/threejs/`                                  | Three.js | shared playtest |
-| `release`       | https://tommy-holmes.itch.io/ward-b (with telemetry) | Three.js | real audience   |
+| `main`          | `…/Ward-B/threejs/`                                  | Three.js | archive only    |
+| *(none)*        | https://tommy-holmes.itch.io/ward-b (with telemetry) | Godot    | real audience   |
 
-**Two engines live here, and which one is "the game" depends on where you
-look.** Staging moved to the Godot port; itch.io still ships Three.js. That
-split is about room coverage, not preference: Godot has rooms 1–7, Three.js
-has 1–20 (`godot/MIGRATION_NOTES.md`). `threejs/` is therefore still the only
-complete run and stays published for comparison until the port catches up.
-A change under `src/rooms/` does **not** appear in the Godot build, and a
-change under `godot/rooms/` does not appear on itch.
+**The game is Godot.** `src/` was frozen on 2026-08-23
+(`docs/superpowers/specs/2026-08-23-threejs-deprecation.md`); it is not
+maintained and does not ship. `threejs/` stays published because
+`godot/MIGRATION_NOTES.md` cites it to explain why the port deviates where it
+does. A change under `src/rooms/` reaches that archive path and nothing else.
 
-Publishing Godot to itch is a manual, gated dispatch
-(`.github/workflows/deploy-itch-godot.yml`) that refuses the public `html5`
-channel while rooms are missing. `deploy-itch.yml` is untouched.
+Publishing is a manual `deploy-itch-godot.yml` dispatch requiring
+`confirm: "ship godot"`, still parity-checked before it will touch the public
+`html5` channel. `deploy-itch.yml` (Three.js) had its `release`-push trigger
+removed and is a ROLLBACK LEVER only — running it republishes the archive over
+the live game.
 
 The GitHub Pages site root (`…/Ward-B/`) is a static chooser (`hub/index.html`)
 linking to every staging build. It never ships to itch.

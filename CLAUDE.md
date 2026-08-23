@@ -1,7 +1,7 @@
 # Ward B
 
-First-person psychological puzzle game (Vite + TypeScript + three.js,
-grey-box). The player shifts (Q) between two realities: **UNMEDICATED**
+First-person psychological puzzle game, built in **Godot 4.7** (`godot/`).
+The player shifts (Q) between two realities: **UNMEDICATED**
 (scrawls readable, orderlies visible) and **LUCID** (keypads readable,
 orderlies invisible-but-patrolling, ~45s meter then auto-revert). Shifting
 to lucid costs the player's one pill, refilled at wall dispensers.
@@ -19,10 +19,12 @@ to lucid costs the player's one pill, refilled at wall dispensers.
 §4 invariants checklist, §2 coordinates). Design docs live in
 `docs/superpowers/specs/` (`YYYY-MM-DD-name-design.md`).
 
-## Godot port
+## The game is `godot/`
 
-`/godot/` holds a Godot 4.7 rebuild of **all 20 rooms**, side by side with the
-Three.js build, which is untouched and remains what ships. Read
+`/godot/` holds the game: a Godot 4.7 build of **all 20 rooms**. As of
+2026-08-23 it is the ONLY maintained build and the one that ships publicly —
+`src/` is a frozen Three.js archive (decision record:
+`docs/superpowers/specs/2026-08-23-threejs-deprecation.md`). Read
 `godot/MIGRATION_NOTES.md` before touching it — it records three deliberate
 deviations from idiomatic Godot (ported axis-separated AABB movement instead
 of `move_and_slide`, `NavigationAgent3D` orderly movement, `gl_compatibility`
@@ -73,19 +75,19 @@ Two authors share this repo: **Tom** (`preview/tom`) and **Edo**
 - `main` auto-deploys to `…/Ward-B/beta/` (merged staging); each `preview/*`
   to `…/Ward-B/previews/<name>/`; the Pages root is a static chooser
   (`hub/index.html`). None of this touches the public audience.
-- **Those staging builds are the GODOT port, not Three.js.** `main` also
-  publishes the Three.js build to `…/Ward-B/threejs/`, which is still the only
-  build that ships publicly; the Godot port also has all 20 rooms now. Know
-  which engine you are changing: edits under `src/` do not reach `beta/`, and
-  edits under `godot/` do not reach itch.
+- **Those staging builds are the GODOT build.** `main` still publishes the
+  frozen Three.js archive to `…/Ward-B/threejs/`, but nothing there is
+  maintained. Edits under `src/` reach only that archive path and nothing else.
 
 ## Hard rules
 
-- **`release` is the only branch that publishes to the public** (itch.io, with
-  telemetry), and it ships **Three.js**. The Godot build reaches itch only via
-  a manual `deploy-itch-godot.yml` dispatch, which refuses the public `html5`
-  channel while Godot has fewer rooms than Three.js — don't defeat that gate
-  without the author saying so explicitly.
+- **Publishing to the public is a manual `deploy-itch-godot.yml` dispatch**,
+  and it ships **Godot**. It requires `confirm: "ship godot"` and still runs a
+  parity check that refuses the public `html5` channel if Godot ever drops below
+  Three.js on room count — that guard passes on its own today and must NOT be
+  deleted on those grounds. `deploy-itch.yml` (Three.js) was reduced to
+  manual-dispatch-only on 2026-08-23 and is a ROLLBACK LEVER, not a pipeline;
+  running it republishes the archive over the live game.
   `main` publishes the *staging* beta to GitHub Pages. Never push
   `main` or `release` unless the author explicitly says to. Committing locally
   on a `preview/*` branch is fine — the authors don't commit themselves; the

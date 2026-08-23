@@ -1,0 +1,32 @@
+[gd_resource type="StandardMaterial3D" format=3 uid="uid://wardbprmsgex1"]
+
+; The ONE deliberately unshaded/emissive surface in props/_gen/defs_signage.py.
+; See that file's module docstring for the reasoning: every other sign in the
+; kit is ordinary lit StandardMaterial3D, because a wall of self-lit signage
+; would compete with the game's real light fittings (troffer/pendant) and with
+; the red scrawls, which are the only text the player is actually required to
+; read. An EXIT box is the one sign that is genuinely always-on institutional
+; lighting, so it earns the same treatment as materials/glow.tres and
+; props/diffuser_mat.tres.
+;
+; GREEN, not the warm cream/amber every other glow in this game uses
+; (materials/glow.tres, props/diffuser_mat.tres, fixtures/breaker_glow_mat.tres,
+; fixtures/dispenser_glow_mat.tres). That is deliberate: this is the only
+; fixture in the ward whose colour is a real-world safety-signage convention
+; rather than "warm light source", and green is the one hue nothing else in
+; the palette uses, so it can never be confused with a light fitting, a
+; scrawl, or the fire extinguisher's red at a glance in the dark.
+;
+; Energy pinned at 1.4 — below diffuser_mat's 1.6 and well below
+; breaker_glow_mat's 2.0. Both of those are small point-detail fixtures seen
+; close up; this sign is meant to be spottable from well down a dark corridor
+; without blooming into a green smear that reads as a light source rather
+; than a sign.
+
+[resource]
+shading_mode = 0
+albedo_color = Color(0.055, 0.58, 0.2, 1)
+roughness = 0.85
+emission_enabled = true
+emission = Color(0.12, 0.92, 0.3, 1)
+emission_energy_multiplier = 1.4

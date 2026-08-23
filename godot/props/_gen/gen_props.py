@@ -25,6 +25,7 @@ half-apply.
 """
 
 import json
+import math
 import os
 import re
 import sys
@@ -101,12 +102,31 @@ def transform(pos, rot):
     return "Transform3D(%s)" % ", ".join(nums)
 
 
+def _gd_str(text):
+    """Escape a Python string for a GDScript double-quoted literal. Mirrors
+    tools/gen_rooms.py's scrawl emission (`text.replace('"','\\"').replace("\\n","\\n")`)
+    so a multi-line label written with real `\\n`s in prop_defs round-trips the
+    same way a multi-line scrawl already does."""
+    return text.replace('"', '\\"').replace("\n", "\\n")
+
+
 def emit_prop(name, spec):
     parts = spec["parts"]
     # Stable ext_resource ids, assigned in first-use order so the emitted file
     # is deterministic rather than dependent on dict iteration.
+    #
+    # A part with `"type": "label"` (props/_gen/defs_signage.py's `label()`
+    # helper) carries no `mesh`/`mat` — it becomes a Label3D below, not a
+    # MeshInstance3D, so it is skipped here and tracked separately as
+    # `has_labels` to decide whether the shared FontFile ext_resource is
+    # needed at all. Every prop with no signage extension takes the exact
+    # code path this always had.
     mats, meshes = [], []
+    has_labels = False
     for p in parts:
+        if p.get("type") == "label":
+            has_labels = True
+            continue
         if p["mat"] not in mats:
             mats.append(p["mat"])
         if p["mesh"] not in meshes:
@@ -114,7 +134,8 @@ def emit_prop(name, spec):
 
     out = []
     out.append('[gd_scene load_steps=%d format=3 uid="uid://wardbprop%s"]'
-               % (len(mats) + len(meshes) + 1, re.sub(r"[^a-z0-9]", "", name)[:14]))
+               % (len(mats) + len(meshes) + (1 if has_labels else 0) + 1,
+                  re.sub(r"[^a-z0-9]", "", name)[:14]))
     out.append("")
     for line in spec["doc"].rstrip().splitlines():
         out.append(("; " + line).rstrip())
@@ -136,6 +157,14 @@ def emit_prop(name, spec):
     for mesh in meshes:
         out.append('[ext_resource type="ArrayMesh" path="%s/%s.tres" id="am_%s"]'
                    % (MESH_RES_DIR, mesh, mesh))
+    if has_labels:
+        # Same font, same bare path-only reference (no uid), as the existing
+        # Label3D precedent in fixtures/dispenser.tscn / door.tscn / keypad.tscn
+        # / breaker.tscn — SpecialElite-Regular.ttf is reserved for
+        # institutional signage per fonts/README.md. One ext_resource covers
+        # every label part in the prop, however many there are.
+        out.append('[ext_resource type="FontFile" '
+                   'path="res://fonts/SpecialElite-Regular.ttf" id="f_sign"]')
     out.append("")
     out.append('[node name="%s" type="Node3D"]' % _node_name(name))
     out.append("")
@@ -150,6 +179,48 @@ def emit_prop(name, spec):
             nm = "%s%d" % (nm, used[nm])
         else:
             used[nm] = 1
+        if p.get("type") == "label":
+            # Values and property order mirror fixtures/dispenser.tscn's
+            # shipped "MEDICATION" Label3D exactly (font first — see that
+            # file's own comment on why `script`/`font` must precede
+            # anything that depends on it). `shaded` is deliberately NOT set:
+            # Label3D's own default (unshaded) is what Room.scrawl() relies
+            # on to stay legible in the pitch-black UNMEDICATED state, and
+            # overriding it here would make every sign's TEXT go dark with
+            # the room while the plate around it stays lit-and-dimming — the
+            # opposite of legible. See defs_signage.py's module docstring for
+            # why that is not the same thing as the plate/frame mesh being
+            # unshaded, which none of them are except exit_sign's panel.
+            # YAW 180 IS MANDATORY, ALWAYS COMPOSED IN HERE, NOT LEFT TO THE
+            # CALLER. Label3D's OWN default orientation (identity rotation)
+            # faces +Z — the OPPOSITE of this kit's "front is -Z" convention
+            # every mesh part already follows. Every single existing Label3D
+            # in this project (fixtures/dispenser.tscn, door.tscn,
+            # keypad.tscn, breaker.tscn) independently arrives at the exact
+            # same fix: a yaw-180 basis, i.e. `rot=(0, pi, 0)` through this
+            # same `transform()`/`_basis()` machinery. That is a rotation
+            # (determinant +1, a proper 180 degree turn about the vertical
+            # axis), NOT a mirror — it does not reverse the glyphs, it spins
+            # the whole label to face the room, exactly like turning a
+            # physical sign around on its bracket. Composed with whatever
+            # `rot` defs_signage.py's `label()` passed (normally none), so a
+            # caller never has to know this trap exists.
+            lrot = (p["rot"][0], p["rot"][1] + math.pi, p["rot"][2])
+            out.append('[node name="%s" type="Label3D" parent="."]' % nm)
+            out.append("transform = %s" % transform(p["pos"], lrot))
+            out.append('text = "%s"' % _gd_str(p["text"]))
+            out.append('font = ExtResource("f_sign")')
+            out.append("font_size = %d" % p["font_size"])
+            out.append("outline_size = %d" % p["outline_size"])
+            out.append("pixel_size = %.5f" % p["pixel_size"])
+            out.append("modulate = Color(%.4f, %.4f, %.4f, 1)" % p["color"])
+            out.append("outline_modulate = Color(%.4f, %.4f, %.4f, 1)" % p["outline"])
+            out.append("billboard = 0")
+            out.append("no_depth_test = false")
+            out.append("horizontal_alignment = %d" % p["h_align"])
+            out.append("vertical_alignment = %d" % p["v_align"])
+            out.append("")
+            continue
         out.append('[node name="%s" type="MeshInstance3D" parent="."]' % nm)
         out.append("transform = %s" % transform(p["pos"], p["rot"]))
         out.append('mesh = ExtResource("am_%s")' % p["mesh"])

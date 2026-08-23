@@ -1,4 +1,4 @@
-[gd_scene load_steps=23 format=3 uid="uid://wardbfixdoor001"]
+[gd_scene load_steps=24 format=3 uid="uid://wardbfixdoor001"]
 
 ; Institutional ward door — composite so it reads as "openable" against the
 ; now-textured triplanar walls, not as another wall panel. Canonical frame:
@@ -30,6 +30,7 @@
 [ext_resource type="Material" uid="uid://wardbmat5fba6a4" path="res://materials/wall2.tres" id="m_wall2"]
 [ext_resource type="Material" uid="uid://wardbmat7d6a4dd" path="res://materials/chain.tres" id="m_chain"]
 [ext_resource type="Material" uid="uid://wardbfxdglass01" path="res://fixtures/door_glass_mat.tres" id="m_glass"]
+[ext_resource type="ArrayMesh" path="res://fixtures/meshes/door_leaf.tres" id="am_leaf"]
 [ext_resource type="ArrayMesh" path="res://fixtures/meshes/door_jamb_side.tres" id="am_jamb_side"]
 [ext_resource type="ArrayMesh" path="res://fixtures/meshes/door_jamb_top.tres" id="am_jamb_top"]
 [ext_resource type="ArrayMesh" path="res://fixtures/meshes/door_rail_h.tres" id="am_rail_h"]
@@ -56,7 +57,14 @@ metallic = 0.0
 ; into albedo (like the original's painted outline, but now real geometry
 ; that still catches a grazing light correctly) is what actually reads.
 [sub_resource type="StandardMaterial3D" id="m_panel"]
-albedo_color = Color(0.155, 0.185, 0.205, 1)
+
+; A recessed panel is THE SAME PAINT as the rails around it — it reads darker
+; only because the recess shades it. This was Color(0.155, 0.185, 0.205), barely
+; half materials/door.tres's 0.322/0.372/0.408, which turned both panels into
+; near-black rectangles and made the whole door read as a frame with two holes
+; punched in it. Now within 12% of the frame, so the recess does the work and
+; the door reads as one object.
+albedo_color = Color(0.285, 0.33, 0.362, 1)
 roughness = 0.8
 metallic = 0.0
 
@@ -82,6 +90,11 @@ height = 0.04
 radial_segments = 12
 
 [node name="Door" type="Node3D"]
+
+[node name="Leaf" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0, -0.05, 0.04)
+mesh = ExtResource("am_leaf")
+surface_material_override/0 = ExtResource("m_door")
 
 [node name="JambLeft" type="MeshInstance3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.95, 0.0, 0.02)
@@ -143,8 +156,14 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.015, 0.6, -0.04)
 mesh = SubResource("bm_vision_frame")
 surface_material_override/0 = ExtResource("m_door")
 
+; GLASS IN FRONT OF ITS SURROUND, not behind it. VisionFrame is a SOLID
+; 0.34 x 0.44 box, not a ring, so at z -0.036 the glass sat entirely inside it
+; and was invisible from the corridor — the vision light read as a small rusty
+; steel plate, which is the opposite of the one feature that tells a player this
+; door can be seen through. At -0.051 the pane sits a few millimetres proud of
+; the surround's front face, so the surround reads as the bead holding it.
 [node name="VisionGlass" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.015, 0.6, -0.036)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.015, 0.6, -0.051)
 mesh = SubResource("bm_vision_glass")
 surface_material_override/0 = ExtResource("m_glass")
 

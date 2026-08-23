@@ -2926,14 +2926,54 @@ def room6():
     r.interactable("exitdoor", "door", (0.2, 3, 2), (12, 1.5, -2.9),
                    "door", "the exit door")
 
-    r.light(0, 6)
-    r.light(0, 1)
-    r.light(0, -2)
-    r.light(3, -2.9)
-    r.light(6.3, -2.9)
-    r.light(6.3, -5.3)
-    r.light(9.5, -2.9)
-    r.light(12.5, -2.9)
+    # --- set dressing --------------------------------------------------------
+    # NOTHING HERE CARRIES A COLLIDER, and that is a rule for this room rather
+    # than a preference. An orderly patrols both legs — the room's two scrawls
+    # are literally about learning his route — so any new solid changes what his
+    # NavigationAgent3D routes around and what check_rooms' patrol-clearance
+    # validator measures. Corridors get trim, services and litter; furniture
+    # goes in rooms with slack in them.
+    #
+    # Faces: leg A west x -1.48 and east x 1.48, south cap z 7.88; leg B north
+    # z -1.32 and south z -4.48 (broken by the alcove gap at x 5.5..7.1).
+    r.prop_run("skirting", "z", -4.6, 8, -1.48)
+    r.prop_run("skirting", "z", -1.2, 8, 1.48)
+    r.prop_run("skirting", "x", -1.6, 1.6, 7.88)
+    r.prop_run("skirting", "x", 1.6, 12, -1.32)
+    r.prop_run("skirting", "x", -1.6, 5.5, -4.48)
+    r.prop_run("skirting", "x", 7.1, 12, -4.48)
+
+    r.prop_run("bumper_rail", "z", -4.4, 7.6, -1.48)
+    r.prop_run("bumper_rail", "z", -1.0, 7.6, 1.48)
+    r.prop_run("bumper_rail", "x", 1.8, 11.8, -1.32)
+    r.prop_run("bumper_rail", "x", -1.4, 5.4, -4.48)
+    r.prop_run("bumper_rail", "x", 7.2, 11.8, -4.48)
+
+    # Services down leg B, the long leg the chase happens in.
+    r.prop_run("ceiling_conduit", "x", 2.0, 11.5, -2.0)
+    r.model("hanging_cable", (8.6, -3.6))
+    r.model("missing_ceiling_tile", (4.4, -3.4))
+    r.model("missing_ceiling_tile", (0.2, 3.2), name="MissingTileLegA")
+
+    r.model("ward_sign", (1.48, 5.2), facing="nx", text="WARD B")
+    r.model("exit_sign", (11.6, -1.32), facing="pz")
+    r.model("cabinet_header", (6.3, -6.0), facing="pz")
+    r.model("radiator", (-1.48, 5.4), facing="px")
+    r.model("radiator", (3.4, -1.32), facing="pz")
+    r.model("wall_vent", (1.48, 1.2), facing="nx")
+    r.model("fire_extinguisher", (-1.48, -3.2), facing="px")
+    r.model("paper_scatter", (2.6, -3.9))
+    r.model("plaster_rubble", (10.2, -1.9))
+    r.model("fallen_plaster_patch", (9.4, -1.32), facing="pz")
+
+    r.light_fitting(0, 6)
+    r.light_fitting(0, 1)
+    r.light_fitting(0, -2)
+    r.light_fitting(3, -2.9)
+    r.light_fitting(6.3, -2.9)
+    r.light(6.3, -5.3)           # alcove — 1.6m wide, no room for a 1.2m troffer
+    r.light_fitting(9.5, -2.9)
+    r.light_fitting(12.5, -2.9)
     return r
 
 

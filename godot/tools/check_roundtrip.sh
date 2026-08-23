@@ -59,6 +59,12 @@ if ! python3 "$REPO_ROOT/tools/check_resources.py"; then
   exit 1
 fi
 
+echo "==> checking prop placement"
+if ! python3 "$REPO_ROOT/tools/check_placement.py"; then
+  echo "FATAL: props float, are buried, or interpenetrate — see above"
+  exit 1
+fi
+
 echo "==> copying the tree to $SCRATCH (excluding .godot, build, .artifacts)"
 rsync -a --exclude '.godot' --exclude 'build' --exclude '.artifacts' \
   "$REPO_ROOT/" "$SCRATCH/"

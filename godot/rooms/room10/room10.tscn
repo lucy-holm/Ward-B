@@ -801,7 +801,7 @@ no_depth_test = false
 [node name="Interactables" type="Node3D" parent="."]
 
 [node name="dispenser10a" type="Area3D" parent="Interactables"]
-transform = Transform3D(0.000000, 0, -1.000000, 0, 1, 0, 1.000000, 0, 0.000000, -7.7200, 1.4500, 4.0000)
+transform = Transform3D(0.000000, 0, -1.000000, 0, 1, 0, 1.000000, 0, 0.000000, -7.8000, 1.4500, 4.0000)
 collision_layer = 32
 collision_mask = 0
 script = ExtResource("s_interactable")
@@ -831,7 +831,7 @@ shape = SubResource("bs_15")
 transform = Transform3D(1.00000, 0, 0, 0, 1.00000, 0, 0, 0, 1.00000, 0.0000, 0.0000, 0.0000)
 
 [node name="dispenser10c" type="Area3D" parent="Interactables"]
-transform = Transform3D(0.000000, 0, -1.000000, 0, 1, 0, 1.000000, 0, 0.000000, -7.7200, 1.4500, -23.0000)
+transform = Transform3D(0.000000, 0, -1.000000, 0, 1, 0, 1.000000, 0, 0.000000, -7.8000, 1.4500, -23.0000)
 collision_layer = 32
 collision_mask = 0
 script = ExtResource("s_interactable")
@@ -846,7 +846,7 @@ shape = SubResource("bs_15")
 transform = Transform3D(1.00000, 0, 0, 0, 1.00000, 0, 0, 0, 1.00000, 0.0000, 0.0000, 0.0000)
 
 [node name="keypad10" type="Area3D" parent="Interactables"]
-transform = Transform3D(-1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, -1.000000, 1.3500, 1.4500, -25.7500)
+transform = Transform3D(-1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, -1.000000, 1.3500, 1.4500, -25.8100)
 collision_layer = 32
 collision_mask = 0
 script = ExtResource("s_interactable")

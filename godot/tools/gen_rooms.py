@@ -3050,9 +3050,9 @@ def room6():
     # you have to actually walk into his route to reach. Alcove end cap is at
     # z=-6.1, mouth opens toward +z, so facing is PINNED 'pz' (inferFacing
     # only lands on the right sign here by coincidence).
-    r.interactable("dispenser6", "dispenser", (0.55, 0.75, 0.16), (6.3, 1.45, -5.85),
+    r.interactable("dispenser6", "dispenser", (0.55, 0.75, 0.16), (6.3, 1.45, -5.9),
                    "dispenser", "use the dispenser", facing="pz")
-    r.interactable("keypad6", "keypad", (0.14, 0.5, 0.4), (11.75, 1.45, -2.9),
+    r.interactable("keypad6", "keypad", (0.14, 0.5, 0.4), (11.81, 1.45, -2.9),
                    "pad", "use the keypad")
     r.interactable("exitdoor", "door", (0.2, 3, 2), (12, 1.5, -2.9),
                    "door", "the exit door")
@@ -3174,9 +3174,9 @@ def room7():
     # Mounted against the nook's south wall (z=0.8), thin in z; the nook's
     # open interior is +z of that wall, so facing is PINNED 'pz' (inferFacing
     # would point it -z, straight into the wall it's flush against).
-    r.interactable("dispenser7", "dispenser", (0.55, 0.75, 0.16), (-6.7, 1.45, 1.05),
+    r.interactable("dispenser7", "dispenser", (0.55, 0.75, 0.16), (-6.7, 1.45, 1.0),
                    "dispenser", "use the dispenser", facing="pz")
-    r.interactable("keypad7", "keypad", (0.4, 0.5, 0.14), (1.35, 1.45, -4.75),
+    r.interactable("keypad7", "keypad", (0.4, 0.5, 0.14), (1.35, 1.45, -4.81),
                    "pad", "use the keypad")
     r.interactable("exitdoor", "door", (2, 3, 0.2), (0, 1.5, -5),
                    "door", "the exit door")
@@ -3271,9 +3271,9 @@ def room9():
     # Mounted on the east wall (x=5), thin in x, so the faceplate points -X
     # into the room. PINNED 'nx': inferFacing lands on it here, but the two
     # dispensers above document what happens when it does not.
-    r.interactable("dispenser9", "dispenser", (0.16, 0.75, 0.55), (4.72, 1.45, 1.0),
+    r.interactable("dispenser9", "dispenser", (0.16, 0.75, 0.55), (4.8, 1.45, 1.0),
                    "dispenser", "use the dispenser", facing="nx")
-    r.interactable("keypad9", "keypad", (0.4, 0.5, 0.14), (1.35, 1.45, -5.75),
+    r.interactable("keypad9", "keypad", (0.4, 0.5, 0.14), (1.35, 1.45, -5.81),
                    "pad", "use the keypad")
     r.interactable("exitdoor", "door", (2, 3, 0.2), (0, 1.5, -6),
                    "door", "the exit door")
@@ -3385,7 +3385,7 @@ def room8():
     # interior is +z of both, so facing is PINNED 'pz'. (The heuristic happens
     # to agree here, but gen_rooms' header records two shipped bugs from
     # trusting it, so both are explicit.)
-    r.interactable("keypad8", "keypad", (0.4, 0.5, 0.14), (1.35, 1.45, -7.75),
+    r.interactable("keypad8", "keypad", (0.4, 0.5, 0.14), (1.35, 1.45, -7.81),
                    "pad", "use the keypad", facing="pz")
     r.interactable("exitdoor", "door", (2, 3, 0.2), (0, 1.5, -8),
                    "door", "the exit door", facing="pz")
@@ -3547,7 +3547,7 @@ def room10():
 
     # Z1's dispenser, three steps from spawn — the catch-reset safety net.
     # West-wall mount, x-thin, faceplate PINNED east into the room.
-    r.interactable("dispenser10a", "dispenser", (0.16, 0.75, 0.55), (-7.72, 1.45, 4),
+    r.interactable("dispenser10a", "dispenser", (0.16, 0.75, 0.55), (-7.8, 1.45, 4),
                    "dispenser", "use the dispenser", facing="px")
     # Z3's dispenser, proud of the alcove end cap's inner face (x=-9.48) rather
     # than flush in it. Facing PINNED 'px' per the facing audit — alcove mounts
@@ -3557,9 +3557,9 @@ def room10():
                    "dispenser", "use the dispenser", facing="px")
     # Z4's safety dispenser — see the TIMER SOFT-LOCK AUDIT above. No orderly
     # ever reaches Z4, so there is no patrol clearance to worry about here.
-    r.interactable("dispenser10c", "dispenser", (0.16, 0.75, 0.55), (-7.72, 1.45, -23),
+    r.interactable("dispenser10c", "dispenser", (0.16, 0.75, 0.55), (-7.8, 1.45, -23),
                    "dispenser", "use the dispenser", facing="px")
-    r.interactable("keypad10", "keypad", (0.4, 0.5, 0.14), (1.35, 1.45, -25.75),
+    r.interactable("keypad10", "keypad", (0.4, 0.5, 0.14), (1.35, 1.45, -25.81),
                    "pad", "use the keypad", facing="pz")
     r.interactable("exitdoor", "door", (2, 3, 0.2), (0, 1.5, -26),
                    "door", "the exit door", facing="pz")
@@ -3791,10 +3791,10 @@ def room12():
     # heuristic misreads alcove/nook mounts, which is a bug the TS build
     # actually shipped in room 7.
     r.interactable("dispenser12a", "dispenser", (0.16, 0.75, 0.55),
-                   (-9.72, 1.45, 42), "dispenser", "use the dispenser",
+                   (-9.8, 1.45, 42), "dispenser", "use the dispenser",
                    facing="px")
     r.interactable("dispenser12b", "dispenser", (0.16, 0.75, 0.55),
-                   (-9.72, 1.45, -13), "dispenser", "use the dispenser",
+                   (-9.8, 1.45, -13), "dispenser", "use the dispenser",
                    facing="px")
     # The pocket's ONE station — load-bearing for the one-pill solve, not just
     # a timer backstop: this is where the pill spent on GATE B is replaced
@@ -3803,10 +3803,10 @@ def room12():
     # z=33.5, so z=35 clears it by 1.5m) and west of his x=-7 leg — well off
     # the route to nook C on the far side.
     r.interactable("dispenser12c", "dispenser", (0.16, 0.75, 0.55),
-                   (-9.72, 1.45, 35), "dispenser", "use the dispenser",
+                   (-9.8, 1.45, 35), "dispenser", "use the dispenser",
                    facing="px")
     r.interactable("keypad12", "keypad", (0.4, 0.5, 0.14),
-                   (1.35, 1.45, -25.75), "pad", "use the keypad", facing="pz")
+                   (1.35, 1.45, -25.81), "pad", "use the keypad", facing="pz")
     r.interactable("exitdoor", "door", (2, 3, 0.2), (0, 1.5, -26),
                    "door", "the exit door", facing="pz")
 

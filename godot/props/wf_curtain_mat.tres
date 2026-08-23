@@ -1,0 +1,14 @@
+[gd_resource type="StandardMaterial3D" format=3 uid="uid://wardbwfrmcurt1"]
+
+; Heavy privacy-curtain fabric — ward dormitories run these on ceiling tracks
+; between beds. Faded dark olive rather than a clinical white/blue: the
+; palette strip's olive/taupe family, desaturated hard like everything else in
+; the kit, so a half-drawn curtain reads as another dim vertical mass in the
+; dormitory row rather than the one bright object in the room. High roughness
+; — cloth, not vinyl — is what separates it from the vinyl seating and enamel
+; fixtures nearby.
+
+[resource]
+albedo_color = Color(0.245, 0.255, 0.205, 1)
+roughness = 0.88
+metallic = 0.0

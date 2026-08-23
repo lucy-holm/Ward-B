@@ -1,0 +1,20 @@
+[gd_resource type="StandardMaterial3D" format=3 uid="uid://wardbpecloth1"]
+
+; Grey-olive wool — folded blankets, spare institutional clothing, slipper
+; uppers. The kit's fabric family already has props/ticking (mattress
+; bedding, warm and stained) and props/vinyl (moulded seat shells); this is
+; the third leg, a heavier draped textile that reads as issued rather than
+; personal. Pulled toward the palette board's "dark olive"/"grey-green"
+; rather than a true neutral grey, so it sits in the same family as
+; materials/enamel_green.tres without matching it outright.
+;
+; Fully rough (0.88) — wool takes no specular highlight worth modelling, and
+; a shinier value here would read as synthetic/plastic next to props/ticking
+; right next to it on the same bed. Luminance ~0.32, comfortably clear of the
+; ~0.20 floor other agents found ACES + the harness's contrast pass crushing
+; to black — this is a mid-value fabric, never the darkest thing in a room.
+
+[resource]
+albedo_color = Color(0.30, 0.305, 0.27, 1)
+roughness = 0.88
+metallic = 0.0

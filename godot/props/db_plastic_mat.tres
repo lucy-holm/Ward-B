@@ -1,0 +1,13 @@
+[gd_resource type="StandardMaterial3D" format=3 uid="uid://wardbprmdbplas1"]
+
+; Pill-bottle / medicine-cup plastic. Warmer and glossier than props/paper_mat
+; (0.72/0.88 rough) so a bottle catches a small hot highlight next to the
+; flat-matte paper cups scattered around it — that separation is what reads as
+; "two different materials on the floor" rather than "one grey pile". Kept out
+; of MATERIALS in prop_defs.py per that file's extension-module contract; see
+; defs_debris.py's k.material() call.
+
+[resource]
+albedo_color = Color(0.64, 0.60, 0.50, 1)
+roughness = 0.35
+metallic = 0.0

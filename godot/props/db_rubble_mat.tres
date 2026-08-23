@@ -1,0 +1,14 @@
+[gd_resource type="StandardMaterial3D" format=3 uid="uid://wardbprmdbrub1"]
+
+; Fallen plaster / rubble chunks — the wall-base debris and floor litter the
+; concept art shows where plaster has come away. Chalky and fully matte
+; (roughness 0.92): plaster dust has no specular character at all, and a
+; shinier value here would make a rubble pile read as wet stone instead of
+; dry gypsum. Pitched between props/enamel_mat's warm cream and the wall
+; shaders' cooler grey-green so a pile reads as "came off that wall" without
+; literally copying the wall material (which stays owned by materials/).
+
+[resource]
+albedo_color = Color(0.52, 0.49, 0.44, 1)
+roughness = 0.92
+metallic = 0.0

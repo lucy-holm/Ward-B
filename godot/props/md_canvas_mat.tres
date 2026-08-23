@@ -1,0 +1,12 @@
+[gd_resource type="StandardMaterial3D" format=3 uid="uid://wardbmdrmcnv01"]
+
+; Linen-cart canvas — a heavier, greyer cloth than props/paper_mat's pinned
+; sheets and drip-bag plastic. Fully rough (no sheen at all, unlike vinyl or
+; ticking) so the sack reads as slack woven fabric rather than another
+; moulded-plastic surface, which is what actually separates it from the bin
+; and bag materials sitting right next to it in a corridor.
+
+[resource]
+albedo_color = Color(0.42, 0.405, 0.37, 1)
+roughness = 0.94
+metallic = 0.0

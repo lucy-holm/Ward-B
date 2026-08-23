@@ -2511,10 +2511,45 @@ def room3():
     r.interactable("exitdoor", "door", (2, 3, 0.24), (0, 1.5, -5),
                    "door", "open the door")
 
-    r.light(0, 2)
-    r.light(-2.5, -1)
-    r.light(1.5, -3)
-    r.light(0, -6)
+    # --- set dressing --------------------------------------------------------
+    # A day-room/common-room read: beam seating along the south wall, chairs
+    # pulled up to the existing table, windows down the east side.
+    # Faces: west x -4.88, east x 4.88, south z 3.88, north z -4.88.
+    #
+    # COLLIDERS stay out of the corridor from spawn (0, 3) to the exit gap
+    # (x -1..1 at z -5), and off the two existing prop boxes.
+    r.prop_run("skirting", "x", -5, 5, 3.88)
+    r.prop_run("skirting", "x", -5, -1, -4.88)
+    r.prop_run("skirting", "x", 1, 5, -4.88)
+    r.prop_run("skirting", "z", -5, 4, -4.88)
+    r.prop_run("skirting", "z", -5, 4, 4.88)
+    r.prop_run("bumper_rail", "z", -4.6, 3.6, -4.88)
+    r.prop_run("bumper_rail", "z", -4.6, 3.6, 4.88)
+
+    # Windows on the east wall, clear of the scrawl at z -3.
+    r.model("barred_window", (4.88, -1.0), facing="nx")
+    r.model("barred_window", (4.88, 1.8), facing="nx")
+
+    # Seating either side of the spawn approach, not across it.
+    r.model("beam_seating", (-3.0, 3.4), facing="nz", name="CommonSeatW")
+    r.model("beam_seating", (3.0, 3.4), facing="nz", name="CommonSeatE")
+    # Two chairs at the existing table (x -3.2..-1.8, z -1.7..-0.3).
+    r.model("stacking_chair", (-2.5, 0.15), facing="nz")
+    r.model("stacking_chair", (-3.95, -1.0), facing="px")
+
+    r.model("radiator", (-4.88, -2.0), facing="px")
+    r.model("radiator", (4.88, -3.6), facing="nx")
+    r.model("notice_board", (-3.0, -4.88), facing="pz")
+    r.model("wall_clock", (3.0, -4.88), facing="pz")
+    r.model("quiet_sign", (-4.88, 0.4), facing="px")
+    r.model("wall_speaker", (4.88, 3.2), facing="nx")
+    r.model("missing_ceiling_tile", (-1.4, -2.2))
+    r.model("paper_scatter", (1.6, -1.4))
+
+    r.light_fitting(0, 2)
+    r.light_fitting(-2.5, -1)
+    r.light_fitting(1.5, -3)
+    r.light_fitting(0, -6)
     return r
 
 
@@ -2599,11 +2634,46 @@ def room4():
     r.interactable("dispenser4", "dispenser", (0.16, 0.75, 0.55), (-5.86, 1.45, 4.2),
                    "dispenser", "use the dispenser")
 
-    r.light(0, 3)
-    r.light(3.5, 0)
-    r.light(-3, -1)
-    r.light(3, -4)
-    r.light(0, -6)
+    # --- set dressing --------------------------------------------------------
+    # Faces: west x -5.88, east x 5.88, south z 4.88, north z -4.88.
+    #
+    # The west wall is LOAD-BEARING for this room: the dispenser is at z 4.2 and
+    # two scrawls at z 1.5 and z -3 have to be readable from in front of them, so
+    # nothing with a collider goes near those three spots. The wheelchair sits at
+    # z -0.6, in the gap between them.
+    r.prop_run("skirting", "x", -6, 6, 4.88)
+    r.prop_run("skirting", "x", -6, -1, -4.88)
+    r.prop_run("skirting", "x", 1, 6, -4.88)
+    r.prop_run("skirting", "z", -5, 5, -5.88)
+    r.prop_run("skirting", "z", -5, 5, 5.88)
+    r.prop_run("bumper_rail", "z", -4.6, 4.6, 5.88)
+
+    # Windows east, clear of the scrawl at z 3.5.
+    r.model("barred_window", (5.88, -1.0), facing="nx")
+    r.model("barred_window", (5.88, 1.2), facing="nx")
+
+    r.model("beam_seating", (-3.4, 4.5), facing="nz", name="DaySeatW")
+    r.model("beam_seating", (2.6, 4.5), facing="nz", name="DaySeatE")
+    r.model("stacking_chair", (2.0, 1.25), facing="nz")
+    r.model("locker_bank", (-4.6, -4.63), facing="pz")
+    r.model("wheelchair", (-4.9, -0.6), facing="nx")
+
+    r.model("radiator", (-5.88, 2.6), facing="px")
+    r.model("radiator", (5.88, -3.4), facing="nx")
+    r.model("notice_board", (-3.2, -4.88), facing="pz")
+    r.model("wall_clock", (1.8, -4.88), facing="pz")
+    r.model("exit_sign", (-1.4, -4.88), facing="pz")
+    r.model("wall_speaker", (-5.88, -4.2), facing="px")
+    r.model("missing_ceiling_tile", (0.8, -2.6))
+    r.model("hanging_cable", (-1.8, 2.0), facing="nx")
+    r.model("paper_scatter", (-1.2, -3.4))
+    r.model("plaster_rubble", (5.2, -1.9))
+
+    r.light_fitting(0, 3)
+    r.light_fitting(3.5, 0)
+    r.light_fitting(-3, -1)
+    r.light_fitting(3, -4)
+    r.light_fitting(0, -6)
     return r
 
 

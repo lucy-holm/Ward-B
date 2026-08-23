@@ -1,4 +1,4 @@
-[gd_scene load_steps=34 format=3 uid="uid://wardbroom181f28"]
+[gd_scene load_steps=49 format=3 uid="uid://wardbroom181f28"]
 
 [ext_resource type="Script" path="res://rooms/room3/room3.gd" id="s_room"]
 [ext_resource type="Material" uid="uid://wardbmatd0cabd0" path="res://materials/floor.tres" id="m_floor"]
@@ -12,6 +12,21 @@
 [ext_resource type="FontFile" path="res://fonts/RockSalt-Regular.ttf" id="f_scrawl"]
 [ext_resource type="PackedScene" path="res://fixtures/door.tscn" id="fx_door"]
 [ext_resource type="Script" path="res://core/interactable.gd" id="s_interactable"]
+[ext_resource type="PackedScene" path="res://props/skirting.tscn" id="pk_skirting"]
+[ext_resource type="PackedScene" path="res://props/bumper_rail.tscn" id="pk_bumper_rail"]
+[ext_resource type="PackedScene" path="res://props/barred_window.tscn" id="pk_barred_window"]
+[ext_resource type="PackedScene" path="res://props/beam_seating.tscn" id="pk_beam_seating"]
+[ext_resource type="PackedScene" path="res://props/stacking_chair.tscn" id="pk_stacking_chair"]
+[ext_resource type="PackedScene" path="res://props/radiator.tscn" id="pk_radiator"]
+[ext_resource type="PackedScene" path="res://props/notice_board.tscn" id="pk_notice_board"]
+[ext_resource type="PackedScene" path="res://props/wall_clock.tscn" id="pk_wall_clock"]
+[ext_resource type="PackedScene" path="res://props/quiet_sign.tscn" id="pk_quiet_sign"]
+[ext_resource type="PackedScene" path="res://props/wall_speaker.tscn" id="pk_wall_speaker"]
+[ext_resource type="PackedScene" path="res://props/missing_ceiling_tile.tscn" id="pk_missing_ceiling_tile"]
+[ext_resource type="PackedScene" path="res://props/paper_scatter.tscn" id="pk_paper_scatter"]
+[ext_resource type="PackedScene" path="res://props/ceiling_troffer.tscn" id="pk_ceiling_troffer"]
+[ext_resource type="PackedScene" path="res://props/troffer_lamp.tscn" id="pk_troffer_lamp"]
+[ext_resource type="Script" path="res://core/light_object.gd" id="s_lightobj"]
 [ext_resource type="Script" path="res://core/room_exit.gd" id="s_exit"]
 
 [sub_resource type="BoxMesh" id="bm_0"]
@@ -326,6 +341,165 @@ shape = SubResource("bs_4")
 
 [node name="Model" parent="Interactables/exitdoor" instance=ExtResource("fx_door")]
 transform = Transform3D(1.00000, 0, 0, 0, 1.00000, 0, 0, 0, 1.20000, 0.0000, 0.0000, 0.0000)
+
+[node name="Props" type="Node3D" parent="."]
+
+[node name="Skirting0" parent="Props" instance=ExtResource("pk_skirting")]
+transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, -4.0000, 0.0000, 3.8800)
+
+[node name="Skirting1" parent="Props" instance=ExtResource("pk_skirting")]
+transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, -2.0000, 0.0000, 3.8800)
+
+[node name="Skirting2" parent="Props" instance=ExtResource("pk_skirting")]
+transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, 0.0000, 0.0000, 3.8800)
+
+[node name="Skirting3" parent="Props" instance=ExtResource("pk_skirting")]
+transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, 2.0000, 0.0000, 3.8800)
+
+[node name="Skirting4" parent="Props" instance=ExtResource("pk_skirting")]
+transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, 4.0000, 0.0000, 3.8800)
+
+[node name="Skirting5" parent="Props" instance=ExtResource("pk_skirting")]
+transform = Transform3D(0.000000, 0, -1.000000, 0, 1, 0, 1.000000, 0, 0.000000, -4.0000, 0.0000, -4.8800)
+
+[node name="Skirting6" parent="Props" instance=ExtResource("pk_skirting")]
+transform = Transform3D(-1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, -1.000000, -2.0000, 0.0000, -4.8800)
+
+[node name="Skirting7" parent="Props" instance=ExtResource("pk_skirting")]
+transform = Transform3D(-1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, -1.000000, 2.0000, 0.0000, -4.8800)
+
+[node name="Skirting8" parent="Props" instance=ExtResource("pk_skirting")]
+transform = Transform3D(0.000000, 0, 1.000000, 0, 1, 0, -1.000000, 0, 0.000000, 4.0000, 0.0000, -4.8800)
+
+[node name="Skirting9" parent="Props" instance=ExtResource("pk_skirting")]
+transform = Transform3D(0.000000, 0, -1.000000, 0, 1, 0, 1.000000, 0, 0.000000, -4.8800, 0.0000, -3.5000)
+
+[node name="Skirting10" parent="Props" instance=ExtResource("pk_skirting")]
+transform = Transform3D(0.000000, 0, -1.000000, 0, 1, 0, 1.000000, 0, 0.000000, -4.8800, 0.0000, -1.5000)
+
+[node name="Skirting11" parent="Props" instance=ExtResource("pk_skirting")]
+transform = Transform3D(0.000000, 0, -1.000000, 0, 1, 0, 1.000000, 0, 0.000000, -4.8800, 0.0000, 0.5000)
+
+[node name="Skirting12" parent="Props" instance=ExtResource("pk_skirting")]
+transform = Transform3D(0.000000, 0, -1.000000, 0, 1, 0, 1.000000, 0, 0.000000, -4.8800, 0.0000, 2.5000)
+
+[node name="Skirting13" parent="Props" instance=ExtResource("pk_skirting")]
+transform = Transform3D(0.000000, 0, 1.000000, 0, 1, 0, -1.000000, 0, 0.000000, 4.8800, 0.0000, -3.5000)
+
+[node name="Skirting14" parent="Props" instance=ExtResource("pk_skirting")]
+transform = Transform3D(0.000000, 0, 1.000000, 0, 1, 0, -1.000000, 0, 0.000000, 4.8800, 0.0000, -1.5000)
+
+[node name="Skirting15" parent="Props" instance=ExtResource("pk_skirting")]
+transform = Transform3D(0.000000, 0, 1.000000, 0, 1, 0, -1.000000, 0, 0.000000, 4.8800, 0.0000, 0.5000)
+
+[node name="Skirting16" parent="Props" instance=ExtResource("pk_skirting")]
+transform = Transform3D(0.000000, 0, 1.000000, 0, 1, 0, -1.000000, 0, 0.000000, 4.8800, 0.0000, 2.5000)
+
+[node name="BumperRail17" parent="Props" instance=ExtResource("pk_bumper_rail")]
+transform = Transform3D(0.000000, 0, -1.000000, 0, 1, 0, 1.000000, 0, 0.000000, -4.8800, 0.9000, -3.5000)
+
+[node name="BumperRail18" parent="Props" instance=ExtResource("pk_bumper_rail")]
+transform = Transform3D(0.000000, 0, -1.000000, 0, 1, 0, 1.000000, 0, 0.000000, -4.8800, 0.9000, -1.5000)
+
+[node name="BumperRail19" parent="Props" instance=ExtResource("pk_bumper_rail")]
+transform = Transform3D(0.000000, 0, -1.000000, 0, 1, 0, 1.000000, 0, 0.000000, -4.8800, 0.9000, 0.5000)
+
+[node name="BumperRail20" parent="Props" instance=ExtResource("pk_bumper_rail")]
+transform = Transform3D(0.000000, 0, -1.000000, 0, 1, 0, 1.000000, 0, 0.000000, -4.8800, 0.9000, 2.5000)
+
+[node name="BumperRail21" parent="Props" instance=ExtResource("pk_bumper_rail")]
+transform = Transform3D(0.000000, 0, 1.000000, 0, 1, 0, -1.000000, 0, 0.000000, 4.8800, 0.9000, -3.5000)
+
+[node name="BumperRail22" parent="Props" instance=ExtResource("pk_bumper_rail")]
+transform = Transform3D(0.000000, 0, 1.000000, 0, 1, 0, -1.000000, 0, 0.000000, 4.8800, 0.9000, -1.5000)
+
+[node name="BumperRail23" parent="Props" instance=ExtResource("pk_bumper_rail")]
+transform = Transform3D(0.000000, 0, 1.000000, 0, 1, 0, -1.000000, 0, 0.000000, 4.8800, 0.9000, 0.5000)
+
+[node name="BumperRail24" parent="Props" instance=ExtResource("pk_bumper_rail")]
+transform = Transform3D(0.000000, 0, 1.000000, 0, 1, 0, -1.000000, 0, 0.000000, 4.8800, 0.9000, 2.5000)
+
+[node name="BarredWindow25" parent="Props" instance=ExtResource("pk_barred_window")]
+transform = Transform3D(0.000000, 0, 1.000000, 0, 1, 0, -1.000000, 0, 0.000000, 4.8800, 1.8500, -1.0000)
+
+[node name="BarredWindow26" parent="Props" instance=ExtResource("pk_barred_window")]
+transform = Transform3D(0.000000, 0, 1.000000, 0, 1, 0, -1.000000, 0, 0.000000, 4.8800, 1.8500, 1.8000)
+
+[node name="CommonSeatW" parent="Props" instance=ExtResource("pk_beam_seating")]
+transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, -3.0000, 0.0000, 3.4000)
+
+[node name="CommonSeatE" parent="Props" instance=ExtResource("pk_beam_seating")]
+transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, 3.0000, 0.0000, 3.4000)
+
+[node name="StackingChair29" parent="Props" instance=ExtResource("pk_stacking_chair")]
+transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, -2.5000, 0.0000, 0.1500)
+
+[node name="StackingChair30" parent="Props" instance=ExtResource("pk_stacking_chair")]
+transform = Transform3D(0.000000, 0, -1.000000, 0, 1, 0, 1.000000, 0, 0.000000, -3.9500, 0.0000, -1.0000)
+
+[node name="Radiator31" parent="Props" instance=ExtResource("pk_radiator")]
+transform = Transform3D(0.000000, 0, -1.000000, 0, 1, 0, 1.000000, 0, 0.000000, -4.8800, 0.4000, -2.0000)
+
+[node name="Radiator32" parent="Props" instance=ExtResource("pk_radiator")]
+transform = Transform3D(0.000000, 0, 1.000000, 0, 1, 0, -1.000000, 0, 0.000000, 4.8800, 0.4000, -3.6000)
+
+[node name="NoticeBoard33" parent="Props" instance=ExtResource("pk_notice_board")]
+transform = Transform3D(-1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, -1.000000, -3.0000, 1.5500, -4.8800)
+
+[node name="WallClock34" parent="Props" instance=ExtResource("pk_wall_clock")]
+transform = Transform3D(-1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, -1.000000, 3.0000, 2.2000, -4.8800)
+
+[node name="QuietSign35" parent="Props" instance=ExtResource("pk_quiet_sign")]
+transform = Transform3D(0.000000, 0, -1.000000, 0, 1, 0, 1.000000, 0, 0.000000, -4.8800, 1.7500, 0.4000)
+
+[node name="WallSpeaker36" parent="Props" instance=ExtResource("pk_wall_speaker")]
+transform = Transform3D(0.000000, 0, 1.000000, 0, 1, 0, -1.000000, 0, 0.000000, 4.8800, 2.5500, 3.2000)
+
+[node name="MissingCeilingTile37" parent="Props" instance=ExtResource("pk_missing_ceiling_tile")]
+transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, -1.4000, 3.0000, -2.2000)
+
+[node name="PaperScatter38" parent="Props" instance=ExtResource("pk_paper_scatter")]
+transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, 1.6000, 0.0000, -1.4000)
+
+[node name="CeilingTroffer39" parent="Props" instance=ExtResource("pk_ceiling_troffer")]
+transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, 0.0000, 3.0000, 2.0000)
+
+[node name="TrofferLamp40_light" type="Node3D" parent="Props"]
+script = ExtResource("s_lightobj")
+visible_in_light = 1
+
+[node name="TrofferLamp40" parent="Props/TrofferLamp40_light" instance=ExtResource("pk_troffer_lamp")]
+transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, 0.0000, 3.0000, 2.0000)
+
+[node name="CeilingTroffer41" parent="Props" instance=ExtResource("pk_ceiling_troffer")]
+transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, -2.5000, 3.0000, -1.0000)
+
+[node name="TrofferLamp42_light" type="Node3D" parent="Props"]
+script = ExtResource("s_lightobj")
+visible_in_light = 1
+
+[node name="TrofferLamp42" parent="Props/TrofferLamp42_light" instance=ExtResource("pk_troffer_lamp")]
+transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, -2.5000, 3.0000, -1.0000)
+
+[node name="CeilingTroffer43" parent="Props" instance=ExtResource("pk_ceiling_troffer")]
+transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, 1.5000, 3.0000, -3.0000)
+
+[node name="TrofferLamp44_light" type="Node3D" parent="Props"]
+script = ExtResource("s_lightobj")
+visible_in_light = 1
+
+[node name="TrofferLamp44" parent="Props/TrofferLamp44_light" instance=ExtResource("pk_troffer_lamp")]
+transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, 1.5000, 3.0000, -3.0000)
+
+[node name="CeilingTroffer45" parent="Props" instance=ExtResource("pk_ceiling_troffer")]
+transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, 0.0000, 3.0000, -6.0000)
+
+[node name="TrofferLamp46_light" type="Node3D" parent="Props"]
+script = ExtResource("s_lightobj")
+visible_in_light = 1
+
+[node name="TrofferLamp46" parent="Props/TrofferLamp46_light" instance=ExtResource("pk_troffer_lamp")]
+transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, 0.0000, 3.0000, -6.0000)
 
 [node name="Lights" type="Node3D" parent="."]
 

@@ -18,13 +18,26 @@ width = 256
 height = 256
 noise = SubResource("FastNoiseLite_wall_mottle")
 
-[sub_resource type="FastNoiseLite" id="FastNoiseLite_wall_island"]
-noise_type = 1
+; island_tex noise (2026-08, crazing pass): was noise_type=1 (Simplex Smooth,
+; 2-octave FBM) — that produces smooth, rounded amoeba blobs, not the "fine
+; network of small islands" the PBR board's cracked-paint panel actually
+; shows. Switched to Cellular with cellular_return_type=4 (DISTANCE2_SUB,
+; i.e. F2-F1): that returns ~0 exactly ON the Voronoi cell boundary (both
+; nearest points are ~equidistant there) and rises toward the cell centre —
+; the standard "cracked earth"/crazed-paint procedural technique. The peel
+; shader thresholds LOW island_tex values as exposed, so this reads as thin
+; cracks (low F2-F1) opening onto the substrate, with paint intact in the
+; cell interiors (high F2-F1) — exactly inverted from the old shader's
+; smooth blob silhouette, and much closer to the reference. fractal_octaves
+; pinned to 1 (no FBM layering) so the cell pattern stays crisp rather than
+; blurring into the old amoeba look through a different noise function.
+noise_type = 2
 seed = 303
-frequency = 0.015
-fractal_octaves = 2
-fractal_lacunarity = 2.0
-fractal_gain = 0.3
+frequency = 0.05
+fractal_octaves = 1
+cellular_distance_function = 0
+cellular_return_type = 4
+cellular_jitter = 1.0
 
 [sub_resource type="NoiseTexture2D" id="NoiseTexture2D_wall_island"]
 generate_mipmaps = true

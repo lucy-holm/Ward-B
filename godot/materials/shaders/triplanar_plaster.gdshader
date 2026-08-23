@@ -58,6 +58,21 @@ uniform float band_height = 1.1;
 uniform float band_softness = 0.22;
 uniform float rail_width = 0.025;
 
+// --- damp rise ------------------------------------------------------------
+// Distinct from the dado band above: band_color is a flat AUTHORED stripe
+// with a hard top edge (a long-ago paint job), whereas this is moisture
+// wicking up through the wall from ground contact, so it has to (a) darken
+// BOTH the intact paint and the exposed substrate, not just paint, and
+// (b) break up into a ragged, noise-driven edge rather than a straight
+// line — every dormitory/corridor reference plate stains unevenly along
+// its base. Reuses the already-sampled mottle field for that raggedness,
+// so it costs zero extra texture fetches. Gated by decay, same as the rot
+// tint below: a lucid/clean wall (decay -> 0) keeps a dry skirting.
+uniform vec4 damp_color : source_color = vec4(0.161, 0.169, 0.137, 1.0); // dark olive-wet
+uniform float damp_height = 0.85;
+uniform float damp_noise_reach = 0.35;
+uniform float damp_strength : hint_range(0.0, 1.0) = 0.55;
+
 uniform sampler2D mottle_tex : hint_default_white, repeat_enable, filter_linear_mipmap;
 uniform sampler2D island_tex : hint_default_white, repeat_enable, filter_linear_mipmap;
 
@@ -183,6 +198,18 @@ void fragment() {
 	col = mix(col, shadow_color.rgb, ao * decay * 0.5);
 	col = mix(col, rust_color.rgb, streak_amt * lip_band * 0.5);
 
+	// --- damp rise: ground moisture wicking up, independent of the dado -----
+	// world-Y gradient (cheap: one smoothstep, no fetch) modulated by the
+	// mottle field already in hand so the top edge is ragged rather than a
+	// ruler line. Applied to col AFTER paint/substrate/streak/rot so it reads
+	// as a wash sitting over whatever is already there — plaster damp-stains
+	// through both intact paint and bare substrate alike, which a mask
+	// applied earlier (before the paint/substrate mix) could not do.
+	float damp_edge = damp_height + (mottle - 0.5) * damp_noise_reach;
+	float damp_t = 1.0 - smoothstep(0.0, max(damp_edge, 0.05), world_pos.y);
+	float damp_amt = damp_t * damp_strength * decay;
+	col = mix(col, damp_color.rgb, damp_amt);
+
 	ALBEDO = col;
 
 	// --- normal: analytic relief from the SAME mask field, zero extra fetch -
@@ -210,6 +237,10 @@ void fragment() {
 	// --- roughness: chalky paint vs damp/rough exposed plaster, glossy streak
 	float roughness = mix(roughness_paint, roughness_plaster, exposed);
 	roughness -= streak_amt * 0.22;
+	// Wet plaster reads glossier at the damp line, same cue as the floor
+	// shader's pool sheen — small (0.12 max) so it stays a hint, not a
+	// puddle-on-a-vertical-surface artefact.
+	roughness -= damp_amt * 0.12;
 	ROUGHNESS = clamp(roughness, 0.05, 1.0);
 	METALLIC = 0.0;
 }

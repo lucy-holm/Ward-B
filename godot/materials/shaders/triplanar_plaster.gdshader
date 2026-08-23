@@ -95,6 +95,25 @@ uniform float parallax_strength : hint_range(0.0, 0.5) = 0.12;
 // wall). decay=1 -> most of it does (large peeled islands, blown plaster).
 uniform float peel_threshold_min : hint_range(0.0, 1.0) = 0.08;
 uniform float peel_threshold_max : hint_range(0.0, 1.0) = 0.66;
+
+// --- peel PATCHINESS -------------------------------------------------------
+// The island field is uniform across a wall, so thresholding it alone peels the
+// WHOLE wall evenly — which renders as an all-over crackle-glaze, like dried
+// mud, and is the single most obvious tell against the concept art. The
+// reference plates peel in PATCHES: areas of intact cream paint, and areas
+// where it has come away, with the boundary between them much larger than any
+// individual crack.
+//
+// So: gate the peel mask by the low-frequency mottle field ALREADY SAMPLED for
+// the plaster's own colour variation — no extra fetch, no extra noise texture.
+// mottle runs at frequency 0.011 (see wall.tres), i.e. metres-scale blotches,
+// which is exactly the scale the patch boundary wants.
+//
+// strength 0 reproduces the old uniform behaviour exactly, so this is inert
+// until a material opts in.
+uniform float peel_patch_strength : hint_range(0.0, 1.0) = 0.0;
+uniform float peel_patch_lo : hint_range(0.0, 1.0) = 0.34;
+uniform float peel_patch_hi : hint_range(0.0, 1.0) = 0.70;
 uniform float edge_width_near : hint_range(0.001, 0.3) = 0.02;
 uniform float edge_width_far : hint_range(0.001, 0.5) = 0.12;
 uniform float dist_fade_near = 5.0;
@@ -162,6 +181,12 @@ void fragment() {
 	float aa = min(fwidth(isl) * 1.5, 0.06);
 	float edge_w = max(mix(edge_width_near, edge_width_far, dist_t), aa);
 	float exposed = 1.0 - smoothstep(threshold, threshold + edge_w, isl);
+	// Patch gate — see peel_patch_strength. Applied to `exposed` only, NOT to
+	// `isl`, deliberately: isl still drives depth_t, the lip band and the
+	// analytic normal below, so a patch edge fades the paint loss without also
+	// flattening the relief inside the patch it is fading.
+	float patch = smoothstep(peel_patch_lo, peel_patch_hi, mottle);
+	exposed *= mix(1.0, patch, peel_patch_strength);
 	// 0 right at the edge (freshly exposed plaster) .. 1 deep in the island
 	// (blown out to dark lath).
 	float depth_t = 1.0 - smoothstep(0.0, threshold, isl);

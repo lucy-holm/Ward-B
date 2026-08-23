@@ -2306,8 +2306,38 @@ def room1():
     r.block((1.8, 2.6, 0.06), (0, 1.4, -1.84), "glow")  # warm glow beyond
 
     # props
-    r.bed((1.7, 4.6))
+    #
+    # The box bed is REPLACED by the prop-kit ward_bed — rusted tubular frame,
+    # barred head and foot, thin stained ticking. This is the first room a
+    # player sees, and a grey box was doing the concept art's dormitory plate no
+    # favours. `facing="px"` puts the HEAD against the east wall (see the mount
+    # note in props/ward_bed.tscn: the head is at -Z, and a "px" yaw maps -Z to
+    # +X), so the bed runs east-west exactly as the box did.
+    #
+    # The nightstand stays a plain box on purpose: the paper cup is authored at
+    # y 0.92 relative to it, and swapping in bedside_cabinet would move the one
+    # interactable this room's whole opening beat depends on.
+    r.model("ward_bed", (1.85, 4.6), facing="px")
     r.prop((1, 0.8, 0.7), (-2.2, 4.7))
+
+    # Set dressing. A cell is SPARSE — the temptation with 53 props available is
+    # to fill it, and that would be wrong: room 1 is meant to read as bare and
+    # oppressive, and every object here has to earn its place against that.
+    r.prop_run("skirting", "x", -3, 3, 5.88)
+    r.prop_run("skirting", "z", 0, 6, -2.88)
+    r.prop_run("skirting", "z", 0, 6, 2.88)
+
+    # Directly ahead at spawn (which faces +Z), because the concept art composes
+    # every room around a barred window and this is the player's first frame.
+    r.model("barred_window", (0, 5.88), facing="nz")
+    r.model("radiator", (-2.88, 2.2), facing="px")
+    r.model("sink", (-2.88, 1.15), facing="px")
+    r.model("door_plate", (-1.9, 0.12), facing="pz", text="B-14")
+
+    # Decay, kept to two pieces. The rubble sits in the west corner, out of the
+    # walk line from spawn to the doorway.
+    r.model("missing_ceiling_tile", (-1.6, 3.4))
+    r.model("plaster_rubble", (-2.55, 3.5))
 
     r.scrawl("don't\nswallow", (-2.85, 1.8, 4.7), math.pi / 2, 2.2)
     r.scrawl("there was a door\nhere once", (0, 1.9, 0.2), 0, 3.0)
@@ -2325,8 +2355,8 @@ def room1():
     # and rendered the whole game at exposure 1.0 with no fog. With that removed
     # the original placement is correctly dim, and 1.5/3.5 left the spawn too
     # dark to find the paper cup. Fixture placement was never the problem.
-    r.light(0, 2)
-    r.light(0, 5)
+    r.light_fitting(0, 2)
+    r.light_fitting(0, 5)
     return r
 
 

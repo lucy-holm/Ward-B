@@ -74,6 +74,22 @@ uniform float roughness_base : hint_range(0.0, 1.0) = 0.75;
 // roughness_base for anything metal (rough, pitted) and close to it for
 // fabric (matte throughout, no glossy/rough contrast to sell).
 uniform float roughness_substrate : hint_range(0.0, 1.0) = 0.92;
+
+// How much the mottle field swings roughness on INTACT paint. This used to be
+// hardcoded at 0.15, which on a semi-gloss surface is invisible: the specular
+// lobe barely changes across the whole panel, so a large flat area — a door
+// leaf, a cabinet side — lights identically everywhere and reads as a flat
+// colour swatch rather than as painted metal.
+//
+// Real enamel over steel is not uniform. It is polished where hands and
+// trolleys touch it and duller where they do not, and that VARIATION is what
+// the eye reads as "painted metal" — more than the albedo, which on a
+// monochrome door is genuinely almost constant. Raising this is what puts a
+// broken, moving highlight on a door instead of a matte rectangle.
+//
+// Default 0.15 reproduces the old behaviour exactly, so the seven other
+// materials on this shader are unaffected until they opt in.
+uniform float roughness_variation : hint_range(0.0, 0.6) = 0.15;
 // KEEP THIS NEAR ZERO, even for the steel fixtures. main.tscn's Environment
 // is background_mode = BG_COLOR with ambient_light_source = COLOR: there is
 // no sky and there are no reflection probes, so a metallic surface gets no
@@ -228,7 +244,7 @@ void fragment() {
 
 	// --- Roughness / metallic --------------------------------------------
 	float rough = mix(roughness_base, roughness_substrate, max(1.0 - intact, rust_zone * 0.85));
-	ROUGHNESS = clamp(rough + (0.5 - mottle) * 0.15 + grime * 0.15, 0.0, 1.0);
+	ROUGHNESS = clamp(rough + (0.5 - mottle) * roughness_variation + grime * 0.15, 0.0, 1.0);
 	METALLIC = metallic_base;
 
 	EMISSION = emission_color.rgb * emission_strength;

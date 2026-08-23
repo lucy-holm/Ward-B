@@ -1,4 +1,4 @@
-[gd_scene load_steps=24 format=3 uid="uid://wardbfixdoor001"]
+[gd_scene load_steps=23 format=3 uid="uid://wardbfixdoor001"]
 
 ; Institutional ward door — composite so it reads as "openable" against the
 ; now-textured triplanar walls, not as another wall panel. Canonical frame:
@@ -56,17 +56,17 @@ metallic = 0.0
 ; there's no AO/contact-shadow pass to sell the step. Baking the contrast
 ; into albedo (like the original's painted outline, but now real geometry
 ; that still catches a grazing light correctly) is what actually reads.
-[sub_resource type="StandardMaterial3D" id="m_panel"]
-
-; A recessed panel is THE SAME PAINT as the rails around it — it reads darker
-; only because the recess shades it. This was Color(0.155, 0.185, 0.205), barely
-; half materials/door.tres's 0.322/0.372/0.408, which turned both panels into
-; near-black rectangles and made the whole door read as a frame with two holes
-; punched in it. Now within 12% of the frame, so the recess does the work and
-; the door reads as one object.
-albedo_color = Color(0.285, 0.33, 0.362, 1)
-roughness = 0.8
-metallic = 0.0
+; m_panel IS GONE. It was a flat StandardMaterial3D — one albedo, one
+; roughness, no mottle, no chip, no normal — applied to the two LARGEST
+; surfaces on the door. Everything around them ran materials/door.tres, the
+; worn triplanar shader, so the door was a detailed frame around two blank
+; swatches, and the blank swatches are most of what you look at. That is why
+; the door read as "a flat monochrome texture" no matter how much the frame
+; was tuned.
+;
+; The panels now use materials/door.tres like every other painted part. They
+; are the same paint as the rails in reality, and the recess is what
+; distinguishes them — geometry, not a second material.
 
 [sub_resource type="BoxMesh" id="bm_vision_frame"]
 size = Vector3(0.34, 0.44, 0.02)
@@ -139,12 +139,12 @@ surface_material_override/0 = ExtResource("m_door")
 [node name="PanelUpper" type="MeshInstance3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0, 0.755, -0.015)
 mesh = ExtResource("am_panel_upper")
-surface_material_override/0 = SubResource("m_panel")
+surface_material_override/0 = ExtResource("m_door")
 
 [node name="PanelLower" type="MeshInstance3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0, -0.475, -0.015)
 mesh = ExtResource("am_panel_lower")
-surface_material_override/0 = SubResource("m_panel")
+surface_material_override/0 = ExtResource("m_door")
 
 ; Vision light set into the upper panel, per the corridor reference photo —
 ; proud steel frame with a low-roughness dark pane, offset a couple cm off

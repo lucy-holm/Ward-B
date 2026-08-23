@@ -115,6 +115,54 @@ FIXTURES = {
 }
 
 
+# --- the prop kit ------------------------------------------------------------
+# Handcrafted set dressing: chairs, cabinets, radiators, ceiling fittings, wall
+# trim. Declared ONCE in props/_gen/prop_defs.py, which also emits the .tscn
+# prefabs and the baked meshes — see that file's docstring for the pipeline.
+#
+# IMPORTED rather than re-declared here, deliberately. A copy of each prop's
+# size/collider/mount in this file would be a second source of truth for
+# numbers that already exist, and the FIXTURES table three blocks up is the
+# cautionary tale: it carries a hand-typed `size` per fixture that must agree
+# with the authored scene, and nothing checks that it does.
+#
+# Import failure is NOT fatal, matching how FIXTURES drops entries whose scene
+# is missing: the generator must still run in a tree where the prop kit has not
+# been generated yet, so rooms that use no props keep working and rooms that do
+# fail loudly at the call site instead of at import time.
+_PROP_GEN_DIR = os.path.join(OUT_ROOT, "props", "_gen")
+try:
+    if _PROP_GEN_DIR not in sys.path:
+        sys.path.insert(0, _PROP_GEN_DIR)
+    import prop_defs as _prop_defs
+    PROPS = {
+        k: v for k, v in _prop_defs.PROPS.items()
+        if os.path.exists(os.path.join(OUT_ROOT, "props", "%s.tscn" % k))
+    }
+except ImportError:
+    PROPS = {}
+
+
+def _pascal(name):
+    """office_chair -> OfficeChair, for default node names."""
+    return "".join(w.capitalize() for w in name.split("_"))
+
+
+def _prop_yaw(spec):
+    """Accept either a radian yaw or one of FACING_ROT's compass names.
+
+    Room files read better with the compass names ("nz" = faceplate toward -Z),
+    which is the vocabulary Room.interactable() already uses for exactly the
+    same question, so the prop kit does not invent a second one.
+    """
+    if isinstance(spec, str):
+        if spec not in FACING_ROT:
+            raise ValueError("facing must be one of %s, got %r"
+                             % (sorted(FACING_ROT), spec))
+        return FACING_ROT[spec]
+    return float(spec)
+
+
 def _resolve_facing(size, pos, floor, explicit):
     """Which way the faceplate points. Ported from world.ts inferFacing():
     a wall-mounted fixture is thin on the axis it hangs off, and faces the
@@ -227,6 +275,8 @@ class Room:
         # (name, iid, cell_x, cell_z, size, mat, label) — see push_block()
         self.push_blocks = []
         self.props = []
+        # Prop-kit instances: (kind, pos, yaw, name, state, level, light)
+        self.models = []
         self.scrawls = []
         self.interactables = []
         self.lights = []
@@ -745,6 +795,154 @@ class Room:
         collider = (x - sx / 2.0, x + sx / 2.0, z - sz / 2.0, z + sz / 2.0)
         self.block(size, pos, mat, state, collider=collider, name=name, level=level)
 
+    # --- the prop kit -------------------------------------------------------
+    # Everything below places a HANDCRAFTED prefab from props/, as opposed to
+    # the box presets above. The split is deliberate and is the whole design:
+    # prop()/block() build the room's STRUCTURE, which has to stay cheap,
+    # collidable and reproducible; model() hangs detail on it. A prop kit item
+    # never defines where the player can walk unless the room asks it to.
+
+    def model(self, kind, xz, facing=0.0, y=None, name=None, state=None,
+              level=None, light=None, collider=None):
+        """Instance one prop-kit prefab (props/<kind>.tscn).
+
+        `y` DEFAULTS BY MOUNT, which is the point — a room author should not be
+        computing heights for a radiator:
+            floor    -> 0.0            (the prefab's parts sit on the floor)
+            wall     -> the prop's declared mount_y (trolley height for a
+                        bumper rail, eye level for a notice board, ...)
+            ceiling  -> self.ceiling_y (the prefab hangs downward from it)
+        Pass `y` to override — a monitor on a 1.0m counter is `y=1.0`.
+
+        `facing` is a radian yaw or a FACING_ROT compass name. Wall props are
+        authored front-toward -Z, so "nz" (yaw 0) is a prop on the room's +Z
+        wall looking back into the room.
+
+        `collider` is the one place this differs from prop(). Set:
+            None   -> the prop's OWN declared footprint, or nothing if it
+                      declares none. A chair blocks; a notice board does not.
+            False  -> force no collider, e.g. a chair tucked under a counter
+                      the player is meant to walk past.
+            tuple  -> an explicit (min_x, max_x, min_z, max_z), for a prop
+                      pushed against geometry where its own box would overlap.
+
+        A LIGHT-GATED PROP MAY NOT CARRY A COLLIDER, and the raise below is the
+        same soft-lock guarantee block() spells out at length: darkness gates
+        meshes and raycasts, never collision, so a dark room stays
+        geometrically identical to a lit one.
+        """
+        if kind not in PROPS:
+            raise ValueError(
+                "unknown prop %r. Known: %s. If the kit has not been generated "
+                "in this tree, run `python3 props/_gen/gen_props.py`."
+                % (kind, ", ".join(sorted(PROPS)) or "(none — kit not generated)"))
+        spec = PROPS[kind]
+        yaw = _prop_yaw(facing)
+        x, z = xz
+        if y is None:
+            if spec["mount"] == "ceiling":
+                y = self.ceiling_y
+            elif spec["mount"] == "wall":
+                y = spec["mount_y"]
+                if y is None:
+                    raise ValueError(
+                        "wall prop %r declares no mount_y, so `y` is required" % kind)
+            else:
+                y = 0.0
+
+        if collider is None:
+            collider = spec["collider"]
+            if collider is not None:
+                # Footprint is authored in the prop's OWN axes; rotate it and
+                # take the axis-aligned bound, because colliders in this game
+                # are rectangles and a yawed chair still has to block the space
+                # it actually occupies.
+                cw, cd = collider
+                c, sn = math.cos(yaw), math.sin(yaw)
+                ex = abs(cw / 2.0 * c) + abs(cd / 2.0 * sn)
+                ez = abs(cw / 2.0 * sn) + abs(cd / 2.0 * c)
+                collider = (x - ex, x + ex, z - ez, z + ez)
+        elif collider is False:
+            collider = None
+
+        if light in ("lit", "dark") and collider is not None:
+            raise ValueError(
+                "light-gated prop %r at %r carries a collider. The light axis "
+                "gates meshes and raycasts ONLY, never collision — see "
+                "core/light_object.gd and Room.block(). Pass collider=False, or "
+                "author the collider as a separate solid()." % (kind, xz))
+
+        nm = name or ("%s%d" % (_pascal(kind), len(self.models)))
+        self.models.append((kind, (x, y, z), yaw, nm, state, level, light))
+        if collider is not None:
+            self.solid(collider[0], collider[1], collider[2], collider[3],
+                       state=state, name="%s_col" % nm, level=level)
+        return nm
+
+    def prop_run(self, kind, axis, along_lo, along_hi, cross, facing=None,
+                 y=None, state=None, level=None, light=None, name_fmt=None):
+        """Repeat a 2m `run` prop end-to-end along a wall.
+
+        This is the method that makes the kit worth having. Skirting, bumper
+        rail and pipe run are authored as single 2m segments, and one call
+        dresses a whole corridor: `r.prop_run("skirting", "z", -6, 5, -6.88)`
+        puts skirting down 11m of the west wall. Segment count is derived from
+        the prop's own X extent and the run is CENTRED on the span, so a run
+        that does not divide evenly overhangs symmetrically rather than leaving
+        a gap at one end.
+
+        `cross` is the fixed coordinate — the wall FACE, which is wall_at +-
+        0.12 since walls are 0.24 thick (the same arithmetic Room.shape_key's
+        docstring spells out). `facing` defaults to the nearest wall.
+        """
+        if kind not in PROPS:
+            raise ValueError("unknown prop %r" % kind)
+        seg = PROPS[kind]["size"][0]
+        span = float(along_hi) - float(along_lo)
+        if span <= 0.0:
+            raise ValueError("prop_run span must be positive, got %r" % span)
+        n = max(1, int(round(span / seg)))
+        centre = (float(along_lo) + float(along_hi)) / 2.0
+        used = n * seg
+        names = []
+        for i in range(n):
+            a = centre - used / 2.0 + seg * (i + 0.5)
+            xz = (a, cross) if axis == "x" else (cross, a)
+            if axis not in ("x", "z"):
+                raise ValueError("prop_run axis must be 'x' or 'z', got %r" % axis)
+            f = facing if facing is not None else self._nearest_wall_facing(xz[0], xz[1])
+            nm = (name_fmt % i) if name_fmt else None
+            names.append(self.model(kind, xz, facing=f, y=y, name=nm, state=state,
+                                    level=level, light=light, collider=False))
+        return names
+
+    def light_fitting(self, x, z, circuit=None, facing=0.0):
+        """A ceiling light AND the fitting you can see it come out of.
+
+        Room.light() emits an OmniLight3D plus a faked bounce and NOTHING
+        VISIBLE — every light in the shipped ward is a glow with no lamp above
+        it, which is the single biggest "this is untextured geometry" tell left
+        in the build once the walls got their shaders. This is the one-call fix:
+        light + troffer housing + a light-gated glowing panel, so throwing the
+        breaker leaves a dead fitting behind instead of an empty ceiling.
+        """
+        self.light(x, z, circuit=circuit)
+        self.model("ceiling_troffer", (x, z), facing=facing)
+        self.model("troffer_lamp", (x, z), facing=facing, light="lit")
+
+    def _nearest_wall_facing(self, x, z):
+        """Which way a wall-mounted prop at (x, z) should look: toward the room.
+
+        Picks the CLOSEST of the four floor-rect walls. Deliberately not
+        _resolve_facing(), which decides the axis from whichever fixture
+        dimension is thinner — every wall prop in the kit is thin in Z by
+        construction, so that heuristic would put a prop on an X wall facing
+        along Z and bury its front face in the plaster.
+        """
+        min_x, max_x, min_z, max_z = self.floor
+        d = {"px": x - min_x, "nx": max_x - x, "pz": z - min_z, "nz": max_z - z}
+        return min(d, key=lambda k: d[k])
+
     def bed(self, xz, facing="ew", name=None):
         """room1's bed — `mat="bed"`, used nowhere else in the ward, and the
         ward's only instance of bedroom furniture. Reproduces the shipped
@@ -1033,6 +1231,12 @@ class Emitter:
         rid = "fx_%s" % itype
         if not any(e[2] == rid for e in self.ext):
             self.ext.append(("PackedScene", FIXTURES[itype]["path"], rid, None))
+        return rid
+
+    def prop_scene(self, kind):
+        rid = "pk_%s" % kind
+        if not any(e[2] == rid for e in self.ext):
+            self.ext.append(("PackedScene", "res://props/%s.tscn" % kind, rid, None))
         return rid
 
     def box_mesh(self, size, mat):
@@ -1395,6 +1599,47 @@ class Emitter:
                 body.append("colors = PackedColorArray(%s)"
                             % ", ".join(", ".join("%.4f" % v for v in c) for c in colors))
                 body.append("panel_size = %.4f" % size)
+                body.append("")
+
+        # prop kit — handcrafted set dressing, instanced from props/<kind>.tscn
+        #
+        # ONE flat Props group, not a group per kind: the room script never
+        # addresses these (they carry no id, no interaction and no behaviour),
+        # so a hierarchy would buy nothing and would make node paths depend on
+        # authoring order. Colliders for the props that carry one were already
+        # pushed through Room.solid() at author time, so they are in Geometry
+        # with every other collider rather than being a second, parallel
+        # collision system nobody would think to check.
+        #
+        # Gating nests exactly as it does for a wall — StateObject OUTSIDE,
+        # LightObject INSIDE — because Godot hides a whole subtree when an
+        # ancestor is invisible, so both filters have to agree for the prop to
+        # draw. See Emitter._emit_light_wrapper().
+        if r.models:
+            body.append('[node name="Props" type="Node3D" parent="."]')
+            body.append("")
+            for (kind, pos, yaw, nm, state, level, mlight) in r.models:
+                rid = self.prop_scene(kind)
+                parent = "Props"
+                if state in ("lucid", "unmed"):
+                    self._ensure_state_script()
+                    body.append('[node name="%s_state" type="Node3D" parent="Props"]' % nm)
+                    body.append('script = ExtResource("s_stateobj")')
+                    body.append("visible_in_state = %d" % (1 if state == "lucid" else 2))
+                    body.append("")
+                    parent = "Props/%s_state" % nm
+                if mlight in ("lit", "dark"):
+                    self._ensure_light_script()
+                    body.append('[node name="%s_light" type="Node3D" parent="%s"]' % (nm, parent))
+                    body.append('script = ExtResource("s_lightobj")')
+                    body.append("visible_in_light = %d" % (1 if mlight == "lit" else 2))
+                    body.append("")
+                    parent = "%s/%s_light" % (parent, nm)
+                body.append('[node name="%s" parent="%s" instance=ExtResource("%s")]'
+                            % (nm, parent, rid))
+                body.append("transform = %s" % _xform_yaw(yaw, pos))
+                if level is not None:
+                    body.append('metadata/level = "%s"' % level)
                 body.append("")
 
         # lights
@@ -2215,11 +2460,86 @@ def room5():
     r.interactable("exitdoor", "door", (2, 3, 0.2), (0, 1.5, -6),
                    "door", "the exit door")
 
-    r.light(0, 3.5)
-    r.light(-4.5, 0)
-    r.light(4.5, 0)
-    r.light(0, -2.5)
-    r.light(0, -5.5)
+    # --- set dressing (prop kit) --------------------------------------------
+    # THE SHOWCASE ROOM for props/. Everything below is instanced from
+    # props/<kind>.tscn; nothing here is bespoke to room 5, which is the point —
+    # the same calls dress any other room, with different numbers.
+    #
+    # THE ONE HARD CONSTRAINT, and the reason the placements look lopsided:
+    # room5.gd's WAYPOINTS walk the orderly around the rectangle
+    # x [-4.4, 4.4], z [-2.6, 2.6], and the donut between that lane and the
+    # island is where BOTH code halves are read from. So every prop that
+    # carries a collider sits OUTSIDE the lane — north of z -2.6, south of
+    # z 2.6, or in the two side corridors. Trim, wall fittings and counter-top
+    # objects carry no collider at all and are placed freely.
+    #
+    # Wall faces, since every wall prop needs one (walls are 0.24 thick, so the
+    # face is wall_at +- 0.12):
+    #     south z 4.88   north z -5.88   west x -6.88   east x 6.88
+
+    # Trim. prop_run() repeats one 2m segment and infers which way each faces
+    # from the nearest wall, so a whole corridor is one line.
+    r.prop_run("skirting", "x", -7, 7, 4.88)
+    r.prop_run("skirting", "x", -7, -1, -5.88)
+    r.prop_run("skirting", "x", 1, 7, -5.88)
+    r.prop_run("skirting", "z", -6, 5, -6.88)
+    r.prop_run("skirting", "z", -6, 5, 6.88)
+
+    # Bumper rail down both corridors. The west run is split around the
+    # medication window (z -1.65..-0.15) rather than crossing it.
+    r.prop_run("bumper_rail", "z", -6, -1.8, -6.88)
+    r.prop_run("bumper_rail", "z", 0.2, 5, -6.88)
+    r.prop_run("bumper_rail", "z", -6, 5, 6.88)
+    r.prop_run("pipe_run", "z", 1.0, 5.0, 6.88)
+
+    # Wall fittings.
+    r.model("radiator", (-6.88, 2.6), facing="px")
+    r.model("radiator", (-6.88, -3.6), facing="px")
+    r.model("radiator", (6.88, -4.2), facing="nx")
+    r.model("wall_vent", (-6.88, -4.6), facing="px")
+    r.model("wall_vent", (6.88, 2.4), facing="nx")
+    r.model("fire_extinguisher", (-6.88, 4.2), facing="px")
+    r.model("notice_board", (-4.6, -5.88), facing="pz")
+    r.model("wall_clock", (2.8, -5.88), facing="pz")
+    r.model("wall_shelf", (4.6, -5.88), facing="pz")
+    # On the shelf: 1.45 mount + half the 0.028 board = a 1.464 top surface.
+    r.model("binder_stack", (4.6, -5.74), y=1.464, facing="pz")
+
+    # Records bank, north wall — north of the patrol lane, clear of the door
+    # gap (x -1..1) and of the keypad at x 1.35.
+    for i, cx in enumerate((-2.3, -2.8, -3.3)):
+        r.model("filing_cabinet", (cx, -5.55), facing="pz", name="Cabinet%d" % i)
+    r.model("office_chair", (-4.5, -4.3), facing="nz")
+
+    # Counter tops. The island's ring skirt is 1.1 high and 0.5 deep, so its
+    # usable band is z 0.8..1.3 (south) and -1.3..-0.8 (north).
+    r.model("crt_monitor", (-1.3, 1.05), y=1.1, facing="pz")
+    r.model("paper_tray", (0.95, 1.05), y=1.1, facing="pz")
+    r.model("binder_stack", (1.8, 1.05), y=1.1, facing="pz")
+    r.model("crt_monitor", (1.2, -1.05), y=1.1, facing="nz")
+    r.model("paper_tray", (-1.5, -1.05), y=1.1, facing="nz")
+
+    # The one prop INSIDE the lane, and the only collider=False furniture in
+    # the room: a chair pulled up to the counter. It is tucked hard against the
+    # island's south face, where the player has no reason to walk, and giving
+    # it a collider would pinch the 1.3m donut the whole room is played in.
+    r.model("office_chair", (0.9, 1.62), facing="nz", collider=False)
+
+    # Waiting chairs, south wall — south of the lane, east of the dispenser
+    # approach at x -6.3.
+    for i, cx in enumerate((2.2, 2.9, 3.6)):
+        r.model("stacking_chair", (cx, 4.62), facing="nz", name="Waiting%d" % i)
+
+    # West corridor, clear of both the dispenser approach and the lane.
+    r.model("mop_bucket", (-6.2, 2.0), facing="px")
+    r.model("iv_stand", (6.3, 3.9))
+
+    # Lights, now with a visible fitting each — same five positions as before.
+    r.light_fitting(0, 3.5)
+    r.light_fitting(-4.5, 0)
+    r.light_fitting(4.5, 0)
+    r.light_fitting(0, -2.5)
+    r.light_fitting(0, -5.5)
     return r
 
 

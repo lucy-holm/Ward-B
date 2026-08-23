@@ -39,8 +39,15 @@ renderer) plus a catalogue of ported quirks that look like bugs and are not.
   functions; see `godot/ROOM_AUTHORING_GODOT.md` for the `Room` kit API.
   (This bullet previously said the opposite. It was wrong — see the warning
   block in `godot/MIGRATION_NOTES.md` §1.)
-- `godot/tools/check_roundtrip.sh` — asserts the generator still reproduces
-  every committed scene byte-for-byte. Run after ANY room change.
+- `godot/tools/check_roundtrip.sh` — asserts the generators still reproduce
+  every committed room AND prop scene byte-for-byte. Run after ANY room or
+  prop change.
+- **Set dressing is `godot/props/`** — a handcrafted, reusable prop library
+  (chairs, cabinets, radiators, ceiling fittings, wall trim), placed from a
+  room with `r.model()` / `r.prop_run()` / `r.light_fitting()`. Like rooms,
+  the `.tscn` files are build output of `props/_gen/prop_defs.py`. Read
+  `godot/PROP_KIT.md` before adding or placing props. Room 5 is the worked
+  example.
 
 ## Commands
 

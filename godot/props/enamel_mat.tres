@@ -1,0 +1,12 @@
+[gd_resource type="StandardMaterial3D" format=3 uid="uid://wardbprmenam1"]
+
+; Chipped cream enamel — radiators, lockers, anything painted in the ward's
+; original 1970s spec rather than replaced since. Deliberately the WARMEST and
+; lightest thing in the palette: the walls are a cold green-grey, so an enamel
+; panel against them separates on hue alone even in near-darkness, which is
+; what makes a radiator readable at the far end of an unlit corridor.
+
+[resource]
+albedo_color = Color(0.6, 0.595, 0.555, 1)
+roughness = 0.55
+metallic = 0.02

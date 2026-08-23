@@ -1,0 +1,12 @@
+[gd_resource type="StandardMaterial3D" format=3 uid="uid://wardbprmvinyl1"]
+
+; Seat vinyl — the muted institutional teal-green of every NHS waiting room
+; chair. The ward's only meaningful colour besides the extinguisher red and
+; the fixture accents, and it is kept dark (0.16-0.24) so a row of chairs
+; reads as a dark mass with a highlight along each seat nose rather than as
+; bright blocks competing with the interactables.
+
+[resource]
+albedo_color = Color(0.16, 0.235, 0.225, 1)
+roughness = 0.62
+metallic = 0.0

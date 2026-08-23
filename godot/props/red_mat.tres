@@ -1,0 +1,11 @@
+[gd_resource type="StandardMaterial3D" format=3 uid="uid://wardbprmred01"]
+
+; Fire-extinguisher red, and the ward's only saturated colour. Kept DARK
+; (0.34 red, not 0.8) because the ward is lit by weak pools and a bright red
+; would read as self-illuminated next to them; at this value it stays a
+; painted steel bottle that happens to be the warmest thing in the corridor.
+
+[resource]
+albedo_color = Color(0.34, 0.045, 0.035, 1)
+roughness = 0.5
+metallic = 0.03

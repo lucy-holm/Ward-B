@@ -25,6 +25,12 @@ line-by-line method reference that doc points at.
 
 ---
 
+> **Set dressing lives elsewhere.** This file documents the box primitives that
+> build a room's structure. The handcrafted prop library — chairs, cabinets,
+> radiators, ceiling fittings, wall trim — is `props/`, and its placement API
+> (`Room.model()`, `Room.prop_run()`, `Room.light_fitting()`) is documented in
+> [`PROP_KIT.md`](PROP_KIT.md). Structure is boxes; detail is props.
+
 ## 1. Orientation
 
 A **`Room`** (`tools/gen_rooms.py`, class starts line 199) is a plain Python

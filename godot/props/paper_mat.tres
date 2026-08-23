@@ -1,0 +1,11 @@
+[gd_resource type="StandardMaterial3D" format=3 uid="uid://wardbprmpapr1"]
+
+; Paper — pinned sheets, drawer labels, clock faces, a drip bag. Off-white and
+; fully rough. NOT unshaded: paper that ignored the room lighting would read
+; as a glowing rectangle and pull the eye away from the scrawls, which are the
+; only text in the game that the player is actually meant to read.
+
+[resource]
+albedo_color = Color(0.72, 0.715, 0.68, 1)
+roughness = 0.88
+metallic = 0.0

@@ -1,0 +1,14 @@
+[gd_resource type="StandardMaterial3D" format=3 uid="uid://wardbprmsteel1"]
+
+; Pale brushed steel — chair frames, IV poles, troffer housings, vent
+; surrounds. Metallic is pinned near zero for the reason MIGRATION_NOTES gives
+; (Compatibility, no sky, no reflection probes: a genuinely metallic surface
+; has nothing to reflect and reads as flat black). It is sold instead as metal
+; by being LIGHTER and TIGHTER than every painted surface around it — the
+; walls sit at ~0.42 roughness 0.9, so a 0.42 roughness here catches a
+; specular streak off a ceiling fitting that plaster never does.
+
+[resource]
+albedo_color = Color(0.42, 0.435, 0.45, 1)
+roughness = 0.42
+metallic = 0.08

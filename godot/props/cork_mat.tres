@@ -1,0 +1,10 @@
+[gd_resource type="StandardMaterial3D" format=3 uid="uid://wardbprmcork1"]
+
+; Notice-board cork. Warm tan, fully rough — the only organic-looking surface
+; in the ward, which is precisely why a notice board reads as human even
+; before the pinned sheets are legible.
+
+[resource]
+albedo_color = Color(0.34, 0.265, 0.175, 1)
+roughness = 0.9
+metallic = 0.0

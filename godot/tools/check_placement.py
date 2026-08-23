@@ -119,7 +119,8 @@ def main():
             if kind not in G.PROPS:
                 continue
             lo, hi = prop_aabb(kind, m["pos"], m["yaw"])
-            placed.append((m["name"], kind, G.PROPS[kind]["mount"], m["pos"], lo, hi))
+            placed.append((m["name"], kind, G.PROPS[kind]["mount"], m["pos"], lo, hi,
+                           m.get("y_explicit", False)))
 
         wall_rects = [w[4] for w in r.walls if w[4] is not None]
 
@@ -152,7 +153,7 @@ def main():
                       % (r.rid, iid, itype, ipos[0], ipos[2], gap, allow))
                 issues += 1
 
-        for (nm, kind, mount, pos, lo, hi) in placed:
+        for (nm, kind, mount, pos, lo, hi, _ye) in placed:
             if mount == "wall":
                 on_face = False
                 for (x0, x1, z0, z1) in wall_rects:
@@ -179,11 +180,22 @@ def main():
                             and abs((wpos[1] + size[1] / 2.0) - lo[1]) <= SUPPORT_GAP):
                         supported = True
                         break
-                for (_n2, _k2, _m2, _p2, lo2, hi2) in placed:
+                for (_n2, _k2, _m2, _p2, lo2, hi2, _ye2) in placed:
                     if _n2 == nm:
                         continue
-                    if (lo2[0] <= cx <= hi2[0] and lo2[2] <= cz <= hi2[2]
-                            and abs(hi2[1] - lo[1]) <= SUPPORT_GAP):
+                    if not (lo2[0] <= cx <= hi2[0] and lo2[2] <= cz <= hi2[2]):
+                        continue
+                    # Supported if the base rests just on top of the other prop,
+                    # OR if it lies WITHIN the other's vertical span. The second
+                    # case is not sloppiness: a ward_bed's box runs from the
+                    # floor to the top of its head posts, and its mattress — the
+                    # surface a pillow actually rests on — is in the middle of
+                    # that. Requiring "top of the AABB" would reject every prop
+                    # placed on any concave piece of furniture in the kit.
+                    if abs(hi2[1] - lo[1]) <= SUPPORT_GAP:
+                        supported = True
+                        break
+                    if lo2[1] <= lo[1] <= hi2[1]:
                         supported = True
                         break
                 if not supported:
@@ -196,6 +208,17 @@ def main():
                 a, b = placed[i], placed[j]
                 ov = [min(a[5][k], b[5][k]) - max(a[4][k], b[4][k]) for k in range(3)]
                 if frozenset((a[1], b[1])) in COINCIDENT:
+                    continue
+                # "Resting on" is not "driven through". A concave prop's AABB
+                # encloses the air above it — a ward_bed's box spans from the
+                # floor to the top of its head posts — so anything the author
+                # deliberately placed ON it at a pinned height overlaps that box
+                # while touching none of its geometry. Only the prop with an
+                # explicit y is exempt, and only when it sits at or above the
+                # other's base, so a genuinely misplaced prop still reports.
+                if a[6] and a[4][1] >= b[4][1]:
+                    continue
+                if b[6] and b[4][1] >= a[4][1]:
                     continue
                 if all(v > CLASH_MIN for v in ov):
                     print("CLASH       %-8s %-22s <-> %-22s by %.2f x %.2f x %.2f"

@@ -1,0 +1,32 @@
+[gd_resource type="StandardMaterial3D" format=3 uid="uid://wardbsnrmmirr1"]
+
+; bathroom_mirror's panel — and the hard-constraint material in this file.
+;
+; THIS RENDERER HAS NO REFLECTION PROBES. main.tscn is background + ambient
+; colour only (see MIGRATION_NOTES section 1 — the same finding that made
+; `chain` at metallic 0.8 render flat black), so nothing here can actually
+; show the room behind the camera. What sells "mirror" instead, the only way
+; it can be sold on this renderer: darker than the wall and most props
+; around it, and a LOW roughness so it still catches one tight, hot
+; specular streak off a nearby ceiling fitting — the same "sell metal by
+; roughness, not reflection" trick steel_mat.tres already banks, pushed
+; further because a mirror's whole job is to look more reflective than
+; brushed steel, not less.
+;
+; metallic stays at the project floor (0.0) for the same reason every other
+; material here does: metallic with no environment to reflect reads as flat
+; black, which is the opposite of what a mirror needs to sell.
+;
+; LUMINANCE FLOOR, checked explicitly because this is the darkest material in
+; the file and another agent already lost time to an albedo that crushed to
+; literal black under ACES + the harness's contrast grade (their case was
+; ~0.155/0.125/0.10). This one:
+;   0.2126*0.22 + 0.7152*0.23 + 0.0722*0.25 = 0.229 — comfortably above the
+; ~0.20 floor that header warns about, while still reading as the darkest
+; surface in any shot it appears in (every wall/enamel/vitreous material in
+; this kit sits well above 0.4).
+
+[resource]
+albedo_color = Color(0.22, 0.23, 0.25, 1)
+roughness = 0.1
+metallic = 0.0

@@ -1,4 +1,4 @@
-[gd_scene load_steps=104 format=3 uid="uid://wardbroomc57f0a2"]
+[gd_scene load_steps=114 format=3 uid="uid://wardbroomc57f0a2"]
 
 [ext_resource type="Script" path="res://rooms/room10/room10.gd" id="s_room"]
 [ext_resource type="Material" uid="uid://wardbmatd0cabd0" path="res://materials/floor.tres" id="m_floor"]
@@ -28,6 +28,16 @@
 [ext_resource type="PackedScene" path="res://props/ward_bed.tscn" id="pk_ward_bed"]
 [ext_resource type="PackedScene" path="res://props/privacy_curtain.tscn" id="pk_privacy_curtain"]
 [ext_resource type="PackedScene" path="res://props/bedside_cabinet.tscn" id="pk_bedside_cabinet"]
+[ext_resource type="PackedScene" path="res://props/pillow.tscn" id="pk_pillow"]
+[ext_resource type="PackedScene" path="res://props/folded_blanket.tscn" id="pk_folded_blanket"]
+[ext_resource type="PackedScene" path="res://props/nurse_call_cord.tscn" id="pk_nurse_call_cord"]
+[ext_resource type="PackedScene" path="res://props/oxygen_outlet.tscn" id="pk_oxygen_outlet"]
+[ext_resource type="PackedScene" path="res://props/sharps_bin.tscn" id="pk_sharps_bin"]
+[ext_resource type="PackedScene" path="res://props/bed_table.tscn" id="pk_bed_table"]
+[ext_resource type="PackedScene" path="res://props/vitals_monitor.tscn" id="pk_vitals_monitor"]
+[ext_resource type="PackedScene" path="res://props/light_switch.tscn" id="pk_light_switch"]
+[ext_resource type="PackedScene" path="res://props/fire_alarm_point.tscn" id="pk_fire_alarm_point"]
+[ext_resource type="PackedScene" path="res://props/taped_notes.tscn" id="pk_taped_notes"]
 [ext_resource type="PackedScene" path="res://props/barred_window.tscn" id="pk_barred_window"]
 [ext_resource type="PackedScene" path="res://props/radiator.tscn" id="pk_radiator"]
 [ext_resource type="PackedScene" path="res://props/ward_sign.tscn" id="pk_ward_sign"]
@@ -1015,10 +1025,82 @@ transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, 
 [node name="BayCabE" parent="Props" instance=ExtResource("pk_bedside_cabinet")]
 transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, 6.9000, 0.0000, 3.5000)
 
-[node name="BarredWindow12" parent="Props" instance=ExtResource("pk_barred_window")]
+[node name="PillowW0" parent="Props" instance=ExtResource("pk_pillow")]
+transform = Transform3D(0.000000, 0, 1.000000, 0, 1, 0, -1.000000, 0, 0.000000, -7.5700, 0.5700, 2.0000)
+
+[node name="BlanketW0" parent="Props" instance=ExtResource("pk_folded_blanket")]
+transform = Transform3D(0.000000, 0, 1.000000, 0, 1, 0, -1.000000, 0, 0.000000, -6.1700, 0.5700, 2.0000)
+
+[node name="PillowE0" parent="Props" instance=ExtResource("pk_pillow")]
+transform = Transform3D(0.000000, 0, -1.000000, 0, 1, 0, 1.000000, 0, 0.000000, 7.5700, 0.5700, 2.0000)
+
+[node name="BlanketE0" parent="Props" instance=ExtResource("pk_folded_blanket")]
+transform = Transform3D(0.000000, 0, -1.000000, 0, 1, 0, 1.000000, 0, 0.000000, 6.1700, 0.5700, 2.0000)
+
+[node name="CordW0" parent="Props" instance=ExtResource("pk_nurse_call_cord")]
+transform = Transform3D(0.000000, 0, -1.000000, 0, 1, 0, 1.000000, 0, 0.000000, -7.8800, 2.0000, 2.0000)
+
+[node name="CordE0" parent="Props" instance=ExtResource("pk_nurse_call_cord")]
+transform = Transform3D(0.000000, 0, 1.000000, 0, 1, 0, -1.000000, 0, 0.000000, 7.8800, 2.0000, 2.0000)
+
+[node name="PillowW1" parent="Props" instance=ExtResource("pk_pillow")]
+transform = Transform3D(0.000000, 0, 1.000000, 0, 1, 0, -1.000000, 0, 0.000000, -7.5700, 0.5700, 4.6000)
+
+[node name="BlanketW1" parent="Props" instance=ExtResource("pk_folded_blanket")]
+transform = Transform3D(0.000000, 0, 1.000000, 0, 1, 0, -1.000000, 0, 0.000000, -6.1700, 0.5700, 4.6000)
+
+[node name="PillowE1" parent="Props" instance=ExtResource("pk_pillow")]
+transform = Transform3D(0.000000, 0, -1.000000, 0, 1, 0, 1.000000, 0, 0.000000, 7.5700, 0.5700, 4.6000)
+
+[node name="BlanketE1" parent="Props" instance=ExtResource("pk_folded_blanket")]
+transform = Transform3D(0.000000, 0, -1.000000, 0, 1, 0, 1.000000, 0, 0.000000, 6.1700, 0.5700, 4.6000)
+
+[node name="CordW1" parent="Props" instance=ExtResource("pk_nurse_call_cord")]
+transform = Transform3D(0.000000, 0, -1.000000, 0, 1, 0, 1.000000, 0, 0.000000, -7.8800, 2.0000, 4.6000)
+
+[node name="CordE1" parent="Props" instance=ExtResource("pk_nurse_call_cord")]
+transform = Transform3D(0.000000, 0, 1.000000, 0, 1, 0, -1.000000, 0, 0.000000, 7.8800, 2.0000, 4.6000)
+
+[node name="PillowNW0" parent="Props" instance=ExtResource("pk_pillow")]
+transform = Transform3D(0.000000, 0, 1.000000, 0, 1, 0, -1.000000, 0, 0.000000, -7.5700, 0.5700, -21.8000)
+
+[node name="PillowNE0" parent="Props" instance=ExtResource("pk_pillow")]
+transform = Transform3D(0.000000, 0, -1.000000, 0, 1, 0, 1.000000, 0, 0.000000, 7.5700, 0.5700, -21.8000)
+
+[node name="PillowNW1" parent="Props" instance=ExtResource("pk_pillow")]
+transform = Transform3D(0.000000, 0, 1.000000, 0, 1, 0, -1.000000, 0, 0.000000, -7.5700, 0.5700, -24.2000)
+
+[node name="PillowNE1" parent="Props" instance=ExtResource("pk_pillow")]
+transform = Transform3D(0.000000, 0, -1.000000, 0, 1, 0, 1.000000, 0, 0.000000, 7.5700, 0.5700, -24.2000)
+
+[node name="OxygenOutlet28" parent="Props" instance=ExtResource("pk_oxygen_outlet")]
+transform = Transform3D(0.000000, 0, -1.000000, 0, 1, 0, 1.000000, 0, 0.000000, -7.8800, 1.4500, 3.4000)
+
+[node name="OxygenE" parent="Props" instance=ExtResource("pk_oxygen_outlet")]
+transform = Transform3D(0.000000, 0, 1.000000, 0, 1, 0, -1.000000, 0, 0.000000, 7.8800, 1.4500, 3.4000)
+
+[node name="SharpsBin30" parent="Props" instance=ExtResource("pk_sharps_bin")]
+transform = Transform3D(0.000000, 0, -1.000000, 0, 1, 0, 1.000000, 0, 0.000000, -7.8800, 1.1500, 1.0000)
+
+[node name="BedTable31" parent="Props" instance=ExtResource("pk_bed_table")]
+transform = Transform3D(0.000000, 0, 1.000000, 0, 1, 0, -1.000000, 0, 0.000000, -5.7000, 0.0000, 4.6000)
+
+[node name="VitalsMonitor32" parent="Props" instance=ExtResource("pk_vitals_monitor")]
+transform = Transform3D(0.000000, 0, -1.000000, 0, 1, 0, 1.000000, 0, 0.000000, 5.9000, 0.0000, 1.4000)
+
+[node name="LightSwitch33" parent="Props" instance=ExtResource("pk_light_switch")]
+transform = Transform3D(0.000000, 0, -1.000000, 0, 1, 0, 1.000000, 0, 0.000000, -7.8800, 1.0500, 7.2000)
+
+[node name="FireAlarmPoint34" parent="Props" instance=ExtResource("pk_fire_alarm_point")]
+transform = Transform3D(0.000000, 0, 1.000000, 0, 1, 0, -1.000000, 0, 0.000000, 7.8800, 1.4000, -19.6000)
+
+[node name="TapedNotes35" parent="Props" instance=ExtResource("pk_taped_notes")]
+transform = Transform3D(0.000000, 0, -1.000000, 0, 1, 0, 1.000000, 0, 0.000000, -7.8800, 1.4500, -18.0000)
+
+[node name="BarredWindow36" parent="Props" instance=ExtResource("pk_barred_window")]
 transform = Transform3D(0.000000, 0, -1.000000, 0, 1, 0, 1.000000, 0, 0.000000, -7.8800, 1.8500, 6.2000)
 
-[node name="BarredWindow13" parent="Props" instance=ExtResource("pk_barred_window")]
+[node name="BarredWindow37" parent="Props" instance=ExtResource("pk_barred_window")]
 transform = Transform3D(0.000000, 0, 1.000000, 0, 1, 0, -1.000000, 0, 0.000000, 7.8800, 1.8500, 6.2000)
 
 [node name="WindowNW" parent="Props" instance=ExtResource("pk_barred_window")]
@@ -1027,177 +1109,177 @@ transform = Transform3D(0.000000, 0, -1.000000, 0, 1, 0, 1.000000, 0, 0.000000, 
 [node name="WindowNE" parent="Props" instance=ExtResource("pk_barred_window")]
 transform = Transform3D(0.000000, 0, 1.000000, 0, 1, 0, -1.000000, 0, 0.000000, 7.8800, 1.8500, -23.0000)
 
-[node name="Radiator16" parent="Props" instance=ExtResource("pk_radiator")]
+[node name="Radiator40" parent="Props" instance=ExtResource("pk_radiator")]
 transform = Transform3D(0.000000, 0, -1.000000, 0, 1, 0, 1.000000, 0, 0.000000, -7.8800, 0.4000, -3.4000)
 
-[node name="Radiator17" parent="Props" instance=ExtResource("pk_radiator")]
+[node name="Radiator41" parent="Props" instance=ExtResource("pk_radiator")]
 transform = Transform3D(0.000000, 0, 1.000000, 0, 1, 0, -1.000000, 0, 0.000000, 7.8800, 0.4000, -13.4000)
 
-[node name="WardSign18" parent="Props" instance=ExtResource("pk_ward_sign")]
+[node name="WardSign42" parent="Props" instance=ExtResource("pk_ward_sign")]
 transform = Transform3D(0.000000, 0, 1.000000, 0, 1, 0, -1.000000, 0, 0.000000, 7.8800, 2.0500, 5.0000)
 
-[node name="Text" parent="Props/WardSign18"]
+[node name="Text" parent="Props/WardSign42"]
 text = "WARD B"
 
-[node name="ExitSign19" parent="Props" instance=ExtResource("pk_exit_sign")]
+[node name="ExitSign43" parent="Props" instance=ExtResource("pk_exit_sign")]
 transform = Transform3D(-1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, -1.000000, 1.6000, 2.3500, -25.8800)
 
-[node name="WallSpeaker20" parent="Props" instance=ExtResource("pk_wall_speaker")]
+[node name="WallSpeaker44" parent="Props" instance=ExtResource("pk_wall_speaker")]
 transform = Transform3D(0.000000, 0, -1.000000, 0, 1, 0, 1.000000, 0, 0.000000, -7.8800, 2.5500, -11.0000)
 
-[node name="MissingCeilingTile21" parent="Props" instance=ExtResource("pk_missing_ceiling_tile")]
+[node name="MissingCeilingTile45" parent="Props" instance=ExtResource("pk_missing_ceiling_tile")]
 transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, 3.2000, 3.0000, -14.6000)
 
 [node name="MissingTileN" parent="Props" instance=ExtResource("pk_missing_ceiling_tile")]
 transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, -2.6000, 3.0000, -22.4000)
 
-[node name="HangingCable23" parent="Props" instance=ExtResource("pk_hanging_cable")]
+[node name="HangingCable47" parent="Props" instance=ExtResource("pk_hanging_cable")]
 transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, 2.4000, 3.0000, -5.2000)
 
-[node name="PaperScatter24" parent="Props" instance=ExtResource("pk_paper_scatter")]
+[node name="PaperScatter48" parent="Props" instance=ExtResource("pk_paper_scatter")]
 transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, -3.4000, 0.0000, -16.2000)
 
-[node name="PlasterRubble25" parent="Props" instance=ExtResource("pk_plaster_rubble")]
+[node name="PlasterRubble49" parent="Props" instance=ExtResource("pk_plaster_rubble")]
 transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, 4.6000, 0.0000, -23.4000)
 
-[node name="CeilingTroffer26" parent="Props" instance=ExtResource("pk_ceiling_troffer")]
-transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, 0.0000, 3.0000, 6.0000)
-
-[node name="TrofferLamp27_light" type="Node3D" parent="Props"]
-script = ExtResource("s_lightobj")
-visible_in_light = 1
-
-[node name="TrofferLamp27" parent="Props/TrofferLamp27_light" instance=ExtResource("pk_troffer_lamp")]
-transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, 0.0000, 3.0000, 6.0000)
-
-[node name="CeilingTroffer28" parent="Props" instance=ExtResource("pk_ceiling_troffer")]
-transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, 0.0000, 3.0000, 2.0000)
-
-[node name="TrofferLamp29_light" type="Node3D" parent="Props"]
-script = ExtResource("s_lightobj")
-visible_in_light = 1
-
-[node name="TrofferLamp29" parent="Props/TrofferLamp29_light" instance=ExtResource("pk_troffer_lamp")]
-transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, 0.0000, 3.0000, 2.0000)
-
-[node name="CeilingTroffer30" parent="Props" instance=ExtResource("pk_ceiling_troffer")]
-transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, 4.0000, 3.0000, -2.0000)
-
-[node name="TrofferLamp31_light" type="Node3D" parent="Props"]
-script = ExtResource("s_lightobj")
-visible_in_light = 1
-
-[node name="TrofferLamp31" parent="Props/TrofferLamp31_light" instance=ExtResource("pk_troffer_lamp")]
-transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, 4.0000, 3.0000, -2.0000)
-
-[node name="CeilingTroffer32" parent="Props" instance=ExtResource("pk_ceiling_troffer")]
-transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, -4.0000, 3.0000, -2.0000)
-
-[node name="TrofferLamp33_light" type="Node3D" parent="Props"]
-script = ExtResource("s_lightobj")
-visible_in_light = 1
-
-[node name="TrofferLamp33" parent="Props/TrofferLamp33_light" instance=ExtResource("pk_troffer_lamp")]
-transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, -4.0000, 3.0000, -2.0000)
-
-[node name="CeilingTroffer34" parent="Props" instance=ExtResource("pk_ceiling_troffer")]
-transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, 4.0000, 3.0000, -6.0000)
-
-[node name="TrofferLamp35_light" type="Node3D" parent="Props"]
-script = ExtResource("s_lightobj")
-visible_in_light = 1
-
-[node name="TrofferLamp35" parent="Props/TrofferLamp35_light" instance=ExtResource("pk_troffer_lamp")]
-transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, 4.0000, 3.0000, -6.0000)
-
-[node name="CeilingTroffer36" parent="Props" instance=ExtResource("pk_ceiling_troffer")]
-transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, -4.0000, 3.0000, -6.0000)
-
-[node name="TrofferLamp37_light" type="Node3D" parent="Props"]
-script = ExtResource("s_lightobj")
-visible_in_light = 1
-
-[node name="TrofferLamp37" parent="Props/TrofferLamp37_light" instance=ExtResource("pk_troffer_lamp")]
-transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, -4.0000, 3.0000, -6.0000)
-
-[node name="CeilingTroffer38" parent="Props" instance=ExtResource("pk_ceiling_troffer")]
-transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, 0.0000, 3.0000, -9.0000)
-
-[node name="TrofferLamp39_light" type="Node3D" parent="Props"]
-script = ExtResource("s_lightobj")
-visible_in_light = 1
-
-[node name="TrofferLamp39" parent="Props/TrofferLamp39_light" instance=ExtResource("pk_troffer_lamp")]
-transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, 0.0000, 3.0000, -9.0000)
-
-[node name="CeilingTroffer40" parent="Props" instance=ExtResource("pk_ceiling_troffer")]
-transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, 4.0000, 3.0000, -12.0000)
-
-[node name="TrofferLamp41_light" type="Node3D" parent="Props"]
-script = ExtResource("s_lightobj")
-visible_in_light = 1
-
-[node name="TrofferLamp41" parent="Props/TrofferLamp41_light" instance=ExtResource("pk_troffer_lamp")]
-transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, 4.0000, 3.0000, -12.0000)
-
-[node name="CeilingTroffer42" parent="Props" instance=ExtResource("pk_ceiling_troffer")]
-transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, -4.0000, 3.0000, -12.0000)
-
-[node name="TrofferLamp43_light" type="Node3D" parent="Props"]
-script = ExtResource("s_lightobj")
-visible_in_light = 1
-
-[node name="TrofferLamp43" parent="Props/TrofferLamp43_light" instance=ExtResource("pk_troffer_lamp")]
-transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, -4.0000, 3.0000, -12.0000)
-
-[node name="CeilingTroffer44" parent="Props" instance=ExtResource("pk_ceiling_troffer")]
-transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, 4.0000, 3.0000, -16.0000)
-
-[node name="TrofferLamp45_light" type="Node3D" parent="Props"]
-script = ExtResource("s_lightobj")
-visible_in_light = 1
-
-[node name="TrofferLamp45" parent="Props/TrofferLamp45_light" instance=ExtResource("pk_troffer_lamp")]
-transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, 4.0000, 3.0000, -16.0000)
-
-[node name="CeilingTroffer46" parent="Props" instance=ExtResource("pk_ceiling_troffer")]
-transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, -4.0000, 3.0000, -16.0000)
-
-[node name="TrofferLamp47_light" type="Node3D" parent="Props"]
-script = ExtResource("s_lightobj")
-visible_in_light = 1
-
-[node name="TrofferLamp47" parent="Props/TrofferLamp47_light" instance=ExtResource("pk_troffer_lamp")]
-transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, -4.0000, 3.0000, -16.0000)
-
-[node name="CeilingTroffer48" parent="Props" instance=ExtResource("pk_ceiling_troffer")]
-transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, 0.0000, 3.0000, -19.0000)
-
-[node name="TrofferLamp49_light" type="Node3D" parent="Props"]
-script = ExtResource("s_lightobj")
-visible_in_light = 1
-
-[node name="TrofferLamp49" parent="Props/TrofferLamp49_light" instance=ExtResource("pk_troffer_lamp")]
-transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, 0.0000, 3.0000, -19.0000)
-
 [node name="CeilingTroffer50" parent="Props" instance=ExtResource("pk_ceiling_troffer")]
-transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, 0.0000, 3.0000, -22.0000)
+transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, 0.0000, 3.0000, 6.0000)
 
 [node name="TrofferLamp51_light" type="Node3D" parent="Props"]
 script = ExtResource("s_lightobj")
 visible_in_light = 1
 
 [node name="TrofferLamp51" parent="Props/TrofferLamp51_light" instance=ExtResource("pk_troffer_lamp")]
-transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, 0.0000, 3.0000, -22.0000)
+transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, 0.0000, 3.0000, 6.0000)
 
 [node name="CeilingTroffer52" parent="Props" instance=ExtResource("pk_ceiling_troffer")]
-transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, 0.0000, 3.0000, -25.0000)
+transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, 0.0000, 3.0000, 2.0000)
 
 [node name="TrofferLamp53_light" type="Node3D" parent="Props"]
 script = ExtResource("s_lightobj")
 visible_in_light = 1
 
 [node name="TrofferLamp53" parent="Props/TrofferLamp53_light" instance=ExtResource("pk_troffer_lamp")]
+transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, 0.0000, 3.0000, 2.0000)
+
+[node name="CeilingTroffer54" parent="Props" instance=ExtResource("pk_ceiling_troffer")]
+transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, 4.0000, 3.0000, -2.0000)
+
+[node name="TrofferLamp55_light" type="Node3D" parent="Props"]
+script = ExtResource("s_lightobj")
+visible_in_light = 1
+
+[node name="TrofferLamp55" parent="Props/TrofferLamp55_light" instance=ExtResource("pk_troffer_lamp")]
+transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, 4.0000, 3.0000, -2.0000)
+
+[node name="CeilingTroffer56" parent="Props" instance=ExtResource("pk_ceiling_troffer")]
+transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, -4.0000, 3.0000, -2.0000)
+
+[node name="TrofferLamp57_light" type="Node3D" parent="Props"]
+script = ExtResource("s_lightobj")
+visible_in_light = 1
+
+[node name="TrofferLamp57" parent="Props/TrofferLamp57_light" instance=ExtResource("pk_troffer_lamp")]
+transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, -4.0000, 3.0000, -2.0000)
+
+[node name="CeilingTroffer58" parent="Props" instance=ExtResource("pk_ceiling_troffer")]
+transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, 4.0000, 3.0000, -6.0000)
+
+[node name="TrofferLamp59_light" type="Node3D" parent="Props"]
+script = ExtResource("s_lightobj")
+visible_in_light = 1
+
+[node name="TrofferLamp59" parent="Props/TrofferLamp59_light" instance=ExtResource("pk_troffer_lamp")]
+transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, 4.0000, 3.0000, -6.0000)
+
+[node name="CeilingTroffer60" parent="Props" instance=ExtResource("pk_ceiling_troffer")]
+transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, -4.0000, 3.0000, -6.0000)
+
+[node name="TrofferLamp61_light" type="Node3D" parent="Props"]
+script = ExtResource("s_lightobj")
+visible_in_light = 1
+
+[node name="TrofferLamp61" parent="Props/TrofferLamp61_light" instance=ExtResource("pk_troffer_lamp")]
+transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, -4.0000, 3.0000, -6.0000)
+
+[node name="CeilingTroffer62" parent="Props" instance=ExtResource("pk_ceiling_troffer")]
+transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, 0.0000, 3.0000, -9.0000)
+
+[node name="TrofferLamp63_light" type="Node3D" parent="Props"]
+script = ExtResource("s_lightobj")
+visible_in_light = 1
+
+[node name="TrofferLamp63" parent="Props/TrofferLamp63_light" instance=ExtResource("pk_troffer_lamp")]
+transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, 0.0000, 3.0000, -9.0000)
+
+[node name="CeilingTroffer64" parent="Props" instance=ExtResource("pk_ceiling_troffer")]
+transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, 4.0000, 3.0000, -12.0000)
+
+[node name="TrofferLamp65_light" type="Node3D" parent="Props"]
+script = ExtResource("s_lightobj")
+visible_in_light = 1
+
+[node name="TrofferLamp65" parent="Props/TrofferLamp65_light" instance=ExtResource("pk_troffer_lamp")]
+transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, 4.0000, 3.0000, -12.0000)
+
+[node name="CeilingTroffer66" parent="Props" instance=ExtResource("pk_ceiling_troffer")]
+transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, -4.0000, 3.0000, -12.0000)
+
+[node name="TrofferLamp67_light" type="Node3D" parent="Props"]
+script = ExtResource("s_lightobj")
+visible_in_light = 1
+
+[node name="TrofferLamp67" parent="Props/TrofferLamp67_light" instance=ExtResource("pk_troffer_lamp")]
+transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, -4.0000, 3.0000, -12.0000)
+
+[node name="CeilingTroffer68" parent="Props" instance=ExtResource("pk_ceiling_troffer")]
+transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, 4.0000, 3.0000, -16.0000)
+
+[node name="TrofferLamp69_light" type="Node3D" parent="Props"]
+script = ExtResource("s_lightobj")
+visible_in_light = 1
+
+[node name="TrofferLamp69" parent="Props/TrofferLamp69_light" instance=ExtResource("pk_troffer_lamp")]
+transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, 4.0000, 3.0000, -16.0000)
+
+[node name="CeilingTroffer70" parent="Props" instance=ExtResource("pk_ceiling_troffer")]
+transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, -4.0000, 3.0000, -16.0000)
+
+[node name="TrofferLamp71_light" type="Node3D" parent="Props"]
+script = ExtResource("s_lightobj")
+visible_in_light = 1
+
+[node name="TrofferLamp71" parent="Props/TrofferLamp71_light" instance=ExtResource("pk_troffer_lamp")]
+transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, -4.0000, 3.0000, -16.0000)
+
+[node name="CeilingTroffer72" parent="Props" instance=ExtResource("pk_ceiling_troffer")]
+transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, 0.0000, 3.0000, -19.0000)
+
+[node name="TrofferLamp73_light" type="Node3D" parent="Props"]
+script = ExtResource("s_lightobj")
+visible_in_light = 1
+
+[node name="TrofferLamp73" parent="Props/TrofferLamp73_light" instance=ExtResource("pk_troffer_lamp")]
+transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, 0.0000, 3.0000, -19.0000)
+
+[node name="CeilingTroffer74" parent="Props" instance=ExtResource("pk_ceiling_troffer")]
+transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, 0.0000, 3.0000, -22.0000)
+
+[node name="TrofferLamp75_light" type="Node3D" parent="Props"]
+script = ExtResource("s_lightobj")
+visible_in_light = 1
+
+[node name="TrofferLamp75" parent="Props/TrofferLamp75_light" instance=ExtResource("pk_troffer_lamp")]
+transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, 0.0000, 3.0000, -22.0000)
+
+[node name="CeilingTroffer76" parent="Props" instance=ExtResource("pk_ceiling_troffer")]
+transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, 0.0000, 3.0000, -25.0000)
+
+[node name="TrofferLamp77_light" type="Node3D" parent="Props"]
+script = ExtResource("s_lightobj")
+visible_in_light = 1
+
+[node name="TrofferLamp77" parent="Props/TrofferLamp77_light" instance=ExtResource("pk_troffer_lamp")]
 transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, 0.0000, 3.0000, -25.0000)
 
 [node name="Lights" type="Node3D" parent="."]

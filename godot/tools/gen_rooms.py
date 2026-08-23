@@ -932,6 +932,12 @@ class Room:
         spec = PROPS[kind]
         yaw = _prop_yaw(facing)
         x, z = xz
+        # Whether the AUTHOR pinned the height. A prop placed with an explicit y
+        # is being rested on something — a mattress, a counter, a shelf — and
+        # tools/check_placement.py needs to know that to tell "sitting on" from
+        # "driven through": a concave prop's AABB encloses the air above it, so
+        # a pillow on a bed overlaps the BED'S BOX without touching its geometry.
+        y_explicit = y is not None
         if y is None:
             if spec["mount"] == "ceiling":
                 y = self.ceiling_y
@@ -1022,6 +1028,7 @@ class Room:
             "state": state, "level": level, "light": light,
             "props": dict(props) if props else None,
             "children": children or None,
+            "y_explicit": y_explicit,
         })
         if collider is not None:
             self.solid(collider[0], collider[1], collider[2], collider[3],
@@ -2470,6 +2477,19 @@ def room1():
     r.model("missing_ceiling_tile", (-1.6, 3.4))
     r.model("plaster_rubble", (-2.55, 3.5))
 
+    # Someone slept here. The bed is at (1.85, 4.6) facing "px", so its HEAD is
+    # at +X: ward_bed's head is at local -Z, and a "px" yaw maps -Z to +X, which
+    # puts the pillow 0.7m east of centre and the blanket 0.7m west. Mattress top
+    # is y 0.57 (the 0.14 ticking box centred at 0.50).
+    r.model("pillow", (2.55, 4.6), facing="px", y=0.57)
+    r.model("folded_blanket", (1.15, 4.6), facing="px", y=0.57)
+    r.model("slippers", (1.55, 3.85), facing=0.4)
+    r.model("tin_mug", (-2.5, 4.45), y=0.8)
+    r.model("nurse_call_cord", (2.88, 4.6), facing="nx")
+    r.model("childs_drawing", (-2.88, 4.15), facing="px")
+    r.model("light_switch", (-1.35, 0.12), facing="pz")
+    r.model("socket_plate", (-2.88, 2.6), facing="px")
+
     r.scrawl("don't\nswallow", (-2.85, 1.8, 4.7), math.pi / 2, 2.2)
     r.scrawl("there was a door\nhere once", (0, 1.9, 0.2), 0, 3.0)
 
@@ -2591,6 +2611,19 @@ def room2():
     r.model("fallen_plaster_patch", (1.48, 0.4), facing="nx")
     r.model("plaster_rubble", (1.05, 0.4))
     r.model("wall_vent", (-1.48, -4.2), facing="px")
+
+    # Small fittings. The dado rail is placed at y 1.1 to sit exactly where the
+    # wall shader draws its rail line (band_height), so the painted line becomes
+    # a real shadow under real trim instead of competing with it.
+    r.prop_run("dado_rail", "z", -8.4, 4.2, -1.48, y=1.1)
+    r.prop_run("dado_rail", "z", -8.4, 4.2, 1.48, y=1.1)
+    r.model("light_switch", (-1.48, -8.2), facing="px")
+    r.model("fire_alarm_point", (1.48, -7.6), facing="nx")
+    r.model("socket_plate", (-1.48, -1.0), facing="px")
+    r.model("hand_gel", (1.48, -8.2), facing="nx")
+    r.model("taped_notes", (1.48, 1.6), facing="nx")
+    r.model("wall_stain", (-1.48, -3.0), facing="px")
+    r.model("wall_calendar", (-1.48, 0.4), facing="px")
 
     r.light_fitting(0, 2)
     r.light_fitting(0, -3)
@@ -3621,6 +3654,35 @@ def room10():
         r.model("ward_bed", (6.87, bz), facing="px", name="BayNE%d" % i)
     r.model("bedside_cabinet", (-6.9, 3.5), facing="nz", name="BayCabW")
     r.model("bedside_cabinet", (6.9, 3.5), facing="nz", name="BayCabE")
+
+    # Bedding and bed-head services. Beds face "nx" on the west wall and "px" on
+    # the east, so each one's HEAD (ward_bed's local -Z) points AT its wall —
+    # which puts the pillow 0.7m toward the wall from the bed centre and the
+    # blanket 0.7m away from it. Mattress top is y 0.57.
+    #
+    # DELIBERATELY NOT ON EVERY BED. Pillow + blanket is 5 draw calls a bed and
+    # this room already carries the most geometry in the game; the four southern
+    # bays get the full treatment because that is where the player walks in, and
+    # the northern four get bedding only. See the draw-call note in PROP_KIT.md.
+    for i, bz in enumerate((2.0, 4.6)):
+        r.model("pillow", (-7.57, bz), facing="nx", y=0.57, name="PillowW%d" % i)
+        r.model("folded_blanket", (-6.17, bz), facing="nx", y=0.57, name="BlanketW%d" % i)
+        r.model("pillow", (7.57, bz), facing="px", y=0.57, name="PillowE%d" % i)
+        r.model("folded_blanket", (6.17, bz), facing="px", y=0.57, name="BlanketE%d" % i)
+        r.model("nurse_call_cord", (-7.88, bz), facing="px", name="CordW%d" % i)
+        r.model("nurse_call_cord", (7.88, bz), facing="nx", name="CordE%d" % i)
+    for i, bz in enumerate((-21.8, -24.2)):
+        r.model("pillow", (-7.57, bz), facing="nx", y=0.57, name="PillowNW%d" % i)
+        r.model("pillow", (7.57, bz), facing="px", y=0.57, name="PillowNE%d" % i)
+
+    r.model("oxygen_outlet", (-7.88, 3.4), facing="px")
+    r.model("oxygen_outlet", (7.88, 3.4), facing="nx", name="OxygenE")
+    r.model("sharps_bin", (-7.88, 1.0), facing="px")
+    r.model("bed_table", (-5.7, 4.6), facing="nx")
+    r.model("vitals_monitor", (5.9, 1.4), facing="px")
+    r.model("light_switch", (-7.88, 7.2), facing="px")
+    r.model("fire_alarm_point", (7.88, -19.6), facing="nx")
+    r.model("taped_notes", (-7.88, -18.0), facing="px")
 
     # Windows down both sides of the long unpatrolled stretches.
     r.model("barred_window", (-7.88, 6.2), facing="px")

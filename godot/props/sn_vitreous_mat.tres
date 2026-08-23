@@ -1,0 +1,24 @@
+[gd_resource type="StandardMaterial3D" format=3 uid="uid://wardbsnrmvitr1"]
+
+; Vitreous china — the WC pan and cistern. NOT props/enamel_mat.tres: that
+; material is warm cream PAINTED METAL (its own header calls it the warmest,
+; lightest thing in the palette, tuned against the wall shader's
+; paint_clean_color), and a toilet pan is a harder-fired glazed ceramic, not
+; a pressed-steel panel that happened to get the same coat of paint as the
+; window sills. Sharing enamel here would make the WC read as cut from the
+; same sheet as the sink; this sits cooler and slightly less yellow instead
+; — still bone/cream, per the palette, just the ceramic end of it rather
+; than the painted-metal end.
+;
+; roughness 0.42, tighter than enamel's 0.5: a fired glaze takes a harder
+; specular than painted enamel does, which is most of what separates
+; "ceramic" from "metal panel" at a glance when both are similar hue.
+;
+; Luminance check (the crushed-black trap another agent already hit once on
+; this build): 0.2126*0.62 + 0.7152*0.64 + 0.0722*0.60 = 0.633, comfortably
+; above the ~0.20 floor.
+
+[resource]
+albedo_color = Color(0.62, 0.64, 0.60, 1)
+roughness = 0.42
+metallic = 0.0

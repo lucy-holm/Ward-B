@@ -78,23 +78,23 @@ shader_parameter/rail_width = 0.025
 shader_parameter/mottle_tex = SubResource("NoiseTexture2D_wall_mottle")
 shader_parameter/island_tex = SubResource("NoiseTexture2D_wall_island")
 shader_parameter/mottle_scale = 0.22
-shader_parameter/island_scale = 0.8
+shader_parameter/island_scale = 1.45
 shader_parameter/streak_scale = 0.5
 shader_parameter/streak_squash = 0.08
 shader_parameter/mottle_strength = 0.16
 shader_parameter/streak_strength = 0.22
-shader_parameter/normal_strength = 1.1
+shader_parameter/normal_strength = 0.45
 shader_parameter/roughness_paint = 0.55
 shader_parameter/roughness_plaster = 0.95
 ; ao_strength 0.22 -> 0.27: a touch more contact-shadow depth at the peel
 ; lip so exposed plaster reads as recessed, not just recolored.
-shader_parameter/ao_strength = 0.18
+shader_parameter/ao_strength = 0.11
 shader_parameter/parallax_strength = 0.12
 shader_parameter/peel_threshold_min = 0.05
 shader_parameter/peel_patch_strength = 0.85
 shader_parameter/peel_patch_lo = 0.34
 shader_parameter/peel_patch_hi = 0.70
-shader_parameter/peel_threshold_max = 0.30
+shader_parameter/peel_threshold_max = 0.18
 shader_parameter/edge_width_near = 0.07
 shader_parameter/edge_width_far = 0.16
 shader_parameter/dist_fade_near = 5.0

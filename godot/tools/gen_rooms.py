@@ -2418,9 +2418,52 @@ def room2():
     r.interactable("pill1", "pill_pickup", (0.16, 0.2, 0.16), (-1.15, 0.9, -4.4),
                    "pill", "take the pill")
 
-    r.light(0, 2)
-    r.light(0, -3)
-    r.light(0, -7.5)
+    # --- set dressing --------------------------------------------------------
+    # The concept art's CORRIDOR plate, as closely as the geometry allows: a
+    # smashed medication cabinet spilling pill bottles, signage, bumper rails,
+    # exposed conduit and a missing ceiling tile.
+    #
+    # Faces: west x -1.48, east x 1.48, north wall segments z -8.88, cap z 4.38.
+    # NOTHING HERE CARRIES A COLLIDER. The corridor is 3.2m wide and is the only
+    # route to room 3; a prop that narrowed it would be a soft-lock risk for no
+    # visual gain, so the fittings are all collider-free wall/ceiling/floor
+    # dressing. med_cabinet_smashed WOULD carry one, which is exactly why it is
+    # placed on the north wall beside the door rather than along the run.
+    r.prop_run("skirting", "z", -11, 4.5, -1.48)
+    r.prop_run("skirting", "z", -11, 4.5, 1.48)
+
+    # Bumper rails, split around the two recessed wall panels (west z 1.9..2.9,
+    # east z -5.0..-4.0) rather than driven through them.
+    r.prop_run("bumper_rail", "z", -8.6, 1.8, -1.48)
+    r.prop_run("bumper_rail", "z", -8.0, -5.2, 1.48)
+    r.prop_run("bumper_rail", "z", -3.9, 4.4, 1.48)
+
+    # Services along the ceiling — the corridor plate's most distinctive feature
+    # after the cabinet. Offset to one side so it reads as a run of conduit
+    # rather than a spine down the middle.
+    r.prop_run("ceiling_conduit", "z", -8.5, 3.5, -1.05, facing="nx")
+    r.model("hanging_cable", (0.7, -2.4), facing="nx")
+    r.model("missing_ceiling_tile", (0.55, -6.0))
+
+    # Signage. The header sits above the dispenser, the enamel notice beside it.
+    r.model("ward_sign", (-1.48, 3.3), facing="px", text="WARD B")
+    r.model("cabinet_header", (-1.25, -8.88), facing="pz")
+    r.model("enamel_notice", (-0.55, -8.88), facing="pz")
+    r.model("exit_sign", (1.25, -8.88), facing="pz")
+    r.model("reg_notice", (1.48, -1.2), facing="nx")
+
+    # The smashed cabinet and what came out of it.
+    r.model("med_cabinet_smashed", (-1.48, -6.6), facing="px")
+    r.model("pill_spill", (-1.0, -6.6))
+    r.model("pill_spill", (-0.45, -5.9), facing=0.7, name="PillSpillB")
+    r.model("paper_scatter", (0.6, -4.1))
+    r.model("fallen_plaster_patch", (1.48, 0.4), facing="nx")
+    r.model("plaster_rubble", (1.05, 0.4))
+    r.model("wall_vent", (-1.48, -4.2), facing="px")
+
+    r.light_fitting(0, 2)
+    r.light_fitting(0, -3)
+    r.light_fitting(0, -7.5)
     return r
 
 

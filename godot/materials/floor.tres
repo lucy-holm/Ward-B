@@ -125,5 +125,5 @@ shader_parameter/normal_strength = 0.55
 ; room2 and room4 LUCID again — a flat average over the floor barely moves
 ; even when the visible change is large, because a specular hotspot is
 ; spatially small; judge by eye against these two rooms, not by the mean.
-shader_parameter/roughness_base = 0.4
-shader_parameter/roughness_wet = 0.1
+shader_parameter/roughness_base = 0.52
+shader_parameter/roughness_wet = 0.3

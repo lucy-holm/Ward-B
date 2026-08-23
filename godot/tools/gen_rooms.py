@@ -3447,23 +3447,85 @@ def room10():
     # lights its dispenser alcove ({pos:[6.3,-5.3]}) and room7.ts its dispenser
     # nook ({pos:[-6.5,1.05]}). room10.ts is the outlier, and it is the one room
     # where all three recesses carry something the player is required to find.
-    r.light(0, 6)
-    r.light(0, 2)
-    r.light(4, -2)
-    r.light(-4, -2)
-    r.light(4, -6)
-    r.light(-4, -6)
-    r.light(0, -9)
-    r.light(4, -12)
-    r.light(-4, -12)
-    r.light(4, -16)
-    r.light(-4, -16)
-    r.light(0, -19)
-    r.light(0, -22)
-    r.light(0, -25)
-    r.light(-8.8, -8.6)    # nook A — code half A
-    r.light(8.8, -18.6)    # nook B — code half B
-    r.light(-8.8, -14.6)   # alcove B — dispenser
+    # --- set dressing --------------------------------------------------------
+    # 36m of wing, and the first room in the ward with enough floor to put BEDS
+    # in — which is what the concept art's dormitory plate is made of.
+    #
+    # WHERE THEY GO IS DECIDED BY THE PATROLS, not by taste. room10.gd runs two
+    # orderlies on rectangles at x +-6.5: route A over z -1.5..-8.5, route B over
+    # z -11.5..-18.5. A bed is 2.02m long, so head-to-wall on a side wall it
+    # reaches from x 7.88 in to x 5.86 — straight through x 6.5. So NO bed goes
+    # in either patrolled segment. The southern segment (z 0..8, behind the first
+    # gate) and the northern one (z -20..-26, past the last) are walked by
+    # neither route, and that is where the ward bays are.
+    #
+    # tools/check_patrols.tscn is what makes this checkable rather than hopeful:
+    # it measures every route against every always-on collider, and both of this
+    # room's sat at 1.380m before these beds and must still afterwards.
+    r.prop_run("skirting", "z", -7.8, 8, -7.88)
+    r.prop_run("skirting", "z", -13.8, -9.4, -7.88)
+    r.prop_run("skirting", "z", -26, -15.4, -7.88)
+    r.prop_run("skirting", "z", -17.8, 8, 7.88)
+    r.prop_run("skirting", "z", -26, -19.4, 7.88)
+    r.prop_run("skirting", "x", -8, 8, 7.88)
+    r.prop_run("bumper_rail", "z", -7.6, 7.6, -7.88)
+    r.prop_run("bumper_rail", "z", -17.6, 7.6, 7.88)
+    r.prop_run("bumper_rail", "z", -25.6, -20.0, -7.88)
+    r.prop_run("bumper_rail", "z", -25.6, -20.0, 7.88)
+
+    # Ward bays, both unpatrolled segments. Head to the wall, curtain overhead.
+    for i, bz in enumerate((2.0, 4.6)):
+        r.model("ward_bed", (-6.87, bz), facing="nx", name="BayW%d" % i)
+        r.model("ward_bed", (6.87, bz), facing="px", name="BayE%d" % i)
+    # Curtains hang PERPENDICULAR to the wall, dividing one bay from the next —
+    # so their 2m width has to run along X, which is facing "nz", not along the
+    # wall. Authored the other way first and they hung ACROSS the wing like grey
+    # partitions, blocking the 36m sightline the whole room is built on. One
+    # curtain between the two bays per side, not one per bed: the point is to
+    # break the run up, and a curtain at every bed walls the wing off again.
+    r.model("privacy_curtain", (-6.88, 3.3), facing="nz", name="BayCurtW")
+    r.model("privacy_curtain", (6.88, 3.3), facing="nz", name="BayCurtE")
+    for i, bz in enumerate((-21.8, -24.2)):
+        r.model("ward_bed", (-6.87, bz), facing="nx", name="BayNW%d" % i)
+        r.model("ward_bed", (6.87, bz), facing="px", name="BayNE%d" % i)
+    r.model("bedside_cabinet", (-6.9, 3.5), facing="nz", name="BayCabW")
+    r.model("bedside_cabinet", (6.9, 3.5), facing="nz", name="BayCabE")
+
+    # Windows down both sides of the long unpatrolled stretches.
+    r.model("barred_window", (-7.88, 6.2), facing="px")
+    r.model("barred_window", (7.88, 6.2), facing="nx")
+    r.model("barred_window", (-7.88, -23.0), facing="px", name="WindowNW")
+    r.model("barred_window", (7.88, -23.0), facing="nx", name="WindowNE")
+
+    r.prop_run("ceiling_conduit", "z", -25.0, 7.0, -6.6, facing="nx")
+    r.model("radiator", (-7.88, -3.4), facing="px")
+    r.model("radiator", (7.88, -13.4), facing="nx")
+    r.model("ward_sign", (7.88, 5.0), facing="nx", text="WARD B")
+    r.model("exit_sign", (1.6, -25.88), facing="pz")
+    r.model("wall_speaker", (-7.88, -11.0), facing="px")
+    r.model("missing_ceiling_tile", (3.2, -14.6))
+    r.model("missing_ceiling_tile", (-2.6, -22.4), name="MissingTileN")
+    r.model("hanging_cable", (2.4, -5.2))
+    r.model("paper_scatter", (-3.4, -16.2))
+    r.model("plaster_rubble", (4.6, -23.4))
+
+    r.light_fitting(0, 6)
+    r.light_fitting(0, 2)
+    r.light_fitting(4, -2)
+    r.light_fitting(-4, -2)
+    r.light_fitting(4, -6)
+    r.light_fitting(-4, -6)
+    r.light_fitting(0, -9)
+    r.light_fitting(4, -12)
+    r.light_fitting(-4, -12)
+    r.light_fitting(4, -16)
+    r.light_fitting(-4, -16)
+    r.light_fitting(0, -19)
+    r.light_fitting(0, -22)
+    r.light_fitting(0, -25)
+    r.light(-8.8, -8.6)    # nook A — 1.6m, no room for a troffer
+    r.light(8.8, -18.6)    # nook B — as above
+    r.light(-8.8, -14.6)   # alcove B — as above
     return r
 
 def room12():

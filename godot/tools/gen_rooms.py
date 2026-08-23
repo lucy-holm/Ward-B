@@ -155,7 +155,15 @@ def _prop_value(v):
         return "true" if v else "false"
     if isinstance(v, str):
         return '"%s"' % v.replace("\\", "\\\\").replace('"', '\\"')
-    if isinstance(v, (int, float)):
+    # int BEFORE float: _num() formats everything as a decimal, so an
+    # `@export var columns: int` would receive "3.0000". Godot coerces it, but
+    # the emitted scene then no longer round-trips through the editor unchanged
+    # — it rewrites the literal to 3 on the next save, and the round-trip guard
+    # would blame the generator. (bool is a subclass of int in Python, which is
+    # why the bool branch has to come first — it already does, above.)
+    if isinstance(v, int):
+        return str(v)
+    if isinstance(v, float):
         return _num(v)
     if isinstance(v, (tuple, list)) and len(v) == 3:
         return "Vector3(%.4f, %.4f, %.4f)" % tuple(float(c) for c in v)

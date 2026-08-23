@@ -145,6 +145,21 @@ def slats(w, h, d, count, tilt=0.0, fill=0.72):
                  "tilt": tilt, "fill": fill})
 
 
+def material(name, res):
+    """Register a prop-kit-local material. FOR EXTENSION MODULES.
+
+    An extension that needs its own material must not reach into the MATERIALS
+    literal above — that is the one thing in this file several authors would all
+    edit at once, and it is exactly the conflict the extension mechanism exists
+    to avoid. Call this instead, before the part() that uses it.
+    """
+    if name in MATERIALS and MATERIALS[name] != res:
+        raise ValueError("material %r already registered as %r, not %r"
+                         % (name, MATERIALS[name], res))
+    MATERIALS[name] = res
+    return name
+
+
 def part(mesh, mat, pos=(0.0, 0.0, 0.0), rot=(0.0, 0.0, 0.0), name=None):
     """One MeshInstance3D in the emitted prefab.
 
@@ -189,6 +204,11 @@ def prop(name, mount, size, parts, collider=None, doc="", mount_y=None):
     no numbers in the room file at all. Floor and ceiling props do not need one;
     their mount rule already pins the height.
     """
+    # A silent overwrite here would let two extension modules both define
+    # "trolley", with whichever imported last winning and the other author's
+    # prop vanishing from a kit that still lists it. Loud, at import time.
+    if name in PROPS:
+        raise ValueError("prop %r is already defined — pick another name" % name)
     PROPS[name] = {"mount": mount, "size": tuple(size), "collider": collider,
                    "parts": parts, "doc": doc, "mount_y": mount_y}
 
@@ -724,3 +744,33 @@ through if it is left as pure dressing.""",
          part(tube(0.030, 0.022, 0.10, 10), "chain", (0, -0.24, -0.185),
               rot=(math.pi / 2, 0, 0), name="Trap"),
      ])
+
+
+# =============================================================================
+# EXTENSION MODULES
+#
+# Any props/_gen/defs_*.py sibling is imported here, at the very bottom, and may
+# register props exactly as the blocks above do:
+#
+#     import prop_defs as k
+#     k.prop("locker_bank", "floor", (...), parts=[k.part(k.box(...), "steel")])
+#
+# WHY THE BOTTOM, AND WHY THIS IS NOT A CIRCULAR IMPORT. An extension does
+# `import prop_defs`, which during this module's own execution returns the
+# partially-initialised module object. That is safe here and ONLY here: every
+# primitive, MATERIALS entry and helper it could reach for is already defined
+# above this line. Move this block up and extensions start failing on names that
+# do not exist yet, with an AttributeError that reads like a typo.
+#
+# The point is parallel authoring. A prop is ~8 lines and several people (or
+# several agents) adding props at once to ONE file conflict on every hunk;
+# owning a file each, they never touch the same bytes. gen_props.py and
+# tools/gen_rooms.py both import prop_defs and so both see the whole kit with no
+# registration step to forget.
+import glob as _glob
+import importlib as _importlib
+import os as _os
+
+for _path in sorted(_glob.glob(_os.path.join(_os.path.dirname(_os.path.abspath(__file__)),
+                                             "defs_*.py"))):
+    _importlib.import_module(_os.path.basename(_path)[:-3])

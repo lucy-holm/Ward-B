@@ -1,0 +1,15 @@
+[gd_resource type="StandardMaterial3D" format=3 uid="uid://wardbprmengr1"]
+
+; Institutional green — cast-iron column radiators, and the tiled dado the
+; concept art puts behind every sink. Straight off the reference board's
+; "FLAKING RADIATOR PAINT" and "SCUFFED LINOLEUM" swatches, which share this
+; sage/olive family.
+;
+; Desaturated hard. The art's green reads as green ONLY next to the cream
+; enamel and bone plaster around it; pushed any further it stops looking like
+; 1950s hospital paint and starts looking like a colour choice.
+
+[resource]
+albedo_color = Color(0.32, 0.36, 0.3, 1)
+roughness = 0.6
+metallic = 0.02

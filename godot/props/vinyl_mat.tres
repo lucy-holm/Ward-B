@@ -1,12 +1,19 @@
 [gd_resource type="StandardMaterial3D" format=3 uid="uid://wardbprmvinyl1"]
 
-; Seat vinyl — the muted institutional teal-green of every NHS waiting room
-; chair. The ward's only meaningful colour besides the extinguisher red and
-; the fixture accents, and it is kept dark (0.16-0.24) so a row of chairs
-; reads as a dark mass with a highlight along each seat nose rather than as
-; bright blocks competing with the interactables.
+; Moulded seat plastic — the tan/beige shell of the ward's beam seating.
+;
+; THIS WAS TEAL-GREEN and that was a guess, made before the concept art
+; existed. The art's clean-state plate shows the shells warm tan against cream
+; walls, and the decayed plate shows the SAME shells reading green-grey purely
+; from the grade and the fog — not from their albedo. Authoring the grade into
+; the material would have double-counted it and left the chairs green in the
+; lucid state, where the reference is clearly warm.
+;
+; Kept mid-value rather than as light as the clean plate reads: the walls sit
+; near 0.42 and seating this close to them in value is what lets a row of it
+; register as a silhouette instead of as a bright band.
 
 [resource]
-albedo_color = Color(0.16, 0.235, 0.225, 1)
-roughness = 0.62
+albedo_color = Color(0.47, 0.42, 0.33, 1)
+roughness = 0.55
 metallic = 0.0

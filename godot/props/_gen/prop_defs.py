@@ -69,6 +69,10 @@ MATERIALS = {
     "screen":   "res://props/screen_mat.tres",
     "diffuser": "res://props/diffuser_mat.tres",
     "red":      "res://props/red_mat.tres",
+    "enamel_green": "res://props/enamel_green_mat.tres",
+    "rust":     "res://props/rust_mat.tres",
+    "ticking":  "res://props/ticking_mat.tres",
+    "glass_pale": "res://props/glass_pale_mat.tres",
     "trim":     "res://props/trim_mat.tres",
 }
 
@@ -127,10 +131,18 @@ def frame(w, h, border, depth, bevel=0.005):
                  "depth": depth, "bevel": bevel})
 
 
-def slats(w, h, d, count, tilt=0.0):
-    """Louvred panel — the most reused institutional silhouette there is."""
-    return _reg("slats_%dx%dx%d_n%d_t%d" % (_mm(w), _mm(h), _mm(d), count, _um(tilt)),
-                {"type": "slats", "w": w, "h": h, "d": d, "count": count, "tilt": tilt})
+def slats(w, h, d, count, tilt=0.0, fill=0.72):
+    """Louvred panel — the most reused institutional silhouette there is.
+
+    `fill` is how much of each pitch the blade takes. Louvres are nearly solid
+    (the 0.72 default); glazing bars, bed-head bars and radiator columns are
+    mostly gap, so they pass 0.10-0.30. One primitive covers both, which is why
+    a barred window is two parts rather than fourteen.
+    """
+    return _reg("slats_%dx%dx%d_n%d_t%d_f%d"
+                % (_mm(w), _mm(h), _mm(d), count, _um(tilt), _um(fill)),
+                {"type": "slats", "w": w, "h": h, "d": d, "count": count,
+                 "tilt": tilt, "fill": fill})
 
 
 def part(mesh, mat, pos=(0.0, 0.0, 0.0), rot=(0.0, 0.0, 0.0), name=None):
@@ -423,20 +435,33 @@ about a part's OWN centre, which is why each hand's position is
 # the OTHER nineteen rooms stop looking like the same corridor.
 # =============================================================================
 
-prop("radiator", "wall", (1.0, 0.60, 0.10), mount_y=0.45, doc="""\
-Panel radiator with a fluted front, a top convector grille and a valve at each
-end. The fluting is one `slats` primitive rotated 90deg about Z so the blades
-run vertically — the same baked mesh a horizontal grille would use, turned.""",
+prop("radiator", "wall", (0.90, 0.72, 0.17), mount_y=0.40, doc="""\
+Cast-iron column radiator on stub legs, with a valve and a floor stub pipe.
+
+REPLACES A FLAT PANEL RADIATOR, which was wrong. The concept art's material
+board settles it: the ward's radiators are the sectional column type, and the
+column shadows down the front are the entire silhouette — a flat panel in the
+same footprint reads as a box screwed to the wall and disappears into the
+plaster behind it.
+
+The nine columns are ONE `slats` primitive rotated 90deg about Z, at fill=0.30
+so the gaps between sections are as visible as the sections. Same mesh a
+horizontal grille would use, turned.""",
      parts=[
-         part(box((1.0, 0.58, 0.035), 0.005), "enamel", (0, 0, -0.018), name="Back"),
-         part(slats(0.56, 0.98, 0.050, 16, 0.0), "enamel", (0, 0, -0.062),
-              rot=(0, 0, math.pi / 2), name="Fluting"),
-         part(slats(0.96, 0.075, 0.055, 9, 0.0), "enamel", (0, 0.30, -0.045),
-              rot=(math.pi / 2, 0, 0), name="TopGrille"),
-         part(cyl(0.020, 0.13, 10, 0.003), "chain", (-0.47, -0.34, -0.045), name="ValveL"),
-         part(cyl(0.020, 0.13, 10, 0.003), "chain", (0.47, -0.34, -0.045), name="ValveR"),
-         part(box((0.04, 0.08, 0.06), 0.004), "chain", (-0.40, -0.25, -0.030), name="BracketL"),
-         part(box((0.04, 0.08, 0.06), 0.004), "chain", (0.40, -0.25, -0.030), name="BracketR"),
+         part(slats(0.60, 0.82, 0.13, 9, 0.0, 0.30), "enamel_green", (0, 0, -0.075),
+              rot=(0, 0, math.pi / 2), name="Columns"),
+         part(box((0.86, 0.045, 0.15), 0.006), "enamel_green", (0, 0.315, -0.078),
+              name="TopRail"),
+         part(box((0.86, 0.045, 0.15), 0.006), "enamel_green", (0, -0.285, -0.078),
+              name="BottomRail"),
+         part(box((0.05, 0.10, 0.13), 0.004), "enamel_green", (-0.34, -0.36, -0.075),
+              name="LegL"),
+         part(box((0.05, 0.10, 0.13), 0.004), "enamel_green", (0.34, -0.36, -0.075),
+              name="LegR"),
+         part(cyl(0.022, 0.14, 10, 0.003), "chain", (0.44, -0.22, -0.075), name="Valve"),
+         part(box((0.055, 0.055, 0.055), 0.006), "chain", (0.44, -0.13, -0.075),
+              name="ValveHead"),
+         part(cyl(0.018, 0.28, 8, 0.003), "chain", (0.44, -0.45, -0.075), name="Stub"),
      ])
 
 prop("fire_extinguisher", "wall", (0.16, 0.62, 0.19), mount_y=1.15, doc="""\
@@ -503,4 +528,199 @@ station and a storeroom without a variant each.""",
               name="BracketL"),
          part(box((0.026, 0.16, 0.24), 0.004), "chain", (0.48, -0.09, -0.12),
               name="BracketR"),
+     ])
+
+
+# =============================================================================
+# TIER 4 — the concept art pass. Everything above was built before the art
+# existed; these are the things the reference plates put front and centre that
+# the kit simply did not have. They are the heavy hitters: a barred window, a
+# run of beam seating and a rusted ward bed each carry a whole room on their
+# own, which the trim and the small dressing cannot.
+# =============================================================================
+
+prop("barred_window", "wall", (1.46, 2.18, 0.12), mount_y=1.85, doc="""\
+Tall multi-pane barred window — the single highest-value prop in the kit.
+
+It appears in three of the four environment plates and each one is COMPOSED
+around it: the window is the brightest surface in frame and the thing the eye
+lands on first, with the room reading as silhouettes against it. Nothing else
+here changes a room as much.
+
+Glazing bars and security bars are two `slats` primitives at low fill, one of
+them rotated 90deg about Z. Before `slats` took a fill factor this came out as
+a set of closed shutters, which is what prompted the parameter.
+
+The pane is UNSHADED (props/glass_pale_mat.tres) — see that material's header
+for why a window lit by the room throws the whole composition away.""",
+     parts=[
+         part(box((1.46, 0.075, 0.19), 0.006), "enamel", (0, -1.075, -0.075), name="Sill"),
+         part(box((1.20, 2.00, 0.012), 0.003), "glass_pale", (0, 0.02, -0.020),
+              name="Pane"),
+         part(slats(1.20, 2.00, 0.024, 9, 0.0, 0.10), "chain", (0, 0.02, -0.033),
+              name="GlazingBarsH"),
+         part(slats(2.00, 1.20, 0.024, 4, 0.0, 0.12), "chain", (0, 0.02, -0.033),
+              rot=(0, 0, math.pi / 2), name="GlazingBarsV"),
+         part(slats(2.04, 1.26, 0.030, 7, 0.0, 0.16), "steel", (0, 0.02, -0.076),
+              rot=(0, 0, math.pi / 2), name="SecurityBars"),
+         part(frame(1.38, 2.16, 0.09, 0.10), "enamel", (0, 0, -0.050), name="Reveal"),
+     ])
+
+prop("beam_seating", "floor", (2.14, 0.80, 0.60), collider=(2.14, 0.56), doc="""\
+Four-seat moulded beam seating — the waiting-room furniture the concept art
+actually uses, on a steel beam with two T feet.
+
+THIS IS WHY stacking_chair IS NO LONGER THE DEFAULT. Both are real institutional
+furniture, but the art's waiting area is beam seating end to end, and a beam
+reads completely differently in a room: four shells on one rail make a single
+long horizontal mass with a continuous shadow under it, where four separate
+chairs read as clutter. Keep stacking_chair for day rooms and offices; use this
+against a corridor or waiting-room wall.
+
+Shells are heavily bevelled (0.045) rather than modelled as curved surfaces —
+at ward light levels the chamfer catches exactly the soft highlight along the
+seat nose that sells a moulded shell, for four triangles instead of forty.""",
+     parts=[
+         part(box((2.14, 0.06, 0.09), 0.008), "chain", (0, 0.405, 0), name="Beam"),
+         part(box((0.06, 0.36, 0.06), 0.006), "chain", (-0.74, 0.20, 0), name="StemL"),
+         part(box((0.06, 0.36, 0.06), 0.006), "chain", (0.74, 0.20, 0), name="StemR"),
+         part(box((0.10, 0.05, 0.54), 0.008), "chain", (-0.74, 0.025, 0), name="FootL"),
+         part(box((0.10, 0.05, 0.54), 0.008), "chain", (0.74, 0.025, 0), name="FootR"),
+     ] + [
+         q
+         for i, sx in enumerate((-0.78, -0.26, 0.26, 0.78))
+         for q in (
+             part(box((0.46, 0.05, 0.44), 0.045), "vinyl", (sx, 0.445, -0.02),
+                  name="Seat%d" % i),
+             part(box((0.46, 0.32, 0.05), 0.045), "vinyl", (sx, 0.605, 0.205),
+                  rot=(-0.22, 0, 0), name="Back%d" % i),
+         )
+     ])
+
+prop("ward_bed", "floor", (0.92, 0.98, 2.02), collider=(0.94, 2.04), doc="""\
+Rusted tubular iron ward bed — head and foot boards of vertical bars, a mesh
+base and a stained mattress. The dormitory plate is nothing but a receding row
+of these, so it is the prop that makes a ward a ward.
+
+ORIENTATION: the HEAD is at -Z, so facing="nz" puts the headboard against a +Z
+wall, which is how a bed is actually placed. The mattress is deliberately
+lighter than the frame (props/ticking_mat.tres) — the reference shot recedes as
+a row of pale rectangles floating in the dark, and that only works if the
+ticking separates from the ironwork.
+
+The kit's `bed()` box preset is unrelated and still exists: it is room 1's
+shipped collider geometry, which must not change.""",
+     parts=[
+         part(cyl(0.028, 0.98, 8, 0.004), "rust", (-0.40, 0.49, -0.95), name="HeadPostL"),
+         part(cyl(0.028, 0.98, 8, 0.004), "rust", (0.40, 0.49, -0.95), name="HeadPostR"),
+         part(cyl(0.026, 0.86, 8, 0.004), "rust", (0, 0.96, -0.95),
+              rot=(0, 0, math.pi / 2), name="HeadRail"),
+         part(slats(0.44, 0.78, 0.022, 5, 0.0, 0.20), "rust", (0, 0.72, -0.95),
+              rot=(0, 0, math.pi / 2), name="HeadBars"),
+         part(cyl(0.028, 0.66, 8, 0.004), "rust", (-0.40, 0.33, 0.95), name="FootPostL"),
+         part(cyl(0.028, 0.66, 8, 0.004), "rust", (0.40, 0.33, 0.95), name="FootPostR"),
+         part(cyl(0.026, 0.86, 8, 0.004), "rust", (0, 0.64, 0.95),
+              rot=(0, 0, math.pi / 2), name="FootRail"),
+         part(slats(0.30, 0.78, 0.022, 5, 0.0, 0.20), "rust", (0, 0.48, 0.95),
+              rot=(0, 0, math.pi / 2), name="FootBars"),
+         part(cyl(0.022, 1.90, 8, 0.003), "rust", (-0.40, 0.42, 0),
+              rot=(math.pi / 2, 0, 0), name="SideRailL"),
+         part(cyl(0.022, 1.90, 8, 0.003), "rust", (0.40, 0.42, 0),
+              rot=(math.pi / 2, 0, 0), name="SideRailR"),
+         part(slats(0.80, 1.84, 0.016, 15, 0.0, 0.55), "rust", (0, 0.42, 0),
+              rot=(math.pi / 2, 0, 0), name="Springs"),
+         part(box((0.82, 0.14, 1.80), 0.050), "ticking", (0, 0.50, 0), name="Mattress"),
+     ])
+
+prop("gurney", "floor", (0.78, 0.94, 2.00), collider=(0.80, 2.02), doc="""\
+Wheeled trolley with a thin mattress and a half side-rail. The corridor plate
+leans one of these against a wall with its bedding on the floor; upright it
+also reads as a ward in use rather than a ward abandoned.
+
+Reuses ward_bed's mattress-and-frame vocabulary but sits higher and narrower,
+which is the actual difference between a bed and a trolley.""",
+     parts=[
+         part(cyl(0.038, 0.032, 10, 0.004), "rubber", (-0.30, 0.038, -0.80),
+              rot=(0, 0, math.pi / 2), name="CastorA"),
+         part(cyl(0.038, 0.032, 10, 0.004), "rubber", (0.30, 0.038, -0.80),
+              rot=(0, 0, math.pi / 2), name="CastorB"),
+         part(cyl(0.038, 0.032, 10, 0.004), "rubber", (-0.30, 0.038, 0.80),
+              rot=(0, 0, math.pi / 2), name="CastorC"),
+         part(cyl(0.038, 0.032, 10, 0.004), "rubber", (0.30, 0.038, 0.80),
+              rot=(0, 0, math.pi / 2), name="CastorD"),
+         part(cyl(0.024, 0.56, 8, 0.003), "steel", (-0.30, 0.34, -0.80), name="LegA"),
+         part(cyl(0.024, 0.56, 8, 0.003), "steel", (0.30, 0.34, -0.80), name="LegB"),
+         part(cyl(0.024, 0.56, 8, 0.003), "steel", (-0.30, 0.34, 0.80), name="LegC"),
+         part(cyl(0.024, 0.56, 8, 0.003), "steel", (0.30, 0.34, 0.80), name="LegD"),
+         part(cyl(0.022, 1.88, 8, 0.003), "steel", (-0.32, 0.63, 0),
+              rot=(math.pi / 2, 0, 0), name="RailL"),
+         part(cyl(0.022, 1.88, 8, 0.003), "steel", (0.32, 0.63, 0),
+              rot=(math.pi / 2, 0, 0), name="RailR"),
+         part(box((0.70, 0.028, 1.86), 0.006), "steel", (0, 0.648, 0), name="Deck"),
+         part(box((0.68, 0.10, 1.80), 0.040), "ticking", (0, 0.712, 0), name="Mattress"),
+         part(cyl(0.018, 0.98, 8, 0.003), "steel", (0.34, 0.90, -0.30),
+              rot=(math.pi / 2, 0, 0), name="SideRail"),
+         part(box((0.03, 0.24, 0.03), 0.004), "steel", (0.34, 0.78, -0.76),
+              name="SideRailPostA"),
+         part(box((0.03, 0.24, 0.03), 0.004), "steel", (0.34, 0.78, 0.16),
+              name="SideRailPostB"),
+     ])
+
+prop("pendant_lamp", "ceiling", (0.10, 0.56, 0.10), doc="""\
+Bare bulb on a flex, with a ceiling rose — the corridor plate's only light
+source, and a much older fitting than a troffer. Use it where the ward has been
+patched rather than maintained.
+
+The bulb here is DARK glass. Pair with `pendant_bulb` (light="lit") exactly as
+ceiling_troffer pairs with troffer_lamp, so the breaker leaves a dead bulb
+hanging instead of an empty flex. Room.light_fitting(kind="pendant") does both.""",
+     parts=[
+         part(cyl(0.045, 0.026, 12, 0.004), "chain", (0, -0.013, 0), name="Rose"),
+         part(cyl(0.004, 0.40, 6, 0.001), "chain", (0, -0.226, 0), name="Flex"),
+         part(cyl(0.019, 0.052, 10, 0.003), "chain", (0, -0.452, 0), name="Holder"),
+         part(taper(0.020, 0.050, 0.042), "screen", (0, -0.499, 0), name="BulbNeck"),
+         part(cyl(0.050, 0.040, 12, 0.012), "screen", (0, -0.540, 0), name="BulbBody"),
+     ])
+
+prop("pendant_bulb", "ceiling", (0.10, 0.10, 0.10), doc="""\
+The glowing half of a pendant lamp, alone, so it can be light-gated on its own.
+Place with light="lit". See pendant_lamp.""",
+     parts=[
+         part(taper(0.020, 0.050, 0.042), "diffuser", (0, -0.499, 0), name="Neck"),
+         part(cyl(0.050, 0.040, 12, 0.012), "diffuser", (0, -0.540, 0), name="Bulb"),
+     ])
+
+prop("wall_speaker", "wall", (0.24, 0.28, 0.12), mount_y=2.55, doc="""\
+Tannoy speaker, mounted high. Small, but it is the one prop that implies the
+ward is still being ADDRESSED — that somewhere there is a voice, and a person
+holding a microphone. Cheap horror for eleven triangles' worth of grille.""",
+     parts=[
+         part(box((0.24, 0.28, 0.10), 0.008), "prop", (0, 0, -0.050), name="Body"),
+         part(slats(0.18, 0.21, 0.012, 9, 0.0, 0.55), "chain", (0, 0, -0.102),
+              name="Grille"),
+         part(frame(0.24, 0.28, 0.025, 0.024), "prop", (0, 0, -0.104), name="Bezel"),
+     ])
+
+prop("sink", "wall", (0.58, 0.46, 0.46), collider=(0.60, 0.48), mount_y=0.86, doc="""\
+Chipped enamel wall-hung sink with pillar taps, a waste and an exposed trap,
+against a green tiled splashback. Straight off the reference board.
+
+Carries a collider, unlike every other wall prop: it is 0.44m deep at hip
+height, which is exactly the sort of thing a player walks into and clips
+through if it is left as pure dressing.""",
+     parts=[
+         part(box((0.58, 0.20, 0.05), 0.006), "enamel_green", (0, 0.13, -0.025),
+              name="Splashback"),
+         part(box((0.56, 0.17, 0.42), 0.045), "enamel", (0, 0, -0.225), name="Basin"),
+         part(box((0.46, 0.06, 0.32), 0.030), "screen", (0, 0.055, -0.225),
+              name="BasinWell"),
+         part(cyl(0.016, 0.11, 8, 0.003), "chain", (-0.11, 0.145, -0.075), name="TapL"),
+         part(cyl(0.016, 0.11, 8, 0.003), "chain", (0.11, 0.145, -0.075), name="TapR"),
+         part(cyl(0.011, 0.10, 8, 0.002), "chain", (-0.11, 0.195, -0.115),
+              rot=(math.pi / 2, 0, 0), name="SpoutL"),
+         part(cyl(0.011, 0.10, 8, 0.002), "chain", (0.11, 0.195, -0.115),
+              rot=(math.pi / 2, 0, 0), name="SpoutR"),
+         part(cyl(0.024, 0.16, 8, 0.003), "chain", (0, -0.16, -0.225), name="Waste"),
+         part(tube(0.030, 0.022, 0.10, 10), "chain", (0, -0.24, -0.185),
+              rot=(math.pi / 2, 0, 0), name="Trap"),
      ])

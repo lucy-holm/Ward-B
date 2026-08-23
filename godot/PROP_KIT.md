@@ -54,7 +54,7 @@ regenerate — the same contract `MIGRATION_NOTES.md` §1 states for room scenes
 Primitive keys are derived from exact dimensions, so identical parts collapse
 to one baked resource automatically. The office chair's castor and the mop
 bucket's castors are the same `.tres`, referenced by the same uid, with no
-bookkeeping. Today: **19 props, 131 parts, 78 unique meshes, 6.2k triangles for
+bookkeeping. Today: **27 props, 197 parts, 120 unique meshes, 10.2k triangles for
 the entire kit.**
 
 ## Placing props from a room
@@ -115,6 +115,22 @@ Tier 2 — furniture: `office_chair`, `stacking_chair`, `filing_cabinet`,
 Tier 3 — ward dressing: `radiator`, `fire_extinguisher`, `mop_bucket`,
 `iv_stand`, `wall_shelf`.
 
+Tier 4 — the concept-art pass: `barred_window`, `beam_seating`, `ward_bed`,
+`gurney`, `pendant_lamp`, `pendant_bulb`, `wall_speaker`, `sink`.
+
+### Which to reach for
+
+- **A room that reads as empty** — `barred_window` first. Every environment
+  plate in the concept art is composed around one, and it is the brightest
+  surface in the game.
+- **A corridor or waiting area** — `beam_seating` against the wall, not loose
+  `stacking_chair`s. A beam is one long horizontal mass; loose chairs are
+  clutter.
+- **A dormitory** — `ward_bed`, repeated. The reference ward shot is nothing
+  else.
+- **Any wall at all** — `skirting` + `bumper_rail` via `prop_run()`. Two lines,
+  and the bare floor/wall seam that reads as "untextured geometry" is gone.
+
 Each prop's `doc=` string in `prop_defs.py` records what it is *for* and any
 trap in it, and is copied into the generated `.tscn` header.
 
@@ -134,7 +150,23 @@ trap in it, and is copied into the generated `.tscn` header.
    and looks plausible in isolation, so the winding convention in
    `gen_prop_meshes.gd` can only be verified by eye.
 
-### Two traps worth knowing
+### Matching the concept art
+
+The kit was built before the art existed, and the art corrected four things.
+They are worth knowing because the same mistakes are easy to repeat:
+
+| Guess | What the art shows |
+| --- | --- |
+| Teal vinyl seating | **Tan/beige** moulded shells. The decayed plate reads them green-grey — that is the grade, not the albedo. Authoring the grade in would have double-counted it. |
+| Flat panel radiators | **Green cast-iron column** rads. The column shadows are the whole silhouette. |
+| Warm rust-brown iron | Cooler, **desaturated** — the first pass read as varnished wood next to cream ticking. |
+| No windows at all | **Tall barred windows**, and they carry the composition. |
+
+The shared `materials/` shaders (wall, floor, ceiling) were left alone: they
+already sit close to the reference's cream plaster and olive lino, and every
+room in the ward depends on their exact look.
+
+### Three traps worth knowing
 
 - **Front is −Z, and a chair's front is where a *sitter* faces** — not where
   its bulkiest part is. Both chairs shipped with the backrest at −Z first,
@@ -142,6 +174,9 @@ trap in it, and is copied into the generated `.tscn` header.
 - **Never let two coplanar panels share a plane.** `ceiling_troffer`'s recess
   and `troffer_lamp`'s panel z-fought into a flickering chequerboard the moment
   a light came on — invisible in a still, obvious as soon as the camera moved.
+- **Check a new wall prop against what the room already has.** The first pass
+  put a barred window straight through room 5's shipped `tv_panel`. Nothing
+  validates prop-against-prop overlap; only looking catches it.
 
 ## Verification
 

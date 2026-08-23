@@ -98,7 +98,7 @@ func build(s: Dictionary) -> ArrayMesh:
 				float(s["depth"]), float(s["bevel"]))
 		"slats":
 			return build_slats(float(s["w"]), float(s["h"]), float(s["d"]),
-				int(s["count"]), float(s["tilt"]))
+				int(s["count"]), float(s["tilt"]), float(s["fill"]))
 	return null
 
 
@@ -339,15 +339,22 @@ func build_frame(w: float, h: float, border: float, depth: float, bevel: float) 
 	return st.commit()
 
 
-# A louvred panel: `count` blades spanning `h`, each tilted about X. This is the
-# single most reused silhouette in an institutional building — extract grilles,
-# radiator fronts, locker vents, the grille over a nurse-station shutter — so it
-# is a primitive rather than four hand-placed boxes per prop.
-func build_slats(w: float, h: float, d: float, count: int, tilt: float) -> ArrayMesh:
+# A louvred panel: `count` blades spanning `h`, each tilted about X. The single
+# most reused silhouette in an institutional building — extract grilles,
+# radiator columns, locker vents, window glazing bars, bed-head bars — so it is
+# a primitive rather than N hand-placed boxes per prop.
+#
+# `fill` is the fraction of each pitch the blade occupies, and it is what makes
+# the primitive cover both jobs. A louvre is nearly solid (0.72, blades almost
+# touching); a glazing bar or a bed-head bar is nearly all gap (0.10-0.20). The
+# primitive originally hardcoded 0.72, which made a barred window come out as a
+# set of shutters.
+func build_slats(w: float, h: float, d: float, count: int, tilt: float,
+		fill: float) -> ArrayMesh:
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var pitch := h / float(count)
-	var blade := pitch * 0.72
+	var blade := pitch * fill
 	var basis := Basis(Vector3.RIGHT, tilt)
 	for i in count:
 		var y := -h / 2.0 + pitch * (float(i) + 0.5)

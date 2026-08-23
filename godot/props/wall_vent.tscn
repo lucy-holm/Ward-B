@@ -11,7 +11,7 @@
 [ext_resource type="Material" uid="uid://wardbmat7d6a4dd" path="res://materials/chain.tres" id="m_chain"]
 [ext_resource type="Material" uid="uid://wardbprmsteel1" path="res://props/steel_mat.tres" id="m_steel"]
 [ext_resource type="ArrayMesh" path="res://props/meshes/box_360x260x20_b30.tres" id="am_box_360x260x20_b30"]
-[ext_resource type="ArrayMesh" path="res://props/meshes/slats_340x240x14_n7_t5500.tres" id="am_slats_340x240x14_n7_t5500"]
+[ext_resource type="ArrayMesh" path="res://props/meshes/slats_340x240x14_n7_t5500_f7200.tres" id="am_slats_340x240x14_n7_t5500_f7200"]
 [ext_resource type="ArrayMesh" path="res://props/meshes/frame_400x300_b32_d26_v50.tres" id="am_frame_400x300_b32_d26_v50"]
 
 [node name="WallVent" type="Node3D"]
@@ -23,7 +23,7 @@ surface_material_override/0 = ExtResource("m_chain")
 
 [node name="Louvres" type="MeshInstance3D" parent="."]
 transform = Transform3D(1.000000, 0.000000, 0.000000, 0.000000, 1.000000, 0.000000, 0.000000, 0.000000, 1.000000, 0.0000, 0.0000, -0.0280)
-mesh = ExtResource("am_slats_340x240x14_n7_t5500")
+mesh = ExtResource("am_slats_340x240x14_n7_t5500_f7200")
 surface_material_override/0 = ExtResource("m_steel")
 
 [node name="Surround" type="MeshInstance3D" parent="."]

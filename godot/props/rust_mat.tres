@@ -1,0 +1,14 @@
+[gd_resource type="StandardMaterial3D" format=3 uid="uid://wardbprmrust1"]
+
+; Bed and trolley frames: cream paint gone over to rust.
+;
+; The reference board's bed-frame study is BOTH at once — white enamel with
+; rust eating through it — which one albedo cannot be. This sits at the
+; midpoint, a dirty rust-tan, because the alternative (clean cream, rust in a
+; texture) needs a UV set and a rust mask, and nothing else in the kit carries
+; UVs. At ward light levels the midpoint reads correctly as old painted iron.
+
+[resource]
+albedo_color = Color(0.29, 0.245, 0.215, 1)
+roughness = 0.82
+metallic = 0.04

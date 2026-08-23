@@ -916,19 +916,35 @@ class Room:
                                     level=level, light=light, collider=False))
         return names
 
-    def light_fitting(self, x, z, circuit=None, facing=0.0):
+    # Which prop pair each fitting style uses: (housing, light-gated lamp).
+    # A pair, not one prop, so the breaker leaves the dead fitting behind — see
+    # props/ceiling_troffer.tscn's header.
+    FITTINGS = {
+        "troffer": ("ceiling_troffer", "troffer_lamp"),
+        "pendant": ("pendant_lamp", "pendant_bulb"),
+    }
+
+    def light_fitting(self, x, z, circuit=None, facing=0.0, kind="troffer"):
         """A ceiling light AND the fitting you can see it come out of.
 
         Room.light() emits an OmniLight3D plus a faked bounce and NOTHING
         VISIBLE — every light in the shipped ward is a glow with no lamp above
         it, which is the single biggest "this is untextured geometry" tell left
         in the build once the walls got their shaders. This is the one-call fix:
-        light + troffer housing + a light-gated glowing panel, so throwing the
-        breaker leaves a dead fitting behind instead of an empty ceiling.
+        light + housing + a light-gated glowing panel, so throwing the breaker
+        leaves a dead fitting behind instead of an empty ceiling.
+
+        `kind` picks the fitting style: "troffer" (the ward's standard recessed
+        fluorescent) or "pendant" (a bare bulb on a flex, for the parts of the
+        building that were patched rather than maintained).
         """
+        if kind not in self.FITTINGS:
+            raise ValueError("light_fitting kind must be one of %s, got %r"
+                             % (sorted(self.FITTINGS), kind))
+        housing, lamp = self.FITTINGS[kind]
         self.light(x, z, circuit=circuit)
-        self.model("ceiling_troffer", (x, z), facing=facing)
-        self.model("troffer_lamp", (x, z), facing=facing, light="lit")
+        self.model(housing, (x, z), facing=facing)
+        self.model(lamp, (x, z), facing=facing, light="lit")
 
     def _nearest_wall_facing(self, x, z):
         """Which way a wall-mounted prop at (x, z) should look: toward the room.
@@ -2525,10 +2541,28 @@ def room5():
     # it a collider would pinch the 1.3m donut the whole room is played in.
     r.model("office_chair", (0.9, 1.62), facing="nz", collider=False)
 
-    # Waiting chairs, south wall — south of the lane, east of the dispenser
-    # approach at x -6.3.
-    for i, cx in enumerate((2.2, 2.9, 3.6)):
-        r.model("stacking_chair", (cx, 4.62), facing="nz", name="Waiting%d" % i)
+    # Waiting seating, south wall — south of the lane, east of the dispenser
+    # approach at x -6.3. Beam seating rather than the three separate chairs
+    # this shipped with: the concept art's waiting area is beam end to end, and
+    # a beam reads as one long horizontal mass where loose chairs read as
+    # clutter. See props/beam_seating.tscn.
+    r.model("beam_seating", (2.4, 4.58), facing="nz", name="Waiting0")
+    r.model("beam_seating", (4.7, 4.58), facing="nz", name="Waiting1")
+
+    # Barred windows, south wall. Every environment plate in the concept art is
+    # composed around one of these, and they are the brightest surface in the
+    # room — behind the spawn point on purpose, so the player turns into the
+    # light rather than starting with it in their eyes.
+    # x -1.9 and 0.6, NOT further west: the shipped tv_panel at x -4 spans
+    # -4.65..-3.35 at y 1.8..2.7, and a 1.46-wide window centred at -3.4 drives
+    # straight through it. The panel is existing room content and stays put.
+    r.model("barred_window", (-1.9, 4.88), facing="nz")
+    r.model("barred_window", (0.6, 4.88), facing="nz")
+
+    # North area, outside the patrol lane.
+    r.model("gurney", (3.6, -4.4), facing="nz")
+    r.model("sink", (-6.88, 3.6), facing="px")
+    r.model("wall_speaker", (-6.88, -2.6), facing="px")
 
     # West corridor, clear of both the dispenser approach and the lane.
     r.model("mop_bucket", (-6.2, 2.0), facing="px")
@@ -2540,6 +2574,12 @@ def room5():
     r.light_fitting(4.5, 0)
     r.light_fitting(0, -2.5)
     r.light_fitting(0, -5.5)
+    # The vestibule beyond the staff door is older than the ward around it —
+    # a bare bulb on a flex, not a troffer. No Room.light() of its own; the
+    # z -5.5 fitting already reaches it, and a sixth light here would wash out
+    # the glow block at z -7.8 that sells the exit.
+    r.model("pendant_lamp", (0, -7.0))
+    r.model("pendant_bulb", (0, -7.0), light="lit")
     return r
 
 

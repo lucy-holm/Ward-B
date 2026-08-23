@@ -1,0 +1,25 @@
+[gd_resource type="StandardMaterial3D" format=3 uid="uid://wardbprmglzp1"]
+
+; Window glazing, and THE BRIGHTEST SURFACE IN THE GAME.
+;
+; Unshaded, like every other emissive here, because in all three decayed plates
+; of the concept art the barred windows are the light source the room is
+; composed around — brighter than the fluorescents, and the thing the eye lands
+; on first. A lit-by-the-room window would read as a grey panel and throw that
+; composition away.
+;
+; Cool, unlike the troffer's warm diffuser: the art's daylight is blue-grey
+; against the ward's yellow-green interior, and that opposition is most of why
+; the windows separate at all.
+;
+; Energy 1.15 — above a troffer (1.6 across a much smaller area) in apparent
+; brightness, but low enough that a wall of windows does not bloom into a white
+; sheet and flatten the shadows the room needs.
+
+[resource]
+shading_mode = 0
+albedo_color = Color(0.72, 0.78, 0.8, 1)
+roughness = 0.9
+emission_enabled = true
+emission = Color(0.68, 0.75, 0.8, 1)
+emission_energy_multiplier = 1.15

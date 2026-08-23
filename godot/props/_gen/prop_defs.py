@@ -466,7 +466,14 @@ plaster behind it.
 
 The nine columns are ONE `slats` primitive rotated 90deg about Z, at fill=0.30
 so the gaps between sections are as visible as the sections. Same mesh a
-horizontal grille would use, turned.""",
+horizontal grille would use, turned.
+
+WALL BRACKETS added so the radiator stands off the wall by a real gap rather
+than sitting flush against it — the same trick bumper_rail's brackets use, and
+for the same reason: a flush panel casts no shadow line of its own and reads
+as glued to the plaster, where a genuine standoff throws a shadow that grounds
+it. The valve head was a plain cube; it is now a turned disc, which is what a
+handwheel silhouettes as from every angle the player actually sees it from.""",
      parts=[
          part(slats(0.60, 0.82, 0.13, 9, 0.0, 0.30), "enamel_green", (0, 0, -0.075),
               rot=(0, 0, math.pi / 2), name="Columns"),
@@ -478,9 +485,13 @@ horizontal grille would use, turned.""",
               name="LegL"),
          part(box((0.05, 0.10, 0.13), 0.004), "enamel_green", (0.34, -0.36, -0.075),
               name="LegR"),
+         part(box((0.04, 0.05, 0.075), 0.004), "steel", (-0.30, 0.20, -0.0375),
+              name="BracketL"),
+         part(box((0.04, 0.05, 0.075), 0.004), "steel", (0.30, 0.20, -0.0375),
+              name="BracketR"),
          part(cyl(0.022, 0.14, 10, 0.003), "chain", (0.44, -0.22, -0.075), name="Valve"),
-         part(box((0.055, 0.055, 0.055), 0.006), "chain", (0.44, -0.13, -0.075),
-              name="ValveHead"),
+         part(cyl(0.052, 0.024, 10, 0.004), "chain", (0.44, -0.135, -0.075),
+              name="ValveWheel"),
          part(cyl(0.018, 0.28, 8, 0.003), "chain", (0.44, -0.45, -0.075), name="Stub"),
      ])
 
@@ -540,7 +551,11 @@ construction; only the arm length and the pole differ.""",
 prop("wall_shelf", "wall", (1.20, 0.34, 0.30), mount_y=1.45, doc="""\
 Bracketed wall shelf with a lipped front edge. Deliberately empty — put
 binder_stack or paper_tray on it, so one shelf serves a records room, a nurse
-station and a storeroom without a variant each.""",
+station and a storeroom without a variant each.
+
+Fixing bolts added where each bracket meets the wall — a bare bracket reads as
+floating on the plaster, and a bolt head is one round cap for a lot of "this
+was actually fitted by someone" signal.""",
      parts=[
          part(box((1.20, 0.028, 0.28), 0.006), "prop", (0, 0, -0.14), name="Shelf"),
          part(box((1.20, 0.030, 0.016), 0.005), "prop", (0, 0.015, -0.272), name="Lip"),
@@ -548,6 +563,10 @@ station and a storeroom without a variant each.""",
               name="BracketL"),
          part(box((0.026, 0.16, 0.24), 0.004), "chain", (0.48, -0.09, -0.12),
               name="BracketR"),
+         part(cyl(0.010, 0.010, 8, 0.002), "steel", (-0.505, -0.02, -0.01),
+              rot=(math.pi / 2, 0, 0), name="BoltL"),
+         part(cyl(0.010, 0.010, 8, 0.002), "steel", (0.505, -0.02, -0.01),
+              rot=(math.pi / 2, 0, 0), name="BoltR"),
      ])
 
 
@@ -629,7 +648,20 @@ a row of pale rectangles floating in the dark, and that only works if the
 ticking separates from the ironwork.
 
 The kit's `bed()` box preset is unrelated and still exists: it is room 1's
-shipped collider geometry, which must not change.""",
+shipped collider geometry, which must not change.
+
+FOOT CAPS added at the base of all four posts — a bare cylinder meeting the
+floor with no transition reads as a post that was extruded through it, not a
+leg that was PLACED on it. A slightly wider dark ferrule at each base is the
+same "the object has feet" cue office_chair and mop_bucket sell with a castor;
+a fixed ward bed does not roll, so this is a shod foot rather than a wheel —
+`chain`'s near-black iron reads as a different, older casting than the rust
+frame above it, which is exactly the two-material look real infirmary beds
+have at the point that touches the ground.
+
+MATTRESS thinned from 0.14m to 0.10m to match the reference board's "thin
+stained mattress" — the original read as a plush modern mattress on an
+otherwise starved, institutional frame, which fought the rest of the prop.""",
      parts=[
          part(cyl(0.028, 0.98, 8, 0.004), "rust", (-0.40, 0.49, -0.95), name="HeadPostL"),
          part(cyl(0.028, 0.98, 8, 0.004), "rust", (0.40, 0.49, -0.95), name="HeadPostR"),
@@ -649,7 +681,11 @@ shipped collider geometry, which must not change.""",
               rot=(math.pi / 2, 0, 0), name="SideRailR"),
          part(slats(0.80, 1.84, 0.016, 15, 0.0, 0.55), "rust", (0, 0.42, 0),
               rot=(math.pi / 2, 0, 0), name="Springs"),
-         part(box((0.82, 0.14, 1.80), 0.050), "ticking", (0, 0.50, 0), name="Mattress"),
+         part(box((0.82, 0.10, 1.80), 0.045), "ticking", (0, 0.48, 0), name="Mattress"),
+         part(cyl(0.034, 0.022, 8, 0.003), "chain", (-0.40, 0.011, -0.95), name="FootCapHL"),
+         part(cyl(0.034, 0.022, 8, 0.003), "chain", (0.40, 0.011, -0.95), name="FootCapHR"),
+         part(cyl(0.034, 0.022, 8, 0.003), "chain", (-0.40, 0.011, 0.95), name="FootCapFL"),
+         part(cyl(0.034, 0.022, 8, 0.003), "chain", (0.40, 0.011, 0.95), name="FootCapFR"),
      ])
 
 prop("gurney", "floor", (0.78, 0.94, 2.00), collider=(0.80, 2.02), doc="""\
@@ -727,21 +763,34 @@ against a green tiled splashback. Straight off the reference board.
 
 Carries a collider, unlike every other wall prop: it is 0.44m deep at hip
 height, which is exactly the sort of thing a player walks into and clips
-through if it is left as pure dressing.""",
+through if it is left as pure dressing.
+
+A FRONT LIP and TAP HANDLES were added on the realism pass — the bare
+bevelled box read as a slab with two bare pegs sticking out of it. The lip is
+what a Belfast-style basin's rolled front edge actually looks like in
+silhouette, and it costs one proud box. The trap and waste were also both
+undersized to the point of vanishing against the enamel from three metres
+off; both are larger now, which is what "exposed trap" in the reference
+actually means — you are meant to see it.""",
      parts=[
          part(box((0.58, 0.20, 0.05), 0.006), "enamel_green", (0, 0.13, -0.025),
               name="Splashback"),
          part(box((0.56, 0.17, 0.42), 0.045), "enamel", (0, 0, -0.225), name="Basin"),
+         part(box((0.52, 0.032, 0.03), 0.006), "enamel", (0, -0.08, -0.45), name="Lip"),
          part(box((0.46, 0.06, 0.32), 0.030), "screen", (0, 0.055, -0.225),
               name="BasinWell"),
          part(cyl(0.016, 0.11, 8, 0.003), "chain", (-0.11, 0.145, -0.075), name="TapL"),
          part(cyl(0.016, 0.11, 8, 0.003), "chain", (0.11, 0.145, -0.075), name="TapR"),
+         part(box((0.028, 0.022, 0.028), 0.004), "chain", (-0.11, 0.205, -0.075),
+              name="TapHandleL"),
+         part(box((0.028, 0.022, 0.028), 0.004), "chain", (0.11, 0.205, -0.075),
+              name="TapHandleR"),
          part(cyl(0.011, 0.10, 8, 0.002), "chain", (-0.11, 0.195, -0.115),
               rot=(math.pi / 2, 0, 0), name="SpoutL"),
          part(cyl(0.011, 0.10, 8, 0.002), "chain", (0.11, 0.195, -0.115),
               rot=(math.pi / 2, 0, 0), name="SpoutR"),
-         part(cyl(0.024, 0.16, 8, 0.003), "chain", (0, -0.16, -0.225), name="Waste"),
-         part(tube(0.030, 0.022, 0.10, 10), "chain", (0, -0.24, -0.185),
+         part(cyl(0.029, 0.16, 8, 0.003), "chain", (0, -0.16, -0.225), name="Waste"),
+         part(tube(0.038, 0.028, 0.12, 10), "chain", (0, -0.27, -0.175),
               rot=(math.pi / 2, 0, 0), name="Trap"),
      ])
 

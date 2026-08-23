@@ -3259,16 +3259,70 @@ def room8():
     r.interactable("exitdoor", "door", (2, 3, 0.2), (0, 1.5, -8),
                    "door", "the exit door", facing="pz")
 
-    r.light(0, 4.5)
-    r.light(0, 1.5)
-    r.light(0, -1.5)
-    r.light(5, 3)
-    r.light(5, -4)
-    r.light(-5, 3)
-    r.light(-5, -4)
-    r.light(9, 1)
-    r.light(0, -6)
-    r.light(0, -9)
+    # --- set dressing --------------------------------------------------------
+    # ZERO NEW COLLIDERS IN THIS ROOM, and this one is not a style choice —
+    # it is the only safe option, for a reason worth reading before you add
+    # anything here.
+    #
+    # room8.gd runs TWO orderlies. check_rooms' patrol validator looks up a
+    # constant named literally WAYPOINTS, so it only ever sees route A; route B
+    # — the wide figure-eight through (7.5,-5.5) (0,-2.5) (-7.3,-5.5) (-7.3,4.5)
+    # (0,2.5) (7.5,4.5) — IS NOT VALIDATED BY ANY TEST. That file records both
+    # routes as hand-checked, with route B down to 0.59m clearance against a
+    # 0.50m requirement. So a collider dropped near B would pass CI green and
+    # wedge an orderly in play, which is the worst failure mode available here.
+    #
+    # BEDS WERE THE OBVIOUS THING TO WANT and do not fit. This is "the East
+    # Ward"; the concept art's dormitory plate is rows of iron beds. But a
+    # ward_bed is 2.02m long, and route B runs the full perimeter — down the
+    # west at x -7.3 and across at z ±4.5 — so a bed head-to-wall on any wall
+    # lands on a leg of it. Curtain rails carry the ward read instead: they hang
+    # from the ceiling, so they cost nothing on the floor.
+    #
+    # Faces: south z 5.88, west x -8.88, north z -7.88, east x 8.88 (broken by
+    # the alcove opening at z 0.4..2.0).
+    r.prop_run("skirting", "x", -9, 9, 5.88)
+    r.prop_run("skirting", "x", -9, -1, -7.88)
+    r.prop_run("skirting", "x", 1, 9, -7.88)
+    r.prop_run("skirting", "z", -8, 6, -8.88)
+    r.prop_run("skirting", "z", -8, 0.4, 8.88)
+    r.prop_run("skirting", "z", 2.0, 6, 8.88)
+    r.prop_run("bumper_rail", "z", -7.6, 5.6, -8.88)
+    r.prop_run("bumper_rail", "x", -8.6, -1.4, -7.88)
+
+    # The ward read, entirely overhead.
+    r.model("privacy_curtain", (-6.4, 2.6), facing="nx")
+    r.model("privacy_curtain", (-6.4, -0.4), facing="nx", name="CurtainB")
+    r.model("privacy_curtain", (6.4, 2.6), facing="px", name="CurtainC")
+
+    # Windows down the south wall — the dormitory plate's light source.
+    r.model("barred_window", (-5.6, 5.88), facing="nz")
+    r.model("barred_window", (-2.4, 5.88), facing="nz")
+    r.model("barred_window", (3.2, 5.88), facing="nz")
+
+    r.model("radiator", (-8.88, 1.4), facing="px")
+    r.model("radiator", (8.88, -3.0), facing="nx")
+    r.model("wall_clock", (-3.4, -7.88), facing="pz")
+    r.model("exit_sign", (1.6, -7.88), facing="pz")
+    r.model("cabinet_header", (10.36, 2.1), facing="nx")
+    r.model("wall_speaker", (-8.88, -5.4), facing="px")
+    r.model("wall_vent", (8.88, -6.2), facing="nx")
+    r.model("missing_ceiling_tile", (-4.2, -5.0))
+    r.model("missing_ceiling_tile", (5.6, 0.8), name="MissingTileE")
+    r.model("hanging_cable", (2.0, -6.4))
+    r.model("paper_scatter", (-2.0, 3.9))
+    r.model("plaster_rubble", (7.6, 5.2))
+
+    r.light_fitting(0, 4.5)
+    r.light_fitting(0, 1.5)
+    r.light_fitting(0, -1.5)
+    r.light_fitting(5, 3)
+    r.light_fitting(5, -4)
+    r.light_fitting(-5, 3)
+    r.light_fitting(-5, -4)
+    r.light(9, 1)                # alcove — 1.6m wide, no room for a troffer
+    r.light_fitting(0, -6)
+    r.light_fitting(0, -9)
     return r
 
 def room10():

@@ -143,6 +143,34 @@ except ImportError:
     PROPS = {}
 
 
+def _euler_basis(rot):
+    """XYZ euler (radians) -> row-major 3x3, composed R = Ry . Rx . Rz.
+
+    Same order and same convention as props/_gen/gen_props.py's _basis(), which
+    is what bakes the part transforms into the prefabs. The two MUST agree: a
+    batched run computes part transforms here and an unbatched one reads them
+    from the prefab, and if the orders differed the same prop would sit at two
+    different angles depending on how it was placed.
+    """
+    rx, ry, rz = rot
+    cx, sx = math.cos(rx), math.sin(rx)
+    cy, sy = math.cos(ry), math.sin(ry)
+    cz, sz = math.cos(rz), math.sin(rz)
+    mx = [[1, 0, 0], [0, cx, -sx], [0, sx, cx]]
+    my = [[cy, 0, sy], [0, 1, 0], [-sy, 0, cy]]
+    mz = [[cz, -sz, 0], [sz, cz, 0], [0, 0, 1]]
+    return _mat_mul(_mat_mul(my, mx), mz)
+
+
+def _mat_mul(a, b):
+    return [[sum(a[i][k] * b[k][j] for k in range(3)) for j in range(3)]
+            for i in range(3)]
+
+
+def _mat_vec(m, v):
+    return [sum(m[i][k] * v[k] for k in range(3)) for i in range(3)]
+
+
 def _prop_value(v):
     """Python value -> a Godot .tscn property literal.
 
@@ -314,6 +342,8 @@ class Room:
         # than tuples because this grew to eight fields and a positional
         # mistake in the emitter would be silent.
         self.models = []
+        # Batched runs: (name, mesh_key, mat, [12-float rows]) — see prop_run().
+        self.multimeshes = []
         self.scrawls = []
         self.interactables = []
         self.lights = []
@@ -1020,20 +1050,83 @@ class Room:
         span = float(along_hi) - float(along_lo)
         if span <= 0.0:
             raise ValueError("prop_run span must be positive, got %r" % span)
+        if axis not in ("x", "z"):
+            raise ValueError("prop_run axis must be 'x' or 'z', got %r" % axis)
         n = max(1, int(round(span / seg)))
         centre = (float(along_lo) + float(along_hi)) / 2.0
         used = n * seg
-        names = []
+
+        # BATCHED INTO MultiMeshInstance3D, one per (mesh, material) in the prop.
+        #
+        # WHY. A run is the same few meshes repeated, and instancing the prefab
+        # per segment costs a draw call PER PART PER SEGMENT. Measured on room 10
+        # before this change: 271 of its 580 prop draw calls — 47% — were
+        # skirting, bumper rail and ceiling conduit segments. That is half the
+        # room's budget spent on trim, in a game that ships to WebGL where draw
+        # calls are the binding constraint long before triangles are.
+        #
+        # A MultiMesh draws every instance of one mesh in a single call, so a
+        # 39-segment skirting run collapses from 78 draws to 2. The triangles are
+        # identical; only the submission cost changes.
+        #
+        # WHAT IT GIVES UP: per-segment nodes. A batched run has no node per
+        # segment to name, gate or address, which is why state/light filtering
+        # falls back to the unbatched path below — those need a StateObject
+        # wrapper per instance. Run props carry no collider either way
+        # (collider=False), so nothing is lost there.
+        gated = state in ("lucid", "unmed") or light in ("lit", "dark") or name_fmt
+        if gated:
+            names = []
+            for i in range(n):
+                a = centre - used / 2.0 + seg * (i + 0.5)
+                xz = (a, cross) if axis == "x" else (cross, a)
+                f = facing if facing is not None else self._nearest_wall_facing(*xz)
+                nm = (name_fmt % i) if name_fmt else None
+                names.append(self.model(kind, xz, facing=f, y=y, name=nm, state=state,
+                                        level=level, light=light, collider=False))
+            return names
+
+        spec = PROPS[kind]
+        if y is None:
+            if spec["mount"] == "ceiling":
+                y = self.ceiling_y
+            elif spec["mount"] == "wall":
+                y = spec["mount_y"]
+                if y is None:
+                    raise ValueError("wall prop %r declares no mount_y" % kind)
+            else:
+                y = 0.0
+
+        groups = {}
+        order = []
         for i in range(n):
             a = centre - used / 2.0 + seg * (i + 0.5)
             xz = (a, cross) if axis == "x" else (cross, a)
-            if axis not in ("x", "z"):
-                raise ValueError("prop_run axis must be 'x' or 'z', got %r" % axis)
-            f = facing if facing is not None else self._nearest_wall_facing(xz[0], xz[1])
-            nm = (name_fmt % i) if name_fmt else None
-            names.append(self.model(kind, xz, facing=f, y=y, name=nm, state=state,
-                                    level=level, light=light, collider=False))
-        return names
+            f = facing if facing is not None else self._nearest_wall_facing(*xz)
+            yaw = _prop_yaw(f)
+            seg_basis = _euler_basis((0.0, yaw, 0.0))
+            seg_origin = [xz[0], y, xz[1]]
+            for part in spec["parts"]:
+                if isinstance(part, dict) and part.get("type") == "label":
+                    continue  # a Label3D cannot go in a MultiMesh
+                key = (part["mesh"], part["mat"])
+                if key not in groups:
+                    groups[key] = []
+                    order.append(key)
+                b = _mat_mul(seg_basis, _euler_basis(part["rot"]))
+                o = _mat_vec(seg_basis, list(part["pos"]))
+                o = [seg_origin[k] + o[k] for k in range(3)]
+                # MultiMesh TRANSFORM_3D buffer: three rows of 4, each the
+                # basis row followed by that component of the origin.
+                groups[key].extend([b[0][0], b[0][1], b[0][2], o[0],
+                                    b[1][0], b[1][1], b[1][2], o[1],
+                                    b[2][0], b[2][1], b[2][2], o[2]])
+
+        base = "%sRun%d" % (_pascal(kind), len(self.multimeshes))
+        for j, key in enumerate(order):
+            mesh_key, mat = key
+            self.multimeshes.append(("%s_%d" % (base, j), mesh_key, mat, groups[key]))
+        return [base]
 
     # Which prop pair each fitting style uses: (housing, light-gated lamp).
     # A pair, not one prop, so the breaker leaves the dead fitting behind — see
@@ -1366,6 +1459,19 @@ class Emitter:
         rid = "fx_%s" % itype
         if not any(e[2] == rid for e in self.ext):
             self.ext.append(("PackedScene", FIXTURES[itype]["path"], rid, None))
+        return rid
+
+    def prop_mesh(self, mesh_key):
+        rid = "am_%s" % mesh_key
+        if not any(e[2] == rid for e in self.ext):
+            self.ext.append(("ArrayMesh", "res://props/meshes/%s.tres" % mesh_key,
+                             rid, None))
+        return rid
+
+    def prop_material(self, mat):
+        rid = "pm_%s" % mat
+        if not any(e[2] == rid for e in self.ext):
+            self.ext.append(("Material", _prop_defs.MATERIALS[mat], rid, None))
         return rid
 
     def prop_scene(self, kind):
@@ -1750,6 +1856,31 @@ class Emitter:
         # LightObject INSIDE — because Godot hides a whole subtree when an
         # ancestor is invisible, so both filters have to agree for the prop to
         # draw. See Emitter._emit_light_wrapper().
+        # Batched runs — see Room.prop_run(). Emitted BEFORE the Props group and
+        # under their own parent, because they are not prop instances: there is
+        # no node per segment, so nothing here can be addressed, gated or given a
+        # collider. A run that needs any of those took the unbatched path and
+        # appears under Props instead.
+        if r.multimeshes:
+            body.append('[node name="PropRuns" type="Node3D" parent="."]')
+            body.append("")
+            for (nm, mesh_key, mat, buf) in r.multimeshes:
+                mid = self.prop_mesh(mesh_key)
+                rid = self.prop_material(mat)
+                sid = "mm_%s" % nm.lower()
+                self.sub.append(('MultiMesh', sid, [
+                    "transform_format = 1",
+                    "instance_count = %d" % (len(buf) // 12),
+                    'mesh = ExtResource("%s")' % mid,
+                    "buffer = PackedFloat32Array(%s)"
+                    % ", ".join("%.4f" % v for v in buf),
+                ]))
+                body.append('[node name="%s" type="MultiMeshInstance3D" parent="PropRuns"]'
+                            % nm)
+                body.append('multimesh = SubResource("%s")' % sid)
+                body.append('material_override = ExtResource("%s")' % rid)
+                body.append("")
+
         if r.models:
             body.append('[node name="Props" type="Node3D" parent="."]')
             body.append("")

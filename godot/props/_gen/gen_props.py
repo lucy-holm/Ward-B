@@ -123,6 +123,7 @@ def emit_prop(name, spec):
     # code path this always had.
     mats, meshes = [], []
     has_labels = False
+    has_body = spec["collider"] is not None
     for p in parts:
         if p.get("type") == "label":
             has_labels = True
@@ -134,7 +135,8 @@ def emit_prop(name, spec):
 
     out = []
     out.append('[gd_scene load_steps=%d format=3 uid="uid://wardbprop%s"]'
-               % (len(mats) + len(meshes) + (1 if has_labels else 0) + 1,
+               % (len(mats) + len(meshes) + (1 if has_labels else 0)
+                  + (1 if has_body else 0) + 1,
                   re.sub(r"[^a-z0-9]", "", name)[:14]))
     out.append("")
     for line in spec["doc"].rstrip().splitlines():
@@ -165,9 +167,51 @@ def emit_prop(name, spec):
         # every label part in the prop, however many there are.
         out.append('[ext_resource type="FontFile" '
                    'path="res://fonts/SpecialElite-Regular.ttf" id="f_sign"]')
+    # --- the prop's OWN collider ---------------------------------------------
+    # A prop that declares a footprint carries its own StaticBody3D, so it blocks
+    # the player WHEREVER it is placed — including dragged into a room by hand in
+    # the Godot editor. core/collision.gd rebuilds its cache by WALKING THE ROOM
+    # SUBTREE for CollisionShape3D nodes on a solid layer (WardCollision
+    # .rebuild_from), so it finds these with the room generator knowing nothing
+    # about them.
+    #
+    # Before this, Room.model() emitted colliders only into the ROOM's Geometry
+    # node, which made a hand-placed prop scenery the player walked straight
+    # through. Invisible in code; obvious the first time you tried it.
+    #
+    # Layer 2 is world_static — solid in both ward states. A room needing
+    # anything else OVERRIDES `collision_layer` on this node by name: 0 disables
+    # it, 4 is lucid-only, 8 is unmed-only. No script and no second collider;
+    # core/collision.gd derives the state filter from the layer bits it finds.
+    #
+    # Colliders in this game are infinite in Y (see collision.gd's header), so
+    # the box height is cosmetic — it makes the shape sane in the editor, and
+    # nothing reads it.
+    if has_body:
+        cw, cd = spec["collider"]
+        sy = max(spec["size"][1], 0.05)
+        if spec["mount"] == "wall":
+            centre = (0.0, 0.0, -spec["size"][2] / 2.0)
+        elif spec["mount"] == "ceiling":
+            centre = (0.0, -sy / 2.0, 0.0)
+        else:
+            centre = (0.0, sy / 2.0, 0.0)
+        out.append("")
+        out.append('[sub_resource type="BoxShape3D" id="bs_body"]')
+        out.append("size = Vector3(%.4f, %.4f, %.4f)" % (cw, sy, cd))
+
     out.append("")
     out.append('[node name="%s" type="Node3D"]' % _node_name(name))
     out.append("")
+    if has_body:
+        out.append('[node name="Body" type="StaticBody3D" parent="."]')
+        out.append("collision_layer = 2")
+        out.append("collision_mask = 0")
+        out.append("")
+        out.append('[node name="Shape" type="CollisionShape3D" parent="Body"]')
+        out.append("transform = %s" % transform(centre, (0, 0, 0)))
+        out.append('shape = SubResource("bs_body")')
+        out.append("")
 
     used = {}
     for i, p in enumerate(parts):
@@ -340,6 +384,38 @@ def emit_gallery():
     return "\n".join(out).rstrip() + "\n"
 
 
+ADOPT_MARKER = "HAND-EDITED"
+
+
+def is_adopted(path):
+    """Has someone taken ownership of this prop by hand?
+
+    THE PROBLEM THIS SOLVES. props/*.tscn is build output, so opening one in the
+    Godot editor, tweaking it and saving used to be silently undone by the next
+    regenerate — and `check_roundtrip.sh` would then fail, blaming the person who
+    made the edit rather than explaining it. That is a bad deal for anyone who
+    wants to nudge a prop without learning the Python DSL, which is a completely
+    reasonable thing to want.
+
+    So: put a line containing HAND-EDITED in the file's header comment and the
+    generator stops writing it, permanently. The declaration in prop_defs.py
+    stays — it is still what `Room.model()` reads for size, mount and collider —
+    but the SCENE becomes yours. check_roundtrip.sh skips adopted props for the
+    same reason.
+
+    Adopting is one-way and deliberate. To hand a prop back, delete the marker
+    line and regenerate; the file is rewritten from the declaration and your
+    edits are gone, which is exactly what handing it back means.
+    """
+    if not os.path.exists(path):
+        return False
+    with open(path, "r") as fh:
+        # Header only — the marker is a statement about the file, and scanning
+        # the whole thing would let a stray mention inside a node name adopt a
+        # prop by accident.
+        return ADOPT_MARKER in fh.read(2048)
+
+
 def main():
     os.makedirs(PROPS_DIR, exist_ok=True)
 
@@ -348,11 +424,21 @@ def main():
         fh.write("\n")
     print("wrote props/_gen/mesh_specs.json (%d unique meshes)" % len(defs.MESHES))
 
+    adopted = 0
     for name in sorted(defs.PROPS):
+        out_path = os.path.join(PROPS_DIR, "%s.tscn" % name)
+        if is_adopted(out_path):
+            adopted += 1
+            print("SKIPPED props/%s.tscn — hand-edited, generator does not own it"
+                  % name)
+            continue
         text = emit_prop(name, defs.PROPS[name])
-        with open(os.path.join(PROPS_DIR, "%s.tscn" % name), "w") as fh:
+        with open(out_path, "w") as fh:
             fh.write(text)
         print("wrote props/%s.tscn (%d parts)" % (name, len(defs.PROPS[name]["parts"])))
+    if adopted:
+        print("(%d prop(s) adopted by hand — see PROP_KIT.md 'Taking ownership')"
+              % adopted)
 
     with open(os.path.join(HERE, "gallery.tscn"), "w") as fh:
         fh.write(emit_gallery())

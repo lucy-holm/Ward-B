@@ -154,7 +154,13 @@ def _prop_value(v):
     if isinstance(v, bool):
         return "true" if v else "false"
     if isinstance(v, str):
-        return '"%s"' % v.replace("\\", "\\\\").replace('"', '\\"')
+        # Newlines MUST be escaped, not passed through: a literal newline inside
+        # a quoted .tscn value terminates the string as far as Godot's parser is
+        # concerned and the scene fails to load. Several signage props ship
+        # multi-line defaults ("PLEASE\nTAKE ONLY AS\nPRESCRIBED"), so this is
+        # reached the first time anyone overrides one.
+        return '"%s"' % (v.replace("\\", "\\\\").replace('"', '\\"')
+                          .replace("\n", "\\n").replace("\r", "\\r"))
     # int BEFORE float: _num() formats everything as a decimal, so an
     # `@export var columns: int` would receive "3.0000". Godot coerces it, but
     # the emitted scene then no longer round-trips through the editor unchanged
@@ -304,7 +310,9 @@ class Room:
         # (name, iid, cell_x, cell_z, size, mat, label) — see push_block()
         self.push_blocks = []
         self.props = []
-        # Prop-kit instances: (kind, pos, yaw, name, state, level, light, props)
+        # Prop-kit instances, one dict each — see Room.model(). Dicts rather
+        # than tuples because this grew to eight fields and a positional
+        # mistake in the emitter would be silent.
         self.models = []
         self.scrawls = []
         self.interactables = []
@@ -832,7 +840,7 @@ class Room:
     # never defines where the player can walk unless the room asks it to.
 
     def model(self, kind, xz, facing=0.0, y=None, name=None, state=None,
-              level=None, light=None, collider=None, props=None):
+              level=None, light=None, collider=None, props=None, text=None):
         """Instance one prop-kit prefab (props/<kind>.tscn).
 
         `y` DEFAULTS BY MOUNT, which is the point — a room author should not be
@@ -869,6 +877,18 @@ class Room:
         seems not to apply. Values may be str, bool, int/float, a 3-tuple
         (Vector3) or a 4-tuple (Color); see _prop_value().
 
+        `text` overrides the words on a SIGN. The signage props each carry a
+        Label3D with a baked default, so a sign works with no `text` at all; pass
+        a string to change it, or a dict when the prop has more than one label:
+
+            r.model("ward_sign", (x, z), facing="pz", text="WARD C \u2190")
+            r.model("reg_notice", (x, z), text={"Header": "FIRE ROUTINE"})
+
+        A wrong label name RAISES rather than being ignored. Godot silently
+        accepts an override naming a child that does not exist — it simply never
+        applies — so without this check a typo'd sign would ship reading
+        whatever its default was, and look deliberate.
+
         A LIGHT-GATED PROP MAY NOT CARRY A COLLIDER, and the raise below is the
         same soft-lock guarantee block() spells out at length: darkness gates
         meshes and raycasts, never collision, so a dark room stays
@@ -893,31 +913,86 @@ class Room:
             else:
                 y = 0.0
 
-        if collider is None:
-            collider = spec["collider"]
-            if collider is not None:
-                # Footprint is authored in the prop's OWN axes; rotate it and
-                # take the axis-aligned bound, because colliders in this game
-                # are rectangles and a yawed chair still has to block the space
-                # it actually occupies.
-                cw, cd = collider
-                c, sn = math.cos(yaw), math.sin(yaw)
-                ex = abs(cw / 2.0 * c) + abs(cd / 2.0 * sn)
-                ez = abs(cw / 2.0 * sn) + abs(cd / 2.0 * c)
-                collider = (x - ex, x + ex, z - ez, z + ez)
-        elif collider is False:
-            collider = None
+        # --- collision -------------------------------------------------------
+        # THE PROP CARRIES ITS OWN COLLIDER NOW. props/<kind>.tscn emits a
+        # StaticBody3D on layer 2 for any prop declaring a footprint, so the prop
+        # blocks the player wherever it is placed — including dragged into a room
+        # by hand in the editor, which is the whole reason it moved there.
+        #
+        # So this method's job is no longer "emit a collider"; it is "override
+        # the prop's own when the room needs something different", done by
+        # setting `collision_layer` on the prop's Body child:
+        #     0 -> off          4 -> lucid-only        8 -> unmed-only
+        # core/collision.gd derives the state filter from those bits, so a
+        # state-gated prop needs NO separate solid() at all.
+        #
+        # Emitting a second, room-side collider on top of the prop's own would
+        # double every footprint — harmless for the AABB test, which would get
+        # the same answer twice, but it would quietly double what the orderly's
+        # patrol-clearance validator counts and make the audit trail a lie.
+        children = {}
+        has_body = spec["collider"] is not None
 
-        if light in ("lit", "dark") and collider is not None:
+        if light in ("lit", "dark") and has_body and collider is not False:
             raise ValueError(
-                "light-gated prop %r at %r carries a collider. The light axis "
-                "gates meshes and raycasts ONLY, never collision — see "
-                "core/light_object.gd and Room.block(). Pass collider=False, or "
-                "author the collider as a separate solid()." % (kind, xz))
+                "light-gated prop %r at %r carries its own collider. The light "
+                "axis gates meshes and raycasts ONLY, never collision — see "
+                "core/light_object.gd and Room.block(). Pass collider=False to "
+                "disable the prop's body, then author a solid() separately if "
+                "the space genuinely needs blocking in both light states."
+                % (kind, xz))
+
+        if collider is False:
+            if has_body:
+                children.setdefault("Body", {})["collision_layer"] = 0
+            collider = None
+        elif collider is None:
+            if has_body and state in ("lucid", "unmed"):
+                # State-gate the prop's own body rather than adding a second one.
+                children.setdefault("Body", {})["collision_layer"] = (
+                    LAYER_LUCID if state == "lucid" else LAYER_UNMED)
+            collider = None
+        else:
+            # An explicit rectangle overrides the prop's footprint entirely, so
+            # its own body must go — otherwise the room gets both.
+            if has_body:
+                children.setdefault("Body", {})["collision_layer"] = 0
+
+        # Sign text. Label parts are bare dicts (see props/_gen/defs_signage.py
+        # on why they bypass part()), so the label NAMES come straight off the
+        # prop declaration rather than a table here that could drift from it.
+        labels = [q for q in spec["parts"]
+                  if isinstance(q, dict) and q.get("type") == "label"]
+        if text is not None:
+            if not labels:
+                raise ValueError("prop %r carries no label, so `text` means "
+                                 "nothing. Signage props: %s"
+                                 % (kind, ", ".join(sorted(
+                                     k for k, v in PROPS.items()
+                                     if any(isinstance(q, dict) and q.get("type") == "label"
+                                            for q in v["parts"])))))
+            if isinstance(text, str):
+                if len(labels) != 1:
+                    raise ValueError(
+                        "prop %r has %d labels (%s) — pass a dict, not a string"
+                        % (kind, len(labels), ", ".join(q["name"] for q in labels)))
+                text = {labels[0]["name"]: text}
+            known = {q["name"] for q in labels}
+            for key in text:
+                if key not in known:
+                    raise ValueError("prop %r has no label named %r. It has: %s"
+                                     % (kind, key, ", ".join(sorted(known))))
+
+        for lname, ltext in (text or {}).items():
+            children.setdefault(lname, {})["text"] = ltext
 
         nm = name or ("%s%d" % (_pascal(kind), len(self.models)))
-        self.models.append((kind, (x, y, z), yaw, nm, state, level, light,
-                            dict(props) if props else None))
+        self.models.append({
+            "kind": kind, "pos": (x, y, z), "yaw": yaw, "name": nm,
+            "state": state, "level": level, "light": light,
+            "props": dict(props) if props else None,
+            "children": children or None,
+        })
         if collider is not None:
             self.solid(collider[0], collider[1], collider[2], collider[3],
                        state=state, name="%s_col" % nm, level=level)
@@ -1678,7 +1753,10 @@ class Emitter:
         if r.models:
             body.append('[node name="Props" type="Node3D" parent="."]')
             body.append("")
-            for (kind, pos, yaw, nm, state, level, mlight, mprops) in r.models:
+            for m in r.models:
+                kind, pos, yaw, nm = m["kind"], m["pos"], m["yaw"], m["name"]
+                state, level, mlight = m["state"], m["level"], m["light"]
+                mprops, mchildren = m["props"], m["children"]
                 rid = self.prop_scene(kind)
                 parent = "Props"
                 if state in ("lucid", "unmed"):
@@ -1704,6 +1782,17 @@ class Emitter:
                 if level is not None:
                     body.append('metadata/level = "%s"' % level)
                 body.append("")
+                # Property overrides on children INSIDE the instanced prefab —
+                # sign text, and the collider layer. Each needs its own [node]
+                # block naming the child with the instance as its parent. Sorted
+                # at both levels so the emitted scene is deterministic.
+                for cname in sorted(mchildren or {}):
+                    body.append('[node name="%s" parent="%s/%s"]'
+                                % (cname, parent, nm))
+                    for key in sorted(mchildren[cname]):
+                        body.append("%s = %s"
+                                    % (key, _prop_value(mchildren[cname][key])))
+                    body.append("")
 
         # lights
         if r.lights:

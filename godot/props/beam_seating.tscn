@@ -1,4 +1,4 @@
-[gd_scene load_steps=8 format=3 uid="uid://wardbpropbeamseating"]
+[gd_scene load_steps=9 format=3 uid="uid://wardbpropbeamseating"]
 
 ; Four-seat moulded beam seating — the waiting-room furniture the concept art
 ; actually uses, on a steel beam with two T feet.
@@ -26,7 +26,18 @@
 [ext_resource type="ArrayMesh" path="res://props/meshes/box_460x50x440_b450.tres" id="am_box_460x50x440_b450"]
 [ext_resource type="ArrayMesh" path="res://props/meshes/box_460x320x50_b450.tres" id="am_box_460x320x50_b450"]
 
+[sub_resource type="BoxShape3D" id="bs_body"]
+size = Vector3(2.1400, 0.8000, 0.5600)
+
 [node name="BeamSeating" type="Node3D"]
+
+[node name="Body" type="StaticBody3D" parent="."]
+collision_layer = 2
+collision_mask = 0
+
+[node name="Shape" type="CollisionShape3D" parent="Body"]
+transform = Transform3D(1.000000, 0.000000, 0.000000, 0.000000, 1.000000, 0.000000, 0.000000, 0.000000, 1.000000, 0.0000, 0.4000, 0.0000)
+shape = SubResource("bs_body")
 
 [node name="Beam" type="MeshInstance3D" parent="."]
 transform = Transform3D(1.000000, 0.000000, 0.000000, 0.000000, 1.000000, 0.000000, 0.000000, 0.000000, 1.000000, 0.0000, 0.4050, 0.0000)

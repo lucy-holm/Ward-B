@@ -1,4 +1,4 @@
-[gd_scene load_steps=76 format=3 uid="uid://wardbroom181f2a"]
+[gd_scene load_steps=69 format=3 uid="uid://wardbroom181f2a"]
 
 [ext_resource type="Script" path="res://rooms/room5/room5.gd" id="s_room"]
 [ext_resource type="Material" uid="uid://wardbmatd0cabd0" path="res://materials/floor.tres" id="m_floor"]
@@ -131,33 +131,12 @@ size = Vector3(1.1000, 0.8000, 0.1000)
 material = ExtResource("m_glow")
 
 [sub_resource type="BoxShape3D" id="bs_8"]
-size = Vector3(0.5000, 3.0000, 0.6400)
-
-[sub_resource type="BoxShape3D" id="bs_9"]
-size = Vector3(0.5200, 3.0000, 0.5200)
-
-[sub_resource type="BoxShape3D" id="bs_10"]
-size = Vector3(2.1400, 3.0000, 0.5600)
-
-[sub_resource type="BoxShape3D" id="bs_11"]
-size = Vector3(0.8000, 3.0000, 2.0200)
-
-[sub_resource type="BoxShape3D" id="bs_12"]
-size = Vector3(0.4800, 3.0000, 0.6000)
-
-[sub_resource type="BoxShape3D" id="bs_13"]
-size = Vector3(0.3600, 3.0000, 0.4400)
-
-[sub_resource type="BoxShape3D" id="bs_14"]
-size = Vector3(0.3400, 3.0000, 0.3400)
-
-[sub_resource type="BoxShape3D" id="bs_15"]
 size = Vector3(0.5500, 0.7500, 0.1600)
 
-[sub_resource type="BoxShape3D" id="bs_16"]
+[sub_resource type="BoxShape3D" id="bs_9"]
 size = Vector3(0.4000, 0.5000, 0.1400)
 
-[sub_resource type="BoxShape3D" id="bs_17"]
+[sub_resource type="BoxShape3D" id="bs_10"]
 size = Vector3(2.0000, 3.0000, 1.1000)
 
 [node name="Room" type="Node3D"]
@@ -342,86 +321,6 @@ mesh = SubResource("bm_14")
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5.5000, 2.2000, -5.8500)
 mesh = SubResource("bm_15")
 
-[node name="Cabinet0_col" type="StaticBody3D" parent="Geometry"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.3000, 1.5000, -5.5500)
-collision_layer = 2
-collision_mask = 0
-
-[node name="Shape" type="CollisionShape3D" parent="Geometry/Cabinet0_col"]
-shape = SubResource("bs_8")
-
-[node name="Cabinet1_col" type="StaticBody3D" parent="Geometry"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.8000, 1.5000, -5.5500)
-collision_layer = 2
-collision_mask = 0
-
-[node name="Shape" type="CollisionShape3D" parent="Geometry/Cabinet1_col"]
-shape = SubResource("bs_8")
-
-[node name="Cabinet2_col" type="StaticBody3D" parent="Geometry"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.3000, 1.5000, -5.5500)
-collision_layer = 2
-collision_mask = 0
-
-[node name="Shape" type="CollisionShape3D" parent="Geometry/Cabinet2_col"]
-shape = SubResource("bs_8")
-
-[node name="OfficeChair50_col" type="StaticBody3D" parent="Geometry"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.5000, 1.5000, -4.3000)
-collision_layer = 2
-collision_mask = 0
-
-[node name="Shape" type="CollisionShape3D" parent="Geometry/OfficeChair50_col"]
-shape = SubResource("bs_9")
-
-[node name="Waiting0_col" type="StaticBody3D" parent="Geometry"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.4000, 1.5000, 4.5800)
-collision_layer = 2
-collision_mask = 0
-
-[node name="Shape" type="CollisionShape3D" parent="Geometry/Waiting0_col"]
-shape = SubResource("bs_10")
-
-[node name="Waiting1_col" type="StaticBody3D" parent="Geometry"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4.7000, 1.5000, 4.5800)
-collision_layer = 2
-collision_mask = 0
-
-[node name="Shape" type="CollisionShape3D" parent="Geometry/Waiting1_col"]
-shape = SubResource("bs_10")
-
-[node name="Gurney61_col" type="StaticBody3D" parent="Geometry"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.6000, 1.5000, -4.4000)
-collision_layer = 2
-collision_mask = 0
-
-[node name="Shape" type="CollisionShape3D" parent="Geometry/Gurney61_col"]
-shape = SubResource("bs_11")
-
-[node name="Sink62_col" type="StaticBody3D" parent="Geometry"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -6.8800, 1.5000, 3.6000)
-collision_layer = 2
-collision_mask = 0
-
-[node name="Shape" type="CollisionShape3D" parent="Geometry/Sink62_col"]
-shape = SubResource("bs_12")
-
-[node name="MopBucket64_col" type="StaticBody3D" parent="Geometry"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -6.2000, 1.5000, 2.0000)
-collision_layer = 2
-collision_mask = 0
-
-[node name="Shape" type="CollisionShape3D" parent="Geometry/MopBucket64_col"]
-shape = SubResource("bs_13")
-
-[node name="IvStand65_col" type="StaticBody3D" parent="Geometry"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 6.3000, 1.5000, 3.9000)
-collision_layer = 2
-collision_mask = 0
-
-[node name="Shape" type="CollisionShape3D" parent="Geometry/IvStand65_col"]
-shape = SubResource("bs_14")
-
 [node name="Scrawls" type="Node3D" parent="."]
 script = ExtResource("s_stateobj")
 visible_in_state = 2
@@ -483,7 +382,7 @@ interactable_type = "dispenser"
 label = "use the dispenser"
 
 [node name="Shape" type="CollisionShape3D" parent="Interactables/dispenser5"]
-shape = SubResource("bs_15")
+shape = SubResource("bs_8")
 
 [node name="Model" parent="Interactables/dispenser5" instance=ExtResource("fx_dispenser")]
 transform = Transform3D(1.00000, 0, 0, 0, 1.00000, 0, 0, 0, 1.00000, 0.0000, 0.0000, 0.0000)
@@ -498,7 +397,7 @@ interactable_type = "keypad"
 label = "use the keypad"
 
 [node name="Shape" type="CollisionShape3D" parent="Interactables/keypad5"]
-shape = SubResource("bs_16")
+shape = SubResource("bs_9")
 
 [node name="Model" parent="Interactables/keypad5" instance=ExtResource("fx_keypad")]
 transform = Transform3D(1.00000, 0, 0, 0, 1.00000, 0, 0, 0, 1.00000, 0.0000, 0.0000, 0.0000)
@@ -691,6 +590,9 @@ transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, 
 [node name="OfficeChair56" parent="Props" instance=ExtResource("pk_office_chair")]
 transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, 0.9000, 0.0000, 1.6200)
 
+[node name="Body" parent="Props/OfficeChair56"]
+collision_layer = 0
+
 [node name="Waiting0" parent="Props" instance=ExtResource("pk_beam_seating")]
 transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, 2.4000, 0.0000, 4.5800)
 
@@ -880,5 +782,5 @@ script = ExtResource("s_exit")
 exit_to = "room6"
 
 [node name="Shape" type="CollisionShape3D" parent="Exits/Exit0"]
-shape = SubResource("bs_17")
+shape = SubResource("bs_10")
 

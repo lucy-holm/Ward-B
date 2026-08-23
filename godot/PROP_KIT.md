@@ -54,8 +54,7 @@ regenerate — the same contract `MIGRATION_NOTES.md` §1 states for room scenes
 Primitive keys are derived from exact dimensions, so identical parts collapse
 to one baked resource automatically. The office chair's castor and the mop
 bucket's castors are the same `.tres`, referenced by the same uid, with no
-bookkeeping. Today: **27 props, 197 parts, 120 unique meshes, 10.2k triangles for
-the entire kit.**
+bookkeeping. Today: **53 props, 229 unique meshes, 20.6k triangles for the entire kit.**
 
 ## Placing props from a room
 
@@ -85,13 +84,40 @@ A wall face is `wall_at ± 0.12` (walls are 0.24 thick). `facing` takes a radian
 yaw or a `FACING_ROT` compass name (`"nz"`, `"px"`, …); `prop_run()` infers it
 from the nearest wall.
 
-### Colliders
+### Colliders — the prop owns its own
 
-`collider=None` (default) uses the prop's own declared footprint — a chair
-blocks, a notice board does not. `collider=False` forces none. A tuple gives an
-explicit rectangle. Colliders go through `Room.solid()`, so they land in
-`Geometry` with every other collider rather than forming a second, parallel
-collision system.
+**A prop that declares a footprint carries its own `StaticBody3D`**, inside its
+`.tscn`, on layer 2 (`world_static`). So it blocks the player *wherever it is
+placed* — including dragged into a room by hand in the Godot editor.
+
+That works because `core/collision.gd` rebuilds its cache by **walking the room
+subtree** for `CollisionShape3D` nodes on a solid layer
+(`WardCollision.rebuild_from`), so it finds prop colliders without the room
+generator knowing they exist. It was not always so: colliders used to be emitted
+only into the *room's* `Geometry` node, which made a hand-placed prop scenery the
+player walked straight through.
+
+`Room.model()` therefore does not emit a collider. It *overrides* the prop's,
+by setting `collision_layer` on the prop's `Body` child:
+
+| `Room.model(...)` | Effect |
+| --- | --- |
+| default | the prop's own body, solid in both states |
+| `collider=False` | `Body.collision_layer = 0` — off |
+| `state="lucid"` / `"unmed"` | layer 4 / 8 — state-gated, no second collider |
+| `collider=(x0,x1,z0,z1)` | prop's body off, explicit rectangle via `Room.solid()` |
+
+**A light-gated prop may not carry a collider**, and `model()` raises if you try
+— darkness gates meshes and raycasts, never collision. Pass `collider=False`.
+
+Proving a collider works is `tools/check_state_gates.tscn`, which probes the
+real cache; a screenshot cannot show whether something blocks. Note it inflates
+by the player's 0.35 m radius, so a point can read BLOCKED while sitting just
+*outside* a box.
+
+**Mind the orderly.** In a room with a patrol, a new collider changes what the
+`NavigationAgent3D` routes around and what `check_rooms`'s patrol-clearance
+validators see.
 
 **A light-gated prop may not carry a collider**, and `model()` raises if you try
 — the same soft-lock guarantee `Room.block()` spells out. Darkness gates meshes
@@ -133,6 +159,42 @@ Tier 4 — the concept-art pass: `barred_window`, `beam_seating`, `ward_bed`,
 
 Each prop's `doc=` string in `prop_defs.py` records what it is *for* and any
 trap in it, and is copied into the generated `.tscn` header.
+
+## Taking ownership of a prop (hand-editing)
+
+`props/*.tscn` is build output, so editing one in the Godot editor used to be
+silently undone by the next regenerate — and `check_roundtrip.sh` would then
+fail, blaming you rather than explaining it.
+
+To take a prop over, put a line containing **`HAND-EDITED`** in its header
+comment. The generator stops writing that file, permanently, and the round-trip
+guard skips it:
+
+```
+; HAND-EDITED — the generator no longer owns this file.
+```
+
+Its declaration in `prop_defs.py` stays — that is still what `Room.model()`
+reads for size, mount and collider — but the *scene* is yours. To hand it back,
+delete the marker and regenerate; the file is rebuilt from the declaration and
+your edits are gone, which is what handing it back means.
+
+**Copying** a prop to a new filename needs no marker and never has: the
+generator only writes names it knows.
+
+## Signs and text
+
+Seven props carry a `Label3D` with a baked default. Override the words per
+instance from the room:
+
+```python
+r.model("ward_sign", (x, z), facing="pz", text="WARD C →")
+r.model("reg_notice", (x, z), text={"Header": "FIRE ROUTINE"})
+```
+
+A wrong label name **raises**. Godot silently accepts an override naming a child
+that does not exist — it simply never applies — so without that check a typo'd
+sign would ship reading its default and look deliberate.
 
 ## Adding a prop
 
@@ -181,7 +243,14 @@ room in the ward depends on their exact look.
 ## Verification
 
 ```sh
-tools/check_roundtrip.sh                                   # generators reproduce output
+python3 tools/check_resources.py                           # sub/ext resource refs resolve
+tools/check_roundtrip.sh                                   # generators reproduce output (runs the above first)
 godot --headless --path . tools/check_rooms.tscn           # room invariants + patrol clearance
-godot --headless --path . tools/test_mechanics.tscn        # behaviour
+godot --headless --path . tools/check_state_gates.tscn -- <scene> <x,z,expect>   # does it actually block?
+tools/run_tests.sh                                         # all 14 suites
 ```
+
+`check_resources.py` exists because a `.tres` that references a `sub_resource`
+it does not declare still parses, still imports without complaint, and then
+makes Godot **hang** rather than fail. That cost two people an hour each; it is
+pure Python and runs in well under a second.

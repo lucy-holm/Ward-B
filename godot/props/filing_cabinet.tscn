@@ -1,4 +1,4 @@
-[gd_scene load_steps=9 format=3 uid="uid://wardbpropfilingcabinet"]
+[gd_scene load_steps=10 format=3 uid="uid://wardbpropfilingcabinet"]
 
 ; Four-drawer steel filing cabinet. Each drawer front stands proud of the carcass
 ; with a recessed handle and a paper label holder, so the front face carries four
@@ -18,7 +18,18 @@
 [ext_resource type="ArrayMesh" path="res://props/meshes/box_150x24x32_b60.tres" id="am_box_150x24x32_b60"]
 [ext_resource type="ArrayMesh" path="res://props/meshes/box_75x30x6_b20.tres" id="am_box_75x30x6_b20"]
 
+[sub_resource type="BoxShape3D" id="bs_body"]
+size = Vector3(0.5000, 1.3200, 0.6400)
+
 [node name="FilingCabinet" type="Node3D"]
+
+[node name="Body" type="StaticBody3D" parent="."]
+collision_layer = 2
+collision_mask = 0
+
+[node name="Shape" type="CollisionShape3D" parent="Body"]
+transform = Transform3D(1.000000, 0.000000, 0.000000, 0.000000, 1.000000, 0.000000, 0.000000, 0.000000, 1.000000, 0.0000, 0.6600, 0.0000)
+shape = SubResource("bs_body")
 
 [node name="Plinth" type="MeshInstance3D" parent="."]
 transform = Transform3D(1.000000, 0.000000, 0.000000, 0.000000, 1.000000, 0.000000, 0.000000, 0.000000, 1.000000, 0.0000, 0.0300, 0.0000)

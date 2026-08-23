@@ -1,4 +1,4 @@
-[gd_scene load_steps=9 format=3 uid="uid://wardbpropstackingchair"]
+[gd_scene load_steps=10 format=3 uid="uid://wardbpropstackingchair"]
 
 ; The stacking waiting-room chair — tube frame, vinyl seat and a low back. Cheap
 ; in triangles and endlessly repeatable: a row of four along a corridor wall is
@@ -17,7 +17,18 @@
 [ext_resource type="ArrayMesh" path="res://props/meshes/box_22x300x22_b40.tres" id="am_box_22x300x22_b40"]
 [ext_resource type="ArrayMesh" path="res://props/meshes/box_400x160x35_b100.tres" id="am_box_400x160x35_b100"]
 
+[sub_resource type="BoxShape3D" id="bs_body"]
+size = Vector3(0.4400, 0.8000, 0.4400)
+
 [node name="StackingChair" type="Node3D"]
+
+[node name="Body" type="StaticBody3D" parent="."]
+collision_layer = 2
+collision_mask = 0
+
+[node name="Shape" type="CollisionShape3D" parent="Body"]
+transform = Transform3D(1.000000, 0.000000, 0.000000, 0.000000, 1.000000, 0.000000, 0.000000, 0.000000, 1.000000, 0.0000, 0.4000, 0.0000)
+shape = SubResource("bs_body")
 
 [node name="LegFL" type="MeshInstance3D" parent="."]
 transform = Transform3D(1.000000, 0.000000, 0.000000, 0.000000, 1.000000, 0.000000, 0.000000, 0.000000, 1.000000, -0.1700, 0.2200, 0.1600)

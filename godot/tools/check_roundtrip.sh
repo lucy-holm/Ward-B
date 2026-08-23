@@ -107,6 +107,13 @@ done
 for f in "$REPO_ROOT"/props/*.tscn "$REPO_ROOT"/props/_gen/mesh_specs.json; do
   [ -e "$f" ] || continue
   rel="${f#$REPO_ROOT/}"
+  # A prop someone has ADOPTED is no longer generated output, so holding it to a
+  # byte-identical regenerate would be wrong — that is the entire point of the
+  # marker. See is_adopted() in props/_gen/gen_props.py.
+  if head -c 2048 "$f" | grep -q 'HAND-EDITED'; then
+    echo "  adopted (skipped): $rel"
+    continue
+  fi
   checked=$((checked + 1))
   if [ ! -e "$SCRATCH/$rel" ]; then
     echo "MISSING FROM REGENERATE: $rel (committed but props/_gen/prop_defs.py no longer declares it)"

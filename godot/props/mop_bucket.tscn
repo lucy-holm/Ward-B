@@ -1,4 +1,4 @@
-[gd_scene load_steps=13 format=3 uid="uid://wardbpropmopbucket"]
+[gd_scene load_steps=14 format=3 uid="uid://wardbpropmopbucket"]
 
 ; Wringer mop bucket on castors, mop leaning in it. Reuses the office chair's
 ; castor mesh verbatim — same key, same baked resource, zero extra cost. That
@@ -21,7 +21,18 @@
 [ext_resource type="ArrayMesh" path="res://props/meshes/cyl_r16_h950_s8_b30.tres" id="am_cyl_r16_h950_s8_b30"]
 [ext_resource type="ArrayMesh" path="res://props/meshes/cyl_r55_h130_s10_b40.tres" id="am_cyl_r55_h130_s10_b40"]
 
+[sub_resource type="BoxShape3D" id="bs_body"]
+size = Vector3(0.4400, 0.7200, 0.3600)
+
 [node name="MopBucket" type="Node3D"]
+
+[node name="Body" type="StaticBody3D" parent="."]
+collision_layer = 2
+collision_mask = 0
+
+[node name="Shape" type="CollisionShape3D" parent="Body"]
+transform = Transform3D(1.000000, 0.000000, 0.000000, 0.000000, 1.000000, 0.000000, 0.000000, 0.000000, 1.000000, 0.0000, 0.3600, 0.0000)
+shape = SubResource("bs_body")
 
 [node name="Bucket" type="MeshInstance3D" parent="."]
 transform = Transform3D(1.000000, 0.000000, 0.000000, 0.000000, 1.000000, 0.000000, 0.000000, 0.000000, 1.000000, 0.0000, 0.2200, 0.0000)

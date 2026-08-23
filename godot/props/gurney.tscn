@@ -1,4 +1,4 @@
-[gd_scene load_steps=11 format=3 uid="uid://wardbpropgurney"]
+[gd_scene load_steps=12 format=3 uid="uid://wardbpropgurney"]
 
 ; Wheeled trolley with a thin mattress and a half side-rail. The corridor plate
 ; leans one of these against a wall with its bedding on the floor; upright it
@@ -22,7 +22,18 @@
 [ext_resource type="ArrayMesh" path="res://props/meshes/cyl_r18_h980_s8_b30.tres" id="am_cyl_r18_h980_s8_b30"]
 [ext_resource type="ArrayMesh" path="res://props/meshes/box_30x240x30_b40.tres" id="am_box_30x240x30_b40"]
 
+[sub_resource type="BoxShape3D" id="bs_body"]
+size = Vector3(0.8000, 0.9400, 2.0200)
+
 [node name="Gurney" type="Node3D"]
+
+[node name="Body" type="StaticBody3D" parent="."]
+collision_layer = 2
+collision_mask = 0
+
+[node name="Shape" type="CollisionShape3D" parent="Body"]
+transform = Transform3D(1.000000, 0.000000, 0.000000, 0.000000, 1.000000, 0.000000, 0.000000, 0.000000, 1.000000, 0.0000, 0.4700, 0.0000)
+shape = SubResource("bs_body")
 
 [node name="CastorA" type="MeshInstance3D" parent="."]
 transform = Transform3D(0.000000, -1.000000, 0.000000, 1.000000, 0.000000, 0.000000, 0.000000, 0.000000, 1.000000, -0.3000, 0.0380, -0.8000)

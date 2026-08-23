@@ -81,6 +81,20 @@ uniform float mottle_scale = 0.35;
 // Frequency multiplier applied on top of mottle_scale for the decorrelated
 // scuff reread of the same texture.
 uniform float wear_freq_mult = 3.4;
+// Elongates the scuff mask along world Z relative to X (values < 1.0
+// stretch; 1.0 = isotropic, round scuffs). Every corridor gen_rooms.py
+// builds runs long-axis-Z / narrow-axis-X (see MIGRATION_NOTES.md/
+// ROOM_AUTHORING.md — shell_x defines a narrow perimeter, length runs in
+// z), so a single global Z stretch reads as "worn traffic track down the
+// long axis" in the rooms where it matters most (corridors, wards) without
+// needing per-room centerline data, which this world-space material has no
+// way to receive (it is one shared .tres instanced identically in every
+// room; passing room extents through would mean a gen_rooms.py change,
+// out of this pass's scope). It is a heuristic, not room-aware — a room
+// whose long axis runs along X instead would get the elongation the wrong
+// way. Reuses the SAME mottle_tex sample already taken for the scuff mask,
+// so this costs zero extra fetches.
+uniform float wear_track_stretch : hint_range(0.1, 1.0) = 1.0;
 uniform float stain_scale = 0.12;
 uniform float normal_scale = 2.5;
 
@@ -183,7 +197,8 @@ void fragment() {
 	// Decorrelated reread of the same texture at a different frequency and
 	// offset — a hard-edged scuff mask for free, no second resource.
 	float wear_n = texture(mottle_tex,
-		sample_xz * mottle_scale * wear_freq_mult + vec2(37.2, -11.7)).r;
+		sample_xz * mottle_scale * wear_freq_mult * vec2(1.0, wear_track_stretch)
+		+ vec2(37.2, -11.7)).r;
 
 	// Centred on 1.0 so mottling modulates around base_color rather than
 	// halving the authored albedo (noise averages ~0.5). base_color itself

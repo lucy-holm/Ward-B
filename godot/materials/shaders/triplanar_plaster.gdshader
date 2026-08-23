@@ -147,7 +147,19 @@ void fragment() {
 
 	// --- peel mask: hard-edged, decay-driven coverage -----------------------
 	float threshold = mix(peel_threshold_min, peel_threshold_max, decay);
-	float aa = fwidth(isl) * 1.5;
+	// Clamped: island_tex is Cellular DISTANCE2_SUB (see wall.tres), a
+	// crackle field whose value swings from ~0 (on a cell border) to ~1
+	// (mid-cell) over a genuinely short distance — its OWN derivative is
+	// naturally large near every crack, not just at the aliasing limit the
+	// unclamped fwidth() * 1.5 term was written to catch (that was tuned
+	// against the old smooth Simplex island field, which has no comparably
+	// steep native gradient). Left unclamped, aa ballooned edge_w across
+	// most of a cell rather than just its border, which is what turned
+	// "thin cracks between small islands" into "wall mostly dark" the first
+	// time this landed. 0.06 keeps genuine screen-space aliasing control at
+	// grazing angles/distance while stopping the field's own steepness from
+	// widening the band.
+	float aa = min(fwidth(isl) * 1.5, 0.06);
 	float edge_w = max(mix(edge_width_near, edge_width_far, dist_t), aa);
 	float exposed = 1.0 - smoothstep(threshold, threshold + edge_w, isl);
 	// 0 right at the edge (freshly exposed plaster) .. 1 deep in the island

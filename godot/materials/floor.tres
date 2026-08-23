@@ -58,13 +58,24 @@ noise = SubResource("FastNoiseLite_floor_stain")
 ; that floor so LUCID traffic areas don't read as black; grout/stain darkened
 ; a touch to match. roughness_base/roughness_wet UNTOUCHED — see this file's
 ; existing reflectivity comment below; judge specular by eye, not by mean.
+;
+; Sage retune (2026-08, matC): matB landed R~=G>B, which is grey with a hint
+; of green — coordinator review called it "a fairly flat dark green-grey,"
+; not the distinctly sage/olive lino the board shows. Pushed G further above
+; both R and B (was 0.455/0.44/0.395, now 0.46/0.40/0.315 — G leads by a
+; visible margin, not a hair) so the hue itself reads green before value or
+; grime does any of the work. decay_color follows the same shift so the
+; UNMED-side rot drift stays in the same colour family instead of drifting
+; back toward neutral. grout_color nudged warmer/browner (was a near-neutral
+; dark grey) — "dirt collected in grout" reads as dirt only if it contrasts
+; in HUE with the sage tile, not just in value.
 [resource]
 render_priority = 0
 shader = ExtResource("1_shader")
 shader_parameter/decay = 0.35
-shader_parameter/base_color = Color(0.44, 0.455, 0.395, 1)
-shader_parameter/decay_color = Color(0.085, 0.095, 0.075, 1)
-shader_parameter/grout_color = Color(0.075, 0.078, 0.068, 1)
+shader_parameter/base_color = Color(0.40, 0.46, 0.315, 1)
+shader_parameter/decay_color = Color(0.075, 0.09, 0.06, 1)
+shader_parameter/grout_color = Color(0.095, 0.082, 0.058, 1)
 shader_parameter/stain_color = Color(0.24, 0.155, 0.11, 1)
 shader_parameter/tile_size = 0.5
 shader_parameter/grout_width = 0.022
@@ -87,8 +98,13 @@ shader_parameter/mottle_strength = 0.32
 ; the concept board calls for "worn traffic paths," and this mask is the
 ; only non-decay-gated wear the shader has (see header: base material wear,
 ; present in both realities).
-shader_parameter/wear_strength = 0.38
-shader_parameter/wear_threshold = 0.58
+shader_parameter/wear_strength = 0.42
+shader_parameter/wear_threshold = 0.56
+; wear_track_stretch (matC): 1.0 -> 0.4 elongates the scuff mask along world
+; Z, so it reads as streaky traffic tracks down a corridor's long axis
+; instead of round scattered scuffs — see the shader header for why Z and
+; why this is a heuristic, not true room-aware routing.
+shader_parameter/wear_track_stretch = 0.4
 shader_parameter/stain_strength = 0.65
 shader_parameter/stain_threshold = 0.5
 shader_parameter/ao_strength = 0.4

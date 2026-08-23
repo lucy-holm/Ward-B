@@ -57,6 +57,19 @@ noise = SubResource("FastNoiseLite_ceil_stain")
 ; base_color to read as damage at a glance — darkened and desaturated so
 ; the bloom mask actually contrasts, paired with a small stain_strength and
 ; ceil_sag_strength bump below for a more legible sag/stain read.
+;
+; Bloom retune (2026-08, matC): coordinator review of matB found the stain
+; spread evenly as a light wash across most tiles rather than reading as
+; distinct blooms on a few. Root cause was the noise/threshold shape, not
+; the colour: stain_threshold=0.5 sat right at the noise field's own mean,
+; so roughly half the tiles crossed it at some (decay-scaled) opacity —
+; "everything is a little stained" instead of "most tiles are clean, a few
+; are badly damaged." Raised stain_threshold well above the field's mean so
+; only its upper tail qualifies, and lowered stain_scale so that tail
+; spans several adjacent tiles at once (a cluster, i.e. a bloom) rather than
+; single tiles scattered independently. stain_color pushed browner/more
+; saturated so a bloom, once it does cross threshold, reads as water damage
+; rather than a shadow.
 [resource]
 render_priority = 0
 shader = ExtResource("1_shader")
@@ -64,7 +77,7 @@ shader_parameter/decay = 0.35
 shader_parameter/base_color = Color(0.62, 0.605, 0.55, 1)
 shader_parameter/decay_color = Color(0.20, 0.18, 0.145, 1)
 shader_parameter/grout_color = Color(0.13, 0.12, 0.1, 1)
-shader_parameter/stain_color = Color(0.40, 0.36, 0.29, 1)
+shader_parameter/stain_color = Color(0.30, 0.20, 0.11, 1)
 shader_parameter/tile_size = 0.6
 shader_parameter/grout_width = 0.016
 shader_parameter/tile_jitter = 0.07
@@ -79,13 +92,13 @@ shader_parameter/stain_tex = SubResource("NoiseTexture2D_ceil_stain")
 shader_parameter/normal_tex = SubResource("NoiseTexture2D_ceil_normal")
 shader_parameter/mottle_scale = 0.5
 shader_parameter/wear_freq_mult = 3.0
-shader_parameter/stain_scale = 0.09
+shader_parameter/stain_scale = 0.065
 shader_parameter/normal_scale = 6.0
 shader_parameter/mottle_strength = 0.34
 shader_parameter/wear_strength = 0.12
 shader_parameter/wear_threshold = 0.6
-shader_parameter/stain_strength = 0.65
-shader_parameter/stain_threshold = 0.5
+shader_parameter/stain_strength = 0.95
+shader_parameter/stain_threshold = 0.52
 shader_parameter/ao_strength = 0.18
 shader_parameter/normal_strength = 0.32
 shader_parameter/roughness_base = 0.95

@@ -48,6 +48,17 @@ REPO_ROOT="$(pwd)"
 SCRATCH="$(mktemp -d /tmp/wbroundtrip.XXXXXX)"
 trap 'rm -rf "$SCRATCH"' EXIT
 
+# Resource integrity FIRST — it is the cheapest check here and the only one
+# that catches a corrupt .tres before it costs anyone an hour. A file that
+# references a sub_resource it does not declare still parses, still imports
+# without complaint, and then HANGS Godot instead of failing; see
+# tools/check_resources.py's header for the incident that motivated it.
+echo "==> checking resource references"
+if ! python3 "$REPO_ROOT/tools/check_resources.py"; then
+  echo "FATAL: broken resource references — fix these before anything else"
+  exit 1
+fi
+
 echo "==> copying the tree to $SCRATCH (excluding .godot, build, .artifacts)"
 rsync -a --exclude '.godot' --exclude 'build' --exclude '.artifacts' \
   "$REPO_ROOT/" "$SCRATCH/"

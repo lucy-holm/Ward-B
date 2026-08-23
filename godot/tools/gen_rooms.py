@@ -143,6 +143,27 @@ except ImportError:
     PROPS = {}
 
 
+def _prop_value(v):
+    """Python value -> a Godot .tscn property literal.
+
+    Deliberately narrow. Anything richer than these five shapes is a sign the
+    prop wants a real script API rather than a value squeezed through a room
+    file, and guessing a serialisation for it would produce a scene that loads
+    with a silently-wrong property instead of failing.
+    """
+    if isinstance(v, bool):
+        return "true" if v else "false"
+    if isinstance(v, str):
+        return '"%s"' % v.replace("\\", "\\\\").replace('"', '\\"')
+    if isinstance(v, (int, float)):
+        return _num(v)
+    if isinstance(v, (tuple, list)) and len(v) == 3:
+        return "Vector3(%.4f, %.4f, %.4f)" % tuple(float(c) for c in v)
+    if isinstance(v, (tuple, list)) and len(v) == 4:
+        return "Color(%.4f, %.4f, %.4f, %.4f)" % tuple(float(c) for c in v)
+    raise ValueError("cannot serialise prop property %r (type %s)" % (v, type(v).__name__))
+
+
 def _pascal(name):
     """office_chair -> OfficeChair, for default node names."""
     return "".join(w.capitalize() for w in name.split("_"))
@@ -275,7 +296,7 @@ class Room:
         # (name, iid, cell_x, cell_z, size, mat, label) — see push_block()
         self.push_blocks = []
         self.props = []
-        # Prop-kit instances: (kind, pos, yaw, name, state, level, light)
+        # Prop-kit instances: (kind, pos, yaw, name, state, level, light, props)
         self.models = []
         self.scrawls = []
         self.interactables = []
@@ -803,7 +824,7 @@ class Room:
     # never defines where the player can walk unless the room asks it to.
 
     def model(self, kind, xz, facing=0.0, y=None, name=None, state=None,
-              level=None, light=None, collider=None):
+              level=None, light=None, collider=None, props=None):
         """Instance one prop-kit prefab (props/<kind>.tscn).
 
         `y` DEFAULTS BY MOUNT, which is the point — a room author should not be
@@ -825,6 +846,20 @@ class Room:
                       the player is meant to walk past.
             tuple  -> an explicit (min_x, max_x, min_z, max_z), for a prop
                       pushed against geometry where its own box would overlap.
+
+        `props` sets exported properties on the instanced prefab's ROOT node —
+        the mechanism for a prop whose look is per-instance rather than baked,
+        which in practice means anything carrying TEXT. A sign prop is one
+        prefab and one baked mesh no matter how many different things it says,
+        and that only works if the words come from the room file:
+
+            r.model("ward_sign", (x, z), facing="pz", props={"text": "WARD B"})
+
+        Only props whose prefab root carries a script with matching @export vars
+        can accept these; setting one on a plain prefab is silently ignored by
+        Godot, which is a real trap — check the prop's own .tscn if a value
+        seems not to apply. Values may be str, bool, int/float, a 3-tuple
+        (Vector3) or a 4-tuple (Color); see _prop_value().
 
         A LIGHT-GATED PROP MAY NOT CARRY A COLLIDER, and the raise below is the
         same soft-lock guarantee block() spells out at length: darkness gates
@@ -873,7 +908,8 @@ class Room:
                 "author the collider as a separate solid()." % (kind, xz))
 
         nm = name or ("%s%d" % (_pascal(kind), len(self.models)))
-        self.models.append((kind, (x, y, z), yaw, nm, state, level, light))
+        self.models.append((kind, (x, y, z), yaw, nm, state, level, light,
+                            dict(props) if props else None))
         if collider is not None:
             self.solid(collider[0], collider[1], collider[2], collider[3],
                        state=state, name="%s_col" % nm, level=level)
@@ -1634,7 +1670,7 @@ class Emitter:
         if r.models:
             body.append('[node name="Props" type="Node3D" parent="."]')
             body.append("")
-            for (kind, pos, yaw, nm, state, level, mlight) in r.models:
+            for (kind, pos, yaw, nm, state, level, mlight, mprops) in r.models:
                 rid = self.prop_scene(kind)
                 parent = "Props"
                 if state in ("lucid", "unmed"):
@@ -1654,6 +1690,9 @@ class Emitter:
                 body.append('[node name="%s" parent="%s" instance=ExtResource("%s")]'
                             % (nm, parent, rid))
                 body.append("transform = %s" % _xform_yaw(yaw, pos))
+                # Sorted, so the emitted scene does not depend on dict order.
+                for k in sorted(mprops or {}):
+                    body.append("%s = %s" % (k, _prop_value(mprops[k])))
                 if level is not None:
                     body.append('metadata/level = "%s"' % level)
                 body.append("")

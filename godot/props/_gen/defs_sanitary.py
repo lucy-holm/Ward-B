@@ -96,39 +96,40 @@ at that relative offset (see `cistern`'s own doc).
 THE SEAT IS A `tube`, NOT A BOX WITH A FAKE DARK SLOT ON ITS FRONT FACE.
 The first pass used a flat box seat plus a dark box glued to the bowl's
 FRONT face to imply a hole — from the front-on angle every gallery shot is
-actually taken from, that read as a bin's mail-slot, not a toilet seat, and
-the whole assembly (a taper pedestal flaring straight into a similarly-
-sized box bowl) silhouetted as a planter. `tube` genuinely has a bore, so
-SEATRING overhangs BOWL's own radius on every side — the ring itself is the
-silhouette cue, not a texture trick — and SEATVOID sits recessed just far
-enough behind the ring's front face to read as a real hollow through it
-rather than a disc glued to the front. BOWL and PEDESTAL are now `taper`
-too (round in cross-section, like an actual pan) and PEDESTAL is
-DELIBERATELY much narrower than BOWL's own radius, so there is a visible
-step at the join instead of one continuous cone — that step is what breaks
-the "vase" read.""",
+actually taken from, that read as a bin's mail-slot, not a toilet seat.
+`tube` genuinely has a bore, so SEATRING overhangs BOWL's own width on every
+side — the ring itself is the silhouette cue, not a texture trick — and
+SEATVOID sits recessed just behind the ring's front face to read as a real
+hollow through it rather than a disc glued to the front.
+
+BOWL IS A BOX, NOT A ROUND `taper`, ON PURPOSE — that was the SECOND pass's
+mistake, not the first's: a round taper bowl over a round taper pedestal
+merges into one continuous curved silhouette with nothing to break it, and a
+gallery shot of it read as a smooth balloon on a stick, worse than the
+mail-slot bin it replaced. A pan's body is a squarish, heavily bevelled
+block; only the seat riding on top of it is genuinely round. PEDESTAL stays
+a `taper`, deliberately much narrower than BOWL's own half-width, so the
+box/cone join reads as a visible step rather than a continuous curve.""",
      parts=[
-         part(taper(0.09, 0.11, 0.30, 12), "sn_vitreous", (0, 0.15, 0.04), name="Pedestal"),
-         part(taper(0.17, 0.205, 0.22, 14), "sn_vitreous", (0, 0.40, -0.02), name="Bowl"),
-         part(box((0.22, 0.06, 0.06), 0.02), "sn_vitreous", (0, 0.28, -0.27), name="FrontLip"),
+         part(taper(0.075, 0.10, 0.30, 12), "sn_vitreous", (0, 0.15, 0.05), name="Pedestal"),
+         part(box((0.34, 0.20, 0.44), 0.03), "sn_vitreous", (0, 0.375, -0.02), name="Bowl"),
+         part(box((0.20, 0.04, 0.04), 0.015), "sn_vitreous", (0, 0.29, -0.245), name="FrontLip"),
          # SEATRING AND SEATVOID ARE ROTATED pi/2 ABOUT X — the same trick
          # sink's spouts and shower_head's valve plate use (see either doc):
          # an unrotated cyl/tube's flat caps face local +-Y, so a "ring
-         # facing the camera" needs that Y axis turned to face world -Z.
-         # Skipping the rotation was the first version's actual bug — the
-         # ring rendered edge-on as a razor-thin band and vanished at gallery
-         # distance, which is why the whole prop still read as a smooth vase
-         # with nothing on top.
-         part(tube(0.225, 0.16, 0.035, 16), "sn_vitreous", (0, 0.52, -0.02),
+         # facing the camera" needs that Y axis turned to face world -Z. A
+         # version that skipped the rotation rendered the ring edge-on as a
+         # razor-thin band that vanished at gallery distance.
+         part(tube(0.195, 0.14, 0.03, 16), "sn_vitreous", (0, 0.49, -0.02),
               rot=(math.pi / 2, 0, 0), name="SeatRing"),
-         part(cyl(0.15, 0.02, 12, 0.002), "screen", (0, 0.515, 0.015),
+         part(cyl(0.13, 0.02, 12, 0.002), "screen", (0, 0.485, 0.01),
               rot=(math.pi / 2, 0, 0), name="SeatVoid"),
-         part(box((0.38, 0.03, 0.08), 0.012), "sn_vitreous", (0, 0.535, 0.17), name="HingeBlock"),
-         part(cyl(0.010, 0.05, 8, 0.002), "chain", (-0.12, 0.55, 0.20),
+         part(box((0.34, 0.03, 0.07), 0.012), "sn_vitreous", (0, 0.505, 0.18), name="HingeBlock"),
+         part(cyl(0.010, 0.05, 8, 0.002), "chain", (-0.11, 0.52, 0.20),
               rot=(0, 0, math.pi / 2), name="HingeL"),
-         part(cyl(0.010, 0.05, 8, 0.002), "chain", (0.12, 0.55, 0.20),
+         part(cyl(0.010, 0.05, 8, 0.002), "chain", (0.11, 0.52, 0.20),
               rot=(0, 0, math.pi / 2), name="HingeR"),
-         part(box((0.28, 0.14, 0.10), 0.02), "sn_vitreous", (0, 0.30, 0.20), name="BackShroud"),
+         part(box((0.26, 0.13, 0.10), 0.02), "sn_vitreous", (0, 0.28, 0.20), name="BackShroud"),
      ])
 
 k.prop("cistern", "wall", (0.40, 1.80, 0.20), mount_y=1.85, doc="""\

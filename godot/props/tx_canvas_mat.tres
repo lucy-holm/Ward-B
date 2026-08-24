@@ -1,0 +1,18 @@
+[gd_resource type="StandardMaterial3D" format=3 uid="uid://wardbprmtxcanv1"]
+
+; Restraint canvas/webbing — restraint_straps and straitjacket. Tan/bone,
+; off the reference board's desaturated palette rather than the "clean
+; hospital white" a straitjacket reads as in pop culture; this ward's canvas
+; has been through a laundry cycle a hundred times, not zero.
+;
+; Fully rough (no woven fabric has a specular highlight worth spending a
+; roughness budget on) and bright enough to hold its own against
+; props/vinyl (the seating shell, 0.47/0.42/0.33) and props/ticking (the
+; mattress, 0.46/0.44/0.38) — those two are the kit's other "soft goods"
+; materials, and canvas needed to sit in the same brightness band as both
+; rather than reading as a third, darker fabric family.
+
+[resource]
+albedo_color = Color(0.40, 0.36, 0.27, 1)
+roughness = 0.82
+metallic = 0.0

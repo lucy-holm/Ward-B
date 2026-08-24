@@ -463,24 +463,41 @@ static func _centroid(pts: Array) -> Vector3:
 # be added as a MeshInstance3D at position ZERO directly under the existing
 # pivot/torso node — no extra runtime offset math, no rig change.
 
-# Bumped up from the original values now that cross-sections are true
-# ellipses (see profile_for/ellipse_profile) instead of stadiums — more
-# tessellation on a genuinely curved profile actually buys smoother
-# curvature now, where it used to just add facets to a shape that was still
-# fundamentally a swept box. Budget-generous per the brief (measured totals
-# are in this file's regeneration report); heaviest bumps went to the parts
-# with the most screen presence (torso, head) or the most instances (legs,
-# arms), lighter bumps to small/reused trim (fingers x10, collar, belt).
-const LEG_CORNER_SEGS := 72
-const ARM_CORNER_SEGS := 68
-const TORSO_CORNER_SEGS := 90
-const PALM_CORNER_SEGS := 60
-const FINGER_CORNER_SEGS := 42
-const SHOE_CORNER_SEGS := 56
-const COLLAR_CORNER_SEGS := 34
-const BELT_CORNER_SEGS := 30
-const VENT_CORNER_SEGS := 22
-const HEAD_CORNER_SEGS := 86
+# CUT HARD FROM 72/68/90/60/42/56/34/30/22/86, and the reasoning matters
+# because the previous values were not arbitrary either — they were raised
+# deliberately once cross-sections became true ellipses, described as
+# "budget-generous per the brief". They were generous against a QUALITY brief.
+# They were never measured against the WEB one, and this game ships to WebGL.
+#
+# What the measurement said. One of each part came to 99,328 tris; with the
+# duplicated parts (2 arms, 2 legs, 10 fingers, 2 shoes) an instance was
+# ~155,000 — and room 12 spawns THREE orderlies. The head alone was 38,528
+# tris for a deliberately FEATURELESS ovoid, and the ten fingers together
+# were ~27,000. For scale, the entire 458-mesh prop kit is 33,000.
+#
+# What the renders said. In the dark-ward reference shot the whole figure
+# occupies roughly 60x250 pixels — about ten triangles per pixel. Even the
+# debug head close-up, far tighter than any gameplay view, puts the head at
+# ~400px: at 40 segments a 200px-radius silhouette has a sagitta error of
+# 200*(1-cos(180/40 deg)) ~= 0.6px, i.e. invisible. At the old 86 it was
+# 0.13px — precision spent an order of magnitude below the display.
+#
+# So each part is now tessellated for the size it actually occupies: the head
+# and torso keep enough for a clean silhouette at the closest camera the game
+# has, and the fingers — which are never more than a few pixels wide — drop to
+# an octagon. Smooth shading does the rest; these are lofts with per-vertex
+# normals, so tessellation only ever showed on the SILHOUETTE, never on the
+# shading.
+const LEG_CORNER_SEGS := 24
+const ARM_CORNER_SEGS := 24
+const TORSO_CORNER_SEGS := 36
+const PALM_CORNER_SEGS := 18
+const FINGER_CORNER_SEGS := 8
+const SHOE_CORNER_SEGS := 20
+const COLLAR_CORNER_SEGS := 18
+const BELT_CORNER_SEGS := 16
+const VENT_CORNER_SEGS := 12
+const HEAD_CORNER_SEGS := 40
 
 
 # Hip -> UPPER-THIGH BULGE -> lower-thigh -> knee. Cleaner material (less

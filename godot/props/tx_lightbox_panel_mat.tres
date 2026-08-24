@@ -1,0 +1,24 @@
+[gd_resource type="StandardMaterial3D" format=3 uid="uid://wardbprmtxlbox1"]
+
+; The x-ray lightbox's viewing panel — and DELIBERATELY NOT AN EMISSIVE
+; MATERIAL. The brief for this prop is explicit: it must be a dead box, not a
+; glowing one. The kit reserves emissive/unshaded materials for three things
+; only (light fittings, window glass, the EXIT sign — see props/glass_pale's
+; own header and MIGRATION_NOTES), because in an UNMEDICATED corridor those
+; are the only surfaces the player should be able to find by their glow, and
+; a lit panel here would both compete with them as a false light source and
+; wash out the red scrawls, which are the only text the player is required
+; to read.
+;
+; So this sells "frosted viewing glass" the way props/screen sells "dead CRT
+; glass": with roughness alone. Pale grey-green rather than screen's near-
+; black, because a lightbox's ground-glass diffuser is genuinely pale even
+; unlit (it is a diffuser, not a dark tube face) — and a LOW roughness
+; (0.30, tighter than every painted surface in the ward) is what reads as
+; "glass with something behind it" rather than "a painted steel panel", shaded
+; by the room like everything else here.
+
+[resource]
+albedo_color = Color(0.50, 0.52, 0.49, 1)
+roughness = 0.30
+metallic = 0.0

@@ -1,0 +1,20 @@
+[gd_resource type="StandardMaterial3D" format=3 uid="uid://wardbprmtxbake1"]
+
+; Treatment-apparatus casing — the ECT machine's console and, by reuse,
+; anything else in defs_treatment.py that reads as period medical equipment
+; rather than a modern appliance. A warm, desaturated brown-cream: real 1950s
+; bakelite and stove-enamelled steel sat in this family, distinct from both
+; props/steel (a cool taupe, chair frames) and props/enamel (a warm CREAM,
+; sinks and sills) — this needs to read as neither of those, or the console
+; collapses into "another sink" or "another radiator" at a glance.
+;
+; Kept well clear of the crushed-black floor another agent hit at
+; (0.155, 0.125, 0.10) — see this file's own header for the luminance note.
+; This sits at ~0.27 relative luminance, comfortably above that line, so it
+; still reads as a real object (not cardboard) once the LUCID grade blows the
+; scene out.
+
+[resource]
+albedo_color = Color(0.30, 0.27, 0.22, 1)
+roughness = 0.5
+metallic = 0.03

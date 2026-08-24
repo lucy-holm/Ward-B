@@ -54,7 +54,7 @@ regenerate — the same contract `MIGRATION_NOTES.md` §1 states for room scenes
 Primitive keys are derived from exact dimensions, so identical parts collapse
 to one baked resource automatically. The office chair's castor and the mop
 bucket's castors are the same `.tres`, referenced by the same uid, with no
-bookkeeping. Today: **53 props, 229 unique meshes, 20.6k triangles for the entire kit.**
+bookkeeping. Today: **101 props, 458 unique meshes, 33k triangles for the entire kit.**
 
 ## Placing props from a room
 
@@ -227,6 +227,23 @@ They are worth knowing because the same mistakes are easy to repeat:
 The shared `materials/` shaders (wall, floor, ceiling) were left alone: they
 already sit close to the reference's cream plaster and olive lino, and every
 room in the ward depends on their exact look.
+
+### BEVEL IS CLAMPED — the trap that has bitten twice
+
+`gen_prop_meshes.gd` clamps a box's bevel to **0.9x the shortest half-extent**.
+That is not a suggestion you can out-declare, and it fails in two directions:
+
+- **Too thin to round.** `padded_wall_panel` was authored 0.075m deep asking for
+  a 0.05 bevel and could never exceed ~0.034, so the quilting read as a flat
+  board with screw heads. The fix was to thicken the pad, not to raise the
+  bevel.
+- **Too much bevel for the thickness.** `patient_chart`'s red tab used a 0.002
+  bevel on a 0.006 depth — 66% of the half-thickness — and rendered as nothing
+  at all. `wall_clock`'s hands sit at 50% and are fine; treat **~30% as the safe
+  ceiling** for thin parts.
+
+If a part is invisible or stubbornly flat, check its bevel-to-thickness ratio
+before anything else.
 
 ### Three traps worth knowing
 

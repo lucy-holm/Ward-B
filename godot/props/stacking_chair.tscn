@@ -22,11 +22,11 @@ size = Vector3(0.4400, 0.8000, 0.4400)
 
 [node name="StackingChair" type="Node3D"]
 
-[node name="Body" type="StaticBody3D" parent="."]
+[node name="Collider" type="StaticBody3D" parent="."]
 collision_layer = 2
 collision_mask = 0
 
-[node name="Shape" type="CollisionShape3D" parent="Body"]
+[node name="Shape" type="CollisionShape3D" parent="Collider"]
 transform = Transform3D(1.000000, 0.000000, 0.000000, 0.000000, 1.000000, 0.000000, 0.000000, 0.000000, 1.000000, 0.0000, 0.4000, 0.0000)
 shape = SubResource("bs_body")
 

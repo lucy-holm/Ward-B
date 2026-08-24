@@ -204,16 +204,32 @@ def emit_prop(name, spec):
     out.append('[node name="%s" type="Node3D"]' % _node_name(name))
     out.append("")
     if has_body:
-        out.append('[node name="Body" type="StaticBody3D" parent="."]')
+        # NAMED "Collider", NOT "Body" — and the parts loop below is seeded with
+        # that name so a part called Collider would be suffixed rather than
+        # clash. This node used to be "Body", and thirteen props in the kit have
+        # a PART named Body (a fire extinguisher's cylinder, a mug's body, a
+        # speaker's case). Godot resolves a duplicate node name by silently
+        # renaming one of them, so in waste_bin — the only prop that had both —
+        # get_node("Body") returned the MESH and the real collider ended up
+        # unparented from the instance transform, sitting at the world origin.
+        #
+        # That put an invisible 0.36m box at (0,0) in every room using it, and
+        # in room 20 that is dead centre of the push-block route: the crate
+        # could not be pushed through its own puzzle and the room became
+        # unwinnable. Caught by test_room20's soft-lock proof, not by the
+        # placement audit — which computes from source and so never saw it.
+        out.append('[node name="Collider" type="StaticBody3D" parent="."]')
         out.append("collision_layer = 2")
         out.append("collision_mask = 0")
         out.append("")
-        out.append('[node name="Shape" type="CollisionShape3D" parent="Body"]')
+        out.append('[node name="Shape" type="CollisionShape3D" parent="Collider"]')
         out.append("transform = %s" % transform(centre, (0, 0, 0)))
         out.append('shape = SubResource("bs_body")')
         out.append("")
 
-    used = {}
+    # Seeded so a part named "Collider" collides with the StaticBody3D above and
+    # gets suffixed, rather than silently displacing it — see that node.
+    used = {"Collider": 1} if has_body else {}
     for i, p in enumerate(parts):
         nm = p["name"] or ("Part%d" % i)
         # A duplicate node name makes Godot silently rename on load (@Foo@2),

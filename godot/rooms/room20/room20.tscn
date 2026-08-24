@@ -482,11 +482,20 @@ material_override = ExtResource("pm_chain")
 [node name="UtilityShelfUnit0" parent="Props" instance=ExtResource("pk_utility_shelf_unit")]
 transform = Transform3D(0.000000, 0, -1.000000, 0, 1, 0, 1.000000, 0, 0.000000, -5.3000, 0.0000, 4.4000)
 
+[node name="Collider" parent="Props/UtilityShelfUnit0"]
+collision_layer = 0
+
 [node name="LinenCart1" parent="Props" instance=ExtResource("pk_linen_cart")]
 transform = Transform3D(0.000000, 0, 1.000000, 0, 1, 0, -1.000000, 0, 0.000000, 5.4000, 0.0000, 4.6000)
 
+[node name="Collider" parent="Props/LinenCart1"]
+collision_layer = 0
+
 [node name="WasteBin2" parent="Props" instance=ExtResource("pk_waste_bin")]
 transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, -5.2000, 0.0000, 2.2000)
+
+[node name="Collider" parent="Props/WasteBin2"]
+collision_layer = 0
 
 [node name="PlasterRubble3" parent="Props" instance=ExtResource("pk_plaster_rubble")]
 transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, 4.6000, 0.0000, -6.0000)

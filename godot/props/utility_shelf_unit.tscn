@@ -24,11 +24,11 @@ size = Vector3(0.9200, 1.6500, 0.4200)
 
 [node name="UtilityShelfUnit" type="Node3D"]
 
-[node name="Body" type="StaticBody3D" parent="."]
+[node name="Collider" type="StaticBody3D" parent="."]
 collision_layer = 2
 collision_mask = 0
 
-[node name="Shape" type="CollisionShape3D" parent="Body"]
+[node name="Shape" type="CollisionShape3D" parent="Collider"]
 transform = Transform3D(1.000000, 0.000000, 0.000000, 0.000000, 1.000000, 0.000000, 0.000000, 0.000000, 1.000000, 0.0000, 0.8250, 0.0000)
 shape = SubResource("bs_body")
 

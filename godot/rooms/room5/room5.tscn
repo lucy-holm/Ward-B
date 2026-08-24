@@ -679,7 +679,7 @@ transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, 
 [node name="OfficeChair19" parent="Props" instance=ExtResource("pk_office_chair")]
 transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, 0.9000, 0.0000, 1.6200)
 
-[node name="Body" parent="Props/OfficeChair19"]
+[node name="Collider" parent="Props/OfficeChair19"]
 collision_layer = 0
 
 [node name="Waiting0" parent="Props" instance=ExtResource("pk_beam_seating")]

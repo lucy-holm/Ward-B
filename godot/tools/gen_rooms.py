@@ -980,19 +980,19 @@ class Room:
 
         if collider is False:
             if has_body:
-                children.setdefault("Body", {})["collision_layer"] = 0
+                children.setdefault("Collider", {})["collision_layer"] = 0
             collider = None
         elif collider is None:
             if has_body and state in ("lucid", "unmed"):
                 # State-gate the prop's own body rather than adding a second one.
-                children.setdefault("Body", {})["collision_layer"] = (
+                children.setdefault("Collider", {})["collision_layer"] = (
                     LAYER_LUCID if state == "lucid" else LAYER_UNMED)
             collider = None
         else:
             # An explicit rectangle overrides the prop's footprint entirely, so
             # its own body must go — otherwise the room gets both.
             if has_body:
-                children.setdefault("Body", {})["collision_layer"] = 0
+                children.setdefault("Collider", {})["collision_layer"] = 0
 
         # Sign text. Label parts are bare dicts (see props/_gen/defs_signage.py
         # on why they bypass part()), so the label NAMES come straight off the
@@ -5373,18 +5373,29 @@ def room20():
                    "door", "the gate", facing="pz")
 
     # --- set dressing --------------------------------------------------------
-    # A loading bay, so: shelving, carts, litter. Two patrol routes, both
-    # clearing 0.88m, and the room's push blocks can be shoved along the middle
-    # — so every solid here sits against the south or side walls, out of both
-    # the routes and the blocks' travel.
+    # A loading bay, so: shelving, carts, litter — ALL COLLIDER-FREE, and this
+    # room is the reason that rule exists rather than a preference.
+    #
+    # Room 20 is a PUSH-BLOCK PUZZLE whose solvability is proven by exhaustive
+    # state-space search (tools/test_room20.gd walks all 410 reachable
+    # crate/player states and asserts every one can still reach the exit). That
+    # proof reads the live collider cache, so ANY new solid anywhere in the room
+    # shrinks the player's reachable regions and can strand a state.
+    #
+    # It did. Three props placed against the side walls — a shelf rack, a linen
+    # cart and a bin, none of them within four metres of the crate's route —
+    # left exactly one of 410 states unable to reach the exit: crate at cell
+    # (-4, 1). Patrol clearance was untouched and the placement audit was clean;
+    # only the soft-lock proof caught it. A walk-through shelf in a loading bay
+    # is a trivial price against an unwinnable room.
     r.prop_run("skirting", "x", -6, 6, 5.88)
     r.prop_run("skirting", "z", -19, 6, -5.88)
     r.prop_run("skirting", "z", -19, 6, 5.88)
     r.prop_run("ceiling_conduit", "z", -16, 4, -4.4, facing="nx")
 
-    r.model("utility_shelf_unit", (-5.3, 4.4), facing="px")
-    r.model("linen_cart", (5.4, 4.6), facing="nx")
-    r.model("waste_bin", (-5.2, 2.2))
+    r.model("utility_shelf_unit", (-5.3, 4.4), facing="px", collider=False)
+    r.model("linen_cart", (5.4, 4.6), facing="nx", collider=False)
+    r.model("waste_bin", (-5.2, 2.2), collider=False)
     r.model("plaster_rubble", (4.6, -6.0))
     r.model("paper_scatter", (-3.8, -10.5))
     r.model("ward_sign", (-5.88, 3.0), facing="px", text="LOADING")

@@ -1,14 +1,20 @@
 [gd_resource type="StandardMaterial3D" format=3 uid="uid://wardbwfrmcurt1"]
 
-; Heavy privacy-curtain fabric — ward dormitories run these on ceiling tracks
-; between beds. Faded dark olive rather than a clinical white/blue: the
-; palette strip's olive/taupe family, desaturated hard like everything else in
-; the kit, so a half-drawn curtain reads as another dim vertical mass in the
-; dormitory row rather than the one bright object in the room. High roughness
-; — cloth, not vinyl — is what separates it from the vinyl seating and enamel
-; fixtures nearby.
+; Privacy-curtain fabric — ward dormitories run these on ceiling tracks
+; between beds. Real ward curtains are pale, loosely patterned cotton, not a
+; dark partition, so this sits in the palette board's cream/bone family
+; rather than the deep olive first tried here — that first pass (albedo
+; 0.245/0.255/0.205, luminance ~0.25) rendered as a heavy dark-green wall
+; between beds, indistinguishable from a solid partition at ward light
+; levels. Paled and warmed toward bone/taupe (luminance ~0.57) so it reads
+; as hanging cloth catching the room's light rather than another dim vertical
+; mass the same value as the plaster behind it. High roughness — cloth, not
+; vinyl — is what still separates it from the vinyl seating and enamel
+; fixtures nearby; the privacy_curtain prop itself now also breaks the panel
+; up with a contrasting header tape and hem (props/trim_mat.tres) for the
+; "patterned trim" read a single flat colour cannot carry alone.
 
 [resource]
-albedo_color = Color(0.245, 0.255, 0.205, 1)
-roughness = 0.88
+albedo_color = Color(0.60, 0.575, 0.49, 1)
+roughness = 0.82
 metallic = 0.0

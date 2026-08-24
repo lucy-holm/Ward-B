@@ -122,7 +122,7 @@ one for a ward that still looks staffed.""",
 # like skirting/bumper_rail/pipe_run: 2m wide so prop_run() tiles it cleanly.
 # =============================================================================
 
-k.prop("padded_wall_panel", "wall", (2.0, 1.70, 0.10), mount_y=1.05, doc="""\
+k.prop("padded_wall_panel", "wall", (2.0, 1.70, 0.17), mount_y=1.05, doc="""\
 2m of cream quilted-vinyl wall padding, diamond-tufted with button studs —
 the material study board's "worn padded-cell wall fabric" panel, tiled with
 prop_run() exactly like skirting: `r.prop_run("padded_wall_panel", "z", lo,
@@ -134,16 +134,32 @@ what makes it read as diamond quilting instead — five studs on even rows,
 four on odd, the same pattern every padded surface in the reference actually
 uses. The bulge behind them is one heavily bevelled box rather than a
 sculpted quilted surface: the primitive set here has no cloth deformation, so
-the bevel's round shoulder is the entire illusion of a soft, puffy panel, and
-it only reads at the 0.030 bevel used here — a domestic 0.006 box bevel
-looked like a hard steel plate.""",
+the bevel's round shoulder is the entire illusion of a soft, puffy panel.
+
+DEPTH PASS (2026-08): a straight-on gallery shot showed this reading as a
+flat cream board with screw heads, not a padded surface — a quality-sweep
+catch, not an art-director flag. THE BEVEL WAS THE BOTTLENECK, NOT THE
+CONCEPT: `emit_box()` clamps bevel to 0.9x the shortest half-extent, so the
+old 0.075m-thick Pad topped out near 0.034m of bevel no matter what was
+declared, and at that thickness the rounded shoulder is too shallow to
+throw a shadow under anything but a raking light. Pad thickened 0.075m to
+0.12m specifically to unlock a genuinely bigger bevel (0.05, still under the
+0.9x clamp) — the same box, just proportioned so the primitive's own bevel
+limit stops being the ceiling. Buttons pushed correspondingly more proud
+(now ~0.022m past the Pad face, was ~0.015m) so they keep reading as tuft
+points sitting on top of the now-more-pillowed surface rather than sinking
+into it. Total prop depth grew from 0.10m to 0.17m for this (declared
+`size` below, updated to match) — still no collider (never had one; this
+sits directly against the room's own wall collision, so nothing new can be
+walked into), so this is a visual-only change with no room re-validation
+implication.""",
        parts=[
            part(box((2.0, 1.70, 0.02), 0.004), "wf_padvinyl", (0, 0, -0.01), name="Backing"),
-           part(box((1.94, 1.64, 0.075), 0.030), "wf_padvinyl", (0, 0, -0.0575), name="Pad"),
+           part(box((1.94, 1.64, 0.12), 0.050), "wf_padvinyl", (0, 0, -0.08), name="Pad"),
            part(box((2.0, 0.04, 0.03), 0.006), "trim", (0, 0.85, -0.02), name="RailTop"),
            part(box((2.0, 0.04, 0.03), 0.006), "trim", (0, -0.85, -0.02), name="RailBottom"),
        ] + [
-           part(cyl(0.010, 0.020, 8, 0.003), "trim", (x, y, -0.10), rot=(math.pi / 2, 0, 0),
+           part(cyl(0.012, 0.024, 8, 0.003), "trim", (x, y, -0.15), rot=(math.pi / 2, 0, 0),
                 name="Button_%d_%d" % (ri, ci))
            for ri, (y, cols) in enumerate((
                (-0.66, (-0.8, -0.4, 0.0, 0.4, 0.8)),
@@ -160,13 +176,32 @@ looked like a hard steel plate.""",
 # a half-drawn curtain breaks a long sight line without blocking the corridor.
 # =============================================================================
 
-k.prop("privacy_curtain", "ceiling", (2.0, 1.90, 0.14), doc="""\
+k.prop("privacy_curtain", "ceiling", (2.0, 1.90, 0.16), doc="""\
 2m ceiling curtain track with a heavy privacy curtain HALF DRAWN — gathered
 into a bunch at one end, hanging open along the rest. Half-drawn rather than
 either extreme on purpose: fully open is just a rail (nothing to look at),
 fully closed reads as a wall (blocks the sight line the dormitory needs to
 read as a receding row of beds); half-drawn gets a folded silhouette AND
 keeps the room open.
+
+ART-DIRECTOR FIX (2026-08): the first version read as "a heavy dark-green
+partition rather than fabric" — a solid wall in a ward bay, not a curtain.
+Three changes, all aimed at the same problem: a slab this size photographs
+as a slab unless the fold, the hem and the value all say otherwise.
+
+  1. MATERIAL paled and warmed (wf_curtain_mat.tres) — see that file's own
+     header. Hue never survives near-darkness; only value does, and a dark
+     olive at the mattress-frame's own value read as one more grey mass.
+  2. FOLD COUNT UP, FILL DOWN on the Open run: 6 blades at fill 0.85 (nearly
+     solid, 0.03m thin) read as a corrugated PANEL. 11 blades at fill 0.62,
+     0.05m deep, throw an actual shadow between each fold at ward light
+     levels — real gathered curtain pleats, not a slatted door.
+  3. HEADER AND HEM ADDED (props/trim_mat.tres, the kit's existing pale
+     green-grey trim colour — no new material). A curtain that is only ever
+     mid-body reads as extruded fabric with no edges; a pleat-tape header
+     under the track and a weighted hem at the bottom are the two edges real
+     curtains always show, and the tonal break against wf_curtain gives the
+     "patterned" read the art note asks for without a texture system.
 
 BOTH SLATS BLOCKS ARE VERTICALLY OFF-CENTRE ON PURPOSE. Each is built with
 slats() then rotated 90deg about Z exactly like barred_window's glazing bars,
@@ -175,21 +210,25 @@ position has to be the curtain's vertical MIDPOINT (track height minus half
 the drop), not the track height itself. Placing it at the track height was
 the first version's bug: the top half of the curtain poked up through the
 ceiling plane, invisible in a still because the ceiling hides it, obvious
-the moment the camera moved below the fitting.
+the moment the camera moved below the fitting. The drop (1.85m, `w` in both
+slats() calls below) is unchanged by this pass, so that vertical midpoint
+math (-0.94) still holds.
 
-The gathered end uses a lower fill (0.60, more gap) than the open run (0.85,
-mostly solid) — that contrast is the entire "half-drawn" read; at the same
-fill on both they look like two different curtains rather than one pulled
-partway.""",
+The gathered end keeps a lower fill (now 0.50, was 0.60) than the open run
+(now 0.62, was 0.85) and a deeper blade (0.15m, was 0.11m) — bunched fabric
+genuinely projects further off the track than a hanging fold does, which is
+the physical reason the two ends should differ in depth as well as fill.""",
        parts=[
            part(box((2.0, 0.03, 0.03), 0.004), "steel", (0, -0.015, 0), name="Track"),
            part(box((0.02, 0.05, 0.02), 0.003), "steel", (-0.9, -0.04, 0), name="BracketL"),
            part(box((0.02, 0.05, 0.02), 0.003), "steel", (0, -0.04, 0), name="BracketM"),
            part(box((0.02, 0.05, 0.02), 0.003), "steel", (0.9, -0.04, 0), name="BracketR"),
-           part(slats(1.85, 0.40, 0.11, 7, 0.0, 0.60), "wf_curtain", (-0.80, -0.94, 0),
+           part(box((1.95, 0.09, 0.05), 0.010), "trim", (-0.02, -0.065, 0), name="Header"),
+           part(slats(1.85, 0.40, 0.15, 9, 0.0, 0.50), "wf_curtain", (-0.80, -0.94, 0),
                 rot=(0, 0, math.pi / 2), name="Gathered"),
-           part(slats(1.85, 1.50, 0.03, 6, 0.0, 0.85), "wf_curtain", (0.17, -0.94, 0),
+           part(slats(1.85, 1.52, 0.05, 11, 0.0, 0.62), "wf_curtain", (0.17, -0.94, 0),
                 rot=(0, 0, math.pi / 2), name="Open"),
+           part(box((1.95, 0.05, 0.04), 0.008), "trim", (-0.02, -1.85, 0), name="Hem"),
        ])
 
 
@@ -246,15 +285,46 @@ Small cupboard-and-drawer unit, one per bed. Cream enamel like the radiator
 and the sink — the ward's original-spec fittings, painted rather than bare
 steel, and the family this belongs to visually. Deliberately proportioned to
 sit inside a bed's 0.92m width with room either side: place it against the
-headboard's side rail, not centred on the bed.""",
+headboard's side rail, not centred on the bed.
+
+ART-DIRECTOR FIX (2026-08): "a plain white box, reads unfinished" — the
+actual bug was the Carcass extending all the way down to y=0, the same
+height range as the Kick underneath it. A recessed plinth that the carcass
+above it also occupies is invisible: there was no step for the eye or the
+renderer's AO to catch, so the object read as one box sitting flush on the
+floor with no foot at all, exactly the "extruded through the floor" failure
+PROP_KIT.md warns a ground contact needs to avoid. Fixed the same way
+filing_cabinet already does it: Carcass now STOPS at the Plinth's top
+(y=0.06) instead of passing through it, so the narrower, darker Plinth is
+actually visible below the cabinet body as a real recessed foot. Door and
+Drawer split onto their own proud fronts (chain-dark pulls, ~21mm proud of
+the carcass face, inset from its edges) rather than sharing one flat panel,
+giving the front face the two shadow-lined seams (drawer-to-door,
+door-to-plinth) filing_cabinet's four drawer fronts use to break up a slab.
+Top's overhang (0.46 x 0.40 over a 0.44 x 0.38 carcass) was already correct
+and is unchanged. Size and collider are UNCHANGED — this is an internal
+geometry fix only, no room re-validation needed.
+
+DOOR AND DRAWER ARE "steel", NOT "enamel", EVEN THOUGH THE CARCASS IS
+"enamel" — a second bug the geometry fix alone did not solve. `enamel` is a
+flat StandardMaterial3D with no mottle/normal texture (unlike the shader
+materials `prop`/`chain` filing_cabinet's own same-material fronts lean on
+for their seam definition), so a proud enamel-on-enamel front reads as
+one continuous cream surface under anything but a raking light — the exact
+"two parts the same value read as one part" trap PROP_KIT.md warns about.
+Pairing the fronts with `steel` (already the Top's material, so this reads
+as a deliberate steel-trim family rather than a mismatched part) gives the
+door and drawer real VALUE separation from the carcass regardless of
+lighting angle, the same fix locker_bank already applies (steel doors on a
+chain carcass) for the same reason.""",
        parts=[
-           part(box((0.40, 0.04, 0.36), 0.004), "chain", (0, 0.02, 0), name="Kick"),
-           part(box((0.44, 0.62, 0.38), 0.008), "enamel", (0, 0.31, 0), name="Carcass"),
-           part(box((0.46, 0.03, 0.40), 0.006), "steel", (0, 0.635, 0), name="Top"),
-           part(box((0.38, 0.16, 0.02), 0.004), "enamel", (0, 0.50, -0.20), name="Drawer"),
-           part(box((0.10, 0.02, 0.025), 0.003), "chain", (0, 0.50, -0.215), name="DrawerPull"),
-           part(box((0.38, 0.36, 0.02), 0.005), "enamel", (0, 0.22, -0.20), name="Door"),
-           part(cyl(0.012, 0.035, 8, 0.002), "chain", (0.14, 0.22, -0.215),
+           part(box((0.38, 0.06, 0.34), 0.004), "chain", (0, 0.03, 0), name="Plinth"),
+           part(box((0.44, 0.57, 0.38), 0.008), "enamel", (0, 0.345, 0), name="Carcass"),
+           part(box((0.46, 0.03, 0.40), 0.006), "steel", (0, 0.645, 0), name="Top"),
+           part(box((0.40, 0.14, 0.022), 0.006), "steel", (0, 0.53, -0.201), name="Drawer"),
+           part(box((0.10, 0.02, 0.025), 0.003), "chain", (0, 0.53, -0.216), name="DrawerPull"),
+           part(box((0.40, 0.33, 0.022), 0.006), "steel", (0, 0.265, -0.201), name="Door"),
+           part(cyl(0.012, 0.035, 8, 0.002), "chain", (0.14, 0.265, -0.221),
                 rot=(math.pi / 2, 0, 0), name="DoorKnob"),
        ])
 

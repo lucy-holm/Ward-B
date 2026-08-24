@@ -1,4 +1,4 @@
-[gd_scene load_steps=51 format=3 uid="uid://wardbroomc57f0a7"]
+[gd_scene load_steps=80 format=3 uid="uid://wardbroomc57f0a7"]
 
 [ext_resource type="Script" path="res://rooms/room15/room15.gd" id="s_room"]
 [ext_resource type="Material" uid="uid://wardbmatd0cabd0" path="res://materials/floor.tres" id="m_floor"]
@@ -13,6 +13,27 @@
 [ext_resource type="PackedScene" path="res://fixtures/door.tscn" id="fx_door"]
 [ext_resource type="Script" path="res://core/interactable.gd" id="s_interactable"]
 [ext_resource type="Script" path="res://fixtures/icon_panel.gd" id="s_iconpanel"]
+[ext_resource type="ArrayMesh" path="res://props/meshes/box_2000x100x20_b40.tres" id="am_box_2000x100x20_b40"]
+[ext_resource type="Material" path="res://props/trim_mat.tres" id="pm_trim"]
+[ext_resource type="ArrayMesh" path="res://props/meshes/box_2000x24x28_b60.tres" id="am_box_2000x24x28_b60"]
+[ext_resource type="ArrayMesh" path="res://props/meshes/box_50x115x48_b40.tres" id="am_box_50x115x48_b40"]
+[ext_resource type="Material" path="res://props/steel_mat.tres" id="pm_steel"]
+[ext_resource type="ArrayMesh" path="res://props/meshes/box_2000x145x40_b180.tres" id="am_box_2000x145x40_b180"]
+[ext_resource type="Material" path="res://props/rubber_mat.tres" id="pm_rubber"]
+[ext_resource type="PackedScene" path="res://props/utility_shelf_unit.tscn" id="pk_utility_shelf_unit"]
+[ext_resource type="PackedScene" path="res://props/filing_cabinet.tscn" id="pk_filing_cabinet"]
+[ext_resource type="PackedScene" path="res://props/paper_scatter.tscn" id="pk_paper_scatter"]
+[ext_resource type="PackedScene" path="res://props/binder_stack.tscn" id="pk_binder_stack"]
+[ext_resource type="PackedScene" path="res://props/reg_notice.tscn" id="pk_reg_notice"]
+[ext_resource type="PackedScene" path="res://props/wall_clock.tscn" id="pk_wall_clock"]
+[ext_resource type="PackedScene" path="res://props/light_switch.tscn" id="pk_light_switch"]
+[ext_resource type="PackedScene" path="res://props/missing_ceiling_tile.tscn" id="pk_missing_ceiling_tile"]
+[ext_resource type="PackedScene" path="res://props/hanging_cable.tscn" id="pk_hanging_cable"]
+[ext_resource type="PackedScene" path="res://props/wall_stain.tscn" id="pk_wall_stain"]
+[ext_resource type="PackedScene" path="res://props/exit_sign.tscn" id="pk_exit_sign"]
+[ext_resource type="PackedScene" path="res://props/ceiling_troffer.tscn" id="pk_ceiling_troffer"]
+[ext_resource type="PackedScene" path="res://props/troffer_lamp.tscn" id="pk_troffer_lamp"]
+[ext_resource type="Script" path="res://core/light_object.gd" id="s_lightobj"]
 [ext_resource type="Script" path="res://core/room_exit.gd" id="s_exit"]
 
 [sub_resource type="BoxMesh" id="bm_0"]
@@ -137,6 +158,54 @@ size = Vector3(0.5000, 0.9000, 0.5000)
 
 [sub_resource type="BoxShape3D" id="bs_16"]
 size = Vector3(0.4000, 0.5000, 0.1400)
+
+[sub_resource type="MultiMesh" id="mm_skirtingrun0_0"]
+transform_format = 1
+instance_count = 9
+mesh = ExtResource("am_box_2000x100x20_b40")
+buffer = PackedFloat32Array(1.0000, 0.0000, 0.0000, -8.0000, 0.0000, 1.0000, 0.0000, 0.0500, 0.0000, 0.0000, 1.0000, 5.8700, 1.0000, 0.0000, 0.0000, -6.0000, 0.0000, 1.0000, 0.0000, 0.0500, 0.0000, 0.0000, 1.0000, 5.8700, 1.0000, 0.0000, 0.0000, -4.0000, 0.0000, 1.0000, 0.0000, 0.0500, 0.0000, 0.0000, 1.0000, 5.8700, 1.0000, 0.0000, 0.0000, -2.0000, 0.0000, 1.0000, 0.0000, 0.0500, 0.0000, 0.0000, 1.0000, 5.8700, 1.0000, 0.0000, 0.0000, 0.0000, 0.0000, 1.0000, 0.0000, 0.0500, 0.0000, 0.0000, 1.0000, 5.8700, 1.0000, 0.0000, 0.0000, 2.0000, 0.0000, 1.0000, 0.0000, 0.0500, 0.0000, 0.0000, 1.0000, 5.8700, 1.0000, 0.0000, 0.0000, 4.0000, 0.0000, 1.0000, 0.0000, 0.0500, 0.0000, 0.0000, 1.0000, 5.8700, 1.0000, 0.0000, 0.0000, 6.0000, 0.0000, 1.0000, 0.0000, 0.0500, 0.0000, 0.0000, 1.0000, 5.8700, 1.0000, 0.0000, 0.0000, 8.0000, 0.0000, 1.0000, 0.0000, 0.0500, 0.0000, 0.0000, 1.0000, 5.8700)
+
+[sub_resource type="MultiMesh" id="mm_skirtingrun0_1"]
+transform_format = 1
+instance_count = 9
+mesh = ExtResource("am_box_2000x24x28_b60")
+buffer = PackedFloat32Array(1.0000, 0.0000, 0.0000, -8.0000, 0.0000, 1.0000, 0.0000, 0.1120, 0.0000, 0.0000, 1.0000, 5.8660, 1.0000, 0.0000, 0.0000, -6.0000, 0.0000, 1.0000, 0.0000, 0.1120, 0.0000, 0.0000, 1.0000, 5.8660, 1.0000, 0.0000, 0.0000, -4.0000, 0.0000, 1.0000, 0.0000, 0.1120, 0.0000, 0.0000, 1.0000, 5.8660, 1.0000, 0.0000, 0.0000, -2.0000, 0.0000, 1.0000, 0.0000, 0.1120, 0.0000, 0.0000, 1.0000, 5.8660, 1.0000, 0.0000, 0.0000, 0.0000, 0.0000, 1.0000, 0.0000, 0.1120, 0.0000, 0.0000, 1.0000, 5.8660, 1.0000, 0.0000, 0.0000, 2.0000, 0.0000, 1.0000, 0.0000, 0.1120, 0.0000, 0.0000, 1.0000, 5.8660, 1.0000, 0.0000, 0.0000, 4.0000, 0.0000, 1.0000, 0.0000, 0.1120, 0.0000, 0.0000, 1.0000, 5.8660, 1.0000, 0.0000, 0.0000, 6.0000, 0.0000, 1.0000, 0.0000, 0.1120, 0.0000, 0.0000, 1.0000, 5.8660, 1.0000, 0.0000, 0.0000, 8.0000, 0.0000, 1.0000, 0.0000, 0.1120, 0.0000, 0.0000, 1.0000, 5.8660)
+
+[sub_resource type="MultiMesh" id="mm_skirtingrun2_0"]
+transform_format = 1
+instance_count = 4
+mesh = ExtResource("am_box_2000x100x20_b40")
+buffer = PackedFloat32Array(0.0000, 0.0000, -1.0000, -8.8700, 0.0000, 1.0000, 0.0000, 0.0500, 1.0000, 0.0000, 0.0000, -0.9000, 0.0000, 0.0000, -1.0000, -8.8700, 0.0000, 1.0000, 0.0000, 0.0500, 1.0000, 0.0000, 0.0000, 1.1000, 0.0000, 0.0000, -1.0000, -8.8700, 0.0000, 1.0000, 0.0000, 0.0500, 1.0000, 0.0000, 0.0000, 3.1000, 1.0000, 0.0000, 0.0000, -8.8800, 0.0000, 1.0000, 0.0000, 0.0500, 0.0000, 0.0000, 1.0000, 5.0900)
+
+[sub_resource type="MultiMesh" id="mm_skirtingrun2_1"]
+transform_format = 1
+instance_count = 4
+mesh = ExtResource("am_box_2000x24x28_b60")
+buffer = PackedFloat32Array(0.0000, 0.0000, -1.0000, -8.8660, 0.0000, 1.0000, 0.0000, 0.1120, 1.0000, 0.0000, 0.0000, -0.9000, 0.0000, 0.0000, -1.0000, -8.8660, 0.0000, 1.0000, 0.0000, 0.1120, 1.0000, 0.0000, 0.0000, 1.1000, 0.0000, 0.0000, -1.0000, -8.8660, 0.0000, 1.0000, 0.0000, 0.1120, 1.0000, 0.0000, 0.0000, 3.1000, 1.0000, 0.0000, 0.0000, -8.8800, 0.0000, 1.0000, 0.0000, 0.1120, 0.0000, 0.0000, 1.0000, 5.0860)
+
+[sub_resource type="MultiMesh" id="mm_skirtingrun4_0"]
+transform_format = 1
+instance_count = 8
+mesh = ExtResource("am_box_2000x100x20_b40")
+buffer = PackedFloat32Array(0.0000, 0.0000, 1.0000, 8.8700, 0.0000, 1.0000, 0.0000, 0.0500, -1.0000, 0.0000, 0.0000, -8.6000, 0.0000, 0.0000, 1.0000, 8.8700, 0.0000, 1.0000, 0.0000, 0.0500, -1.0000, 0.0000, 0.0000, -6.6000, 0.0000, 0.0000, 1.0000, 8.8700, 0.0000, 1.0000, 0.0000, 0.0500, -1.0000, 0.0000, 0.0000, -4.6000, 0.0000, 0.0000, 1.0000, 8.8700, 0.0000, 1.0000, 0.0000, 0.0500, -1.0000, 0.0000, 0.0000, -2.6000, 0.0000, 0.0000, 1.0000, 8.8700, 0.0000, 1.0000, 0.0000, 0.0500, -1.0000, 0.0000, 0.0000, -0.6000, 0.0000, 0.0000, 1.0000, 8.8700, 0.0000, 1.0000, 0.0000, 0.0500, -1.0000, 0.0000, 0.0000, 1.4000, 0.0000, 0.0000, 1.0000, 8.8700, 0.0000, 1.0000, 0.0000, 0.0500, -1.0000, 0.0000, 0.0000, 3.4000, 1.0000, 0.0000, 0.0000, 8.8800, 0.0000, 1.0000, 0.0000, 0.0500, 0.0000, 0.0000, 1.0000, 5.3900)
+
+[sub_resource type="MultiMesh" id="mm_skirtingrun4_1"]
+transform_format = 1
+instance_count = 8
+mesh = ExtResource("am_box_2000x24x28_b60")
+buffer = PackedFloat32Array(0.0000, 0.0000, 1.0000, 8.8660, 0.0000, 1.0000, 0.0000, 0.1120, -1.0000, 0.0000, 0.0000, -8.6000, 0.0000, 0.0000, 1.0000, 8.8660, 0.0000, 1.0000, 0.0000, 0.1120, -1.0000, 0.0000, 0.0000, -6.6000, 0.0000, 0.0000, 1.0000, 8.8660, 0.0000, 1.0000, 0.0000, 0.1120, -1.0000, 0.0000, 0.0000, -4.6000, 0.0000, 0.0000, 1.0000, 8.8660, 0.0000, 1.0000, 0.0000, 0.1120, -1.0000, 0.0000, 0.0000, -2.6000, 0.0000, 0.0000, 1.0000, 8.8660, 0.0000, 1.0000, 0.0000, 0.1120, -1.0000, 0.0000, 0.0000, -0.6000, 0.0000, 0.0000, 1.0000, 8.8660, 0.0000, 1.0000, 0.0000, 0.1120, -1.0000, 0.0000, 0.0000, 1.4000, 0.0000, 0.0000, 1.0000, 8.8660, 0.0000, 1.0000, 0.0000, 0.1120, -1.0000, 0.0000, 0.0000, 3.4000, 1.0000, 0.0000, 0.0000, 8.8800, 0.0000, 1.0000, 0.0000, 0.1120, 0.0000, 0.0000, 1.0000, 5.3860)
+
+[sub_resource type="MultiMesh" id="mm_bumperrailrun6_0"]
+transform_format = 1
+instance_count = 8
+mesh = ExtResource("am_box_50x115x48_b40")
+buffer = PackedFloat32Array(0.0000, 0.0000, -1.0000, -8.8560, 0.0000, 1.0000, 0.0000, 0.9000, 1.0000, 0.0000, 0.0000, -1.8200, 0.0000, 0.0000, -1.0000, -8.8560, 0.0000, 1.0000, 0.0000, 0.9000, 1.0000, 0.0000, 0.0000, -0.1800, 0.0000, 0.0000, -1.0000, -8.8560, 0.0000, 1.0000, 0.0000, 0.9000, 1.0000, 0.0000, 0.0000, 0.1800, 0.0000, 0.0000, -1.0000, -8.8560, 0.0000, 1.0000, 0.0000, 0.9000, 1.0000, 0.0000, 0.0000, 1.8200, 0.0000, 0.0000, -1.0000, -8.8560, 0.0000, 1.0000, 0.0000, 0.9000, 1.0000, 0.0000, 0.0000, 2.1800, 0.0000, 0.0000, -1.0000, -8.8560, 0.0000, 1.0000, 0.0000, 0.9000, 1.0000, 0.0000, 0.0000, 3.8200, 1.0000, 0.0000, 0.0000, -9.7000, 0.0000, 1.0000, 0.0000, 0.9000, 0.0000, 0.0000, 1.0000, 4.9760, 1.0000, 0.0000, 0.0000, -8.0600, 0.0000, 1.0000, 0.0000, 0.9000, 0.0000, 0.0000, 1.0000, 4.9760)
+
+[sub_resource type="MultiMesh" id="mm_bumperrailrun6_1"]
+transform_format = 1
+instance_count = 4
+mesh = ExtResource("am_box_2000x145x40_b180")
+buffer = PackedFloat32Array(0.0000, 0.0000, -1.0000, -8.8120, 0.0000, 1.0000, 0.0000, 0.9000, 1.0000, 0.0000, 0.0000, -1.0000, 0.0000, 0.0000, -1.0000, -8.8120, 0.0000, 1.0000, 0.0000, 0.9000, 1.0000, 0.0000, 0.0000, 1.0000, 0.0000, 0.0000, -1.0000, -8.8120, 0.0000, 1.0000, 0.0000, 0.9000, 1.0000, 0.0000, 0.0000, 3.0000, 1.0000, 0.0000, 0.0000, -8.8800, 0.0000, 1.0000, 0.0000, 0.9000, 0.0000, 0.0000, 1.0000, 4.9320)
 
 [sub_resource type="BoxShape3D" id="bs_17"]
 size = Vector3(2.0000, 3.0000, 1.8000)
@@ -682,6 +751,211 @@ script = ExtResource("s_iconpanel")
 shapes = PackedStringArray("circle", "square", "triangle")
 colors = PackedColorArray(0.2471, 0.6627, 0.8667, 1.0000, 0.2980, 0.6863, 0.4157, 1.0000, 0.7569, 0.0902, 0.0588, 1.0000)
 panel_size = 2.4000
+
+[node name="PropRuns" type="Node3D" parent="."]
+
+[node name="SkirtingRun0_0" type="MultiMeshInstance3D" parent="PropRuns"]
+multimesh = SubResource("mm_skirtingrun0_0")
+material_override = ExtResource("pm_trim")
+
+[node name="SkirtingRun0_1" type="MultiMeshInstance3D" parent="PropRuns"]
+multimesh = SubResource("mm_skirtingrun0_1")
+material_override = ExtResource("pm_trim")
+
+[node name="SkirtingRun2_0" type="MultiMeshInstance3D" parent="PropRuns"]
+multimesh = SubResource("mm_skirtingrun2_0")
+material_override = ExtResource("pm_trim")
+
+[node name="SkirtingRun2_1" type="MultiMeshInstance3D" parent="PropRuns"]
+multimesh = SubResource("mm_skirtingrun2_1")
+material_override = ExtResource("pm_trim")
+
+[node name="SkirtingRun4_0" type="MultiMeshInstance3D" parent="PropRuns"]
+multimesh = SubResource("mm_skirtingrun4_0")
+material_override = ExtResource("pm_trim")
+
+[node name="SkirtingRun4_1" type="MultiMeshInstance3D" parent="PropRuns"]
+multimesh = SubResource("mm_skirtingrun4_1")
+material_override = ExtResource("pm_trim")
+
+[node name="BumperRailRun6_0" type="MultiMeshInstance3D" parent="PropRuns"]
+multimesh = SubResource("mm_bumperrailrun6_0")
+material_override = ExtResource("pm_steel")
+
+[node name="BumperRailRun6_1" type="MultiMeshInstance3D" parent="PropRuns"]
+multimesh = SubResource("mm_bumperrailrun6_1")
+material_override = ExtResource("pm_rubber")
+
+[node name="Props" type="Node3D" parent="."]
+
+[node name="UtilityShelfUnit0" parent="Props" instance=ExtResource("pk_utility_shelf_unit")]
+transform = Transform3D(0.000000, 0, -1.000000, 0, 1, 0, 1.000000, 0, 0.000000, -8.4000, 0.0000, 3.6000)
+
+[node name="SortFileA" parent="Props" instance=ExtResource("pk_filing_cabinet")]
+transform = Transform3D(0.000000, 0, 1.000000, 0, 1, 0, -1.000000, 0, 0.000000, 8.5000, 0.0000, 4.2000)
+
+[node name="SortFileB" parent="Props" instance=ExtResource("pk_filing_cabinet")]
+transform = Transform3D(0.000000, 0, 1.000000, 0, 1, 0, -1.000000, 0, 0.000000, 8.5000, 0.0000, 3.4000)
+
+[node name="PaperScatter3" parent="Props" instance=ExtResource("pk_paper_scatter")]
+transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, -5.0000, 0.0000, 1.2000)
+
+[node name="SortPaperB" parent="Props" instance=ExtResource("pk_paper_scatter")]
+transform = Transform3D(0.696707, 0, 0.717356, 0, 1, 0, -0.717356, 0, 0.696707, 3.4000, 0.0000, -5.6000)
+
+[node name="BinderStack5" parent="Props" instance=ExtResource("pk_binder_stack")]
+transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, 7.9000, 0.0000, 1.4000)
+
+[node name="RegNotice6" parent="Props" instance=ExtResource("pk_reg_notice")]
+transform = Transform3D(0.000000, 0, -1.000000, 0, 1, 0, 1.000000, 0, 0.000000, -8.8800, 1.6000, 1.0000)
+
+[node name="WallClock7" parent="Props" instance=ExtResource("pk_wall_clock")]
+transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, 5.0000, 2.2000, 5.8800)
+
+[node name="LightSwitch8" parent="Props" instance=ExtResource("pk_light_switch")]
+transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, -2.0000, 1.0500, 5.8800)
+
+[node name="MissingCeilingTile9" parent="Props" instance=ExtResource("pk_missing_ceiling_tile")]
+transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, 2.0000, 3.0000, -8.0000)
+
+[node name="HangingCable10" parent="Props" instance=ExtResource("pk_hanging_cable")]
+transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, -3.0000, 3.0000, -16.0000)
+
+[node name="WallStain11" parent="Props" instance=ExtResource("pk_wall_stain")]
+transform = Transform3D(0.000000, 0, 1.000000, 0, 1, 0, -1.000000, 0, 0.000000, 8.8800, 2.6000, -6.0000)
+
+[node name="ExitSign12" parent="Props" instance=ExtResource("pk_exit_sign")]
+transform = Transform3D(-1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, -1.000000, 1.6000, 2.3500, -26.8800)
+
+[node name="CeilingTroffer13" parent="Props" instance=ExtResource("pk_ceiling_troffer")]
+transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, 0.0000, 3.0000, 4.0000)
+
+[node name="TrofferLamp14_light" type="Node3D" parent="Props"]
+script = ExtResource("s_lightobj")
+visible_in_light = 1
+
+[node name="TrofferLamp14" parent="Props/TrofferLamp14_light" instance=ExtResource("pk_troffer_lamp")]
+transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, 0.0000, 3.0000, 4.0000)
+
+[node name="CeilingTroffer15" parent="Props" instance=ExtResource("pk_ceiling_troffer")]
+transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, 0.0000, 3.0000, 0.0000)
+
+[node name="TrofferLamp16_light" type="Node3D" parent="Props"]
+script = ExtResource("s_lightobj")
+visible_in_light = 1
+
+[node name="TrofferLamp16" parent="Props/TrofferLamp16_light" instance=ExtResource("pk_troffer_lamp")]
+transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, 0.0000, 3.0000, 0.0000)
+
+[node name="CeilingTroffer17" parent="Props" instance=ExtResource("pk_ceiling_troffer")]
+transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, -6.0000, 3.0000, -2.5000)
+
+[node name="TrofferLamp18_light" type="Node3D" parent="Props"]
+script = ExtResource("s_lightobj")
+visible_in_light = 1
+
+[node name="TrofferLamp18" parent="Props/TrofferLamp18_light" instance=ExtResource("pk_troffer_lamp")]
+transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, -6.0000, 3.0000, -2.5000)
+
+[node name="CeilingTroffer19" parent="Props" instance=ExtResource("pk_ceiling_troffer")]
+transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, 6.0000, 3.0000, -2.5000)
+
+[node name="TrofferLamp20_light" type="Node3D" parent="Props"]
+script = ExtResource("s_lightobj")
+visible_in_light = 1
+
+[node name="TrofferLamp20" parent="Props/TrofferLamp20_light" instance=ExtResource("pk_troffer_lamp")]
+transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, 6.0000, 3.0000, -2.5000)
+
+[node name="CeilingTroffer21" parent="Props" instance=ExtResource("pk_ceiling_troffer")]
+transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, 0.0000, 3.0000, -6.5000)
+
+[node name="TrofferLamp22_light" type="Node3D" parent="Props"]
+script = ExtResource("s_lightobj")
+visible_in_light = 1
+
+[node name="TrofferLamp22" parent="Props/TrofferLamp22_light" instance=ExtResource("pk_troffer_lamp")]
+transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, 0.0000, 3.0000, -6.5000)
+
+[node name="CeilingTroffer23" parent="Props" instance=ExtResource("pk_ceiling_troffer")]
+transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, -4.0000, 3.0000, -10.0000)
+
+[node name="TrofferLamp24_light" type="Node3D" parent="Props"]
+script = ExtResource("s_lightobj")
+visible_in_light = 1
+
+[node name="TrofferLamp24" parent="Props/TrofferLamp24_light" instance=ExtResource("pk_troffer_lamp")]
+transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, -4.0000, 3.0000, -10.0000)
+
+[node name="CeilingTroffer25" parent="Props" instance=ExtResource("pk_ceiling_troffer")]
+transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, 6.0000, 3.0000, -10.0000)
+
+[node name="TrofferLamp26_light" type="Node3D" parent="Props"]
+script = ExtResource("s_lightobj")
+visible_in_light = 1
+
+[node name="TrofferLamp26" parent="Props/TrofferLamp26_light" instance=ExtResource("pk_troffer_lamp")]
+transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, 6.0000, 3.0000, -10.0000)
+
+[node name="CeilingTroffer27" parent="Props" instance=ExtResource("pk_ceiling_troffer")]
+transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, 0.0000, 3.0000, -14.0000)
+
+[node name="TrofferLamp28_light" type="Node3D" parent="Props"]
+script = ExtResource("s_lightobj")
+visible_in_light = 1
+
+[node name="TrofferLamp28" parent="Props/TrofferLamp28_light" instance=ExtResource("pk_troffer_lamp")]
+transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, 0.0000, 3.0000, -14.0000)
+
+[node name="CeilingTroffer29" parent="Props" instance=ExtResource("pk_ceiling_troffer")]
+transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, -4.0000, 3.0000, -14.5000)
+
+[node name="TrofferLamp30_light" type="Node3D" parent="Props"]
+script = ExtResource("s_lightobj")
+visible_in_light = 1
+
+[node name="TrofferLamp30" parent="Props/TrofferLamp30_light" instance=ExtResource("pk_troffer_lamp")]
+transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, -4.0000, 3.0000, -14.5000)
+
+[node name="CeilingTroffer31" parent="Props" instance=ExtResource("pk_ceiling_troffer")]
+transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, 4.0000, 3.0000, -18.0000)
+
+[node name="TrofferLamp32_light" type="Node3D" parent="Props"]
+script = ExtResource("s_lightobj")
+visible_in_light = 1
+
+[node name="TrofferLamp32" parent="Props/TrofferLamp32_light" instance=ExtResource("pk_troffer_lamp")]
+transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, 4.0000, 3.0000, -18.0000)
+
+[node name="CeilingTroffer33" parent="Props" instance=ExtResource("pk_ceiling_troffer")]
+transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, -4.0000, 3.0000, -18.5000)
+
+[node name="TrofferLamp34_light" type="Node3D" parent="Props"]
+script = ExtResource("s_lightobj")
+visible_in_light = 1
+
+[node name="TrofferLamp34" parent="Props/TrofferLamp34_light" instance=ExtResource("pk_troffer_lamp")]
+transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, -4.0000, 3.0000, -18.5000)
+
+[node name="CeilingTroffer35" parent="Props" instance=ExtResource("pk_ceiling_troffer")]
+transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, 0.0000, 3.0000, -22.0000)
+
+[node name="TrofferLamp36_light" type="Node3D" parent="Props"]
+script = ExtResource("s_lightobj")
+visible_in_light = 1
+
+[node name="TrofferLamp36" parent="Props/TrofferLamp36_light" instance=ExtResource("pk_troffer_lamp")]
+transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, 0.0000, 3.0000, -22.0000)
+
+[node name="CeilingTroffer37" parent="Props" instance=ExtResource("pk_ceiling_troffer")]
+transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, 0.0000, 3.0000, -25.5000)
+
+[node name="TrofferLamp38_light" type="Node3D" parent="Props"]
+script = ExtResource("s_lightobj")
+visible_in_light = 1
+
+[node name="TrofferLamp38" parent="Props/TrofferLamp38_light" instance=ExtResource("pk_troffer_lamp")]
+transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, 0.0000, 3.0000, -25.5000)
 
 [node name="Lights" type="Node3D" parent="."]
 

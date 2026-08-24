@@ -4712,6 +4712,21 @@ def room17():
         (4, 4, 2.7), (-5, 6, 2.7), (-4, 0, 2.7), (0, -4, 2.7),   # pocket
         (5, 7, 5.7), (0, 1, 5.7), (-4, -4, 5.7),            # gallery
     ])
+
+    # --- set dressing --------------------------------------------------------
+    # COLLIDER-FREE. Room 17 is the only room with genuinely STACKED levels, and
+    # every collider here has to declare which level it belongs to or it blocks
+    # the floor beneath the gallery as well. Dressing that carries no collider
+    # sidesteps that entirely; anything solid up here should be authored with an
+    # explicit `level=` by someone who has read the verticality section of
+    # KIT_REFERENCE.md.
+    r.model("missing_ceiling_tile", (-3.0, 20.0))
+    r.model("missing_ceiling_tile", (4.0, 6.0), name="TileB17")
+    r.model("hanging_cable", (1.0, 14.0))
+    r.model("paper_scatter", (-5.0, 24.0))
+    r.model("plaster_rubble", (6.2, 10.0))
+    r.model("wall_stain", (8.88, 18.0), facing="nx")
+
     return r
 
 # --- ROOM 15 — the Sorting Room --------------------------------------------
@@ -4858,19 +4873,43 @@ def room15():
     # room10's lesson, verified by screenshot there and here: an unlit recess
     # renders as a pure black void, and everything shaded inside it vanishes —
     # which for this room would mean the key prop the player is hunting.
-    r.light(0, 4)
-    r.light(0, 0)
-    r.light(-6, -2.5)
-    r.light(6, -2.5)
-    r.light(0, -6.5)
-    r.light(-4, -10)
-    r.light(6, -10)
-    r.light(0, -14)
-    r.light(-4, -14.5)
-    r.light(4, -18)
-    r.light(-4, -18.5)
-    r.light(0, -22)
-    r.light(0, -25.5)
+    # --- set dressing --------------------------------------------------------
+    # FIVE patrol routes here — the most in the game — but all five clear by
+    # 1.28m or better, so there is genuine room. Solid kit still hugs the
+    # perimeter walls and the two end chambers; the open floor between the legs
+    # is left alone, because that is where all five routes converge.
+    r.prop_run("skirting", "x", -9, 9, 5.88)
+    r.prop_run("skirting", "z", -1.8, 6, -8.88)
+    r.prop_run("skirting", "z", -9.2, 6, 8.88)
+    r.prop_run("bumper_rail", "z", -1.6, 5.6, -8.88)
+
+    r.model("utility_shelf_unit", (-8.4, 3.6), facing="px")
+    r.model("filing_cabinet", (8.5, 4.2), facing="nx", name="SortFileA")
+    r.model("filing_cabinet", (8.5, 3.4), facing="nx", name="SortFileB")
+    r.model("paper_scatter", (-5.0, 1.2))
+    r.model("paper_scatter", (3.4, -5.6), facing=0.8, name="SortPaperB")
+    r.model("binder_stack", (7.9, 1.4))
+    r.model("reg_notice", (-8.88, 1.0), facing="px")
+    r.model("wall_clock", (5.0, 5.88), facing="nz")
+    r.model("light_switch", (-2.0, 5.88), facing="nz")
+    r.model("missing_ceiling_tile", (2.0, -8.0))
+    r.model("hanging_cable", (-3.0, -16.0))
+    r.model("wall_stain", (8.88, -6.0), facing="nx")
+    r.model("exit_sign", (1.6, -26.88), facing="pz")
+
+    r.light_fitting(0, 4)
+    r.light_fitting(0, 0)
+    r.light_fitting(-6, -2.5)
+    r.light_fitting(6, -2.5)
+    r.light_fitting(0, -6.5)
+    r.light_fitting(-4, -10)
+    r.light_fitting(6, -10)
+    r.light_fitting(0, -14)
+    r.light_fitting(-4, -14.5)
+    r.light_fitting(4, -18)
+    r.light_fitting(-4, -18.5)
+    r.light_fitting(0, -22)
+    r.light_fitting(0, -25.5)
     r.light(-10.1, -0.9)          # Key A's leg2
     r.light(10.1, -11.7)          # Key B's leg2
     r.light(-10.1, -19.7)         # Key C's leg2
@@ -4975,6 +5014,20 @@ def room18():
                    "door", "the relay door", facing="pz")
 
     r.ward_lights([(0, 4), (-4.6, 3.4), (-3, -0.5), (3, -0.5), (0, -5), (0, -8.6)])
+
+    # --- set dressing --------------------------------------------------------
+    # COLLIDER-FREE. The relay room's whole beat is two levers and a corridor an
+    # orderly is confined to; the header records a DISPENSER SIGHTLINE audit
+    # (the west wall must stand between every patrol point and dispenser19).
+    # Props cannot help that audit and could only complicate it, so nothing here
+    # occupies floor.
+    r.prop_run("skirting", "x", -6, 6, 4.88)
+    r.model("cable_tray", (0.0, -2.0), facing="nx")
+    r.model("hanging_cable", (-2.6, 1.0))
+    r.model("wall_stain", (5.88, 0.0), facing="nx")
+    r.model("paper_scatter", (3.0, 2.4))
+    r.model("plaster_rubble", (-4.4, -6.0))
+
     return r
 
 
@@ -5067,6 +5120,18 @@ def room19_doors():
     r.light(-4.5, 3)
     r.light(1.0, 3)
     r.light(-4.5, 0.6)
+
+    # --- set dressing --------------------------------------------------------
+    # COLLIDER-FREE, and the header explains why that matters more here than
+    # anywhere: this room's archway was deliberately narrowed to x -4 so that
+    # every in-range patrol point's sightline to dispenser19 passes through
+    # solid wall. Floor props cannot be trusted near a sightline audit that
+    # precise, so this is ceiling and litter only.
+    r.model("missing_ceiling_tile", (-2.0, 1.0))
+    r.model("hanging_cable", (2.0, -3.0))
+    r.model("paper_scatter", (4.0, 2.0))
+    r.model("plaster_rubble", (-5.0, -5.0))
+
     return r
 
 
@@ -5177,6 +5242,14 @@ def room19_lights():
     # Confirmed by screenshot, both before and after.
     r.ward_lights([(-2.5, 3), (-1, 0.5), (3, 0.5), (5.75, -1.8), (1.5, -4.5),
                   (-4, -3), (-1, -6), (4.5, -4.5), (4.5, -7)])
+
+    # --- set dressing --------------------------------------------------------
+    # COLLIDER-FREE — same undercroft, same sightline audit as room19_doors.
+    r.model("missing_ceiling_tile", (3.0, -1.0))
+    r.model("hanging_cable", (-3.0, 1.5))
+    r.model("paper_scatter", (-4.5, -4.0))
+    r.model("plaster_rubble", (5.2, 2.0))
+
     return r
 
 # --- ROOM 20 — the Loading Bay -----------------------------------------------
@@ -5299,17 +5372,40 @@ def room20():
     r.interactable("gate2", "door", (1, 3, 0.2), (0, 1.5, -16),
                    "door", "the gate", facing="pz")
 
-    r.light(0, 4)
-    r.light(0, 0.5)
-    r.light(-3, -3)
-    r.light(3, -3)
-    r.light(-3, -8)
-    r.light(3, -8)
-    r.light(0, -11)
-    r.light(-3, -13)
-    r.light(3, -13)
-    r.light(0, -15.5)
-    r.light(0, -17.5)
+    # --- set dressing --------------------------------------------------------
+    # A loading bay, so: shelving, carts, litter. Two patrol routes, both
+    # clearing 0.88m, and the room's push blocks can be shoved along the middle
+    # — so every solid here sits against the south or side walls, out of both
+    # the routes and the blocks' travel.
+    r.prop_run("skirting", "x", -6, 6, 5.88)
+    r.prop_run("skirting", "z", -19, 6, -5.88)
+    r.prop_run("skirting", "z", -19, 6, 5.88)
+    r.prop_run("ceiling_conduit", "z", -16, 4, -4.4, facing="nx")
+
+    r.model("utility_shelf_unit", (-5.3, 4.4), facing="px")
+    r.model("linen_cart", (5.4, 4.6), facing="nx")
+    r.model("waste_bin", (-5.2, 2.2))
+    r.model("plaster_rubble", (4.6, -6.0))
+    r.model("paper_scatter", (-3.8, -10.5))
+    r.model("ward_sign", (-5.88, 3.0), facing="px", text="LOADING")
+    r.model("exit_sign", (1.6, -18.88), facing="pz")
+    r.model("fire_alarm_point", (5.88, 1.2), facing="nx")
+    r.model("wall_stain", (-5.88, -12.0), facing="px")
+    r.model("fallen_plaster_patch", (5.88, -14.0), facing="nx")
+    r.model("missing_ceiling_tile", (-2.4, -5.0))
+    r.model("hanging_cable", (2.0, -12.0))
+
+    r.light_fitting(0, 4)
+    r.light_fitting(0, 0.5)
+    r.light_fitting(-3, -3)
+    r.light_fitting(3, -3)
+    r.light_fitting(-3, -8)
+    r.light_fitting(3, -8)
+    r.light_fitting(0, -11)
+    r.light_fitting(-3, -13)
+    r.light_fitting(3, -13)
+    r.light_fitting(0, -15.5)
+    r.light_fitting(0, -17.5)
     return r
 
 # --- ROOM 16 — the Breaker Bay ----------------------------------------------
@@ -5511,6 +5607,20 @@ def room16():
     r.ward_lights([(0, 4), (0, 0), (-3, -4), (3, -4), (-3, -8), (3, -8),
                    (-3, -11), (3, -11), (0, -15), (-10.0, -8.0), (10.0, -4.0)],
                   circuit="bay")
+
+    # --- set dressing --------------------------------------------------------
+    # COLLIDER-FREE, deliberately. This is the light-axis room: its whole design
+    # rests on a soft-lock audit that a 0-pill unmed player can always walk back
+    # to a dispenser IN EITHER LIGHT STATE. New solids change reachable space,
+    # and darkness is not allowed to change geometry, so nothing here blocks.
+    r.prop_run("skirting", "x", -8, 8, 5.88)
+    r.model("cable_tray", (-2.0, -6.0), facing="nx")
+    r.model("hanging_cable", (2.4, -3.0))
+    r.model("missing_ceiling_tile", (-3.4, 0.5))
+    r.model("wall_stain", (7.88, 3.0), facing="nx")
+    r.model("plaster_rubble", (5.0, 4.2))
+    r.model("paper_scatter", (-4.6, 1.8))
+
     return r
 
 

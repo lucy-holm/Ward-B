@@ -1,4 +1,4 @@
-[gd_scene load_steps=59 format=3 uid="uid://wardbroomc57f0a9"]
+[gd_scene load_steps=64 format=3 uid="uid://wardbroomc57f0a9"]
 
 [ext_resource type="Script" path="res://rooms/room17/room17.gd" id="s_room"]
 [ext_resource type="Material" uid="uid://wardbmatd0cabd0" path="res://materials/floor.tres" id="m_floor"]
@@ -13,6 +13,11 @@
 [ext_resource type="PackedScene" path="res://fixtures/keypad.tscn" id="fx_keypad"]
 [ext_resource type="PackedScene" path="res://fixtures/door.tscn" id="fx_door"]
 [ext_resource type="Script" path="res://core/interactable.gd" id="s_interactable"]
+[ext_resource type="PackedScene" path="res://props/missing_ceiling_tile.tscn" id="pk_missing_ceiling_tile"]
+[ext_resource type="PackedScene" path="res://props/hanging_cable.tscn" id="pk_hanging_cable"]
+[ext_resource type="PackedScene" path="res://props/paper_scatter.tscn" id="pk_paper_scatter"]
+[ext_resource type="PackedScene" path="res://props/plaster_rubble.tscn" id="pk_plaster_rubble"]
+[ext_resource type="PackedScene" path="res://props/wall_stain.tscn" id="pk_wall_stain"]
 [ext_resource type="Script" path="res://core/room_exit.gd" id="s_exit"]
 
 [sub_resource type="BoxMesh" id="bm_0"]
@@ -650,6 +655,26 @@ shape = SubResource("bs_9")
 
 [node name="Model" parent="Interactables/exitdoor" instance=ExtResource("fx_door")]
 transform = Transform3D(1.00000, 0, 0, 0, 1.00000, 0, 0, 0, 1.00000, 0.0000, 0.0000, 0.0000)
+
+[node name="Props" type="Node3D" parent="."]
+
+[node name="MissingCeilingTile0" parent="Props" instance=ExtResource("pk_missing_ceiling_tile")]
+transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, -3.0000, 6.0000, 20.0000)
+
+[node name="TileB17" parent="Props" instance=ExtResource("pk_missing_ceiling_tile")]
+transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, 4.0000, 6.0000, 6.0000)
+
+[node name="HangingCable2" parent="Props" instance=ExtResource("pk_hanging_cable")]
+transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, 1.0000, 6.0000, 14.0000)
+
+[node name="PaperScatter3" parent="Props" instance=ExtResource("pk_paper_scatter")]
+transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, -5.0000, 0.0000, 24.0000)
+
+[node name="PlasterRubble4" parent="Props" instance=ExtResource("pk_plaster_rubble")]
+transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, 6.2000, 0.0000, 10.0000)
+
+[node name="WallStain5" parent="Props" instance=ExtResource("pk_wall_stain")]
+transform = Transform3D(0.000000, 0, 1.000000, 0, 1, 0, -1.000000, 0, 0.000000, 8.8800, 2.6000, 18.0000)
 
 [node name="Lights" type="Node3D" parent="."]
 

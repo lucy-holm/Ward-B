@@ -168,7 +168,15 @@ const STEP_EPSILON := 0.0005
 # catch the light on him.
 const UNIFORM_BASE := Color(0.46, 0.44, 0.39)    # soiled bone-tan cloth, light-absorbing
 const UNIFORM_GRIME := Color(0.16, 0.13, 0.09)   # darker, greyer stain (less orange)
-const SKIN_BASE := Color(0.50, 0.47, 0.43)       # waxy dead skin — cooler than the cloth
+# FIX (2026-08 concept-sheet polish pass): was Color(0.50, 0.47, 0.43),
+# commented "cooler than the cloth" but numerically almost identical to
+# UNIFORM_BASE and, if anything, slightly LIGHTER — the opposite of the
+# brief's "hands are bare, long-fingered and grey-toned — noticeably darker
+# than the uniform." Sampled pixels off an actual render confirmed it: the
+# hands came out visibly BRIGHTER than the sleeve they emerge from. Dropped
+# and desaturated toward neutral grey so bare skin now reads as a distinct,
+# darker material against the cloth instead of blending into the cuff.
+const SKIN_BASE := Color(0.34, 0.34, 0.33)       # waxy dead skin — grey, darker than the cloth
 const SKIN_GRIME := Color(0.18, 0.14, 0.11)
 const SHOE_BASE := Color(0.24, 0.22, 0.19)       # worn dark leather, near-black in gloom
 const SHOE_GRIME := Color(0.10, 0.07, 0.05)
@@ -346,11 +354,24 @@ func _build_body() -> void:
 	# Lofted mandarin collar (MESH_COLLAR, see gen_orderly_meshes.gd's
 	# _build_collar) — a short tube standing off the neck with a front
 	# opening, replacing the old plain CylinderMesh (which had no gap and
-	# read as a closed ring, not a jacket collar). Same position the old
-	# cylinder used.
+	# read as a closed ring, not a jacket collar).
+	#
+	# FIX (2026-08 concept-sheet polish pass): y was 0.02, "the old cylinder's
+	# position" per a since-stale comment — stale because gen_orderly_meshes.gd's
+	# _build_torso FIDELITY PASS later added three extra top rings that taper
+	# the torso mesh's own surface UP to about 0.148*TORSO_H above this pivot
+	# (that generator's comment says as much: "the neck cylinder's own base is
+	# hidden inside this taper and only emerges where the taper has shrunk
+	# below the neck's own radius"), but nothing here moved the collar to
+	# match. At y=0.02 the collar sat ~0.10m *inside* the torso's own taper —
+	# entombed in cloth, invisible from every angle the preview harness shot
+	# (confirmed: front/side/collar-closeup renders all showed bare shoulder
+	# blending straight into the head, no collar, no neck). 0.128 sits just
+	# above where that taper has narrowed to roughly NECK_R, which is exactly
+	# the "emerges here" point the torso generator's own comment describes.
 	var collar := MeshInstance3D.new()
 	collar.mesh = MESH_COLLAR
-	collar.position.y = 0.02
+	collar.position.y = 0.128
 	collar.material_override = cloth_clean
 	_neck_pivot.add_child(collar)
 

@@ -885,8 +885,14 @@ func _build_head() -> ArrayMesh:
 		# Faint brow ridge.
 		{kind = "bump", center_t = 0.66, width_t = 0.05, center_theta = FRONT, width_theta = 0.85, amp = 0.006},
 		# Sunken, closed eye sockets, either side of the brow.
-		{kind = "bump", center_t = 0.605, width_t = 0.045, center_theta = FRONT - 0.34, width_theta = 0.20, amp = -0.007},
-		{kind = "bump", center_t = 0.605, width_t = 0.045, center_theta = FRONT + 0.34, width_theta = 0.20, amp = -0.007},
+		# 2026-08 concept-sheet polish pass: -0.007 -> -0.0035. This geometric
+		# dip self-shadows on top of orderly_body.gdshader's own socket tint
+		# (see that shader's matching comment) — at -0.007 the two effects
+		# compounded into a pair of crisp dark discs that read as literal
+		# eyeballs on a "featureless... no eyes" head. Halved so the sunken
+		# suggestion survives without doing the shader's job twice.
+		{kind = "bump", center_t = 0.605, width_t = 0.045, center_theta = FRONT - 0.34, width_theta = 0.20, amp = -0.0035},
+		{kind = "bump", center_t = 0.605, width_t = 0.045, center_theta = FRONT + 0.34, width_theta = 0.20, amp = -0.0035},
 		# Faint nose ridge — tall and angularly narrow, so it reads as a
 		# vertical line rather than a round bump.
 		{kind = "bump", center_t = 0.55, width_t = 0.13, center_theta = FRONT, width_theta = 0.12, amp = 0.008},

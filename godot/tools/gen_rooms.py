@@ -3939,6 +3939,29 @@ def room13():
     r.scrawl("it lets you out.\nit just wanted to see you choose.",
              (-3.85, 1.6, -27), math.pi / 2, 2.4)
 
+    # --- set dressing --------------------------------------------------------
+    # ALMOST NOTHING, BY DESIGN — and not the usual patrol reason. The two
+    # slabs SWEEP the entire stretch z [-24, 16]: their inner faces travel from
+    # x 4.25 in to x 0.5, so anything placed in that volume — trim on the
+    # perimeter walls included, which sit BEHIND the slabs and only exist to cap
+    # the volume — is either hidden inside a mover or ploughed through by one
+    # mid-squeeze. A skirting board emerging from a wall that is currently
+    # crushing you is a comedy beat, not a horror one.
+    #
+    # So the squeeze stretch stays exactly as bare as the scrawl says ("nothing
+    # left to take"), and the dressing sits in the two FIXED ends only.
+    r.prop_run("skirting", "x", -4, 4, 21.88)
+    r.prop_run("skirting", "z", 16.2, 22, -3.88)
+    r.prop_run("skirting", "z", 16.2, 22, 3.88)
+    r.model("taped_notes", (-3.88, 20.4), facing="px")
+    r.model("light_switch", (3.88, 20.8), facing="nx")
+
+    r.prop_run("skirting", "z", -30, -24.2, -3.88)
+    r.prop_run("skirting", "z", -30, -24.2, 3.88)
+    r.model("wall_stain", (3.88, -27.5), facing="nx")
+    r.model("fire_alarm_point", (-3.88, -29.2), facing="px")
+    r.model("exit_sign", (1.5, -29.88), facing="pz")
+
     r.ward_lights([(0, z) for z in
                   (20, 16, 10, 4, -2, -8, -14, -20, -24, -26, -29)])
     return r
@@ -4129,6 +4152,44 @@ def room11():
     # --- lights ------------------------------------------------------------
     # Two of these (z=12 and z=-10) sit on a gate's plane by design — see
     # room11.gd's header for the shadow audit.
+    # --- set dressing --------------------------------------------------------
+    # THE TREATMENT ROOM, so the medical props live here. Two patrols to
+    # respect: A on the low west floor (x -8..-6, z -3..5) and B ON THE
+    # MEZZANINE (x 2, z 1.2..6.8, at MEZZ_Y) — so the mezz gets nothing solid
+    # west of x 3.2, and the west lane gets nothing solid at all.
+    # check_patrols validates both routes; it is why these placements can be
+    # trusted rather than hoped about.
+    r.prop_run("skirting", "x", -9, 9, 21.88)
+    r.prop_run("skirting", "z", 12.2, 22, -8.88)
+    r.prop_run("skirting", "z", 12.2, 22, 8.88)
+    r.prop_run("skirting", "z", -18, -10.2, -8.88)
+    r.prop_run("skirting", "z", -18, -10.2, 8.88)
+
+    # Entry hall (z 12..22): the triage end. The west wall's two scrawls sit at
+    # z 17 and 20, so the solid kit keeps east and south.
+    r.model("dressings_trolley", (7.9, 19.6), facing="nx")
+    r.model("wheelchair", (-7.9, 14.3), facing="px")
+    r.model("privacy_curtain", (4.0, 13.2), facing="nz")
+    r.model("hoist_track", (0, 18.0))
+    r.model("hoist_track", (0, 16.0), name="HoistTrackB")
+    r.model("drip_bag", (8.88, 19.4), facing="nx")
+    r.model("cabinet_header", (8.88, 17.9), facing="nx")
+    r.model("light_switch", (-2.55, 12.12), facing="pz")
+    r.model("taped_notes", (-8.88, 15.2), facing="px")
+
+    # The mezzanine (floor y 0.9): dressing east of patrol B's lane only.
+    r.model("vitals_monitor", (7.6, 6.6), y=0.9, facing="nx")
+    r.model("linen_cart", (7.6, 1.6), y=0.9, facing="nx")
+    r.model("wall_stain", (8.88, 3.0), facing="nx")
+
+    # Exit chamber (z -18..-10): no patrol reaches it — the safe room.
+    r.model("locker_bank", (-8.4, -12.6), facing="px")
+    r.model("waste_bin", (-7.9, -16.6))
+    r.model("exit_sign", (1.6, -17.88), facing="pz")
+    r.model("fire_alarm_point", (-2.0, -17.88), facing="pz")
+    r.model("missing_ceiling_tile", (4.0, -14.0))
+    r.model("paper_scatter", (5.2, -12.0))
+
     r.ward_lights([(0, 20), (0, 16), (0, 12), (-7, 8), (-7, 1), (-7, -6),
                   (5, 6), (5, 2), (0, -10), (0, -14), (0, -17)])
     return r
@@ -4223,12 +4284,34 @@ def room14():
     r.interactable("gate14", "door", (2, 3, 0.2), (0, 1.5, -14),
                    "door", "the gate", facing="pz")
 
-    r.light(0, 6)
-    r.light(0, 1)
-    r.light(0, -4)
-    r.light(3, -12)
-    r.light(-3, -12)
-    r.light(0, -15.5)
+    # --- set dressing --------------------------------------------------------
+    # The patrol runs x -4.2..4.2 at z -11.9, straight across the plate zone,
+    # and the push block starts at (3, -13) — so all solid dressing stays SOUTH
+    # of z -8, well clear of both the route and anywhere the block can be
+    # pushed. The Hold is a cell block in character: bars, a bench, not a ward.
+    r.prop_run("skirting", "x", -5, 5, 8.88)
+    r.prop_run("skirting", "z", -13.8, 9, -4.88)
+    r.prop_run("skirting", "z", -13.8, 9, 4.88)
+    r.prop_run("bumper_rail", "z", -8, 8.6, 4.88)
+
+    r.model("beam_seating", (2.4, 8.5), facing="nz")
+    r.model("barred_window", (-4.88, 4.6), facing="px")
+    r.model("radiator", (4.88, 2.2), facing="nx")
+    r.model("grab_rail", (-4.88, -0.6), facing="px")
+    r.model("wall_stain", (4.88, -6.0), facing="nx")
+    r.model("fallen_plaster_patch", (-4.88, -7.4), facing="px")
+    r.model("plaster_rubble", (-4.3, -7.4))
+    r.model("missing_ceiling_tile", (1.8, -6.2))
+    r.model("hanging_cable", (-1.6, -9.0))
+    r.model("exit_sign", (1.5, -13.88), facing="pz")
+    r.model("light_switch", (-1.4, 8.88), facing="nz")
+
+    r.light_fitting(0, 6)
+    r.light_fitting(0, 1)
+    r.light_fitting(0, -4)
+    r.light_fitting(3, -12)
+    r.light_fitting(-3, -12)
+    r.light_fitting(0, -15.5)
     return r
 
 

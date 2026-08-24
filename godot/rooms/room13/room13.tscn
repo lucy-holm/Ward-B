@@ -1,4 +1,4 @@
-[gd_scene load_steps=26 format=3 uid="uid://wardbroomc57f0a5"]
+[gd_scene load_steps=44 format=3 uid="uid://wardbroomc57f0a5"]
 
 [ext_resource type="Script" path="res://rooms/room13/room13.gd" id="s_room"]
 [ext_resource type="Material" uid="uid://wardbmatd0cabd0" path="res://materials/floor.tres" id="m_floor"]
@@ -8,6 +8,14 @@
 [ext_resource type="Material" uid="uid://wardbmatde9ba6d" path="res://materials/glow.tres" id="m_glow"]
 [ext_resource type="Script" path="res://core/state_object.gd" id="s_stateobj"]
 [ext_resource type="FontFile" path="res://fonts/RockSalt-Regular.ttf" id="f_scrawl"]
+[ext_resource type="ArrayMesh" path="res://props/meshes/box_2000x100x20_b40.tres" id="am_box_2000x100x20_b40"]
+[ext_resource type="Material" path="res://props/trim_mat.tres" id="pm_trim"]
+[ext_resource type="ArrayMesh" path="res://props/meshes/box_2000x24x28_b60.tres" id="am_box_2000x24x28_b60"]
+[ext_resource type="PackedScene" path="res://props/taped_notes.tscn" id="pk_taped_notes"]
+[ext_resource type="PackedScene" path="res://props/light_switch.tscn" id="pk_light_switch"]
+[ext_resource type="PackedScene" path="res://props/wall_stain.tscn" id="pk_wall_stain"]
+[ext_resource type="PackedScene" path="res://props/fire_alarm_point.tscn" id="pk_fire_alarm_point"]
+[ext_resource type="PackedScene" path="res://props/exit_sign.tscn" id="pk_exit_sign"]
 [ext_resource type="Script" path="res://core/room_exit.gd" id="s_exit"]
 
 [sub_resource type="BoxMesh" id="bm_0"]
@@ -63,6 +71,66 @@ size = Vector3(3.5000, 3.0000, 40.0000)
 [sub_resource type="BoxMesh" id="bm_8"]
 size = Vector3(3.5000, 3.0000, 40.0000)
 material = ExtResource("m_wall2")
+
+[sub_resource type="MultiMesh" id="mm_skirtingrun0_0"]
+transform_format = 1
+instance_count = 4
+mesh = ExtResource("am_box_2000x100x20_b40")
+buffer = PackedFloat32Array(1.0000, 0.0000, 0.0000, -3.0000, 0.0000, 1.0000, 0.0000, 0.0500, 0.0000, 0.0000, 1.0000, 21.8700, 1.0000, 0.0000, 0.0000, -1.0000, 0.0000, 1.0000, 0.0000, 0.0500, 0.0000, 0.0000, 1.0000, 21.8700, 1.0000, 0.0000, 0.0000, 1.0000, 0.0000, 1.0000, 0.0000, 0.0500, 0.0000, 0.0000, 1.0000, 21.8700, 1.0000, 0.0000, 0.0000, 3.0000, 0.0000, 1.0000, 0.0000, 0.0500, 0.0000, 0.0000, 1.0000, 21.8700)
+
+[sub_resource type="MultiMesh" id="mm_skirtingrun0_1"]
+transform_format = 1
+instance_count = 4
+mesh = ExtResource("am_box_2000x24x28_b60")
+buffer = PackedFloat32Array(1.0000, 0.0000, 0.0000, -3.0000, 0.0000, 1.0000, 0.0000, 0.1120, 0.0000, 0.0000, 1.0000, 21.8660, 1.0000, 0.0000, 0.0000, -1.0000, 0.0000, 1.0000, 0.0000, 0.1120, 0.0000, 0.0000, 1.0000, 21.8660, 1.0000, 0.0000, 0.0000, 1.0000, 0.0000, 1.0000, 0.0000, 0.1120, 0.0000, 0.0000, 1.0000, 21.8660, 1.0000, 0.0000, 0.0000, 3.0000, 0.0000, 1.0000, 0.0000, 0.1120, 0.0000, 0.0000, 1.0000, 21.8660)
+
+[sub_resource type="MultiMesh" id="mm_skirtingrun2_0"]
+transform_format = 1
+instance_count = 3
+mesh = ExtResource("am_box_2000x100x20_b40")
+buffer = PackedFloat32Array(0.0000, 0.0000, -1.0000, -3.8700, 0.0000, 1.0000, 0.0000, 0.0500, 1.0000, 0.0000, 0.0000, 17.1000, 0.0000, 0.0000, -1.0000, -3.8700, 0.0000, 1.0000, 0.0000, 0.0500, 1.0000, 0.0000, 0.0000, 19.1000, 0.0000, 0.0000, -1.0000, -3.8700, 0.0000, 1.0000, 0.0000, 0.0500, 1.0000, 0.0000, 0.0000, 21.1000)
+
+[sub_resource type="MultiMesh" id="mm_skirtingrun2_1"]
+transform_format = 1
+instance_count = 3
+mesh = ExtResource("am_box_2000x24x28_b60")
+buffer = PackedFloat32Array(0.0000, 0.0000, -1.0000, -3.8660, 0.0000, 1.0000, 0.0000, 0.1120, 1.0000, 0.0000, 0.0000, 17.1000, 0.0000, 0.0000, -1.0000, -3.8660, 0.0000, 1.0000, 0.0000, 0.1120, 1.0000, 0.0000, 0.0000, 19.1000, 0.0000, 0.0000, -1.0000, -3.8660, 0.0000, 1.0000, 0.0000, 0.1120, 1.0000, 0.0000, 0.0000, 21.1000)
+
+[sub_resource type="MultiMesh" id="mm_skirtingrun4_0"]
+transform_format = 1
+instance_count = 3
+mesh = ExtResource("am_box_2000x100x20_b40")
+buffer = PackedFloat32Array(0.0000, 0.0000, 1.0000, 3.8700, 0.0000, 1.0000, 0.0000, 0.0500, -1.0000, 0.0000, 0.0000, 17.1000, 0.0000, 0.0000, 1.0000, 3.8700, 0.0000, 1.0000, 0.0000, 0.0500, -1.0000, 0.0000, 0.0000, 19.1000, 0.0000, 0.0000, 1.0000, 3.8700, 0.0000, 1.0000, 0.0000, 0.0500, -1.0000, 0.0000, 0.0000, 21.1000)
+
+[sub_resource type="MultiMesh" id="mm_skirtingrun4_1"]
+transform_format = 1
+instance_count = 3
+mesh = ExtResource("am_box_2000x24x28_b60")
+buffer = PackedFloat32Array(0.0000, 0.0000, 1.0000, 3.8660, 0.0000, 1.0000, 0.0000, 0.1120, -1.0000, 0.0000, 0.0000, 17.1000, 0.0000, 0.0000, 1.0000, 3.8660, 0.0000, 1.0000, 0.0000, 0.1120, -1.0000, 0.0000, 0.0000, 19.1000, 0.0000, 0.0000, 1.0000, 3.8660, 0.0000, 1.0000, 0.0000, 0.1120, -1.0000, 0.0000, 0.0000, 21.1000)
+
+[sub_resource type="MultiMesh" id="mm_skirtingrun6_0"]
+transform_format = 1
+instance_count = 3
+mesh = ExtResource("am_box_2000x100x20_b40")
+buffer = PackedFloat32Array(0.0000, 0.0000, -1.0000, -3.8700, 0.0000, 1.0000, 0.0000, 0.0500, 1.0000, 0.0000, 0.0000, -29.1000, 0.0000, 0.0000, -1.0000, -3.8700, 0.0000, 1.0000, 0.0000, 0.0500, 1.0000, 0.0000, 0.0000, -27.1000, 0.0000, 0.0000, -1.0000, -3.8700, 0.0000, 1.0000, 0.0000, 0.0500, 1.0000, 0.0000, 0.0000, -25.1000)
+
+[sub_resource type="MultiMesh" id="mm_skirtingrun6_1"]
+transform_format = 1
+instance_count = 3
+mesh = ExtResource("am_box_2000x24x28_b60")
+buffer = PackedFloat32Array(0.0000, 0.0000, -1.0000, -3.8660, 0.0000, 1.0000, 0.0000, 0.1120, 1.0000, 0.0000, 0.0000, -29.1000, 0.0000, 0.0000, -1.0000, -3.8660, 0.0000, 1.0000, 0.0000, 0.1120, 1.0000, 0.0000, 0.0000, -27.1000, 0.0000, 0.0000, -1.0000, -3.8660, 0.0000, 1.0000, 0.0000, 0.1120, 1.0000, 0.0000, 0.0000, -25.1000)
+
+[sub_resource type="MultiMesh" id="mm_skirtingrun8_0"]
+transform_format = 1
+instance_count = 3
+mesh = ExtResource("am_box_2000x100x20_b40")
+buffer = PackedFloat32Array(0.0000, 0.0000, 1.0000, 3.8700, 0.0000, 1.0000, 0.0000, 0.0500, -1.0000, 0.0000, 0.0000, -29.1000, 0.0000, 0.0000, 1.0000, 3.8700, 0.0000, 1.0000, 0.0000, 0.0500, -1.0000, 0.0000, 0.0000, -27.1000, 0.0000, 0.0000, 1.0000, 3.8700, 0.0000, 1.0000, 0.0000, 0.0500, -1.0000, 0.0000, 0.0000, -25.1000)
+
+[sub_resource type="MultiMesh" id="mm_skirtingrun8_1"]
+transform_format = 1
+instance_count = 3
+mesh = ExtResource("am_box_2000x24x28_b60")
+buffer = PackedFloat32Array(0.0000, 0.0000, 1.0000, 3.8660, 0.0000, 1.0000, 0.0000, 0.1120, -1.0000, 0.0000, 0.0000, -29.1000, 0.0000, 0.0000, 1.0000, 3.8660, 0.0000, 1.0000, 0.0000, 0.1120, -1.0000, 0.0000, 0.0000, -27.1000, 0.0000, 0.0000, 1.0000, 3.8660, 0.0000, 1.0000, 0.0000, 0.1120, -1.0000, 0.0000, 0.0000, -25.1000)
 
 [sub_resource type="BoxShape3D" id="bs_6"]
 size = Vector3(2.0000, 3.0000, 1.1000)
@@ -257,6 +325,65 @@ billboard = 0
 shaded = false
 double_sided = false
 no_depth_test = false
+
+[node name="PropRuns" type="Node3D" parent="."]
+
+[node name="SkirtingRun0_0" type="MultiMeshInstance3D" parent="PropRuns"]
+multimesh = SubResource("mm_skirtingrun0_0")
+material_override = ExtResource("pm_trim")
+
+[node name="SkirtingRun0_1" type="MultiMeshInstance3D" parent="PropRuns"]
+multimesh = SubResource("mm_skirtingrun0_1")
+material_override = ExtResource("pm_trim")
+
+[node name="SkirtingRun2_0" type="MultiMeshInstance3D" parent="PropRuns"]
+multimesh = SubResource("mm_skirtingrun2_0")
+material_override = ExtResource("pm_trim")
+
+[node name="SkirtingRun2_1" type="MultiMeshInstance3D" parent="PropRuns"]
+multimesh = SubResource("mm_skirtingrun2_1")
+material_override = ExtResource("pm_trim")
+
+[node name="SkirtingRun4_0" type="MultiMeshInstance3D" parent="PropRuns"]
+multimesh = SubResource("mm_skirtingrun4_0")
+material_override = ExtResource("pm_trim")
+
+[node name="SkirtingRun4_1" type="MultiMeshInstance3D" parent="PropRuns"]
+multimesh = SubResource("mm_skirtingrun4_1")
+material_override = ExtResource("pm_trim")
+
+[node name="SkirtingRun6_0" type="MultiMeshInstance3D" parent="PropRuns"]
+multimesh = SubResource("mm_skirtingrun6_0")
+material_override = ExtResource("pm_trim")
+
+[node name="SkirtingRun6_1" type="MultiMeshInstance3D" parent="PropRuns"]
+multimesh = SubResource("mm_skirtingrun6_1")
+material_override = ExtResource("pm_trim")
+
+[node name="SkirtingRun8_0" type="MultiMeshInstance3D" parent="PropRuns"]
+multimesh = SubResource("mm_skirtingrun8_0")
+material_override = ExtResource("pm_trim")
+
+[node name="SkirtingRun8_1" type="MultiMeshInstance3D" parent="PropRuns"]
+multimesh = SubResource("mm_skirtingrun8_1")
+material_override = ExtResource("pm_trim")
+
+[node name="Props" type="Node3D" parent="."]
+
+[node name="TapedNotes0" parent="Props" instance=ExtResource("pk_taped_notes")]
+transform = Transform3D(0.000000, 0, -1.000000, 0, 1, 0, 1.000000, 0, 0.000000, -3.8800, 1.4500, 20.4000)
+
+[node name="LightSwitch1" parent="Props" instance=ExtResource("pk_light_switch")]
+transform = Transform3D(0.000000, 0, 1.000000, 0, 1, 0, -1.000000, 0, 0.000000, 3.8800, 1.0500, 20.8000)
+
+[node name="WallStain2" parent="Props" instance=ExtResource("pk_wall_stain")]
+transform = Transform3D(0.000000, 0, 1.000000, 0, 1, 0, -1.000000, 0, 0.000000, 3.8800, 2.6000, -27.5000)
+
+[node name="FireAlarmPoint3" parent="Props" instance=ExtResource("pk_fire_alarm_point")]
+transform = Transform3D(0.000000, 0, -1.000000, 0, 1, 0, 1.000000, 0, 0.000000, -3.8800, 1.4000, -29.2000)
+
+[node name="ExitSign4" parent="Props" instance=ExtResource("pk_exit_sign")]
+transform = Transform3D(-1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, -1.000000, 1.5000, 2.3500, -29.8800)
 
 [node name="Lights" type="Node3D" parent="."]
 

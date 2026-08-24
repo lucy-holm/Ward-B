@@ -3888,6 +3888,78 @@ def room12():
     # plan is touched. (GATE C has no fitting of its own in the TS either, and
     # that one is left alone — you can only ever cross a gate lucid, and lucid
     # ambient renders the whole chamber legible.)
+    # --- set dressing --------------------------------------------------------
+    # 74m across five gated zones, and the zones decide what each one can hold.
+    # room12.gd runs TWO orderlies, both confined to Z3: route A over
+    # x [-7.5, 3] z [-5.5, 17.5], route B over x [-5, 0] z [1, 11] inside it.
+    # So Z3 GETS NO NEW COLLIDER AT ALL — trim and wall fittings only — while
+    # Z1, Z2, Z4 and Z5 are walked by neither route and can take furniture.
+    # tools/check_patrols.tscn is what makes that a fact rather than a hope.
+    #
+    # Faces: west x -9.88, east x 9.88 (broken by nook mouths at z 26..28 and
+    # z 4..6), south z 45.88, north z -25.88.
+    r.prop_run("skirting", "x", -10, 10, 45.88)
+    r.prop_run("skirting", "z", 36.2, 46, -9.88)
+    r.prop_run("skirting", "z", 36.2, 46, 9.88)
+    r.prop_run("skirting", "z", 20.2, 36, -9.88)
+    r.prop_run("skirting", "z", -8, 20, -9.88)
+    r.prop_run("skirting", "z", -26, -18.2, -9.88)
+    r.prop_run("skirting", "z", -26, -18.2, 9.88)
+    r.prop_run("bumper_rail", "z", -7.6, 19.6, -9.88)
+    r.prop_run("bumper_rail", "z", -7.6, 3.6, 9.88)
+    r.prop_run("ceiling_conduit", "z", -6, 18, -8.2, facing="nx")
+
+    # Z1, the entrance hall behind the first gate — reception in character.
+    r.model("beam_seating", (-6.0, 45.3), facing="nz", name="Z1SeatW")
+    r.model("beam_seating", (6.0, 45.3), facing="nz", name="Z1SeatE")
+    r.model("barred_window", (9.88, 43.0), facing="nx", name="Z1Window")
+    r.model("notice_board", (6.4, 45.88), facing="nz")
+    r.model("wall_clock", (-6.4, 45.88), facing="nz")
+    r.model("ward_sign", (9.88, 39.0), facing="nx", text="WARD B")
+    r.model("light_switch", (-2.55, 36.12), facing="pz")
+    r.model("wall_calendar", (-9.88, 40.5), facing="px")
+
+    # Z2, the dormitory floor. Patrol-free, so this is where the beds go — the
+    # concept art's ward plate, six bays with curtains between them. The east
+    # wall's nook mouth at z 26..28 is left clear.
+    for i, bz in enumerate((22.0, 24.5, 31.5)):
+        r.model("ward_bed", (-8.87, bz), facing="nx", name="Z2BedW%d" % i)
+        r.model("pillow", (-9.57, bz), facing="nx", y=0.57, name="Z2PillowW%d" % i)
+        r.model("folded_blanket", (-8.17, bz), facing="nx", y=0.57,
+                name="Z2BlanketW%d" % i)
+        r.model("nurse_call_cord", (-9.88, bz), facing="px", name="Z2CordW%d" % i)
+    for i, bz in enumerate((22.0, 24.5, 31.5)):
+        r.model("ward_bed", (8.87, bz), facing="px", name="Z2BedE%d" % i)
+        r.model("pillow", (9.57, bz), facing="px", y=0.57, name="Z2PillowE%d" % i)
+    r.model("privacy_curtain", (-8.88, 23.3), facing="nz", name="Z2CurtW")
+    r.model("privacy_curtain", (8.88, 23.3), facing="nz", name="Z2CurtE")
+    r.model("bedside_cabinet", (-8.9, 23.2), facing="nz", name="Z2Cab")
+    r.model("oxygen_outlet", (-9.88, 33.0), facing="px")
+    r.model("barred_window", (-9.88, 28.5), facing="px", name="Z2Window")
+
+    # Z3 is PATROLLED — wall and ceiling only, nothing solid.
+    r.model("wall_stain", (-9.88, 15.0), facing="px")
+    r.model("fallen_plaster_patch", (9.88, 12.0), facing="nx")
+    r.model("missing_ceiling_tile", (2.0, 9.0))
+    r.model("missing_ceiling_tile", (-4.0, -2.0), name="Z3TileB")
+    r.model("hanging_cable", (3.0, 2.0))
+    r.model("fire_alarm_point", (-9.88, 0.0), facing="px")
+    r.model("wall_speaker", (9.88, 8.0), facing="nx")
+    r.model("paper_scatter", (6.5, -3.0))
+
+    # Z4, storage behind the last gate.
+    r.model("locker_bank", (-9.4, -12.0), facing="px", name="Z4LockerA")
+    r.model("locker_bank", (-9.4, -13.0), facing="px", name="Z4LockerB")
+    r.model("utility_shelf_unit", (9.3, -15.0), facing="nx")
+    r.model("waste_bin", (8.6, -10.4))
+    r.model("plaster_rubble", (-6.0, -16.5))
+
+    # Z5, the exit chamber.
+    r.model("exit_sign", (1.6, -25.88), facing="pz")
+    r.model("payphone", (-9.88, -21.0), facing="px")
+    r.model("taped_notes", (9.88, -22.5), facing="nx")
+    r.model("light_switch", (-2.2, -25.88), facing="pz")
+
     for x, z in [
         (0, 44), (-5, 40), (5, 40), (0, 37.4),        # Z1 + GATE B
         (5, 32), (-5, 32), (5, 27), (-2, 28), (5, 23), (-5, 23),   # Z2
@@ -3895,7 +3967,7 @@ def room12():
         (0, -13),                                      # Z4
         (0, -20), (0, -23), (0, -26),                  # Z5
     ]:
-        r.light(x, z)
+        r.light_fitting(x, z)
     return r
 
 def room13():

@@ -72,11 +72,17 @@ Both live in the same place in the Ward B GitHub repo:
 1. Same page, switch to the **Variables** tab.
 2. Click **New repository variable**.
 3. Name: `TELEMETRY_URL`
-4. Value: the Cloudflare Worker URL another workstream is standing up
-   (e.g. `https://telemetry.wardb.workers.dev` — confirm the real URL once
-   that Worker is deployed). If you leave this unset, the game still
-   builds and runs fine — it just logs telemetry to the browser console
-   instead of sending it anywhere. Not a blocker for shipping.
+4. Value: the Cloudflare Worker URL. **Set, as of 2026-08-29**, to
+   `https://wardb-telemetry.xmyysdxrjr.workers.dev`.
+
+**This is now a HARD REQUIREMENT for the Godot release, not an optional
+extra.** `deploy-itch-godot.yml` fails the run if the variable is empty,
+deliberately. The old note here said an unset variable was "not a blocker for
+shipping" — that was true of the Three.js build, whose bundler simply left the
+URL undefined, and it is exactly the assumption that let the Godot port sit
+for weeks in a state where it transmitted nothing at all on any host and
+looked completely healthy while doing it. A public build with silently dead
+telemetry is worse than a failed deploy, because a failed deploy tells you.
 
 Why a variable and not a secret: it gets baked into the client-side JS
 bundle that ships to every player's browser, so it was never private —
@@ -174,7 +180,34 @@ Set visibility from the same **Edit game** page, top of the form.
 
 ## 6. Every subsequent release
 
-Once the one-time setup above is done, shipping to itch is just:
+**CHANGED 2026-08-23 (Godot deprecation) and 2026-08-29 (first Godot ship).**
+The `git push` to `release` flow described below is the THREE.JS path and no
+longer ships the game. See
+`docs/superpowers/specs/2026-08-23-threejs-deprecation.md`.
+
+Shipping the Godot build is a manual dispatch, on purpose:
+
+1. Actions → **Publish Godot build to itch.io** → **Run workflow**
+2. Branch: `main`
+3. Channel: `html5` (the public playable build). `html5-godot` uploads
+   alongside for testing without touching what players load — but note that a
+   fresh channel shows a *download* button until someone ticks "played in the
+   browser" by hand (§4b).
+4. Confirm: type exactly `ship godot`
+
+Two guards run before anything is built: the confirm string, and a parity
+check that refuses `html5` if the Godot build ever has fewer room directories
+than Three.js has room files. Both are cheap and neither is a formality.
+
+The run then bakes the telemetry endpoint into `godot/core/build_config.gd`
+and asserts, through the engine rather than through a grep, that the constant
+actually resolved. That file is committed EMPTY and only this workflow
+populates it — that is half of the guarantee that telemetry never fires from
+Pages, from Helios/tailnet, or from a local run. The other half is a runtime
+host check in `godot/autoload/telemetry.gd`. Do not add the bake step to any
+other workflow.
+
+### The old Three.js path (rollback only)
 
 ```
 git checkout release
@@ -182,15 +215,9 @@ git merge main
 git push
 ```
 
-That push triggers `deploy-itch.yml` automatically. Watch **Actions →
-Publish to itch.io** for green. No further manual itch steps are needed —
-4a/4b/4c only had to happen once, the file stays flagged browser-playable
-across future pushes to the same channel.
-
-If you ever need to re-run a release without a new commit (e.g. after
-fixing a secret), use the **Run workflow** button on the
-`Publish to itch.io` workflow in the Actions tab — it's wired to
-`workflow_dispatch` for exactly this.
+This no longer triggers anything: `deploy-itch.yml`'s push trigger was
+removed. To actually roll back to the Three.js build, dispatch that workflow
+manually. That is its only remaining purpose.
 
 ---
 

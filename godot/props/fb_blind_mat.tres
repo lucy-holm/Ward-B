@@ -1,0 +1,19 @@
+[gd_resource type="StandardMaterial3D" format=3 uid="uid://wardbfbrmblnd1"]
+
+; Roller-blind canvas — window_blind's half-drawn fabric panel. Dusty
+; tan/olive off the palette strip, the same family props/vinyl (seating
+; shells) and props/wf_curtain (dormitory privacy curtains, another agent's
+; file) draw from, but fully matte where vinyl is a semi-gloss moulded
+; plastic: a roller blind is woven cloth, not a formed shell, and the
+; highest roughness in the file is what keeps it from picking up a specular
+; streak vinyl would.
+;
+; Kept mid-value rather than bright — barred_window's glass is the ward's
+; brightest surface by design (see glass_pale_mat.tres), and a bright blind
+; hanging in front of it would compete with that composition instead of
+; reading as a dim fitting drawn across part of the opening.
+
+[resource]
+albedo_color = Color(0.40, 0.375, 0.30, 1)
+roughness = 0.82
+metallic = 0.0

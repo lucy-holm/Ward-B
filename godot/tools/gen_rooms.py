@@ -115,6 +115,117 @@ FIXTURES = {
 }
 
 
+# --- the prop kit ------------------------------------------------------------
+# Handcrafted set dressing: chairs, cabinets, radiators, ceiling fittings, wall
+# trim. Declared ONCE in props/_gen/prop_defs.py, which also emits the .tscn
+# prefabs and the baked meshes — see that file's docstring for the pipeline.
+#
+# IMPORTED rather than re-declared here, deliberately. A copy of each prop's
+# size/collider/mount in this file would be a second source of truth for
+# numbers that already exist, and the FIXTURES table three blocks up is the
+# cautionary tale: it carries a hand-typed `size` per fixture that must agree
+# with the authored scene, and nothing checks that it does.
+#
+# Import failure is NOT fatal, matching how FIXTURES drops entries whose scene
+# is missing: the generator must still run in a tree where the prop kit has not
+# been generated yet, so rooms that use no props keep working and rooms that do
+# fail loudly at the call site instead of at import time.
+_PROP_GEN_DIR = os.path.join(OUT_ROOT, "props", "_gen")
+try:
+    if _PROP_GEN_DIR not in sys.path:
+        sys.path.insert(0, _PROP_GEN_DIR)
+    import prop_defs as _prop_defs
+    PROPS = {
+        k: v for k, v in _prop_defs.PROPS.items()
+        if os.path.exists(os.path.join(OUT_ROOT, "props", "%s.tscn" % k))
+    }
+except ImportError:
+    PROPS = {}
+
+
+def _euler_basis(rot):
+    """XYZ euler (radians) -> row-major 3x3, composed R = Ry . Rx . Rz.
+
+    Same order and same convention as props/_gen/gen_props.py's _basis(), which
+    is what bakes the part transforms into the prefabs. The two MUST agree: a
+    batched run computes part transforms here and an unbatched one reads them
+    from the prefab, and if the orders differed the same prop would sit at two
+    different angles depending on how it was placed.
+    """
+    rx, ry, rz = rot
+    cx, sx = math.cos(rx), math.sin(rx)
+    cy, sy = math.cos(ry), math.sin(ry)
+    cz, sz = math.cos(rz), math.sin(rz)
+    mx = [[1, 0, 0], [0, cx, -sx], [0, sx, cx]]
+    my = [[cy, 0, sy], [0, 1, 0], [-sy, 0, cy]]
+    mz = [[cz, -sz, 0], [sz, cz, 0], [0, 0, 1]]
+    return _mat_mul(_mat_mul(my, mx), mz)
+
+
+def _mat_mul(a, b):
+    return [[sum(a[i][k] * b[k][j] for k in range(3)) for j in range(3)]
+            for i in range(3)]
+
+
+def _mat_vec(m, v):
+    return [sum(m[i][k] * v[k] for k in range(3)) for i in range(3)]
+
+
+def _prop_value(v):
+    """Python value -> a Godot .tscn property literal.
+
+    Deliberately narrow. Anything richer than these five shapes is a sign the
+    prop wants a real script API rather than a value squeezed through a room
+    file, and guessing a serialisation for it would produce a scene that loads
+    with a silently-wrong property instead of failing.
+    """
+    if isinstance(v, bool):
+        return "true" if v else "false"
+    if isinstance(v, str):
+        # Newlines MUST be escaped, not passed through: a literal newline inside
+        # a quoted .tscn value terminates the string as far as Godot's parser is
+        # concerned and the scene fails to load. Several signage props ship
+        # multi-line defaults ("PLEASE\nTAKE ONLY AS\nPRESCRIBED"), so this is
+        # reached the first time anyone overrides one.
+        return '"%s"' % (v.replace("\\", "\\\\").replace('"', '\\"')
+                          .replace("\n", "\\n").replace("\r", "\\r"))
+    # int BEFORE float: _num() formats everything as a decimal, so an
+    # `@export var columns: int` would receive "3.0000". Godot coerces it, but
+    # the emitted scene then no longer round-trips through the editor unchanged
+    # — it rewrites the literal to 3 on the next save, and the round-trip guard
+    # would blame the generator. (bool is a subclass of int in Python, which is
+    # why the bool branch has to come first — it already does, above.)
+    if isinstance(v, int):
+        return str(v)
+    if isinstance(v, float):
+        return _num(v)
+    if isinstance(v, (tuple, list)) and len(v) == 3:
+        return "Vector3(%.4f, %.4f, %.4f)" % tuple(float(c) for c in v)
+    if isinstance(v, (tuple, list)) and len(v) == 4:
+        return "Color(%.4f, %.4f, %.4f, %.4f)" % tuple(float(c) for c in v)
+    raise ValueError("cannot serialise prop property %r (type %s)" % (v, type(v).__name__))
+
+
+def _pascal(name):
+    """office_chair -> OfficeChair, for default node names."""
+    return "".join(w.capitalize() for w in name.split("_"))
+
+
+def _prop_yaw(spec):
+    """Accept either a radian yaw or one of FACING_ROT's compass names.
+
+    Room files read better with the compass names ("nz" = faceplate toward -Z),
+    which is the vocabulary Room.interactable() already uses for exactly the
+    same question, so the prop kit does not invent a second one.
+    """
+    if isinstance(spec, str):
+        if spec not in FACING_ROT:
+            raise ValueError("facing must be one of %s, got %r"
+                             % (sorted(FACING_ROT), spec))
+        return FACING_ROT[spec]
+    return float(spec)
+
+
 def _resolve_facing(size, pos, floor, explicit):
     """Which way the faceplate points. Ported from world.ts inferFacing():
     a wall-mounted fixture is thin on the axis it hangs off, and faces the
@@ -227,6 +338,12 @@ class Room:
         # (name, iid, cell_x, cell_z, size, mat, label) — see push_block()
         self.push_blocks = []
         self.props = []
+        # Prop-kit instances, one dict each — see Room.model(). Dicts rather
+        # than tuples because this grew to eight fields and a positional
+        # mistake in the emitter would be silent.
+        self.models = []
+        # Batched runs: (name, mesh_key, mat, [12-float rows]) — see prop_run().
+        self.multimeshes = []
         self.scrawls = []
         self.interactables = []
         self.lights = []
@@ -745,6 +862,322 @@ class Room:
         collider = (x - sx / 2.0, x + sx / 2.0, z - sz / 2.0, z + sz / 2.0)
         self.block(size, pos, mat, state, collider=collider, name=name, level=level)
 
+    # --- the prop kit -------------------------------------------------------
+    # Everything below places a HANDCRAFTED prefab from props/, as opposed to
+    # the box presets above. The split is deliberate and is the whole design:
+    # prop()/block() build the room's STRUCTURE, which has to stay cheap,
+    # collidable and reproducible; model() hangs detail on it. A prop kit item
+    # never defines where the player can walk unless the room asks it to.
+
+    def model(self, kind, xz, facing=0.0, y=None, name=None, state=None,
+              level=None, light=None, collider=None, props=None, text=None):
+        """Instance one prop-kit prefab (props/<kind>.tscn).
+
+        `y` DEFAULTS BY MOUNT, which is the point — a room author should not be
+        computing heights for a radiator:
+            floor    -> 0.0            (the prefab's parts sit on the floor)
+            wall     -> the prop's declared mount_y (trolley height for a
+                        bumper rail, eye level for a notice board, ...)
+            ceiling  -> self.ceiling_y (the prefab hangs downward from it)
+        Pass `y` to override — a monitor on a 1.0m counter is `y=1.0`.
+
+        `facing` is a radian yaw or a FACING_ROT compass name. Wall props are
+        authored front-toward -Z, so "nz" (yaw 0) is a prop on the room's +Z
+        wall looking back into the room.
+
+        `collider` is the one place this differs from prop(). Set:
+            None   -> the prop's OWN declared footprint, or nothing if it
+                      declares none. A chair blocks; a notice board does not.
+            False  -> force no collider, e.g. a chair tucked under a counter
+                      the player is meant to walk past.
+            tuple  -> an explicit (min_x, max_x, min_z, max_z), for a prop
+                      pushed against geometry where its own box would overlap.
+
+        `props` sets exported properties on the instanced prefab's ROOT node —
+        the mechanism for a prop whose look is per-instance rather than baked,
+        which in practice means anything carrying TEXT. A sign prop is one
+        prefab and one baked mesh no matter how many different things it says,
+        and that only works if the words come from the room file:
+
+            r.model("ward_sign", (x, z), facing="pz", props={"text": "WARD B"})
+
+        Only props whose prefab root carries a script with matching @export vars
+        can accept these; setting one on a plain prefab is silently ignored by
+        Godot, which is a real trap — check the prop's own .tscn if a value
+        seems not to apply. Values may be str, bool, int/float, a 3-tuple
+        (Vector3) or a 4-tuple (Color); see _prop_value().
+
+        `text` overrides the words on a SIGN. The signage props each carry a
+        Label3D with a baked default, so a sign works with no `text` at all; pass
+        a string to change it, or a dict when the prop has more than one label:
+
+            r.model("ward_sign", (x, z), facing="pz", text="WARD C \u2190")
+            r.model("reg_notice", (x, z), text={"Header": "FIRE ROUTINE"})
+
+        A wrong label name RAISES rather than being ignored. Godot silently
+        accepts an override naming a child that does not exist — it simply never
+        applies — so without this check a typo'd sign would ship reading
+        whatever its default was, and look deliberate.
+
+        A LIGHT-GATED PROP MAY NOT CARRY A COLLIDER, and the raise below is the
+        same soft-lock guarantee block() spells out at length: darkness gates
+        meshes and raycasts, never collision, so a dark room stays
+        geometrically identical to a lit one.
+        """
+        if kind not in PROPS:
+            raise ValueError(
+                "unknown prop %r. Known: %s. If the kit has not been generated "
+                "in this tree, run `python3 props/_gen/gen_props.py`."
+                % (kind, ", ".join(sorted(PROPS)) or "(none — kit not generated)"))
+        spec = PROPS[kind]
+        yaw = _prop_yaw(facing)
+        x, z = xz
+        # Whether the AUTHOR pinned the height. A prop placed with an explicit y
+        # is being rested on something — a mattress, a counter, a shelf — and
+        # tools/check_placement.py needs to know that to tell "sitting on" from
+        # "driven through": a concave prop's AABB encloses the air above it, so
+        # a pillow on a bed overlaps the BED'S BOX without touching its geometry.
+        y_explicit = y is not None
+        if y is None:
+            if spec["mount"] == "ceiling":
+                y = self.ceiling_y
+            elif spec["mount"] == "wall":
+                y = spec["mount_y"]
+                if y is None:
+                    raise ValueError(
+                        "wall prop %r declares no mount_y, so `y` is required" % kind)
+            else:
+                y = 0.0
+
+        # --- collision -------------------------------------------------------
+        # THE PROP CARRIES ITS OWN COLLIDER NOW. props/<kind>.tscn emits a
+        # StaticBody3D on layer 2 for any prop declaring a footprint, so the prop
+        # blocks the player wherever it is placed — including dragged into a room
+        # by hand in the editor, which is the whole reason it moved there.
+        #
+        # So this method's job is no longer "emit a collider"; it is "override
+        # the prop's own when the room needs something different", done by
+        # setting `collision_layer` on the prop's Body child:
+        #     0 -> off          4 -> lucid-only        8 -> unmed-only
+        # core/collision.gd derives the state filter from those bits, so a
+        # state-gated prop needs NO separate solid() at all.
+        #
+        # Emitting a second, room-side collider on top of the prop's own would
+        # double every footprint — harmless for the AABB test, which would get
+        # the same answer twice, but it would quietly double what the orderly's
+        # patrol-clearance validator counts and make the audit trail a lie.
+        children = {}
+        has_body = spec["collider"] is not None
+
+        if light in ("lit", "dark") and has_body and collider is not False:
+            raise ValueError(
+                "light-gated prop %r at %r carries its own collider. The light "
+                "axis gates meshes and raycasts ONLY, never collision — see "
+                "core/light_object.gd and Room.block(). Pass collider=False to "
+                "disable the prop's body, then author a solid() separately if "
+                "the space genuinely needs blocking in both light states."
+                % (kind, xz))
+
+        if collider is False:
+            if has_body:
+                children.setdefault("Collider", {})["collision_layer"] = 0
+            collider = None
+        elif collider is None:
+            if has_body and state in ("lucid", "unmed"):
+                # State-gate the prop's own body rather than adding a second one.
+                children.setdefault("Collider", {})["collision_layer"] = (
+                    LAYER_LUCID if state == "lucid" else LAYER_UNMED)
+            collider = None
+        else:
+            # An explicit rectangle overrides the prop's footprint entirely, so
+            # its own body must go — otherwise the room gets both.
+            if has_body:
+                children.setdefault("Collider", {})["collision_layer"] = 0
+
+        # Sign text. Label parts are bare dicts (see props/_gen/defs_signage.py
+        # on why they bypass part()), so the label NAMES come straight off the
+        # prop declaration rather than a table here that could drift from it.
+        labels = [q for q in spec["parts"]
+                  if isinstance(q, dict) and q.get("type") == "label"]
+        if text is not None:
+            if not labels:
+                raise ValueError("prop %r carries no label, so `text` means "
+                                 "nothing. Signage props: %s"
+                                 % (kind, ", ".join(sorted(
+                                     k for k, v in PROPS.items()
+                                     if any(isinstance(q, dict) and q.get("type") == "label"
+                                            for q in v["parts"])))))
+            if isinstance(text, str):
+                if len(labels) != 1:
+                    raise ValueError(
+                        "prop %r has %d labels (%s) — pass a dict, not a string"
+                        % (kind, len(labels), ", ".join(q["name"] for q in labels)))
+                text = {labels[0]["name"]: text}
+            known = {q["name"] for q in labels}
+            for key in text:
+                if key not in known:
+                    raise ValueError("prop %r has no label named %r. It has: %s"
+                                     % (kind, key, ", ".join(sorted(known))))
+
+        for lname, ltext in (text or {}).items():
+            children.setdefault(lname, {})["text"] = ltext
+
+        nm = name or ("%s%d" % (_pascal(kind), len(self.models)))
+        self.models.append({
+            "kind": kind, "pos": (x, y, z), "yaw": yaw, "name": nm,
+            "state": state, "level": level, "light": light,
+            "props": dict(props) if props else None,
+            "children": children or None,
+            "y_explicit": y_explicit,
+        })
+        if collider is not None:
+            self.solid(collider[0], collider[1], collider[2], collider[3],
+                       state=state, name="%s_col" % nm, level=level)
+        return nm
+
+    def prop_run(self, kind, axis, along_lo, along_hi, cross, facing=None,
+                 y=None, state=None, level=None, light=None, name_fmt=None):
+        """Repeat a 2m `run` prop end-to-end along a wall.
+
+        This is the method that makes the kit worth having. Skirting, bumper
+        rail and pipe run are authored as single 2m segments, and one call
+        dresses a whole corridor: `r.prop_run("skirting", "z", -6, 5, -6.88)`
+        puts skirting down 11m of the west wall. Segment count is derived from
+        the prop's own X extent and the run is CENTRED on the span, so a run
+        that does not divide evenly overhangs symmetrically rather than leaving
+        a gap at one end.
+
+        `cross` is the fixed coordinate — the wall FACE, which is wall_at +-
+        0.12 since walls are 0.24 thick (the same arithmetic Room.shape_key's
+        docstring spells out). `facing` defaults to the nearest wall.
+        """
+        if kind not in PROPS:
+            raise ValueError("unknown prop %r" % kind)
+        seg = PROPS[kind]["size"][0]
+        span = float(along_hi) - float(along_lo)
+        if span <= 0.0:
+            raise ValueError("prop_run span must be positive, got %r" % span)
+        if axis not in ("x", "z"):
+            raise ValueError("prop_run axis must be 'x' or 'z', got %r" % axis)
+        n = max(1, int(round(span / seg)))
+        centre = (float(along_lo) + float(along_hi)) / 2.0
+        used = n * seg
+
+        # BATCHED INTO MultiMeshInstance3D, one per (mesh, material) in the prop.
+        #
+        # WHY. A run is the same few meshes repeated, and instancing the prefab
+        # per segment costs a draw call PER PART PER SEGMENT. Measured on room 10
+        # before this change: 271 of its 580 prop draw calls — 47% — were
+        # skirting, bumper rail and ceiling conduit segments. That is half the
+        # room's budget spent on trim, in a game that ships to WebGL where draw
+        # calls are the binding constraint long before triangles are.
+        #
+        # A MultiMesh draws every instance of one mesh in a single call, so a
+        # 39-segment skirting run collapses from 78 draws to 2. The triangles are
+        # identical; only the submission cost changes.
+        #
+        # WHAT IT GIVES UP: per-segment nodes. A batched run has no node per
+        # segment to name, gate or address, which is why state/light filtering
+        # falls back to the unbatched path below — those need a StateObject
+        # wrapper per instance. Run props carry no collider either way
+        # (collider=False), so nothing is lost there.
+        gated = state in ("lucid", "unmed") or light in ("lit", "dark") or name_fmt
+        if gated:
+            names = []
+            for i in range(n):
+                a = centre - used / 2.0 + seg * (i + 0.5)
+                xz = (a, cross) if axis == "x" else (cross, a)
+                f = facing if facing is not None else self._nearest_wall_facing(*xz)
+                nm = (name_fmt % i) if name_fmt else None
+                names.append(self.model(kind, xz, facing=f, y=y, name=nm, state=state,
+                                        level=level, light=light, collider=False))
+            return names
+
+        spec = PROPS[kind]
+        if y is None:
+            if spec["mount"] == "ceiling":
+                y = self.ceiling_y
+            elif spec["mount"] == "wall":
+                y = spec["mount_y"]
+                if y is None:
+                    raise ValueError("wall prop %r declares no mount_y" % kind)
+            else:
+                y = 0.0
+
+        groups = {}
+        order = []
+        for i in range(n):
+            a = centre - used / 2.0 + seg * (i + 0.5)
+            xz = (a, cross) if axis == "x" else (cross, a)
+            f = facing if facing is not None else self._nearest_wall_facing(*xz)
+            yaw = _prop_yaw(f)
+            seg_basis = _euler_basis((0.0, yaw, 0.0))
+            seg_origin = [xz[0], y, xz[1]]
+            for part in spec["parts"]:
+                if isinstance(part, dict) and part.get("type") == "label":
+                    continue  # a Label3D cannot go in a MultiMesh
+                key = (part["mesh"], part["mat"])
+                if key not in groups:
+                    groups[key] = []
+                    order.append(key)
+                b = _mat_mul(seg_basis, _euler_basis(part["rot"]))
+                o = _mat_vec(seg_basis, list(part["pos"]))
+                o = [seg_origin[k] + o[k] for k in range(3)]
+                # MultiMesh TRANSFORM_3D buffer: three rows of 4, each the
+                # basis row followed by that component of the origin.
+                groups[key].extend([b[0][0], b[0][1], b[0][2], o[0],
+                                    b[1][0], b[1][1], b[1][2], o[1],
+                                    b[2][0], b[2][1], b[2][2], o[2]])
+
+        base = "%sRun%d" % (_pascal(kind), len(self.multimeshes))
+        for j, key in enumerate(order):
+            mesh_key, mat = key
+            self.multimeshes.append(("%s_%d" % (base, j), mesh_key, mat, groups[key]))
+        return [base]
+
+    # Which prop pair each fitting style uses: (housing, light-gated lamp).
+    # A pair, not one prop, so the breaker leaves the dead fitting behind — see
+    # props/ceiling_troffer.tscn's header.
+    FITTINGS = {
+        "troffer": ("ceiling_troffer", "troffer_lamp"),
+        "pendant": ("pendant_lamp", "pendant_bulb"),
+    }
+
+    def light_fitting(self, x, z, circuit=None, facing=0.0, kind="troffer"):
+        """A ceiling light AND the fitting you can see it come out of.
+
+        Room.light() emits an OmniLight3D plus a faked bounce and NOTHING
+        VISIBLE — every light in the shipped ward is a glow with no lamp above
+        it, which is the single biggest "this is untextured geometry" tell left
+        in the build once the walls got their shaders. This is the one-call fix:
+        light + housing + a light-gated glowing panel, so throwing the breaker
+        leaves a dead fitting behind instead of an empty ceiling.
+
+        `kind` picks the fitting style: "troffer" (the ward's standard recessed
+        fluorescent) or "pendant" (a bare bulb on a flex, for the parts of the
+        building that were patched rather than maintained).
+        """
+        if kind not in self.FITTINGS:
+            raise ValueError("light_fitting kind must be one of %s, got %r"
+                             % (sorted(self.FITTINGS), kind))
+        housing, lamp = self.FITTINGS[kind]
+        self.light(x, z, circuit=circuit)
+        self.model(housing, (x, z), facing=facing)
+        self.model(lamp, (x, z), facing=facing, light="lit")
+
+    def _nearest_wall_facing(self, x, z):
+        """Which way a wall-mounted prop at (x, z) should look: toward the room.
+
+        Picks the CLOSEST of the four floor-rect walls. Deliberately not
+        _resolve_facing(), which decides the axis from whichever fixture
+        dimension is thinner — every wall prop in the kit is thin in Z by
+        construction, so that heuristic would put a prop on an X wall facing
+        along Z and bury its front face in the plaster.
+        """
+        min_x, max_x, min_z, max_z = self.floor
+        d = {"px": x - min_x, "nx": max_x - x, "pz": z - min_z, "nz": max_z - z}
+        return min(d, key=lambda k: d[k])
+
     def bed(self, xz, facing="ew", name=None):
         """room1's bed — `mat="bed"`, used nowhere else in the ward, and the
         ward's only instance of bedroom furniture. Reproduces the shipped
@@ -1033,6 +1466,25 @@ class Emitter:
         rid = "fx_%s" % itype
         if not any(e[2] == rid for e in self.ext):
             self.ext.append(("PackedScene", FIXTURES[itype]["path"], rid, None))
+        return rid
+
+    def prop_mesh(self, mesh_key):
+        rid = "am_%s" % mesh_key
+        if not any(e[2] == rid for e in self.ext):
+            self.ext.append(("ArrayMesh", "res://props/meshes/%s.tres" % mesh_key,
+                             rid, None))
+        return rid
+
+    def prop_material(self, mat):
+        rid = "pm_%s" % mat
+        if not any(e[2] == rid for e in self.ext):
+            self.ext.append(("Material", _prop_defs.MATERIALS[mat], rid, None))
+        return rid
+
+    def prop_scene(self, kind):
+        rid = "pk_%s" % kind
+        if not any(e[2] == rid for e in self.ext):
+            self.ext.append(("PackedScene", "res://props/%s.tscn" % kind, rid, None))
         return rid
 
     def box_mesh(self, size, mat):
@@ -1396,6 +1848,89 @@ class Emitter:
                             % ", ".join(", ".join("%.4f" % v for v in c) for c in colors))
                 body.append("panel_size = %.4f" % size)
                 body.append("")
+
+        # prop kit — handcrafted set dressing, instanced from props/<kind>.tscn
+        #
+        # ONE flat Props group, not a group per kind: the room script never
+        # addresses these (they carry no id, no interaction and no behaviour),
+        # so a hierarchy would buy nothing and would make node paths depend on
+        # authoring order. Colliders for the props that carry one were already
+        # pushed through Room.solid() at author time, so they are in Geometry
+        # with every other collider rather than being a second, parallel
+        # collision system nobody would think to check.
+        #
+        # Gating nests exactly as it does for a wall — StateObject OUTSIDE,
+        # LightObject INSIDE — because Godot hides a whole subtree when an
+        # ancestor is invisible, so both filters have to agree for the prop to
+        # draw. See Emitter._emit_light_wrapper().
+        # Batched runs — see Room.prop_run(). Emitted BEFORE the Props group and
+        # under their own parent, because they are not prop instances: there is
+        # no node per segment, so nothing here can be addressed, gated or given a
+        # collider. A run that needs any of those took the unbatched path and
+        # appears under Props instead.
+        if r.multimeshes:
+            body.append('[node name="PropRuns" type="Node3D" parent="."]')
+            body.append("")
+            for (nm, mesh_key, mat, buf) in r.multimeshes:
+                mid = self.prop_mesh(mesh_key)
+                rid = self.prop_material(mat)
+                sid = "mm_%s" % nm.lower()
+                self.sub.append(('MultiMesh', sid, [
+                    "transform_format = 1",
+                    "instance_count = %d" % (len(buf) // 12),
+                    'mesh = ExtResource("%s")' % mid,
+                    "buffer = PackedFloat32Array(%s)"
+                    % ", ".join("%.4f" % v for v in buf),
+                ]))
+                body.append('[node name="%s" type="MultiMeshInstance3D" parent="PropRuns"]'
+                            % nm)
+                body.append('multimesh = SubResource("%s")' % sid)
+                body.append('material_override = ExtResource("%s")' % rid)
+                body.append("")
+
+        if r.models:
+            body.append('[node name="Props" type="Node3D" parent="."]')
+            body.append("")
+            for m in r.models:
+                kind, pos, yaw, nm = m["kind"], m["pos"], m["yaw"], m["name"]
+                state, level, mlight = m["state"], m["level"], m["light"]
+                mprops, mchildren = m["props"], m["children"]
+                rid = self.prop_scene(kind)
+                parent = "Props"
+                if state in ("lucid", "unmed"):
+                    self._ensure_state_script()
+                    body.append('[node name="%s_state" type="Node3D" parent="Props"]' % nm)
+                    body.append('script = ExtResource("s_stateobj")')
+                    body.append("visible_in_state = %d" % (1 if state == "lucid" else 2))
+                    body.append("")
+                    parent = "Props/%s_state" % nm
+                if mlight in ("lit", "dark"):
+                    self._ensure_light_script()
+                    body.append('[node name="%s_light" type="Node3D" parent="%s"]' % (nm, parent))
+                    body.append('script = ExtResource("s_lightobj")')
+                    body.append("visible_in_light = %d" % (1 if mlight == "lit" else 2))
+                    body.append("")
+                    parent = "%s/%s_light" % (parent, nm)
+                body.append('[node name="%s" parent="%s" instance=ExtResource("%s")]'
+                            % (nm, parent, rid))
+                body.append("transform = %s" % _xform_yaw(yaw, pos))
+                # Sorted, so the emitted scene does not depend on dict order.
+                for k in sorted(mprops or {}):
+                    body.append("%s = %s" % (k, _prop_value(mprops[k])))
+                if level is not None:
+                    body.append('metadata/level = "%s"' % level)
+                body.append("")
+                # Property overrides on children INSIDE the instanced prefab —
+                # sign text, and the collider layer. Each needs its own [node]
+                # block naming the child with the instance as its parent. Sorted
+                # at both levels so the emitted scene is deterministic.
+                for cname in sorted(mchildren or {}):
+                    body.append('[node name="%s" parent="%s/%s"]'
+                                % (cname, parent, nm))
+                    for key in sorted(mchildren[cname]):
+                        body.append("%s = %s"
+                                    % (key, _prop_value(mchildren[cname][key])))
+                    body.append("")
 
         # lights
         if r.lights:
@@ -1909,8 +2444,51 @@ def room1():
     r.block((1.8, 2.6, 0.06), (0, 1.4, -1.84), "glow")  # warm glow beyond
 
     # props
-    r.bed((1.7, 4.6))
+    #
+    # The box bed is REPLACED by the prop-kit ward_bed — rusted tubular frame,
+    # barred head and foot, thin stained ticking. This is the first room a
+    # player sees, and a grey box was doing the concept art's dormitory plate no
+    # favours. `facing="px"` puts the HEAD against the east wall (see the mount
+    # note in props/ward_bed.tscn: the head is at -Z, and a "px" yaw maps -Z to
+    # +X), so the bed runs east-west exactly as the box did.
+    #
+    # The nightstand stays a plain box on purpose: the paper cup is authored at
+    # y 0.92 relative to it, and swapping in bedside_cabinet would move the one
+    # interactable this room's whole opening beat depends on.
+    r.model("ward_bed", (1.85, 4.6), facing="px")
     r.prop((1, 0.8, 0.7), (-2.2, 4.7))
+
+    # Set dressing. A cell is SPARSE — the temptation with 53 props available is
+    # to fill it, and that would be wrong: room 1 is meant to read as bare and
+    # oppressive, and every object here has to earn its place against that.
+    r.prop_run("skirting", "x", -3, 3, 5.88)
+    r.prop_run("skirting", "z", 0, 6, -2.88)
+    r.prop_run("skirting", "z", 0, 6, 2.88)
+
+    # Directly ahead at spawn (which faces +Z), because the concept art composes
+    # every room around a barred window and this is the player's first frame.
+    r.model("barred_window", (0, 5.88), facing="nz")
+    r.model("radiator", (-2.88, 2.2), facing="px")
+    r.model("sink", (-2.88, 1.15), facing="px")
+    r.model("door_plate", (-1.9, 0.12), facing="pz", text="B-14")
+
+    # Decay, kept to two pieces. The rubble sits in the west corner, out of the
+    # walk line from spawn to the doorway.
+    r.model("missing_ceiling_tile", (-1.6, 3.4))
+    r.model("plaster_rubble", (-2.55, 3.5))
+
+    # Someone slept here. The bed is at (1.85, 4.6) facing "px", so its HEAD is
+    # at +X: ward_bed's head is at local -Z, and a "px" yaw maps -Z to +X, which
+    # puts the pillow 0.7m east of centre and the blanket 0.7m west. Mattress top
+    # is y 0.57 (the 0.14 ticking box centred at 0.50).
+    r.model("pillow", (2.55, 4.6), facing="px", y=0.57)
+    r.model("folded_blanket", (1.15, 4.6), facing="px", y=0.57)
+    r.model("slippers", (1.55, 3.85), facing=0.4)
+    r.model("tin_mug", (-2.5, 4.45), y=0.8)
+    r.model("nurse_call_cord", (2.88, 4.6), facing="nx")
+    r.model("childs_drawing", (-2.88, 4.15), facing="px")
+    r.model("light_switch", (-1.35, 0.12), facing="pz")
+    r.model("socket_plate", (-2.88, 2.6), facing="px")
 
     r.scrawl("don't\nswallow", (-2.85, 1.8, 4.7), math.pi / 2, 2.2)
     r.scrawl("there was a door\nhere once", (0, 1.9, 0.2), 0, 3.0)
@@ -1928,8 +2506,8 @@ def room1():
     # and rendered the whole game at exposure 1.0 with no fog. With that removed
     # the original placement is correctly dim, and 1.5/3.5 left the spawn too
     # dark to find the paper cup. Fixture placement was never the problem.
-    r.light(0, 2)
-    r.light(0, 5)
+    r.light_fitting(0, 2)
+    r.light_fitting(0, 5)
     return r
 
 
@@ -1991,9 +2569,65 @@ def room2():
     r.interactable("pill1", "pill_pickup", (0.16, 0.2, 0.16), (-1.15, 0.9, -4.4),
                    "pill", "take the pill")
 
-    r.light(0, 2)
-    r.light(0, -3)
-    r.light(0, -7.5)
+    # --- set dressing --------------------------------------------------------
+    # The concept art's CORRIDOR plate, as closely as the geometry allows: a
+    # smashed medication cabinet spilling pill bottles, signage, bumper rails,
+    # exposed conduit and a missing ceiling tile.
+    #
+    # Faces: west x -1.48, east x 1.48, north wall segments z -8.88, cap z 4.38.
+    # NOTHING HERE CARRIES A COLLIDER. The corridor is 3.2m wide and is the only
+    # route to room 3; a prop that narrowed it would be a soft-lock risk for no
+    # visual gain, so the fittings are all collider-free wall/ceiling/floor
+    # dressing. med_cabinet_smashed WOULD carry one, which is exactly why it is
+    # placed on the north wall beside the door rather than along the run.
+    r.prop_run("skirting", "z", -11, 4.5, -1.48)
+    r.prop_run("skirting", "z", -11, 4.5, 1.48)
+
+    # Bumper rails, split around the two recessed wall panels (west z 1.9..2.9,
+    # east z -5.0..-4.0) rather than driven through them.
+    r.prop_run("bumper_rail", "z", -8.6, 1.8, -1.48)
+    r.prop_run("bumper_rail", "z", -8.0, -5.2, 1.48)
+    r.prop_run("bumper_rail", "z", -3.9, 4.4, 1.48)
+
+    # Services along the ceiling — the corridor plate's most distinctive feature
+    # after the cabinet. Offset to one side so it reads as a run of conduit
+    # rather than a spine down the middle.
+    r.prop_run("ceiling_conduit", "z", -8.5, 3.5, -1.05, facing="nx")
+    r.model("hanging_cable", (0.7, -2.4), facing="nx")
+    r.model("missing_ceiling_tile", (0.55, -6.0))
+
+    # Signage. The header sits above the dispenser, the enamel notice beside it.
+    r.model("ward_sign", (-1.48, 3.3), facing="px", text="WARD B")
+    r.model("cabinet_header", (-1.25, -8.88), facing="pz")
+    r.model("enamel_notice", (-0.55, -8.88), facing="pz")
+    r.model("exit_sign", (1.25, -8.88), facing="pz")
+    r.model("reg_notice", (1.48, -1.2), facing="nx")
+
+    # The smashed cabinet and what came out of it.
+    r.model("med_cabinet_smashed", (-1.48, -6.6), facing="px")
+    r.model("pill_spill", (-1.0, -6.6))
+    r.model("pill_spill", (-0.45, -5.9), facing=0.7, name="PillSpillB")
+    r.model("paper_scatter", (0.6, -4.1))
+    r.model("fallen_plaster_patch", (1.48, 0.4), facing="nx")
+    r.model("plaster_rubble", (1.05, 0.4))
+    r.model("wall_vent", (-1.48, -4.2), facing="px")
+
+    # Small fittings. The dado rail is placed at y 1.1 to sit exactly where the
+    # wall shader draws its rail line (band_height), so the painted line becomes
+    # a real shadow under real trim instead of competing with it.
+    r.prop_run("dado_rail", "z", -8.4, 4.2, -1.48, y=1.1)
+    r.prop_run("dado_rail", "z", -8.4, 4.2, 1.48, y=1.1)
+    r.model("light_switch", (-1.48, -8.2), facing="px")
+    r.model("fire_alarm_point", (1.48, -7.6), facing="nx")
+    r.model("socket_plate", (-1.48, -1.0), facing="px")
+    r.model("hand_gel", (1.48, -8.2), facing="nx")
+    r.model("taped_notes", (1.48, 1.6), facing="nx")
+    r.model("wall_stain", (-1.48, -3.0), facing="px")
+    r.model("wall_calendar", (-1.48, 0.4), facing="px")
+
+    r.light_fitting(0, 2)
+    r.light_fitting(0, -3)
+    r.light_fitting(0, -7.5)
     return r
 
 
@@ -2041,10 +2675,45 @@ def room3():
     r.interactable("exitdoor", "door", (2, 3, 0.24), (0, 1.5, -5),
                    "door", "open the door")
 
-    r.light(0, 2)
-    r.light(-2.5, -1)
-    r.light(1.5, -3)
-    r.light(0, -6)
+    # --- set dressing --------------------------------------------------------
+    # A day-room/common-room read: beam seating along the south wall, chairs
+    # pulled up to the existing table, windows down the east side.
+    # Faces: west x -4.88, east x 4.88, south z 3.88, north z -4.88.
+    #
+    # COLLIDERS stay out of the corridor from spawn (0, 3) to the exit gap
+    # (x -1..1 at z -5), and off the two existing prop boxes.
+    r.prop_run("skirting", "x", -5, 5, 3.88)
+    r.prop_run("skirting", "x", -5, -1, -4.88)
+    r.prop_run("skirting", "x", 1, 5, -4.88)
+    r.prop_run("skirting", "z", -5, 4, -4.88)
+    r.prop_run("skirting", "z", -5, 4, 4.88)
+    r.prop_run("bumper_rail", "z", -4.6, 3.6, -4.88)
+    r.prop_run("bumper_rail", "z", -4.6, 3.6, 4.88)
+
+    # Windows on the east wall, clear of the scrawl at z -3.
+    r.model("barred_window", (4.88, -1.0), facing="nx")
+    r.model("barred_window", (4.88, 1.8), facing="nx")
+
+    # Seating either side of the spawn approach, not across it.
+    r.model("beam_seating", (-3.0, 3.4), facing="nz", name="CommonSeatW")
+    r.model("beam_seating", (3.0, 3.4), facing="nz", name="CommonSeatE")
+    # Two chairs at the existing table (x -3.2..-1.8, z -1.7..-0.3).
+    r.model("stacking_chair", (-2.5, 0.15), facing="nz")
+    r.model("stacking_chair", (-3.95, -1.0), facing="px")
+
+    r.model("radiator", (-4.88, -2.0), facing="px")
+    r.model("radiator", (4.88, -3.6), facing="nx")
+    r.model("notice_board", (-3.0, -4.88), facing="pz")
+    r.model("wall_clock", (3.0, -4.88), facing="pz")
+    r.model("quiet_sign", (-4.88, 0.4), facing="px")
+    r.model("wall_speaker", (4.88, 3.2), facing="nx")
+    r.model("missing_ceiling_tile", (-1.4, -2.2))
+    r.model("paper_scatter", (1.6, -1.4))
+
+    r.light_fitting(0, 2)
+    r.light_fitting(-2.5, -1)
+    r.light_fitting(1.5, -3)
+    r.light_fitting(0, -6)
     return r
 
 
@@ -2129,11 +2798,46 @@ def room4():
     r.interactable("dispenser4", "dispenser", (0.16, 0.75, 0.55), (-5.86, 1.45, 4.2),
                    "dispenser", "use the dispenser")
 
-    r.light(0, 3)
-    r.light(3.5, 0)
-    r.light(-3, -1)
-    r.light(3, -4)
-    r.light(0, -6)
+    # --- set dressing --------------------------------------------------------
+    # Faces: west x -5.88, east x 5.88, south z 4.88, north z -4.88.
+    #
+    # The west wall is LOAD-BEARING for this room: the dispenser is at z 4.2 and
+    # two scrawls at z 1.5 and z -3 have to be readable from in front of them, so
+    # nothing with a collider goes near those three spots. The wheelchair sits at
+    # z -0.6, in the gap between them.
+    r.prop_run("skirting", "x", -6, 6, 4.88)
+    r.prop_run("skirting", "x", -6, -1, -4.88)
+    r.prop_run("skirting", "x", 1, 6, -4.88)
+    r.prop_run("skirting", "z", -5, 5, -5.88)
+    r.prop_run("skirting", "z", -5, 5, 5.88)
+    r.prop_run("bumper_rail", "z", -4.6, 4.6, 5.88)
+
+    # Windows east, clear of the scrawl at z 3.5.
+    r.model("barred_window", (5.88, -1.0), facing="nx")
+    r.model("barred_window", (5.88, 1.2), facing="nx")
+
+    r.model("beam_seating", (-3.4, 4.5), facing="nz", name="DaySeatW")
+    r.model("beam_seating", (2.6, 4.5), facing="nz", name="DaySeatE")
+    r.model("stacking_chair", (2.0, 1.25), facing="nz")
+    r.model("locker_bank", (-4.6, -4.63), facing="pz")
+    r.model("wheelchair", (-4.9, -0.6), facing="nx")
+
+    r.model("radiator", (-5.88, 2.6), facing="px")
+    r.model("radiator", (5.88, -3.4), facing="nx")
+    r.model("notice_board", (-3.2, -4.88), facing="pz")
+    r.model("wall_clock", (1.8, -4.88), facing="pz")
+    r.model("exit_sign", (-1.4, -4.88), facing="pz")
+    r.model("wall_speaker", (-5.88, -4.2), facing="px")
+    r.model("missing_ceiling_tile", (0.8, -2.6))
+    r.model("hanging_cable", (-1.8, 2.0), facing="nx")
+    r.model("paper_scatter", (-1.2, -3.4))
+    r.model("plaster_rubble", (5.2, -1.9))
+
+    r.light_fitting(0, 3)
+    r.light_fitting(3.5, 0)
+    r.light_fitting(-3, -1)
+    r.light_fitting(3, -4)
+    r.light_fitting(0, -6)
     return r
 
 
@@ -2215,11 +2919,110 @@ def room5():
     r.interactable("exitdoor", "door", (2, 3, 0.2), (0, 1.5, -6),
                    "door", "the exit door")
 
-    r.light(0, 3.5)
-    r.light(-4.5, 0)
-    r.light(4.5, 0)
-    r.light(0, -2.5)
-    r.light(0, -5.5)
+    # --- set dressing (prop kit) --------------------------------------------
+    # THE SHOWCASE ROOM for props/. Everything below is instanced from
+    # props/<kind>.tscn; nothing here is bespoke to room 5, which is the point —
+    # the same calls dress any other room, with different numbers.
+    #
+    # THE ONE HARD CONSTRAINT, and the reason the placements look lopsided:
+    # room5.gd's WAYPOINTS walk the orderly around the rectangle
+    # x [-4.4, 4.4], z [-2.6, 2.6], and the donut between that lane and the
+    # island is where BOTH code halves are read from. So every prop that
+    # carries a collider sits OUTSIDE the lane — north of z -2.6, south of
+    # z 2.6, or in the two side corridors. Trim, wall fittings and counter-top
+    # objects carry no collider at all and are placed freely.
+    #
+    # Wall faces, since every wall prop needs one (walls are 0.24 thick, so the
+    # face is wall_at +- 0.12):
+    #     south z 4.88   north z -5.88   west x -6.88   east x 6.88
+
+    # Trim. prop_run() repeats one 2m segment and infers which way each faces
+    # from the nearest wall, so a whole corridor is one line.
+    r.prop_run("skirting", "x", -7, 7, 4.88)
+    r.prop_run("skirting", "x", -7, -1, -5.88)
+    r.prop_run("skirting", "x", 1, 7, -5.88)
+    r.prop_run("skirting", "z", -6, 5, -6.88)
+    r.prop_run("skirting", "z", -6, 5, 6.88)
+
+    # Bumper rail down both corridors. The west run is split around the
+    # medication window (z -1.65..-0.15) rather than crossing it.
+    r.prop_run("bumper_rail", "z", -6, -1.8, -6.88)
+    r.prop_run("bumper_rail", "z", 0.2, 5, -6.88)
+    r.prop_run("bumper_rail", "z", -6, 5, 6.88)
+    r.prop_run("pipe_run", "z", 1.0, 5.0, 6.88)
+
+    # Wall fittings.
+    r.model("radiator", (-6.88, 2.6), facing="px")
+    r.model("radiator", (-6.88, -3.6), facing="px")
+    r.model("radiator", (6.88, -4.2), facing="nx")
+    r.model("wall_vent", (-6.88, -4.6), facing="px")
+    r.model("wall_vent", (6.88, 2.4), facing="nx")
+    r.model("fire_extinguisher", (-6.88, 4.2), facing="px")
+    r.model("notice_board", (-4.6, -5.88), facing="pz")
+    r.model("wall_clock", (2.8, -5.88), facing="pz")
+    r.model("wall_shelf", (4.6, -5.88), facing="pz")
+    # On the shelf: 1.45 mount + half the 0.028 board = a 1.464 top surface.
+    r.model("binder_stack", (4.6, -5.74), y=1.464, facing="pz")
+
+    # Records bank, north wall — north of the patrol lane, clear of the door
+    # gap (x -1..1) and of the keypad at x 1.35.
+    for i, cx in enumerate((-2.3, -2.8, -3.3)):
+        r.model("filing_cabinet", (cx, -5.55), facing="pz", name="Cabinet%d" % i)
+    r.model("office_chair", (-4.5, -4.3), facing="nz")
+
+    # Counter tops. The island's ring skirt is 1.1 high and 0.5 deep, so its
+    # usable band is z 0.8..1.3 (south) and -1.3..-0.8 (north).
+    r.model("crt_monitor", (-1.3, 1.05), y=1.1, facing="pz")
+    r.model("paper_tray", (0.95, 1.05), y=1.1, facing="pz")
+    r.model("binder_stack", (1.8, 1.05), y=1.1, facing="pz")
+    r.model("crt_monitor", (1.2, -1.05), y=1.1, facing="nz")
+    r.model("paper_tray", (-1.5, -1.05), y=1.1, facing="nz")
+
+    # The one prop INSIDE the lane, and the only collider=False furniture in
+    # the room: a chair pulled up to the counter. It is tucked hard against the
+    # island's south face, where the player has no reason to walk, and giving
+    # it a collider would pinch the 1.3m donut the whole room is played in.
+    r.model("office_chair", (0.9, 1.62), facing="nz", collider=False)
+
+    # Waiting seating, south wall — south of the lane, east of the dispenser
+    # approach at x -6.3. Beam seating rather than the three separate chairs
+    # this shipped with: the concept art's waiting area is beam end to end, and
+    # a beam reads as one long horizontal mass where loose chairs read as
+    # clutter. See props/beam_seating.tscn.
+    r.model("beam_seating", (2.4, 4.58), facing="nz", name="Waiting0")
+    r.model("beam_seating", (4.7, 4.58), facing="nz", name="Waiting1")
+
+    # Barred windows, south wall. Every environment plate in the concept art is
+    # composed around one of these, and they are the brightest surface in the
+    # room — behind the spawn point on purpose, so the player turns into the
+    # light rather than starting with it in their eyes.
+    # x -1.9 and 0.6, NOT further west: the shipped tv_panel at x -4 spans
+    # -4.65..-3.35 at y 1.8..2.7, and a 1.46-wide window centred at -3.4 drives
+    # straight through it. The panel is existing room content and stays put.
+    r.model("barred_window", (-1.9, 4.88), facing="nz")
+    r.model("barred_window", (0.6, 4.88), facing="nz")
+
+    # North area, outside the patrol lane.
+    r.model("gurney", (3.6, -4.4), facing="nz")
+    r.model("sink", (-6.88, 3.6), facing="px")
+    r.model("wall_speaker", (-6.88, -2.6), facing="px")
+
+    # West corridor, clear of both the dispenser approach and the lane.
+    r.model("mop_bucket", (-6.2, 2.0), facing="px")
+    r.model("iv_stand", (6.3, 3.9))
+
+    # Lights, now with a visible fitting each — same five positions as before.
+    r.light_fitting(0, 3.5)
+    r.light_fitting(-4.5, 0)
+    r.light_fitting(4.5, 0)
+    r.light_fitting(0, -2.5)
+    r.light_fitting(0, -5.5)
+    # The vestibule beyond the staff door is older than the ward around it —
+    # a bare bulb on a flex, not a troffer. No Room.light() of its own; the
+    # z -5.5 fitting already reaches it, and a sixth light here would wash out
+    # the glow block at z -7.8 that sells the exit.
+    r.model("pendant_lamp", (0, -7.0))
+    r.model("pendant_bulb", (0, -7.0), light="lit")
     return r
 
 
@@ -2280,21 +3083,61 @@ def room6():
     # you have to actually walk into his route to reach. Alcove end cap is at
     # z=-6.1, mouth opens toward +z, so facing is PINNED 'pz' (inferFacing
     # only lands on the right sign here by coincidence).
-    r.interactable("dispenser6", "dispenser", (0.55, 0.75, 0.16), (6.3, 1.45, -5.85),
+    r.interactable("dispenser6", "dispenser", (0.55, 0.75, 0.16), (6.3, 1.45, -5.9),
                    "dispenser", "use the dispenser", facing="pz")
-    r.interactable("keypad6", "keypad", (0.14, 0.5, 0.4), (11.75, 1.45, -2.9),
+    r.interactable("keypad6", "keypad", (0.14, 0.5, 0.4), (11.81, 1.45, -2.9),
                    "pad", "use the keypad")
     r.interactable("exitdoor", "door", (0.2, 3, 2), (12, 1.5, -2.9),
                    "door", "the exit door")
 
-    r.light(0, 6)
-    r.light(0, 1)
-    r.light(0, -2)
-    r.light(3, -2.9)
-    r.light(6.3, -2.9)
-    r.light(6.3, -5.3)
-    r.light(9.5, -2.9)
-    r.light(12.5, -2.9)
+    # --- set dressing --------------------------------------------------------
+    # NOTHING HERE CARRIES A COLLIDER, and that is a rule for this room rather
+    # than a preference. An orderly patrols both legs — the room's two scrawls
+    # are literally about learning his route — so any new solid changes what his
+    # NavigationAgent3D routes around and what check_rooms' patrol-clearance
+    # validator measures. Corridors get trim, services and litter; furniture
+    # goes in rooms with slack in them.
+    #
+    # Faces: leg A west x -1.48 and east x 1.48, south cap z 7.88; leg B north
+    # z -1.32 and south z -4.48 (broken by the alcove gap at x 5.5..7.1).
+    r.prop_run("skirting", "z", -4.6, 8, -1.48)
+    r.prop_run("skirting", "z", -1.2, 8, 1.48)
+    r.prop_run("skirting", "x", -1.6, 1.6, 7.88)
+    r.prop_run("skirting", "x", 1.6, 12, -1.32)
+    r.prop_run("skirting", "x", -1.6, 5.5, -4.48)
+    r.prop_run("skirting", "x", 7.1, 12, -4.48)
+
+    r.prop_run("bumper_rail", "z", -4.4, 7.6, -1.48)
+    r.prop_run("bumper_rail", "z", -1.0, 7.6, 1.48)
+    r.prop_run("bumper_rail", "x", 1.8, 11.8, -1.32)
+    r.prop_run("bumper_rail", "x", -1.4, 5.4, -4.48)
+    r.prop_run("bumper_rail", "x", 7.2, 11.8, -4.48)
+
+    # Services down leg B, the long leg the chase happens in.
+    r.prop_run("ceiling_conduit", "x", 2.0, 11.5, -2.0)
+    r.model("hanging_cable", (8.6, -3.6))
+    r.model("missing_ceiling_tile", (4.4, -3.4))
+    r.model("missing_ceiling_tile", (0.2, 3.2), name="MissingTileLegA")
+
+    r.model("ward_sign", (1.48, 5.2), facing="nx", text="WARD B")
+    r.model("exit_sign", (11.6, -1.32), facing="pz")
+    r.model("cabinet_header", (6.3, -6.0), facing="pz")
+    r.model("radiator", (-1.48, 5.4), facing="px")
+    r.model("radiator", (3.4, -1.32), facing="pz")
+    r.model("wall_vent", (1.48, 1.2), facing="nx")
+    r.model("fire_extinguisher", (-1.48, -3.2), facing="px")
+    r.model("paper_scatter", (2.6, -3.9))
+    r.model("plaster_rubble", (10.2, -1.9))
+    r.model("fallen_plaster_patch", (9.4, -1.32), facing="pz")
+
+    r.light_fitting(0, 6)
+    r.light_fitting(0, 1)
+    r.light_fitting(0, -2)
+    r.light_fitting(3, -2.9)
+    r.light_fitting(6.3, -2.9)
+    r.light(6.3, -5.3)           # alcove — 1.6m wide, no room for a 1.2m troffer
+    r.light_fitting(9.5, -2.9)
+    r.light_fitting(12.5, -2.9)
     return r
 
 
@@ -2364,20 +3207,47 @@ def room7():
     # Mounted against the nook's south wall (z=0.8), thin in z; the nook's
     # open interior is +z of that wall, so facing is PINNED 'pz' (inferFacing
     # would point it -z, straight into the wall it's flush against).
-    r.interactable("dispenser7", "dispenser", (0.55, 0.75, 0.16), (-6.7, 1.45, 1.05),
+    r.interactable("dispenser7", "dispenser", (0.55, 0.75, 0.16), (-6.7, 1.45, 1.0),
                    "dispenser", "use the dispenser", facing="pz")
-    r.interactable("keypad7", "keypad", (0.4, 0.5, 0.14), (1.35, 1.45, -4.75),
+    r.interactable("keypad7", "keypad", (0.4, 0.5, 0.14), (1.35, 1.45, -4.81),
                    "pad", "use the keypad")
     r.interactable("exitdoor", "door", (2, 3, 0.2), (0, 1.5, -5),
                    "door", "the exit door")
 
-    r.light(0, 4)
-    r.light(-3.75, 2.2)
-    r.light(3.75, 0)
-    r.light(-3.75, -2.2)
-    r.light(0, -3.5)
-    r.light(-6.5, 1.05)
-    r.light(0, -6)
+    # --- set dressing --------------------------------------------------------
+    # A records room, so: filing cabinets and paper. Faces are south z 4.88,
+    # east x 5.88, north z -4.88, west x -5.88 (broken by the nook at z 0.8..1.8).
+    #
+    # THE THREE shelf_rows ARE A MAZE and the whole room is navigating them:
+    # (-3.75, 2.2), (3.75, 0) and (-3.75, -2.2), each 4.5 long and 0.8 deep. No
+    # collider goes in a lane between them — the cabinets sit against the south
+    # and east walls, in the open water south of the first row.
+    r.prop_run("skirting", "x", -6, 6, 4.88)
+    r.prop_run("skirting", "x", -6, -1, -4.88)
+    r.prop_run("skirting", "x", 1, 6, -4.88)
+    r.prop_run("skirting", "z", -5, 5, 5.88)
+
+    for i, cx in enumerate((2.5, 3.1, 3.7)):
+        r.model("filing_cabinet", (cx, 4.57), facing="nz", name="RecordsS%d" % i)
+    r.model("filing_cabinet", (5.57, 2.6), facing="nx", name="RecordsE0")
+    r.model("filing_cabinet", (5.57, 3.4), facing="nx", name="RecordsE1")
+
+    r.model("reg_notice", (-2.4, -4.88), facing="pz")
+    r.model("door_plate", (2.0, -4.88), facing="pz", text="RECORDS")
+    r.model("radiator", (5.88, -3.6), facing="nx")
+    r.model("wall_vent", (-5.88, 4.2), facing="px")
+    r.model("paper_scatter", (0.4, 1.6))
+    r.model("paper_scatter", (-0.9, -3.2), facing=0.9, name="PaperScatterB")
+    r.model("binder_stack", (1.1, 3.3))
+    r.model("missing_ceiling_tile", (-1.5, 0.4))
+
+    r.light_fitting(0, 4)
+    r.light_fitting(-3.75, 2.2)
+    r.light_fitting(3.75, 0)
+    r.light_fitting(-3.75, -2.2)
+    r.light_fitting(0, -3.5)
+    r.light(-6.5, 1.05)          # the nook — too shallow for a 1.2m troffer
+    r.light_fitting(0, -6)
     return r
 
 
@@ -2434,18 +3304,46 @@ def room9():
     # Mounted on the east wall (x=5), thin in x, so the faceplate points -X
     # into the room. PINNED 'nx': inferFacing lands on it here, but the two
     # dispensers above document what happens when it does not.
-    r.interactable("dispenser9", "dispenser", (0.16, 0.75, 0.55), (4.72, 1.45, 1.0),
+    r.interactable("dispenser9", "dispenser", (0.16, 0.75, 0.55), (4.8, 1.45, 1.0),
                    "dispenser", "use the dispenser", facing="nx")
-    r.interactable("keypad9", "keypad", (0.4, 0.5, 0.14), (1.35, 1.45, -5.75),
+    r.interactable("keypad9", "keypad", (0.4, 0.5, 0.14), (1.35, 1.45, -5.81),
                    "pad", "use the keypad")
     r.interactable("exitdoor", "door", (2, 3, 0.2), (0, 1.5, -6),
                    "door", "the exit door")
 
-    r.light(0, 4)
-    r.light(-3, 1)
-    r.light(3, 1)
-    r.light(0, -1.5)
-    r.light(0, -4.5)
+    # --- set dressing --------------------------------------------------------
+    # Faces: south z 4.88, east x 4.88, west x -4.88, north z -5.88.
+    # The desk is the existing prop box at (1, -2.5), footprint x 0..2, z -3..-2;
+    # the chair and desktop clutter are placed against those real numbers.
+    #
+    # The west wall carries the code scrawl at z 1 and the coat (with the pill
+    # bottle interactable) at z -3.6, so the cabinets sit in the gap between.
+    r.prop_run("skirting", "x", -5, 5, 4.88)
+    r.prop_run("skirting", "x", -5, -1, -5.88)
+    r.prop_run("skirting", "x", 1, 5, -5.88)
+    r.prop_run("skirting", "z", -6, 5, -4.88)
+    r.prop_run("skirting", "z", -6, 5, 4.88)
+
+    r.model("office_chair", (1.0, -3.65), facing="pz")
+    r.model("crt_monitor", (1.45, -2.45), y=0.9, facing="pz")
+    r.model("paper_tray", (0.35, -2.4), y=0.9, facing="pz")
+    r.model("filing_cabinet", (-4.57, -1.0), facing="px", name="OfficeFileA")
+    r.model("filing_cabinet", (-4.57, -1.85), facing="px", name="OfficeFileB")
+
+    r.model("barred_window", (2.6, 4.88), facing="nz")
+    r.model("wall_shelf", (4.88, -2.6), facing="nx")
+    r.model("binder_stack", (4.74, -2.6), y=1.464, facing="nx")
+    r.model("notice_board", (-2.6, -5.88), facing="pz")
+    r.model("wall_clock", (3.2, -5.88), facing="pz")
+    r.model("radiator", (-4.88, 3.0), facing="px")
+    r.model("paper_scatter", (2.2, -0.6))
+    r.model("missing_ceiling_tile", (-2.2, -0.8))
+
+    r.light_fitting(0, 4)
+    r.light_fitting(-3, 1)
+    r.light_fitting(3, 1)
+    r.light_fitting(0, -1.5)
+    r.light_fitting(0, -4.5)
     return r
 
 def room8():
@@ -2520,21 +3418,75 @@ def room8():
     # interior is +z of both, so facing is PINNED 'pz'. (The heuristic happens
     # to agree here, but gen_rooms' header records two shipped bugs from
     # trusting it, so both are explicit.)
-    r.interactable("keypad8", "keypad", (0.4, 0.5, 0.14), (1.35, 1.45, -7.75),
+    r.interactable("keypad8", "keypad", (0.4, 0.5, 0.14), (1.35, 1.45, -7.81),
                    "pad", "use the keypad", facing="pz")
     r.interactable("exitdoor", "door", (2, 3, 0.2), (0, 1.5, -8),
                    "door", "the exit door", facing="pz")
 
-    r.light(0, 4.5)
-    r.light(0, 1.5)
-    r.light(0, -1.5)
-    r.light(5, 3)
-    r.light(5, -4)
-    r.light(-5, 3)
-    r.light(-5, -4)
-    r.light(9, 1)
-    r.light(0, -6)
-    r.light(0, -9)
+    # --- set dressing --------------------------------------------------------
+    # ZERO NEW COLLIDERS IN THIS ROOM, and this one is not a style choice —
+    # it is the only safe option, for a reason worth reading before you add
+    # anything here.
+    #
+    # room8.gd runs TWO orderlies. check_rooms' patrol validator looks up a
+    # constant named literally WAYPOINTS, so it only ever sees route A; route B
+    # — the wide figure-eight through (7.5,-5.5) (0,-2.5) (-7.3,-5.5) (-7.3,4.5)
+    # (0,2.5) (7.5,4.5) — IS NOT VALIDATED BY ANY TEST. That file records both
+    # routes as hand-checked, with route B down to 0.59m clearance against a
+    # 0.50m requirement. So a collider dropped near B would pass CI green and
+    # wedge an orderly in play, which is the worst failure mode available here.
+    #
+    # BEDS WERE THE OBVIOUS THING TO WANT and do not fit. This is "the East
+    # Ward"; the concept art's dormitory plate is rows of iron beds. But a
+    # ward_bed is 2.02m long, and route B runs the full perimeter — down the
+    # west at x -7.3 and across at z ±4.5 — so a bed head-to-wall on any wall
+    # lands on a leg of it. Curtain rails carry the ward read instead: they hang
+    # from the ceiling, so they cost nothing on the floor.
+    #
+    # Faces: south z 5.88, west x -8.88, north z -7.88, east x 8.88 (broken by
+    # the alcove opening at z 0.4..2.0).
+    r.prop_run("skirting", "x", -9, 9, 5.88)
+    r.prop_run("skirting", "x", -9, -1, -7.88)
+    r.prop_run("skirting", "x", 1, 9, -7.88)
+    r.prop_run("skirting", "z", -8, 6, -8.88)
+    r.prop_run("skirting", "z", -8, 0.4, 8.88)
+    r.prop_run("skirting", "z", 2.0, 6, 8.88)
+    r.prop_run("bumper_rail", "z", -7.6, 5.6, -8.88)
+    r.prop_run("bumper_rail", "x", -8.6, -1.4, -7.88)
+
+    # The ward read, entirely overhead.
+    r.model("privacy_curtain", (-6.4, 2.6), facing="nx")
+    r.model("privacy_curtain", (-6.4, -0.4), facing="nx", name="CurtainB")
+    r.model("privacy_curtain", (6.4, 2.6), facing="px", name="CurtainC")
+
+    # Windows down the south wall — the dormitory plate's light source.
+    r.model("barred_window", (-5.6, 5.88), facing="nz")
+    r.model("barred_window", (-2.4, 5.88), facing="nz")
+    r.model("barred_window", (3.2, 5.88), facing="nz")
+
+    r.model("radiator", (-8.88, 1.4), facing="px")
+    r.model("radiator", (8.88, -3.0), facing="nx")
+    r.model("wall_clock", (-3.4, -7.88), facing="pz")
+    r.model("exit_sign", (1.6, -7.88), facing="pz")
+    r.model("cabinet_header", (10.36, 2.1), facing="nx")
+    r.model("wall_speaker", (-8.88, -5.4), facing="px")
+    r.model("wall_vent", (8.88, -6.2), facing="nx")
+    r.model("missing_ceiling_tile", (-4.2, -5.0))
+    r.model("missing_ceiling_tile", (5.6, 0.8), name="MissingTileE")
+    r.model("hanging_cable", (2.0, -6.4))
+    r.model("paper_scatter", (-2.0, 3.9))
+    r.model("plaster_rubble", (7.6, 5.2))
+
+    r.light_fitting(0, 4.5)
+    r.light_fitting(0, 1.5)
+    r.light_fitting(0, -1.5)
+    r.light_fitting(5, 3)
+    r.light_fitting(5, -4)
+    r.light_fitting(-5, 3)
+    r.light_fitting(-5, -4)
+    r.light(9, 1)                # alcove — 1.6m wide, no room for a troffer
+    r.light_fitting(0, -6)
+    r.light_fitting(0, -9)
     return r
 
 def room10():
@@ -2628,7 +3580,7 @@ def room10():
 
     # Z1's dispenser, three steps from spawn — the catch-reset safety net.
     # West-wall mount, x-thin, faceplate PINNED east into the room.
-    r.interactable("dispenser10a", "dispenser", (0.16, 0.75, 0.55), (-7.72, 1.45, 4),
+    r.interactable("dispenser10a", "dispenser", (0.16, 0.75, 0.55), (-7.8, 1.45, 4),
                    "dispenser", "use the dispenser", facing="px")
     # Z3's dispenser, proud of the alcove end cap's inner face (x=-9.48) rather
     # than flush in it. Facing PINNED 'px' per the facing audit — alcove mounts
@@ -2638,9 +3590,9 @@ def room10():
                    "dispenser", "use the dispenser", facing="px")
     # Z4's safety dispenser — see the TIMER SOFT-LOCK AUDIT above. No orderly
     # ever reaches Z4, so there is no patrol clearance to worry about here.
-    r.interactable("dispenser10c", "dispenser", (0.16, 0.75, 0.55), (-7.72, 1.45, -23),
+    r.interactable("dispenser10c", "dispenser", (0.16, 0.75, 0.55), (-7.8, 1.45, -23),
                    "dispenser", "use the dispenser", facing="px")
-    r.interactable("keypad10", "keypad", (0.4, 0.5, 0.14), (1.35, 1.45, -25.75),
+    r.interactable("keypad10", "keypad", (0.4, 0.5, 0.14), (1.35, 1.45, -25.81),
                    "pad", "use the keypad", facing="pz")
     r.interactable("exitdoor", "door", (2, 3, 0.2), (0, 1.5, -26),
                    "door", "the exit door", facing="pz")
@@ -2659,23 +3611,114 @@ def room10():
     # lights its dispenser alcove ({pos:[6.3,-5.3]}) and room7.ts its dispenser
     # nook ({pos:[-6.5,1.05]}). room10.ts is the outlier, and it is the one room
     # where all three recesses carry something the player is required to find.
-    r.light(0, 6)
-    r.light(0, 2)
-    r.light(4, -2)
-    r.light(-4, -2)
-    r.light(4, -6)
-    r.light(-4, -6)
-    r.light(0, -9)
-    r.light(4, -12)
-    r.light(-4, -12)
-    r.light(4, -16)
-    r.light(-4, -16)
-    r.light(0, -19)
-    r.light(0, -22)
-    r.light(0, -25)
-    r.light(-8.8, -8.6)    # nook A — code half A
-    r.light(8.8, -18.6)    # nook B — code half B
-    r.light(-8.8, -14.6)   # alcove B — dispenser
+    # --- set dressing --------------------------------------------------------
+    # 36m of wing, and the first room in the ward with enough floor to put BEDS
+    # in — which is what the concept art's dormitory plate is made of.
+    #
+    # WHERE THEY GO IS DECIDED BY THE PATROLS, not by taste. room10.gd runs two
+    # orderlies on rectangles at x +-6.5: route A over z -1.5..-8.5, route B over
+    # z -11.5..-18.5. A bed is 2.02m long, so head-to-wall on a side wall it
+    # reaches from x 7.88 in to x 5.86 — straight through x 6.5. So NO bed goes
+    # in either patrolled segment. The southern segment (z 0..8, behind the first
+    # gate) and the northern one (z -20..-26, past the last) are walked by
+    # neither route, and that is where the ward bays are.
+    #
+    # tools/check_patrols.tscn is what makes this checkable rather than hopeful:
+    # it measures every route against every always-on collider, and both of this
+    # room's sat at 1.380m before these beds and must still afterwards.
+    r.prop_run("skirting", "z", -7.8, 8, -7.88)
+    r.prop_run("skirting", "z", -13.8, -9.4, -7.88)
+    r.prop_run("skirting", "z", -26, -15.4, -7.88)
+    r.prop_run("skirting", "z", -17.8, 8, 7.88)
+    r.prop_run("skirting", "z", -26, -19.4, 7.88)
+    r.prop_run("skirting", "x", -8, 8, 7.88)
+    r.prop_run("bumper_rail", "z", -7.6, 7.6, -7.88)
+    r.prop_run("bumper_rail", "z", -17.6, 7.6, 7.88)
+    r.prop_run("bumper_rail", "z", -25.6, -20.0, -7.88)
+    r.prop_run("bumper_rail", "z", -25.6, -20.0, 7.88)
+
+    # Ward bays, both unpatrolled segments. Head to the wall, curtain overhead.
+    for i, bz in enumerate((2.0, 4.6)):
+        r.model("ward_bed", (-6.87, bz), facing="nx", name="BayW%d" % i)
+        r.model("ward_bed", (6.87, bz), facing="px", name="BayE%d" % i)
+    # Curtains hang PERPENDICULAR to the wall, dividing one bay from the next —
+    # so their 2m width has to run along X, which is facing "nz", not along the
+    # wall. Authored the other way first and they hung ACROSS the wing like grey
+    # partitions, blocking the 36m sightline the whole room is built on. One
+    # curtain between the two bays per side, not one per bed: the point is to
+    # break the run up, and a curtain at every bed walls the wing off again.
+    r.model("privacy_curtain", (-6.88, 3.3), facing="nz", name="BayCurtW")
+    r.model("privacy_curtain", (6.88, 3.3), facing="nz", name="BayCurtE")
+    for i, bz in enumerate((-21.8, -24.2)):
+        r.model("ward_bed", (-6.87, bz), facing="nx", name="BayNW%d" % i)
+        r.model("ward_bed", (6.87, bz), facing="px", name="BayNE%d" % i)
+    r.model("bedside_cabinet", (-6.9, 3.5), facing="nz", name="BayCabW")
+    r.model("bedside_cabinet", (6.9, 3.5), facing="nz", name="BayCabE")
+
+    # Bedding and bed-head services. Beds face "nx" on the west wall and "px" on
+    # the east, so each one's HEAD (ward_bed's local -Z) points AT its wall —
+    # which puts the pillow 0.7m toward the wall from the bed centre and the
+    # blanket 0.7m away from it. Mattress top is y 0.57.
+    #
+    # DELIBERATELY NOT ON EVERY BED. Pillow + blanket is 5 draw calls a bed and
+    # this room already carries the most geometry in the game; the four southern
+    # bays get the full treatment because that is where the player walks in, and
+    # the northern four get bedding only. See the draw-call note in PROP_KIT.md.
+    for i, bz in enumerate((2.0, 4.6)):
+        r.model("pillow", (-7.57, bz), facing="nx", y=0.57, name="PillowW%d" % i)
+        r.model("folded_blanket", (-6.17, bz), facing="nx", y=0.57, name="BlanketW%d" % i)
+        r.model("pillow", (7.57, bz), facing="px", y=0.57, name="PillowE%d" % i)
+        r.model("folded_blanket", (6.17, bz), facing="px", y=0.57, name="BlanketE%d" % i)
+        r.model("nurse_call_cord", (-7.88, bz), facing="px", name="CordW%d" % i)
+        r.model("nurse_call_cord", (7.88, bz), facing="nx", name="CordE%d" % i)
+    for i, bz in enumerate((-21.8, -24.2)):
+        r.model("pillow", (-7.57, bz), facing="nx", y=0.57, name="PillowNW%d" % i)
+        r.model("pillow", (7.57, bz), facing="px", y=0.57, name="PillowNE%d" % i)
+
+    r.model("oxygen_outlet", (-7.88, 3.4), facing="px")
+    r.model("oxygen_outlet", (7.88, 3.4), facing="nx", name="OxygenE")
+    r.model("sharps_bin", (-7.88, 1.0), facing="px")
+    r.model("bed_table", (-5.7, 4.6), facing="nx")
+    r.model("vitals_monitor", (5.9, 1.4), facing="px")
+    r.model("light_switch", (-7.88, 7.2), facing="px")
+    r.model("fire_alarm_point", (7.88, -19.6), facing="nx")
+    r.model("taped_notes", (-7.88, -18.0), facing="px")
+
+    # Windows down both sides of the long unpatrolled stretches.
+    r.model("barred_window", (-7.88, 6.2), facing="px")
+    r.model("barred_window", (7.88, 6.2), facing="nx")
+    r.model("barred_window", (-7.88, -23.0), facing="px", name="WindowNW")
+    r.model("barred_window", (7.88, -23.0), facing="nx", name="WindowNE")
+
+    r.prop_run("ceiling_conduit", "z", -25.0, 7.0, -6.6, facing="nx")
+    r.model("radiator", (-7.88, -3.4), facing="px")
+    r.model("radiator", (7.88, -13.4), facing="nx")
+    r.model("ward_sign", (7.88, 5.0), facing="nx", text="WARD B")
+    r.model("exit_sign", (1.6, -25.88), facing="pz")
+    r.model("wall_speaker", (-7.88, -11.0), facing="px")
+    r.model("missing_ceiling_tile", (3.2, -14.6))
+    r.model("missing_ceiling_tile", (-2.6, -22.4), name="MissingTileN")
+    r.model("hanging_cable", (2.4, -5.2))
+    r.model("paper_scatter", (-3.4, -16.2))
+    r.model("plaster_rubble", (4.6, -23.4))
+
+    r.light_fitting(0, 6)
+    r.light_fitting(0, 2)
+    r.light_fitting(4, -2)
+    r.light_fitting(-4, -2)
+    r.light_fitting(4, -6)
+    r.light_fitting(-4, -6)
+    r.light_fitting(0, -9)
+    r.light_fitting(4, -12)
+    r.light_fitting(-4, -12)
+    r.light_fitting(4, -16)
+    r.light_fitting(-4, -16)
+    r.light_fitting(0, -19)
+    r.light_fitting(0, -22)
+    r.light_fitting(0, -25)
+    r.light(-8.8, -8.6)    # nook A — 1.6m, no room for a troffer
+    r.light(8.8, -18.6)    # nook B — as above
+    r.light(-8.8, -14.6)   # alcove B — as above
     return r
 
 def room12():
@@ -2810,10 +3853,10 @@ def room12():
     # heuristic misreads alcove/nook mounts, which is a bug the TS build
     # actually shipped in room 7.
     r.interactable("dispenser12a", "dispenser", (0.16, 0.75, 0.55),
-                   (-9.72, 1.45, 42), "dispenser", "use the dispenser",
+                   (-9.8, 1.45, 42), "dispenser", "use the dispenser",
                    facing="px")
     r.interactable("dispenser12b", "dispenser", (0.16, 0.75, 0.55),
-                   (-9.72, 1.45, -13), "dispenser", "use the dispenser",
+                   (-9.8, 1.45, -13), "dispenser", "use the dispenser",
                    facing="px")
     # The pocket's ONE station — load-bearing for the one-pill solve, not just
     # a timer backstop: this is where the pill spent on GATE B is replaced
@@ -2822,10 +3865,10 @@ def room12():
     # z=33.5, so z=35 clears it by 1.5m) and west of his x=-7 leg — well off
     # the route to nook C on the far side.
     r.interactable("dispenser12c", "dispenser", (0.16, 0.75, 0.55),
-                   (-9.72, 1.45, 35), "dispenser", "use the dispenser",
+                   (-9.8, 1.45, 35), "dispenser", "use the dispenser",
                    facing="px")
     r.interactable("keypad12", "keypad", (0.4, 0.5, 0.14),
-                   (1.35, 1.45, -25.75), "pad", "use the keypad", facing="pz")
+                   (1.35, 1.45, -25.81), "pad", "use the keypad", facing="pz")
     r.interactable("exitdoor", "door", (2, 3, 0.2), (0, 1.5, -26),
                    "door", "the exit door", facing="pz")
 
@@ -2845,6 +3888,78 @@ def room12():
     # plan is touched. (GATE C has no fitting of its own in the TS either, and
     # that one is left alone — you can only ever cross a gate lucid, and lucid
     # ambient renders the whole chamber legible.)
+    # --- set dressing --------------------------------------------------------
+    # 74m across five gated zones, and the zones decide what each one can hold.
+    # room12.gd runs TWO orderlies, both confined to Z3: route A over
+    # x [-7.5, 3] z [-5.5, 17.5], route B over x [-5, 0] z [1, 11] inside it.
+    # So Z3 GETS NO NEW COLLIDER AT ALL — trim and wall fittings only — while
+    # Z1, Z2, Z4 and Z5 are walked by neither route and can take furniture.
+    # tools/check_patrols.tscn is what makes that a fact rather than a hope.
+    #
+    # Faces: west x -9.88, east x 9.88 (broken by nook mouths at z 26..28 and
+    # z 4..6), south z 45.88, north z -25.88.
+    r.prop_run("skirting", "x", -10, 10, 45.88)
+    r.prop_run("skirting", "z", 36.2, 46, -9.88)
+    r.prop_run("skirting", "z", 36.2, 46, 9.88)
+    r.prop_run("skirting", "z", 20.2, 36, -9.88)
+    r.prop_run("skirting", "z", -8, 20, -9.88)
+    r.prop_run("skirting", "z", -26, -18.2, -9.88)
+    r.prop_run("skirting", "z", -26, -18.2, 9.88)
+    r.prop_run("bumper_rail", "z", -7.6, 19.6, -9.88)
+    r.prop_run("bumper_rail", "z", -7.6, 3.6, 9.88)
+    r.prop_run("ceiling_conduit", "z", -6, 18, -8.2, facing="nx")
+
+    # Z1, the entrance hall behind the first gate — reception in character.
+    r.model("beam_seating", (-6.0, 45.3), facing="nz", name="Z1SeatW")
+    r.model("beam_seating", (6.0, 45.3), facing="nz", name="Z1SeatE")
+    r.model("barred_window", (9.88, 43.0), facing="nx", name="Z1Window")
+    r.model("notice_board", (6.4, 45.88), facing="nz")
+    r.model("wall_clock", (-6.4, 45.88), facing="nz")
+    r.model("ward_sign", (9.88, 39.0), facing="nx", text="WARD B")
+    r.model("light_switch", (-2.55, 36.12), facing="pz")
+    r.model("wall_calendar", (-9.88, 40.5), facing="px")
+
+    # Z2, the dormitory floor. Patrol-free, so this is where the beds go — the
+    # concept art's ward plate, six bays with curtains between them. The east
+    # wall's nook mouth at z 26..28 is left clear.
+    for i, bz in enumerate((22.0, 24.5, 31.5)):
+        r.model("ward_bed", (-8.87, bz), facing="nx", name="Z2BedW%d" % i)
+        r.model("pillow", (-9.57, bz), facing="nx", y=0.57, name="Z2PillowW%d" % i)
+        r.model("folded_blanket", (-8.17, bz), facing="nx", y=0.57,
+                name="Z2BlanketW%d" % i)
+        r.model("nurse_call_cord", (-9.88, bz), facing="px", name="Z2CordW%d" % i)
+    for i, bz in enumerate((22.0, 24.5, 31.5)):
+        r.model("ward_bed", (8.87, bz), facing="px", name="Z2BedE%d" % i)
+        r.model("pillow", (9.57, bz), facing="px", y=0.57, name="Z2PillowE%d" % i)
+    r.model("privacy_curtain", (-8.88, 23.3), facing="nz", name="Z2CurtW")
+    r.model("privacy_curtain", (8.88, 23.3), facing="nz", name="Z2CurtE")
+    r.model("bedside_cabinet", (-8.9, 23.2), facing="nz", name="Z2Cab")
+    r.model("oxygen_outlet", (-9.88, 33.0), facing="px")
+    r.model("barred_window", (-9.88, 28.5), facing="px", name="Z2Window")
+
+    # Z3 is PATROLLED — wall and ceiling only, nothing solid.
+    r.model("wall_stain", (-9.88, 15.0), facing="px")
+    r.model("fallen_plaster_patch", (9.88, 12.0), facing="nx")
+    r.model("missing_ceiling_tile", (2.0, 9.0))
+    r.model("missing_ceiling_tile", (-4.0, -2.0), name="Z3TileB")
+    r.model("hanging_cable", (3.0, 2.0))
+    r.model("fire_alarm_point", (-9.88, 0.0), facing="px")
+    r.model("wall_speaker", (9.88, 8.0), facing="nx")
+    r.model("paper_scatter", (6.5, -3.0))
+
+    # Z4, storage behind the last gate.
+    r.model("locker_bank", (-9.4, -12.0), facing="px", name="Z4LockerA")
+    r.model("locker_bank", (-9.4, -13.0), facing="px", name="Z4LockerB")
+    r.model("utility_shelf_unit", (9.3, -15.0), facing="nx")
+    r.model("waste_bin", (8.6, -10.4))
+    r.model("plaster_rubble", (-6.0, -16.5))
+
+    # Z5, the exit chamber.
+    r.model("exit_sign", (1.6, -25.88), facing="pz")
+    r.model("payphone", (-9.88, -21.0), facing="px")
+    r.model("taped_notes", (9.88, -22.5), facing="nx")
+    r.model("light_switch", (-2.2, -25.88), facing="pz")
+
     for x, z in [
         (0, 44), (-5, 40), (5, 40), (0, 37.4),        # Z1 + GATE B
         (5, 32), (-5, 32), (5, 27), (-2, 28), (5, 23), (-5, 23),   # Z2
@@ -2852,7 +3967,7 @@ def room12():
         (0, -13),                                      # Z4
         (0, -20), (0, -23), (0, -26),                  # Z5
     ]:
-        r.light(x, z)
+        r.light_fitting(x, z)
     return r
 
 def room13():
@@ -2895,6 +4010,29 @@ def room13():
              (3.85, 1.6, 19), -math.pi / 2, 2.8)
     r.scrawl("it lets you out.\nit just wanted to see you choose.",
              (-3.85, 1.6, -27), math.pi / 2, 2.4)
+
+    # --- set dressing --------------------------------------------------------
+    # ALMOST NOTHING, BY DESIGN — and not the usual patrol reason. The two
+    # slabs SWEEP the entire stretch z [-24, 16]: their inner faces travel from
+    # x 4.25 in to x 0.5, so anything placed in that volume — trim on the
+    # perimeter walls included, which sit BEHIND the slabs and only exist to cap
+    # the volume — is either hidden inside a mover or ploughed through by one
+    # mid-squeeze. A skirting board emerging from a wall that is currently
+    # crushing you is a comedy beat, not a horror one.
+    #
+    # So the squeeze stretch stays exactly as bare as the scrawl says ("nothing
+    # left to take"), and the dressing sits in the two FIXED ends only.
+    r.prop_run("skirting", "x", -4, 4, 21.88)
+    r.prop_run("skirting", "z", 16.2, 22, -3.88)
+    r.prop_run("skirting", "z", 16.2, 22, 3.88)
+    r.model("taped_notes", (-3.88, 20.4), facing="px")
+    r.model("light_switch", (3.88, 20.8), facing="nx")
+
+    r.prop_run("skirting", "z", -30, -24.2, -3.88)
+    r.prop_run("skirting", "z", -30, -24.2, 3.88)
+    r.model("wall_stain", (3.88, -27.5), facing="nx")
+    r.model("fire_alarm_point", (-3.88, -29.2), facing="px")
+    r.model("exit_sign", (1.5, -29.88), facing="pz")
 
     r.ward_lights([(0, z) for z in
                   (20, 16, 10, 4, -2, -8, -14, -20, -24, -26, -29)])
@@ -3086,6 +4224,44 @@ def room11():
     # --- lights ------------------------------------------------------------
     # Two of these (z=12 and z=-10) sit on a gate's plane by design — see
     # room11.gd's header for the shadow audit.
+    # --- set dressing --------------------------------------------------------
+    # THE TREATMENT ROOM, so the medical props live here. Two patrols to
+    # respect: A on the low west floor (x -8..-6, z -3..5) and B ON THE
+    # MEZZANINE (x 2, z 1.2..6.8, at MEZZ_Y) — so the mezz gets nothing solid
+    # west of x 3.2, and the west lane gets nothing solid at all.
+    # check_patrols validates both routes; it is why these placements can be
+    # trusted rather than hoped about.
+    r.prop_run("skirting", "x", -9, 9, 21.88)
+    r.prop_run("skirting", "z", 12.2, 22, -8.88)
+    r.prop_run("skirting", "z", 12.2, 22, 8.88)
+    r.prop_run("skirting", "z", -18, -10.2, -8.88)
+    r.prop_run("skirting", "z", -18, -10.2, 8.88)
+
+    # Entry hall (z 12..22): the triage end. The west wall's two scrawls sit at
+    # z 17 and 20, so the solid kit keeps east and south.
+    r.model("dressings_trolley", (7.9, 19.6), facing="nx")
+    r.model("wheelchair", (-7.9, 14.3), facing="px")
+    r.model("privacy_curtain", (4.0, 13.2), facing="nz")
+    r.model("hoist_track", (0, 18.0))
+    r.model("hoist_track", (0, 16.0), name="HoistTrackB")
+    r.model("drip_bag", (8.88, 19.4), facing="nx")
+    r.model("cabinet_header", (8.88, 17.9), facing="nx")
+    r.model("light_switch", (-2.55, 12.12), facing="pz")
+    r.model("taped_notes", (-8.88, 15.2), facing="px")
+
+    # The mezzanine (floor y 0.9): dressing east of patrol B's lane only.
+    r.model("vitals_monitor", (7.6, 6.6), y=0.9, facing="nx")
+    r.model("linen_cart", (7.6, 1.6), y=0.9, facing="nx")
+    r.model("wall_stain", (8.88, 3.0), facing="nx")
+
+    # Exit chamber (z -18..-10): no patrol reaches it — the safe room.
+    r.model("locker_bank", (-8.4, -12.6), facing="px")
+    r.model("waste_bin", (-7.9, -16.6))
+    r.model("exit_sign", (1.6, -17.88), facing="pz")
+    r.model("fire_alarm_point", (-2.0, -17.88), facing="pz")
+    r.model("missing_ceiling_tile", (4.0, -14.0))
+    r.model("paper_scatter", (5.2, -12.0))
+
     r.ward_lights([(0, 20), (0, 16), (0, 12), (-7, 8), (-7, 1), (-7, -6),
                   (5, 6), (5, 2), (0, -10), (0, -14), (0, -17)])
     return r
@@ -3180,12 +4356,34 @@ def room14():
     r.interactable("gate14", "door", (2, 3, 0.2), (0, 1.5, -14),
                    "door", "the gate", facing="pz")
 
-    r.light(0, 6)
-    r.light(0, 1)
-    r.light(0, -4)
-    r.light(3, -12)
-    r.light(-3, -12)
-    r.light(0, -15.5)
+    # --- set dressing --------------------------------------------------------
+    # The patrol runs x -4.2..4.2 at z -11.9, straight across the plate zone,
+    # and the push block starts at (3, -13) — so all solid dressing stays SOUTH
+    # of z -8, well clear of both the route and anywhere the block can be
+    # pushed. The Hold is a cell block in character: bars, a bench, not a ward.
+    r.prop_run("skirting", "x", -5, 5, 8.88)
+    r.prop_run("skirting", "z", -13.8, 9, -4.88)
+    r.prop_run("skirting", "z", -13.8, 9, 4.88)
+    r.prop_run("bumper_rail", "z", -8, 8.6, 4.88)
+
+    r.model("beam_seating", (2.4, 8.5), facing="nz")
+    r.model("barred_window", (-4.88, 4.6), facing="px")
+    r.model("radiator", (4.88, 2.2), facing="nx")
+    r.model("grab_rail", (-4.88, -0.6), facing="px")
+    r.model("wall_stain", (4.88, -6.0), facing="nx")
+    r.model("fallen_plaster_patch", (-4.88, -7.4), facing="px")
+    r.model("plaster_rubble", (-4.3, -7.4))
+    r.model("missing_ceiling_tile", (1.8, -6.2))
+    r.model("hanging_cable", (-1.6, -9.0))
+    r.model("exit_sign", (1.5, -13.88), facing="pz")
+    r.model("light_switch", (-1.4, 8.88), facing="nz")
+
+    r.light_fitting(0, 6)
+    r.light_fitting(0, 1)
+    r.light_fitting(0, -4)
+    r.light_fitting(3, -12)
+    r.light_fitting(-3, -12)
+    r.light_fitting(0, -15.5)
     return r
 
 
@@ -3514,6 +4712,21 @@ def room17():
         (4, 4, 2.7), (-5, 6, 2.7), (-4, 0, 2.7), (0, -4, 2.7),   # pocket
         (5, 7, 5.7), (0, 1, 5.7), (-4, -4, 5.7),            # gallery
     ])
+
+    # --- set dressing --------------------------------------------------------
+    # COLLIDER-FREE. Room 17 is the only room with genuinely STACKED levels, and
+    # every collider here has to declare which level it belongs to or it blocks
+    # the floor beneath the gallery as well. Dressing that carries no collider
+    # sidesteps that entirely; anything solid up here should be authored with an
+    # explicit `level=` by someone who has read the verticality section of
+    # KIT_REFERENCE.md.
+    r.model("missing_ceiling_tile", (-3.0, 20.0))
+    r.model("missing_ceiling_tile", (4.0, 6.0), name="TileB17")
+    r.model("hanging_cable", (1.0, 14.0))
+    r.model("paper_scatter", (-5.0, 24.0))
+    r.model("plaster_rubble", (6.2, 10.0))
+    r.model("wall_stain", (8.88, 18.0), facing="nx")
+
     return r
 
 # --- ROOM 15 — the Sorting Room --------------------------------------------
@@ -3660,19 +4873,43 @@ def room15():
     # room10's lesson, verified by screenshot there and here: an unlit recess
     # renders as a pure black void, and everything shaded inside it vanishes —
     # which for this room would mean the key prop the player is hunting.
-    r.light(0, 4)
-    r.light(0, 0)
-    r.light(-6, -2.5)
-    r.light(6, -2.5)
-    r.light(0, -6.5)
-    r.light(-4, -10)
-    r.light(6, -10)
-    r.light(0, -14)
-    r.light(-4, -14.5)
-    r.light(4, -18)
-    r.light(-4, -18.5)
-    r.light(0, -22)
-    r.light(0, -25.5)
+    # --- set dressing --------------------------------------------------------
+    # FIVE patrol routes here — the most in the game — but all five clear by
+    # 1.28m or better, so there is genuine room. Solid kit still hugs the
+    # perimeter walls and the two end chambers; the open floor between the legs
+    # is left alone, because that is where all five routes converge.
+    r.prop_run("skirting", "x", -9, 9, 5.88)
+    r.prop_run("skirting", "z", -1.8, 6, -8.88)
+    r.prop_run("skirting", "z", -9.2, 6, 8.88)
+    r.prop_run("bumper_rail", "z", -1.6, 5.6, -8.88)
+
+    r.model("utility_shelf_unit", (-8.4, 3.6), facing="px")
+    r.model("filing_cabinet", (8.5, 4.2), facing="nx", name="SortFileA")
+    r.model("filing_cabinet", (8.5, 3.4), facing="nx", name="SortFileB")
+    r.model("paper_scatter", (-5.0, 1.2))
+    r.model("paper_scatter", (3.4, -5.6), facing=0.8, name="SortPaperB")
+    r.model("binder_stack", (7.9, 1.4))
+    r.model("reg_notice", (-8.88, 1.0), facing="px")
+    r.model("wall_clock", (5.0, 5.88), facing="nz")
+    r.model("light_switch", (-2.0, 5.88), facing="nz")
+    r.model("missing_ceiling_tile", (2.0, -8.0))
+    r.model("hanging_cable", (-3.0, -16.0))
+    r.model("wall_stain", (8.88, -6.0), facing="nx")
+    r.model("exit_sign", (1.6, -26.88), facing="pz")
+
+    r.light_fitting(0, 4)
+    r.light_fitting(0, 0)
+    r.light_fitting(-6, -2.5)
+    r.light_fitting(6, -2.5)
+    r.light_fitting(0, -6.5)
+    r.light_fitting(-4, -10)
+    r.light_fitting(6, -10)
+    r.light_fitting(0, -14)
+    r.light_fitting(-4, -14.5)
+    r.light_fitting(4, -18)
+    r.light_fitting(-4, -18.5)
+    r.light_fitting(0, -22)
+    r.light_fitting(0, -25.5)
     r.light(-10.1, -0.9)          # Key A's leg2
     r.light(10.1, -11.7)          # Key B's leg2
     r.light(-10.1, -19.7)         # Key C's leg2
@@ -3777,6 +5014,20 @@ def room18():
                    "door", "the relay door", facing="pz")
 
     r.ward_lights([(0, 4), (-4.6, 3.4), (-3, -0.5), (3, -0.5), (0, -5), (0, -8.6)])
+
+    # --- set dressing --------------------------------------------------------
+    # COLLIDER-FREE. The relay room's whole beat is two levers and a corridor an
+    # orderly is confined to; the header records a DISPENSER SIGHTLINE audit
+    # (the west wall must stand between every patrol point and dispenser19).
+    # Props cannot help that audit and could only complicate it, so nothing here
+    # occupies floor.
+    r.prop_run("skirting", "x", -6, 6, 4.88)
+    r.model("cable_tray", (0.0, -2.0), facing="nx")
+    r.model("hanging_cable", (-2.6, 1.0))
+    r.model("wall_stain", (5.88, 0.0), facing="nx")
+    r.model("paper_scatter", (3.0, 2.4))
+    r.model("plaster_rubble", (-4.4, -6.0))
+
     return r
 
 
@@ -3869,6 +5120,18 @@ def room19_doors():
     r.light(-4.5, 3)
     r.light(1.0, 3)
     r.light(-4.5, 0.6)
+
+    # --- set dressing --------------------------------------------------------
+    # COLLIDER-FREE, and the header explains why that matters more here than
+    # anywhere: this room's archway was deliberately narrowed to x -4 so that
+    # every in-range patrol point's sightline to dispenser19 passes through
+    # solid wall. Floor props cannot be trusted near a sightline audit that
+    # precise, so this is ceiling and litter only.
+    r.model("missing_ceiling_tile", (-2.0, 1.0))
+    r.model("hanging_cable", (2.0, -3.0))
+    r.model("paper_scatter", (4.0, 2.0))
+    r.model("plaster_rubble", (-5.0, -5.0))
+
     return r
 
 
@@ -3979,6 +5242,14 @@ def room19_lights():
     # Confirmed by screenshot, both before and after.
     r.ward_lights([(-2.5, 3), (-1, 0.5), (3, 0.5), (5.75, -1.8), (1.5, -4.5),
                   (-4, -3), (-1, -6), (4.5, -4.5), (4.5, -7)])
+
+    # --- set dressing --------------------------------------------------------
+    # COLLIDER-FREE — same undercroft, same sightline audit as room19_doors.
+    r.model("missing_ceiling_tile", (3.0, -1.0))
+    r.model("hanging_cable", (-3.0, 1.5))
+    r.model("paper_scatter", (-4.5, -4.0))
+    r.model("plaster_rubble", (5.2, 2.0))
+
     return r
 
 # --- ROOM 20 — the Loading Bay -----------------------------------------------
@@ -4101,17 +5372,51 @@ def room20():
     r.interactable("gate2", "door", (1, 3, 0.2), (0, 1.5, -16),
                    "door", "the gate", facing="pz")
 
-    r.light(0, 4)
-    r.light(0, 0.5)
-    r.light(-3, -3)
-    r.light(3, -3)
-    r.light(-3, -8)
-    r.light(3, -8)
-    r.light(0, -11)
-    r.light(-3, -13)
-    r.light(3, -13)
-    r.light(0, -15.5)
-    r.light(0, -17.5)
+    # --- set dressing --------------------------------------------------------
+    # A loading bay, so: shelving, carts, litter — ALL COLLIDER-FREE, and this
+    # room is the reason that rule exists rather than a preference.
+    #
+    # Room 20 is a PUSH-BLOCK PUZZLE whose solvability is proven by exhaustive
+    # state-space search (tools/test_room20.gd walks all 410 reachable
+    # crate/player states and asserts every one can still reach the exit). That
+    # proof reads the live collider cache, so ANY new solid anywhere in the room
+    # shrinks the player's reachable regions and can strand a state.
+    #
+    # It did. Three props placed against the side walls — a shelf rack, a linen
+    # cart and a bin, none of them within four metres of the crate's route —
+    # left exactly one of 410 states unable to reach the exit: crate at cell
+    # (-4, 1). Patrol clearance was untouched and the placement audit was clean;
+    # only the soft-lock proof caught it. A walk-through shelf in a loading bay
+    # is a trivial price against an unwinnable room.
+    r.prop_run("skirting", "x", -6, 6, 5.88)
+    r.prop_run("skirting", "z", -19, 6, -5.88)
+    r.prop_run("skirting", "z", -19, 6, 5.88)
+    r.prop_run("ceiling_conduit", "z", -16, 4, -4.4, facing="nx")
+
+    r.model("utility_shelf_unit", (-5.3, 4.4), facing="px", collider=False)
+    r.model("linen_cart", (5.4, 4.6), facing="nx", collider=False)
+    r.model("waste_bin", (-5.2, 2.2), collider=False)
+    r.model("plaster_rubble", (4.6, -6.0))
+    r.model("paper_scatter", (-3.8, -10.5))
+    r.model("ward_sign", (-5.88, 3.0), facing="px", text="LOADING")
+    r.model("exit_sign", (1.6, -18.88), facing="pz")
+    r.model("fire_alarm_point", (5.88, 1.2), facing="nx")
+    r.model("wall_stain", (-5.88, -12.0), facing="px")
+    r.model("fallen_plaster_patch", (5.88, -14.0), facing="nx")
+    r.model("missing_ceiling_tile", (-2.4, -5.0))
+    r.model("hanging_cable", (2.0, -12.0))
+
+    r.light_fitting(0, 4)
+    r.light_fitting(0, 0.5)
+    r.light_fitting(-3, -3)
+    r.light_fitting(3, -3)
+    r.light_fitting(-3, -8)
+    r.light_fitting(3, -8)
+    r.light_fitting(0, -11)
+    r.light_fitting(-3, -13)
+    r.light_fitting(3, -13)
+    r.light_fitting(0, -15.5)
+    r.light_fitting(0, -17.5)
     return r
 
 # --- ROOM 16 — the Breaker Bay ----------------------------------------------
@@ -4313,6 +5618,20 @@ def room16():
     r.ward_lights([(0, 4), (0, 0), (-3, -4), (3, -4), (-3, -8), (3, -8),
                    (-3, -11), (3, -11), (0, -15), (-10.0, -8.0), (10.0, -4.0)],
                   circuit="bay")
+
+    # --- set dressing --------------------------------------------------------
+    # COLLIDER-FREE, deliberately. This is the light-axis room: its whole design
+    # rests on a soft-lock audit that a 0-pill unmed player can always walk back
+    # to a dispenser IN EITHER LIGHT STATE. New solids change reachable space,
+    # and darkness is not allowed to change geometry, so nothing here blocks.
+    r.prop_run("skirting", "x", -8, 8, 5.88)
+    r.model("cable_tray", (-2.0, -6.0), facing="nx")
+    r.model("hanging_cable", (2.4, -3.0))
+    r.model("missing_ceiling_tile", (-3.4, 0.5))
+    r.model("wall_stain", (7.88, 3.0), facing="nx")
+    r.model("plaster_rubble", (5.0, 4.2))
+    r.model("paper_scatter", (-4.6, 1.8))
+
     return r
 
 

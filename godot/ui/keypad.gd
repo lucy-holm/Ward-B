@@ -62,6 +62,13 @@ func _apply_scale() -> void:
 			b.add_theme_font_size_override("font_size", int(30 * s))
 
 
+## Failed entries this session of the keypad. Read by main.gd for the
+## keypad_close telemetry — the number is what separates "opened it by
+## accident" from "tried three times and gave up".
+func attempts() -> int:
+	return _attempts
+
+
 func open(code: String) -> void:
 	_code = code
 	_entered = ""

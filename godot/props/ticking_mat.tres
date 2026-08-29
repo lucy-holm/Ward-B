@@ -1,0 +1,10 @@
+[gd_resource type="StandardMaterial3D" format=3 uid="uid://wardbprmtick1"]
+
+; Mattress ticking — stained, once-white, fully rough. Lighter than the frame
+; it sits on so a dormitory of beds reads as a receding row of pale rectangles,
+; which is the compositional trick the concept art's ward shot runs on.
+
+[resource]
+albedo_color = Color(0.46, 0.44, 0.38, 1)
+roughness = 0.92
+metallic = 0.0

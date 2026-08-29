@@ -1,0 +1,15 @@
+[gd_resource type="StandardMaterial3D" format=3 uid="uid://wardbwfrmpadv1"]
+
+; Cream quilted vinyl — the padded-cell wall panel's diamond-tufted surface,
+; straight off the material study board. Kept close to bone/cream rather than
+; institutional green: it is the one surface in the reference that is warm
+; and soft rather than cold and hard, and that contrast (a padded room inside
+; a building otherwise built from iron and enamel) is the point of it. Mid
+; roughness — vinyl has a slight sheen unlike the flat-matte plaster walls —
+; so the button tufts catch a highlight instead of vanishing into the wall
+; shader behind them.
+
+[resource]
+albedo_color = Color(0.58, 0.545, 0.47, 1)
+roughness = 0.5
+metallic = 0.02

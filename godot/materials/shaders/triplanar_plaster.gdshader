@@ -58,6 +58,44 @@ uniform float band_height = 1.1;
 uniform float band_softness = 0.22;
 uniform float rail_width = 0.025;
 
+// --- dado TILING -----------------------------------------------------------
+// The waiting-room reference plates do not have a painted stripe below the
+// rail; they have GLAZED TILE — a grid of small units with grout between them,
+// running to about 1.4m with plaster above. Painting the band a flat colour got
+// the tonal split right and the surface wrong, and at close range a flat band
+// is the most obvious remaining "this is a box" tell on any wall a player
+// stands next to.
+//
+// Drawn procedurally from world position, so it costs NO texture fetch: two
+// fract() and two smoothstep(). The horizontal axis is chosen from the
+// triplanar weights already in hand — a wall whose normal runs along X is
+// tiled along Z, and vice versa — which is why this needs no UVs on geometry
+// that has none.
+//
+// Grout is DARKENED from whatever the band already is rather than being its own
+// colour, so it stays correct as band_tone shifts with decay (see the
+// band_tone mix below); a fixed grout colour drifted pale against a rotted
+// wainscot and read as white lines drawn on top.
+uniform float dado_tile = 0.16;
+uniform float dado_grout = 0.014;
+uniform float dado_grout_darken : hint_range(0.0, 1.0) = 0.45;
+uniform float dado_tile_variation : hint_range(0.0, 1.0) = 0.10;
+
+// --- damp rise ------------------------------------------------------------
+// Distinct from the dado band above: band_color is a flat AUTHORED stripe
+// with a hard top edge (a long-ago paint job), whereas this is moisture
+// wicking up through the wall from ground contact, so it has to (a) darken
+// BOTH the intact paint and the exposed substrate, not just paint, and
+// (b) break up into a ragged, noise-driven edge rather than a straight
+// line — every dormitory/corridor reference plate stains unevenly along
+// its base. Reuses the already-sampled mottle field for that raggedness,
+// so it costs zero extra texture fetches. Gated by decay, same as the rot
+// tint below: a lucid/clean wall (decay -> 0) keeps a dry skirting.
+uniform vec4 damp_color : source_color = vec4(0.161, 0.169, 0.137, 1.0); // dark olive-wet
+uniform float damp_height = 0.85;
+uniform float damp_noise_reach = 0.35;
+uniform float damp_strength : hint_range(0.0, 1.0) = 0.55;
+
 uniform sampler2D mottle_tex : hint_default_white, repeat_enable, filter_linear_mipmap;
 uniform sampler2D island_tex : hint_default_white, repeat_enable, filter_linear_mipmap;
 
@@ -80,6 +118,25 @@ uniform float parallax_strength : hint_range(0.0, 0.5) = 0.12;
 // wall). decay=1 -> most of it does (large peeled islands, blown plaster).
 uniform float peel_threshold_min : hint_range(0.0, 1.0) = 0.08;
 uniform float peel_threshold_max : hint_range(0.0, 1.0) = 0.66;
+
+// --- peel PATCHINESS -------------------------------------------------------
+// The island field is uniform across a wall, so thresholding it alone peels the
+// WHOLE wall evenly — which renders as an all-over crackle-glaze, like dried
+// mud, and is the single most obvious tell against the concept art. The
+// reference plates peel in PATCHES: areas of intact cream paint, and areas
+// where it has come away, with the boundary between them much larger than any
+// individual crack.
+//
+// So: gate the peel mask by the low-frequency mottle field ALREADY SAMPLED for
+// the plaster's own colour variation — no extra fetch, no extra noise texture.
+// mottle runs at frequency 0.011 (see wall.tres), i.e. metres-scale blotches,
+// which is exactly the scale the patch boundary wants.
+//
+// strength 0 reproduces the old uniform behaviour exactly, so this is inert
+// until a material opts in.
+uniform float peel_patch_strength : hint_range(0.0, 1.0) = 0.0;
+uniform float peel_patch_lo : hint_range(0.0, 1.0) = 0.34;
+uniform float peel_patch_hi : hint_range(0.0, 1.0) = 0.70;
 uniform float edge_width_near : hint_range(0.001, 0.3) = 0.02;
 uniform float edge_width_far : hint_range(0.001, 0.5) = 0.12;
 uniform float dist_fade_near = 5.0;
@@ -132,9 +189,27 @@ void fragment() {
 
 	// --- peel mask: hard-edged, decay-driven coverage -----------------------
 	float threshold = mix(peel_threshold_min, peel_threshold_max, decay);
-	float aa = fwidth(isl) * 1.5;
+	// Clamped: island_tex is Cellular DISTANCE2_SUB (see wall.tres), a
+	// crackle field whose value swings from ~0 (on a cell border) to ~1
+	// (mid-cell) over a genuinely short distance — its OWN derivative is
+	// naturally large near every crack, not just at the aliasing limit the
+	// unclamped fwidth() * 1.5 term was written to catch (that was tuned
+	// against the old smooth Simplex island field, which has no comparably
+	// steep native gradient). Left unclamped, aa ballooned edge_w across
+	// most of a cell rather than just its border, which is what turned
+	// "thin cracks between small islands" into "wall mostly dark" the first
+	// time this landed. 0.06 keeps genuine screen-space aliasing control at
+	// grazing angles/distance while stopping the field's own steepness from
+	// widening the band.
+	float aa = min(fwidth(isl) * 1.5, 0.06);
 	float edge_w = max(mix(edge_width_near, edge_width_far, dist_t), aa);
 	float exposed = 1.0 - smoothstep(threshold, threshold + edge_w, isl);
+	// Patch gate — see peel_patch_strength. Applied to `exposed` only, NOT to
+	// `isl`, deliberately: isl still drives depth_t, the lip band and the
+	// analytic normal below, so a patch edge fades the paint loss without also
+	// flattening the relief inside the patch it is fading.
+	float patch = smoothstep(peel_patch_lo, peel_patch_hi, mottle);
+	exposed *= mix(1.0, patch, peel_patch_strength);
 	// 0 right at the edge (freshly exposed plaster) .. 1 deep in the island
 	// (blown out to dark lath).
 	float depth_t = 1.0 - smoothstep(0.0, threshold, isl);
@@ -157,7 +232,25 @@ void fragment() {
 	// wainscot as the ward rots. A fixed dark band_color read the same at
 	// both ends and blew out the contrast on a now much brighter clean wall.
 	vec3 band_tone = mix(paint_soiled_color.rgb * 0.82, band_color.rgb, decay);
-	paint = mix(paint, band_tone, band_t);
+
+	// Tile grid, in the plane of whichever wall this is. weights.x dominant
+	// means the surface faces along X, so its horizontal run is Z.
+	float horiz = mix(world_pos.x, world_pos.z, step(weights.z, weights.x));
+	vec2 tile_uv = vec2(horiz, world_pos.y) / max(dado_tile, 0.001);
+	vec2 cell = fract(tile_uv);
+	float gw = dado_grout / max(dado_tile, 0.001);
+	// Distance to the nearest cell edge on each axis, in cell units.
+	vec2 edge = min(cell, 1.0 - cell);
+	float grout = 1.0 - smoothstep(gw * 0.5, gw, min(edge.x, edge.y));
+	// Per-tile tonal jitter so the grid is not a perfectly uniform screen —
+	// glazed tile always has some variation and it stops the band moiring at
+	// distance. Cheap hash on the cell index, no fetch.
+	vec2 cell_id = floor(tile_uv);
+	float jitter = fract(sin(dot(cell_id, vec2(12.9898, 78.233))) * 43758.5453);
+	vec3 tiled = band_tone * (1.0 + (jitter - 0.5) * dado_tile_variation);
+	tiled = mix(tiled, tiled * (1.0 - dado_grout_darken), grout);
+
+	paint = mix(paint, tiled, band_t);
 	paint *= mix(1.0, 0.65, rail);
 
 	// --- exposed substrate: plaster -> dark lath by how deep into the island -
@@ -182,6 +275,18 @@ void fragment() {
 	col = mix(col, mix(col, green_cast_color.rgb, 0.35), decay * exposed * 0.6);
 	col = mix(col, shadow_color.rgb, ao * decay * 0.5);
 	col = mix(col, rust_color.rgb, streak_amt * lip_band * 0.5);
+
+	// --- damp rise: ground moisture wicking up, independent of the dado -----
+	// world-Y gradient (cheap: one smoothstep, no fetch) modulated by the
+	// mottle field already in hand so the top edge is ragged rather than a
+	// ruler line. Applied to col AFTER paint/substrate/streak/rot so it reads
+	// as a wash sitting over whatever is already there — plaster damp-stains
+	// through both intact paint and bare substrate alike, which a mask
+	// applied earlier (before the paint/substrate mix) could not do.
+	float damp_edge = damp_height + (mottle - 0.5) * damp_noise_reach;
+	float damp_t = 1.0 - smoothstep(0.0, max(damp_edge, 0.05), world_pos.y);
+	float damp_amt = damp_t * damp_strength * decay;
+	col = mix(col, damp_color.rgb, damp_amt);
 
 	ALBEDO = col;
 
@@ -210,6 +315,10 @@ void fragment() {
 	// --- roughness: chalky paint vs damp/rough exposed plaster, glossy streak
 	float roughness = mix(roughness_paint, roughness_plaster, exposed);
 	roughness -= streak_amt * 0.22;
+	// Wet plaster reads glossier at the damp line, same cue as the floor
+	// shader's pool sheen — small (0.12 max) so it stays a hint, not a
+	// puddle-on-a-vertical-surface artefact.
+	roughness -= damp_amt * 0.12;
 	ROUGHNESS = clamp(roughness, 0.05, 1.0);
 	METALLIC = 0.0;
 }

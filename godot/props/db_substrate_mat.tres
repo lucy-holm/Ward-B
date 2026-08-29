@@ -1,0 +1,18 @@
+[gd_resource type="StandardMaterial3D" format=3 uid="uid://wardbprmdbsub1"]
+
+; Exposed brick/lath under a fallen-plaster patch — the dull brick-red/dark-
+; brown the concept art's material board carries under every plaster loss.
+; Low-chroma and low-value so it never competes with props/red_mat's
+; extinguisher, the kit's one deliberate saturated accent — but NOT as dark
+; as the first pass (0.30/0.16/0.12), which read as near-black maroon against
+; the ward's fog and lost the brick entirely, closer to a dried stain than a
+; masonry surface. Lifted and warmed so the hue reads as brick even under the
+; UNMED fog this prop is meant to be seen through.
+;
+; Palette pass (2026-08): 0.30/0.16/0.12 -> 0.38/0.21/0.16, confirmed against
+; fallen_plaster_patch's own gallery shot.
+
+[resource]
+albedo_color = Color(0.38, 0.21, 0.16, 1)
+roughness = 0.85
+metallic = 0.0

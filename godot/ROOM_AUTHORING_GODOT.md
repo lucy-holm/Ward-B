@@ -12,6 +12,7 @@ Three.js kit. Read this one when you are changing anything under `godot/`.
 | [`KIT_REFERENCE.md`](KIT_REFERENCE.md) | Exhaustive reference for the `Room` layout DSL: every method, material, preset |
 | [`BEHAVIOUR_KIT.md`](BEHAVIOUR_KIT.md) | Exhaustive reference for `kit/`: orderlies, keypad locks, availability, design laws |
 | [`MIGRATION_NOTES.md`](MIGRATION_NOTES.md) | Why this port deviates from idiomatic Godot, and quirks that look like bugs but are not |
+| [`PROP_KIT.md`](PROP_KIT.md) | The handcrafted prop library in `props/`: what is in it, how to place it, how to add to it |
 
 **The one thing to know before you touch a room:** the `.tscn` files are
 **build output**, not source. `tools/gen_rooms.py` is a declarative Python

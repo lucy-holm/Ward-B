@@ -1,0 +1,17 @@
+[gd_resource type="StandardMaterial3D" format=3 uid="uid://wardbwfrmfgls1"]
+
+; Wire-reinforced frosted glass — the medication cabinet's panes and the door
+; vision panel's plate. NOT the same job as glass_pale (that one is a window,
+; unshaded and bright because it is backlit by the exterior in three of the
+; four environment plates). This glass is indoors with nothing bright behind
+; it, so it stays a lit StandardMaterial3D like door_glass_mat, but pushed
+; hazier: frosted glass diffuses rather than mirrors, so roughness sits well
+; above door_glass_mat's 0.12 tight specular, and the albedo is lighter and
+; cooler than either dead-CRT screen or window pane — pale blue-grey, per the
+; material study board, and kept dim/dirty rather than clean-frosted so it
+; reads as neglected stock rather than a fresh pane.
+
+[resource]
+albedo_color = Color(0.4, 0.44, 0.46, 1)
+roughness = 0.5
+metallic = 0.0

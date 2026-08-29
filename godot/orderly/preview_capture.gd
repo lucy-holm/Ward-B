@@ -15,6 +15,22 @@
 # lit demo.
 #
 # Quits itself once the timeline finishes.
+#
+# CAMERA-VS-FACING BUG (found during the 2026-08 concept-sheet polish pass,
+# recorded so it doesn't come back): FrontCamera/BackCamera in preview.tscn
+# used to sit at world z=-6 / z=+6 respectively. orderly.gd's `facing`
+# defaults to Vector2(0, 1) (world +Z) and this harness spawns him at
+# waypoints[0] = (0,0,-2.5) walking toward (0,0,2.5) — i.e. he faces +Z for
+# this entire rest/patrol window, well before any waypoint turnaround. His
+# FRONT (local -Z, see orderly_visual.gd's coordinate note) therefore points
+# toward +Z, which is where BackCamera lived — so the two shots were exactly
+# swapped: "00b_front_rest" was rendering his spine seam and half-belt (the
+# BACK), "00d_back_rest" was rendering his buttons/pocket/badge (the FRONT).
+# It went unnoticed for a while because both are plausible-looking humanoid
+# silhouettes at a glance; it only became obvious once the render was bright
+# enough to read the trim. Fixed by swapping the two cameras' world Z so
+# FrontCamera (z=+6, matching his actual +Z-facing front) and BackCamera
+# (z=-6) now agree with `facing`'s default instead of an assumed convention.
 extends Node3D
 
 const ORDERLY := preload("res://orderly/orderly.tscn")
@@ -33,6 +49,14 @@ const CHASE_BURST_START := 3.7
 @onready var _back_camera: Camera3D = $BackCamera
 @onready var _far_camera: Camera3D = $FarCamera
 @onready var _head_camera: Camera3D = $HeadCamera
+# Close 3/4 shot on the neck/collar/chest-pocket region — added during the
+# 2026-08 concept-sheet polish pass. The wide four-angle shots put the collar
+# at only a few pixels tall, which is exactly why the earlier front/back
+# camera swap (see this file's header) went unnoticed for as long as it did:
+# nothing was zoomed in enough on the garment trim to catch it. Static
+# (unlike HeadCamera, which retargets every frame), because it only needs to
+# read at the "rest" tag before any gait drift moves him off the origin.
+@onready var _collar_camera: Camera3D = $CollarCamera
 
 var _orderly: CharacterBody3D
 var _dummy_player: Node3D
@@ -56,6 +80,16 @@ var _fps_samples: Array[float] = []
 # had. Reading the source of truth here means this harness can't silently
 # drift from the real game's mood again and show him brighter/flatter than
 # he'll actually look in a room.
+#
+# ORDERLY_BRIGHT=1 (env var, checked below) overrides ambient/light energy
+# for a temporary, much brighter pass. This exists because the correct,
+# game-accurate UNMED render is genuinely near-pitch-black by design (see
+# orderly_body.gdshader's light-absorption pass) — great for verifying "does
+# he vanish in the dark like he's supposed to", useless for verifying
+# proportions, trim placement (collar/badge/seam) or material colour, which
+# is most of what a concept-sheet comparison pass needs to actually see. The
+# default (unset) path is untouched and still exactly matches the real game;
+# this is opt-in and never changes what a normal run produces.
 func _apply_real_unmed_environment() -> void:
 	var mood: Dictionary = (load("res://main.gd") as GDScript).MOOD
 	var m: Dictionary = mood[StateManager.State.UNMED]
@@ -65,7 +99,7 @@ func _apply_real_unmed_environment() -> void:
 	env.background_color = m["fog"]
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	env.ambient_light_color = Color(0.8, 0.85, 0.83)
-	env.ambient_light_energy = m["ambient"]
+	env.ambient_light_energy = 1.2 if OS.get_environment("ORDERLY_BRIGHT") == "1" else m["ambient"]
 	env.fog_enabled = true
 	env.fog_mode = Environment.FOG_MODE_DEPTH
 	env.fog_light_color = m["fog"]
@@ -88,7 +122,7 @@ func _apply_real_unmed_environment() -> void:
 	# the ambient drop (see its header comment) — mirror that on this
 	# harness's two omni lights or they'd stay at full brightness and wash
 	# out exactly the dim, pale-uniform-in-the-dark read this exists to check.
-	var scale: float = m["light_scale"]
+	var scale: float = 3.0 if OS.get_environment("ORDERLY_BRIGHT") == "1" else m["light_scale"]
 	_light0.light_energy = 0.7 * scale
 	_light1.light_energy = 0.7 * scale
 
@@ -122,6 +156,7 @@ func _ready() -> void:
 	_back_camera.look_at(Vector3(0, 1.3, 0), Vector3.UP)
 	_far_camera.look_at(Vector3(0, 1.3, 0), Vector3.UP)
 	_head_camera.look_at(Vector3(0, 2.55, 0), Vector3.UP)
+	_collar_camera.look_at(Vector3(0, 2.25, 0), Vector3.UP)
 
 
 func _build_navigation() -> void:
@@ -183,6 +218,18 @@ func _process(delta: float) -> void:
 		_head_camera.global_position = head_pos + face_dir * 0.6
 		_head_camera.look_at(head_pos, Vector3.UP)
 
+	# CollarCamera is close-range (see the @onready comment above), so unlike
+	# the far static Front/Side/Back cameras it can't tolerate him having
+	# already walked off the origin by the time its shot fires — track his
+	# actual XZ (he only ever moves along world Z during this window, but
+	# reading op.x too costs nothing and keeps this correct if the waypoints
+	# above ever change) with the same relative offset the .tscn's static
+	# transform used, rather than a fixed world position.
+	if _t < 1.0:
+		var op3: Vector3 = _orderly.global_position
+		_collar_camera.global_position = Vector3(op3.x + 0.55, 2.15, op3.z + 1.35)
+		_collar_camera.look_at(Vector3(op3.x, 2.25, op3.z), Vector3.UP)
+
 	# During/after chase, the main camera chases HIM — he covers real ground
 	# at 4.3 m/s and the static corner framing used for the rest/patrol shots
 	# would lose him in a couple of seconds.
@@ -195,6 +242,7 @@ func _process(delta: float) -> void:
 	_maybe_shot_cam("00b_front_rest", 0.6, _front_camera)
 	_maybe_shot_cam("00c_side_rest", 1.1, _side_camera)
 	_maybe_shot_cam("00d_back_rest", 1.6, _back_camera)
+	_maybe_shot_cam("00e_collar_rest", 0.9, _collar_camera)
 	_maybe_shot("01_patrol", 2.0)
 	_maybe_shot_cam("05_far_dark", 2.2, _far_camera)
 	_maybe_shot_cam("06_head_close", 1.9, _head_camera)

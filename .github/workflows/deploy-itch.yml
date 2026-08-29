@@ -1,5 +1,30 @@
-name: Publish to itch.io
+name: Publish Three.js build to itch.io [DEPRECATED — ROLLBACK ONLY]
 
+# ============================================================================
+# DEPRECATED 2026-08-23. THIS IS A ROLLBACK LEVER, NOT A PIPELINE.
+#
+# The Godot build is Ward B now. See
+# docs/superpowers/specs/2026-08-23-threejs-deprecation.md for the decision and
+# its reasoning; `deploy-itch-godot.yml` is what publishes the game.
+#
+# WHAT CHANGED HERE: the `on: push: branches: [release]` trigger was REMOVED.
+# For a year this workflow shipped the public build automatically on every push
+# to `release`, which is exactly why it has to be disabled rather than merely
+# documented — leaving the trigger in place means the next person to merge into
+# `release` silently republishes the Three.js game over the Godot one, and the
+# first anyone knows about it is a player noticing the game looks different.
+#
+# WHEN TO RUN THIS: the Godot build has shipped to the public `html5` channel
+# and is broken badly enough that reverting is better than fixing forward. That
+# is the whole use case. Dispatch it manually and it will push the archived
+# Three.js build back over the public channel.
+#
+# Everything below is otherwise UNCHANGED and still works. Do not "tidy" it —
+# a rollback lever that has been refactored since it last ran is not a rollback
+# lever.
+#
+# Original header follows.
+# ---------------------------------------------------------------------------
 # Staging pipeline: this workflow is completely separate from
 # deploy.yml (Pages-on-main). It only runs on pushes to the `release`
 # branch, so publishing to itch is always a deliberate second step —
@@ -12,10 +37,9 @@ name: Publish to itch.io
 # One-time manual itch.io setup this workflow CANNOT do for you —
 # see the runbook's "Manual itch.io setup" section. Skipping it means
 # the uploaded build shows a download button instead of a play button.
+# ============================================================================
 
 on:
-  push:
-    branches: [release]
   workflow_dispatch: {}
 
 permissions:

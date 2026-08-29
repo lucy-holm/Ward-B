@@ -1,0 +1,14 @@
+[gd_resource type="StandardMaterial3D" format=3 uid="uid://wardbmdrmyel01"]
+
+; Sharps-bin yellow — the one place in the whole palette a saturated colour is
+; correct (clinical waste containers are yellow by regulation, not by set
+; dressing choice), so it earns an exception to "heavily desaturated
+; throughout" rather than breaking the rule. Still pulled well down from a
+; true safety yellow and given high roughness so it reads as grimy moulded
+; plastic under a weak ward light rather than a traffic-cone accent colour
+; that fights the barred window for the eye's attention.
+
+[resource]
+albedo_color = Color(0.52, 0.44, 0.11, 1)
+roughness = 0.6
+metallic = 0.0

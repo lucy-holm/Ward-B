@@ -1,0 +1,18 @@
+[gd_resource type="StandardMaterial3D" format=3 uid="uid://wardbsnrmlmnt1"]
+
+; toilet_cubicle_panel's partition sheet — pale, matte, institutional
+; laminate. NOT vinyl_mat.tres (that is warm tan moulded SEAT plastic, a
+; different object with a different sheen) and NOT trim_mat.tres (glossier,
+; and already spoken for as the skirting-board paint on every wall in the
+; ward — reusing it here would make a partition panel read as more skirting
+; rather than as its own object). Pale grey-green rather than tan, closer to
+; the material board's scuffed-lino family than its seating family, so a row
+; of cubicle panels separates from a row of beam seating at a glance.
+;
+; Fully rough (0.62) — laminate sheet worn down over decades, not a fresh
+; gloss finish.
+
+[resource]
+albedo_color = Color(0.42, 0.44, 0.40, 1)
+roughness = 0.62
+metallic = 0.0

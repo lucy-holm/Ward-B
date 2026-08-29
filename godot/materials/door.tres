@@ -56,7 +56,7 @@ shader = ExtResource("1_shader")
 ; now, including chip_tex — correct, paint peels along the grain. Rust is
 ; repurposed as a duller water stain (wood doesn't rust), low strength.
 shader_parameter/decay = 0.35
-shader_parameter/base_color = Color(0.322, 0.372, 0.408, 1)
+shader_parameter/base_color = Color(0.352, 0.402, 0.436, 1)
 shader_parameter/substrate_color = Color(0.24, 0.19, 0.14, 1)
 shader_parameter/rust_bleed_color = Color(0.3, 0.24, 0.18, 1)
 shader_parameter/mottle_tex = SubResource("NoiseTexture2D_door_mottle")
@@ -66,12 +66,13 @@ shader_parameter/mottle_scale = 1.1
 shader_parameter/normal_scale = 4.0
 shader_parameter/chip_scale = 2.5
 shader_parameter/stretch_y = 0.28
-shader_parameter/mottle_strength = 0.2
-shader_parameter/normal_strength = 0.45
-shader_parameter/roughness_base = 0.62
+shader_parameter/mottle_strength = 0.24
+shader_parameter/normal_strength = 0.78
+shader_parameter/roughness_variation = 0.32
+shader_parameter/roughness_base = 0.3
 shader_parameter/roughness_substrate = 0.88
 shader_parameter/metallic_base = 0.0
-shader_parameter/chip_coverage = 0.68
+shader_parameter/chip_coverage = 0.82
 shader_parameter/chip_edge_width = 0.03
 shader_parameter/chip_lip_strength = 1.1
 shader_parameter/chip_ao_strength = 0.35

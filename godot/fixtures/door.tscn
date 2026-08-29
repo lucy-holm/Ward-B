@@ -30,6 +30,7 @@
 [ext_resource type="Material" uid="uid://wardbmat5fba6a4" path="res://materials/wall2.tres" id="m_wall2"]
 [ext_resource type="Material" uid="uid://wardbmat7d6a4dd" path="res://materials/chain.tres" id="m_chain"]
 [ext_resource type="Material" uid="uid://wardbfxdglass01" path="res://fixtures/door_glass_mat.tres" id="m_glass"]
+[ext_resource type="ArrayMesh" path="res://fixtures/meshes/door_leaf.tres" id="am_leaf"]
 [ext_resource type="ArrayMesh" path="res://fixtures/meshes/door_jamb_side.tres" id="am_jamb_side"]
 [ext_resource type="ArrayMesh" path="res://fixtures/meshes/door_jamb_top.tres" id="am_jamb_top"]
 [ext_resource type="ArrayMesh" path="res://fixtures/meshes/door_rail_h.tres" id="am_rail_h"]
@@ -55,10 +56,17 @@ metallic = 0.0
 ; there's no AO/contact-shadow pass to sell the step. Baking the contrast
 ; into albedo (like the original's painted outline, but now real geometry
 ; that still catches a grazing light correctly) is what actually reads.
-[sub_resource type="StandardMaterial3D" id="m_panel"]
-albedo_color = Color(0.155, 0.185, 0.205, 1)
-roughness = 0.8
-metallic = 0.0
+; m_panel IS GONE. It was a flat StandardMaterial3D — one albedo, one
+; roughness, no mottle, no chip, no normal — applied to the two LARGEST
+; surfaces on the door. Everything around them ran materials/door.tres, the
+; worn triplanar shader, so the door was a detailed frame around two blank
+; swatches, and the blank swatches are most of what you look at. That is why
+; the door read as "a flat monochrome texture" no matter how much the frame
+; was tuned.
+;
+; The panels now use materials/door.tres like every other painted part. They
+; are the same paint as the rails in reality, and the recess is what
+; distinguishes them — geometry, not a second material.
 
 [sub_resource type="BoxMesh" id="bm_vision_frame"]
 size = Vector3(0.34, 0.44, 0.02)
@@ -82,6 +90,11 @@ height = 0.04
 radial_segments = 12
 
 [node name="Door" type="Node3D"]
+
+[node name="Leaf" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0, -0.05, 0.04)
+mesh = ExtResource("am_leaf")
+surface_material_override/0 = ExtResource("m_door")
 
 [node name="JambLeft" type="MeshInstance3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.95, 0.0, 0.02)
@@ -126,12 +139,12 @@ surface_material_override/0 = ExtResource("m_door")
 [node name="PanelUpper" type="MeshInstance3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0, 0.755, -0.015)
 mesh = ExtResource("am_panel_upper")
-surface_material_override/0 = SubResource("m_panel")
+surface_material_override/0 = ExtResource("m_door")
 
 [node name="PanelLower" type="MeshInstance3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0, -0.475, -0.015)
 mesh = ExtResource("am_panel_lower")
-surface_material_override/0 = SubResource("m_panel")
+surface_material_override/0 = ExtResource("m_door")
 
 ; Vision light set into the upper panel, per the corridor reference photo —
 ; proud steel frame with a low-roughness dark pane, offset a couple cm off
@@ -143,8 +156,14 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.015, 0.6, -0.04)
 mesh = SubResource("bm_vision_frame")
 surface_material_override/0 = ExtResource("m_door")
 
+; GLASS IN FRONT OF ITS SURROUND, not behind it. VisionFrame is a SOLID
+; 0.34 x 0.44 box, not a ring, so at z -0.036 the glass sat entirely inside it
+; and was invisible from the corridor — the vision light read as a small rusty
+; steel plate, which is the opposite of the one feature that tells a player this
+; door can be seen through. At -0.051 the pane sits a few millimetres proud of
+; the surround's front face, so the surround reads as the bead holding it.
 [node name="VisionGlass" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.015, 0.6, -0.036)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.015, 0.6, -0.051)
 mesh = SubResource("bm_vision_glass")
 surface_material_override/0 = ExtResource("m_glass")
 

@@ -1,6 +1,6 @@
 # WARD B
 
-A first-person psychological puzzle game (Vite + TypeScript + three.js).
+A first-person psychological puzzle game, built in **Godot 4.7**.
 Core mechanic: shift (Q) between **LUCID** and **UNMEDICATED** reality —
 lucid reads machinery but costs a pill and drains a medication meter; unmed
 reads the walls but is visible to the orderlies.
@@ -8,30 +8,28 @@ reads the walls but is visible to the orderlies.
 - Play (public release): https://tommy-holmes.itch.io/ward-b
 - Staging hub (all branch builds): https://lucy-holm.github.io/Ward-B/
 
-**There are two builds of this game in this repo.** Get this right before you
-edit anything, or you will change a file that has no effect on what you are
-looking at:
+**The game is `godot/`.** All work — rooms, art, mechanics — happens there.
 
-| | Three.js build | Godot build |
+`src/` is a **frozen Three.js build**: the original implementation, kept as a
+readable reference and an emergency rollback. It is not maintained and does not
+ship. See
+[`docs/superpowers/specs/2026-08-23-threejs-deprecation.md`](docs/superpowers/specs/2026-08-23-threejs-deprecation.md)
+for why, and for what was deliberately not done.
+
+| | Godot build (the game) | Three.js build (archive) |
 |---|---|---|
-| Source | `src/` | `godot/` |
-| Rooms authored in | `src/rooms/roomN.ts` | `godot/tools/gen_rooms.py` |
-| Ships to | itch.io (public, via `release`) | GitHub Pages staging + manual itch dispatch |
+| Source | `godot/` | `src/` — frozen 2026-08-23 |
+| Rooms authored in | `godot/tools/gen_rooms.py` | `src/rooms/roomN.ts` |
+| Ships to | itch.io public `html5`, via manual dispatch | nothing; rollback only |
+| Verified by | `godot/tools/run_tests.sh` + `check_roundtrip.sh` | `npm run check:rooms` |
 | Rooms | all 20 | all 20 |
 
-Both have the full ward. The Three.js build is what currently ships publicly.
+If you find yourself editing `src/`, stop and check you meant to — changes there
+compile, pass review, and affect nothing that ships.
 
 ## Commands
 
-| Command | What it does |
-|---|---|
-| `npm run dev` | Dev server at `http://localhost:5173` (game at `/`, map viewer at `/map.html`) |
-| `npm run dev -- --host` | Same, but bound to all interfaces so other devices on the tailnet/LAN can open it |
-| `npm run build` | Type-check + production bundle into `dist/` (the map viewer is **excluded** automatically) |
-| `npm run preview` | Serve the built `dist/` locally to sanity-check it |
-| `npm run check:rooms` | Headless room validator (Three.js). Run after ANY room change |
-
-Godot build — all from inside `godot/`, with
+**The game** — all from inside `godot/`, with
 `G=/Applications/Godot.app/Contents/MacOS/Godot`:
 
 | Command | What it does |
@@ -48,6 +46,19 @@ Godot build — all from inside `godot/`, with
 
 Run Godot tests as **scenes**, never `--script`: autoloads are not registered
 for a custom SceneTree script, and every room depends on them.
+
+Prop kit (see [`godot/PROP_KIT.md`](godot/PROP_KIT.md)):
+
+| Command | What it does |
+|---|---|
+| `python3 props/_gen/gen_props.py` | Regenerate every prop `.tscn` + the mesh spec from `prop_defs.py` |
+| `$G --headless --path . --script res://props/_gen/gen_prop_meshes.gd` | Bake the mesh spec into `props/meshes/*.tres` |
+| `$G --path . tools/shoot.tscn -- res://props/_gen/gallery.tscn kit <cam> <look> 1.2 lucid` | Screenshot every prop in the kit. **Windowed, not `--headless`** |
+
+**The Three.js archive** — `src/`, frozen 2026-08-23, does not ship. See
+[`src/DEPRECATED.md`](src/DEPRECATED.md). `npm run dev`, `npm run build`,
+`npm run preview` and `npm run check:rooms` still work and operate on the
+archive; passing them is not evidence about anything that ships.
 
 ## Authoring a level
 
@@ -140,16 +151,21 @@ preview/edo  ─┘
 | `preview/tom`   | `…/Ward-B/previews/tom/`                           | Godot    | Tom's WIP       |
 | `preview/edo`   | `…/Ward-B/previews/edo/`                           | Godot    | Edo's WIP       |
 | `main`          | `…/Ward-B/beta/` (merged staging)                 | Godot    | shared playtest |
-| `main`          | `…/Ward-B/threejs/`                               | Three.js | shared playtest |
-| `release`       | https://tommy-holmes.itch.io/ward-b (with telemetry) | Three.js | real audience |
+| `main`          | `…/Ward-B/threejs/`                               | Three.js | archive only    |
+| *(none)*        | https://tommy-holmes.itch.io/ward-b (with telemetry) | Godot    | real audience   |
 
-**Staging runs the Godot port; itch.io still ships Three.js.** The split is
-room coverage, not preference — Godot covers rooms 1–7, Three.js covers 1–20
-(see [`godot/MIGRATION_NOTES.md`](godot/MIGRATION_NOTES.md)). `threejs/` stays
-published because it is still the only complete run, and it is what you
-compare the port against. Publishing Godot to itch is a manual, gated
-dispatch (`.github/workflows/deploy-itch-godot.yml`) which refuses the public
-`html5` channel until room parity; `deploy-itch.yml` is untouched.
+**Everything that matters is Godot.** As of 2026-08-23 the Three.js build is a
+frozen archive — see
+[the deprecation record](docs/superpowers/specs/2026-08-23-threejs-deprecation.md).
+`threejs/` stays published because `godot/MIGRATION_NOTES.md` cites it to
+explain why the port deviates where it does, and it is what you compare
+behaviour against.
+
+**Nothing auto-publishes to the public any more.** Shipping is a manual
+`deploy-itch-godot.yml` dispatch that requires `confirm: "ship godot"` and
+still runs a room-parity check before it will touch the public `html5` channel.
+`deploy-itch.yml` (Three.js) had its `release`-push trigger removed and is now
+a rollback lever only — running it republishes the archive over the live game.
 
 The GitHub Pages **site root** (`…/Ward-B/`) is a static "admissions" chooser
 ([`hub/index.html`](hub/index.html)) linking to the merged beta, the Three.js

@@ -1,0 +1,13 @@
+[gd_resource type="ArrayMesh" format=4]
+
+[resource]
+_surfaces = [{
+"aabb": AABB(-0.17, -0.0225, -0.16573775, 0.34, 0.045, 0.3314755),
+"format": 34359742471,
+"index_count": 168,
+"index_data": PackedByteArray("AAABAAIAAAADAAEABAAFAAYABwAIAAkAAwAKAAEAAwALAAoABAAGAAwABwANAAgACwAOAAoACwAPAA4ABAAMABAABwARAA0ADwASAA4ADwATABIABAAQABQABwAVABEAEwAWABIAEwAXABYABAAUABgABwAZABUAFwAaABYAFwAbABoABAAYABwABwAdABkAGwAeABoAGwAfAB4ABAAcACAABwAhAB0AHwAiAB4AHwAjACIABAAgACQABwAlACEAIwAmACIAIwAnACYABAAkACgABwApACUAJwAqACYAJwArACoABAAoACwABwAtACkAKwAuACoAKwAvAC4ABAAsADAABwAxAC0ALwAyAC4ALwAzADIABAAwADQABwA1ADEAMwA2ADIAMwA3ADYABAA0ADgABwA5ADUANwACADYANwAAAAIABAA4AAUABwAJADkA"),
+"primitive": 3,
+"uv_scale": Vector4(0, 0, 0, 0),
+"vertex_count": 58,
+"vertex_data": PackedByteArray("exQuPuxRuLwAAAAAtCkBPuxRuDxpzng9KVwPPuxRuDwAAAAANtccPuxRuLybD5c9AAAAAOxRuDwAAAAAKVwPPuxRuDwAAAAAtCkBPuxRuDxpzng9AAAAAOxRuLwAAAAANtccPuxRuLybD5c9exQuPuxRuLwAAAAAWsSyPexRuDyuKuA9/xLZPexRuLzqGQg+WsSyPexRuDyuKuA9/xLZPexRuLzqGQg+bjT/POxRuDwDxAs+HvIaPexRuLwotyk+bjT/POxRuDwDxAs+HvIaPexRuLwotyk+bjT/vOxRuDwDxAs+HvIavexRuLwotyk+bjT/vOxRuDwDxAs+HvIavexRuLwotyk+WsSyvexRuDyuKuA9/xLZvexRuLzqGQg+WsSyvexRuDyuKuA9/xLZvexRuLzqGQg+tCkBvuxRuDxpzng9NtccvuxRuLybD5c9tCkBvuxRuDxpzng9NtccvuxRuLybD5c9KVwPvuxRuDyeIp4jexQuvuxRuLx3BcAjKVwPvuxRuDyeIp4jexQuvuxRuLx3BcAjtCkBvuxRuDxpzni9NtccvuxRuLybD5e9tCkBvuxRuDxpzni9NtccvuxRuLybD5e9WsSyvexRuDyuKuC9/xLZvexRuLzqGQi+WsSyvexRuDyuKuC9/xLZvexRuLzqGQi+bjT/vOxRuDwDxAu+HvIavexRuLwotym+bjT/vOxRuDwDxAu+HvIavexRuLwotym+bjT/POxRuDwDxAu+HvIaPexRuLwotym+bjT/POxRuDwDxAu+HvIaPexRuLwotym+WsSyPexRuDyuKuC9/xLZPexRuLzqGQi+WsSyPexRuDyuKuC9/xLZPexRuLzqGQi+tCkBPuxRuDxpzni9NtccPuxRuLybD5e9tCkBPuxRuDxpzni9NtccPuxRuLybD5e9zMwysw1lNdSduaGqeVI7y8zMMrMNZTXUnbmhqnlSO8v/f///AAD/v/9///8AAP+//3///wAA/7//fwAAAAD/v/9/AAAAAP+//38AAAAA/7+Dpi6pdEXauYOmLql0Rdq5/3///wAA/7//fwAAAAD/v0aPxq3cWEOoRo/GrdxYQ6j/f///AAD/v/9/AAAAAP+/uHDGrZ9xSJ24cMatn3FInf9///8AAP+//38AAAAA/797WS6px4LNnntZLqnHgs2e/3///wAA/7//fwAAAAD/v2FGoap4fASmYUahqnh8BKb/f///AAD/v/9/AAAAAP+/MjMysw1lyasyMzKzDWXJq/9///8AAP+//38AAAAA/7+iKmDGME56qKIqYMYwTnqo/3///wAA/7//fwAAAAD/vy8petnaPoScLyl62do+hJz/f///AAD/v/9/AAAAAP+/xi238JQ77ZHGLbfwlDvtkf9///8AAP+//38AAAAA/7840rfw/D7uiDjSt/D8Pu6I/3///wAA/7//fwAAAAD/v8/WetmHvGqHz9Z62Ye8aof/f///AAD/v/9/AAAAAP+/XNVgxhB5stpc1WDGEHmy2v9///8AAP+//38AAAAA/78=")
+}]

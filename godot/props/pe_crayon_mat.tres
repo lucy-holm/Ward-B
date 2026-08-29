@@ -1,0 +1,22 @@
+[gd_resource type="StandardMaterial3D" format=3 uid="uid://wardbpecryn1"]
+
+; Dull brick-red wax crayon — the one saturated mark in childs_drawing,
+; against paper and props/chain's near-black scribble strokes. Off the
+; material board's "dull brick red" swatch, the same restraint
+; fire_extinguisher's red_mat.tres uses: ONE small warm accent in an
+; otherwise desaturated palette reads as deliberate, and a whole box of
+; crayon colours would fight the game's grade for no gain since there is no
+; texture system to draw an actual child's drawing with anyway — the
+; unsettling read here comes from crude off-axis scribble geometry at a
+; psych-ward wall, not from colour variety.
+;
+; Roughness pushed high (0.85) rather than paper_mat's 0.88 flat-matte or
+; red_mat's glossier fire-extinguisher enamel — wax crayon on paper is
+; textured/waxy, not smooth paint, and sitting between the two neighbours it
+; borrows from keeps it legible as a third material rather than a recolour
+; of either.
+
+[resource]
+albedo_color = Color(0.42, 0.20, 0.16, 1)
+roughness = 0.85
+metallic = 0.0

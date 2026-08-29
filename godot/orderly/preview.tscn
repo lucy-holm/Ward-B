@@ -30,7 +30,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.2, 1.55, 1.1)
 fov = 60.0
 
 [node name="FrontCamera" type="Camera3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.4, -6.0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.4, 6.0)
 fov = 50.0
 current = false
 
@@ -40,7 +40,7 @@ fov = 50.0
 current = false
 
 [node name="BackCamera" type="Camera3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.4, 6.0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.4, -6.0)
 fov = 50.0
 current = false
 
@@ -52,6 +52,11 @@ current = false
 [node name="HeadCamera" type="Camera3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.62, -0.55)
 fov = 35.0
+current = false
+
+[node name="CollarCamera" type="Camera3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.55, 2.15, 1.35)
+fov = 38.0
 current = false
 
 [node name="L0" type="OmniLight3D" parent="."]

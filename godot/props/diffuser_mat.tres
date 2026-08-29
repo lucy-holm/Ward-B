@@ -1,0 +1,24 @@
+[gd_resource type="StandardMaterial3D" format=3 uid="uid://wardbprmdiff1"]
+
+; The LIT half of a ceiling troffer — an unshaded warm panel, for the same
+; reason every other glow in the game is unshaded (see
+; fixtures/breaker_glow_mat.tres): an emissive surface reads at full
+; brightness regardless of the room's own lighting, which is what makes a
+; fitting findable in an UNMEDICATED fog.
+;
+; Energy is 1.6, deliberately BELOW materials/glow.tres. A troffer is a large
+; panel, and at glow.tres's level a ceiling of them blooms into a white sheet
+; that flattens the very shadows Room.light()'s shadow-casting exists to
+; create. This is meant to look like the source of the light, not to BE it —
+; the OmniLight3D is still doing the lighting.
+;
+; Gate this prop with light="lit" so throwing the breaker leaves the housing
+; behind and kills only the panel.
+
+[resource]
+shading_mode = 0
+albedo_color = Color(1.0, 0.955, 0.86, 1)
+roughness = 0.9
+emission_enabled = true
+emission = Color(1.0, 0.92, 0.78, 1)
+emission_energy_multiplier = 1.6

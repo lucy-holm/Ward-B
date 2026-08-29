@@ -1,0 +1,23 @@
+[gd_resource type="StandardMaterial3D" format=3 uid="uid://wardbprmenam1"]
+
+; Chipped cream enamel — the sink basin, window sills and reveals; anything
+; painted in the ward's original 1970s spec rather than replaced since.
+; Deliberately the WARMEST and lightest thing in the palette: the walls are a
+; cooler green-grey, so an enamel panel against them separates on hue alone
+; even in near-darkness, which is what makes a sink or a sill readable at the
+; far end of an unlit corridor.
+;
+; Realism pass (2026-08): brightened from albedo 0.6/0.595/0.555. The wall
+; shader (materials/wall.tres) got its own palette pass first and came out
+; warmer and only slightly darker than this — paint_clean_color landed at
+; 0.615/0.565/0.485, which is BRIGHTER in R than enamel was and has a wider
+; warm/tan spread besides. That quietly inverted the header's own claim:
+; enamel had stopped being the lightest, warmest surface in the ward and the
+; wall had taken its place. This value re-establishes the gap the header
+; describes against the wall's CURRENT baseline rather than its old one — see
+; the reference board's "CHIPPED ENAMEL SINK" swatch, which reads distinctly
+; whiter than the surrounding wall plaster, not level with it.
+[resource]
+albedo_color = Color(0.70, 0.655, 0.565, 1)
+roughness = 0.5
+metallic = 0.02

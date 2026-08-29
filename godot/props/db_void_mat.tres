@@ -1,0 +1,12 @@
+[gd_resource type="StandardMaterial3D" format=3 uid="uid://wardbprmdbvoid1"]
+
+; Dark recess behind a missing ceiling tile / a drain grate — a shadowed gap,
+; not a surface. Near-black and FULLY matte (roughness 0.95), unlike
+; props/screen_mat's similarly dark but low-roughness "dead glass" — a glossy
+; highlight here would read as a wet or reflective floor/ceiling plane, which
+; is exactly the opposite of "this is a hole with nothing catching the light".
+
+[resource]
+albedo_color = Color(0.03, 0.03, 0.035, 1)
+roughness = 0.95
+metallic = 0.0

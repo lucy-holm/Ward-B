@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Round-trip guard for tools/gen_rooms.py: regenerate every room into a throwaway
-# copy of the tree and diff the output against the committed .tscn files.
+# Round-trip guard for tools/gen_rooms.py AND props/_gen/gen_props.py: regenerate
+# every room and every prop prefab into a throwaway copy of the tree, and diff the
+# output against the committed files.
 #
 #   godot/tools/check_roundtrip.sh
 #
@@ -47,12 +48,42 @@ REPO_ROOT="$(pwd)"
 SCRATCH="$(mktemp -d /tmp/wbroundtrip.XXXXXX)"
 trap 'rm -rf "$SCRATCH"' EXIT
 
+# Resource integrity FIRST — it is the cheapest check here and the only one
+# that catches a corrupt .tres before it costs anyone an hour. A file that
+# references a sub_resource it does not declare still parses, still imports
+# without complaint, and then HANGS Godot instead of failing; see
+# tools/check_resources.py's header for the incident that motivated it.
+echo "==> checking resource references"
+if ! python3 "$REPO_ROOT/tools/check_resources.py"; then
+  echo "FATAL: broken resource references — fix these before anything else"
+  exit 1
+fi
+
+echo "==> checking prop placement"
+if ! python3 "$REPO_ROOT/tools/check_placement.py"; then
+  echo "FATAL: props float, are buried, or interpenetrate — see above"
+  exit 1
+fi
+
 echo "==> copying the tree to $SCRATCH (excluding .godot, build, .artifacts)"
 rsync -a --exclude '.godot' --exclude 'build' --exclude '.artifacts' \
   "$REPO_ROOT/" "$SCRATCH/"
 
 echo "==> clearing the scratch copy's .tscn files (see COVERAGE above)"
 find "$SCRATCH/rooms" -name '*.tscn' -delete
+
+# THE PROP KIT round-trips too, and for the same reason rooms do: props/*.tscn
+# and props/meshes/*.tres are BUILD OUTPUT of props/_gen/prop_defs.py, so an
+# edit made in the Godot editor is silently reverted by the next regenerate.
+# Only the .tscn prefabs and the mesh spec are checked here — re-baking the
+# ArrayMesh resources needs a headless Godot run, which this script deliberately
+# stays free of so it remains a fast pure-Python guard.
+echo "==> regenerating the prop kit in the scratch copy"
+find "$SCRATCH/props" -maxdepth 1 -name '*.tscn' -delete 2>/dev/null
+if ! ( cd "$SCRATCH" && python3 props/_gen/gen_props.py >/dev/null ); then
+  echo "FATAL: props/_gen/gen_props.py failed to run"
+  exit 1
+fi
 
 echo "==> regenerating every room in the scratch copy"
 if ! ( cd "$SCRATCH" && python3 tools/gen_rooms.py ); then
@@ -79,15 +110,36 @@ for room_dir in "$REPO_ROOT"/rooms/*/; do
   done
 done
 
+for f in "$REPO_ROOT"/props/*.tscn "$REPO_ROOT"/props/_gen/mesh_specs.json; do
+  [ -e "$f" ] || continue
+  rel="${f#$REPO_ROOT/}"
+  # A prop someone has ADOPTED is no longer generated output, so holding it to a
+  # byte-identical regenerate would be wrong — that is the entire point of the
+  # marker. See is_adopted() in props/_gen/gen_props.py.
+  if head -c 2048 "$f" | grep -q 'HAND-EDITED'; then
+    echo "  adopted (skipped): $rel"
+    continue
+  fi
+  checked=$((checked + 1))
+  if [ ! -e "$SCRATCH/$rel" ]; then
+    echo "MISSING FROM REGENERATE: $rel (committed but props/_gen/prop_defs.py no longer declares it)"
+    fail=1
+  elif ! diff -q "$f" "$SCRATCH/$rel" >/dev/null 2>&1; then
+    echo "DIFFERS: $rel"
+    diff -u "$f" "$SCRATCH/$rel" | head -20 | sed 's/^/    /'
+    fail=1
+  fi
+done
+
 if [ "$checked" -eq 0 ]; then
   echo "FATAL: found zero .tscn files under rooms/ — check_roundtrip.sh is looking in the wrong place"
   exit 1
 fi
 
-echo "==> checked $checked room scene(s)"
+echo "==> checked $checked scene(s)/spec(s) — rooms and prop kit"
 if [ "$fail" -eq 0 ]; then
-  echo "==> round-trip OK — every committed room regenerates byte-for-byte"
+  echo "==> round-trip OK — every committed room and prop regenerates byte-for-byte"
 else
-  echo "==> ROUND-TRIP FAILURE — gen_rooms.py no longer reproduces the shipped ward (see above)"
+  echo "==> ROUND-TRIP FAILURE — a generator no longer reproduces its committed output (see above)"
 fi
 exit $fail

@@ -18,6 +18,21 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 GODOT="${GODOT:-/Applications/Godot.app/Contents/MacOS/Godot}"
 
+# THE TAILNET BUILD MUST NOT REPORT TELEMETRY.
+#
+# It reaches this box over Tailscale as hellos.*.ts.net, which telemetry.gd
+# classifies as "tailnet" and refuses to transmit from. That is gate two; this
+# is gate one — core/build_config.gd is committed empty, so no collector URL is
+# compiled in at all. Asserted rather than assumed, because the whole point of
+# having two gates is that neither is allowed to quietly stop working.
+echo "==> checking this build cannot report telemetry"
+tools/write_build_config.sh "" ""
+if ! git diff --quiet core/build_config.gd; then
+  echo "core/build_config.gd is committed NON-EMPTY — a playtest build would"
+  echo "transmit. Regenerate with tools/write_build_config.sh \"\" \"\" and commit."
+  exit 1
+fi
+
 echo "==> exporting web build"
 mkdir -p build
 "$GODOT" --headless --path . --export-release "Web" build/index.html

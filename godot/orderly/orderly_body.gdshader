@@ -160,8 +160,19 @@ void fragment() {
 		vec2 eye_off = vec2(0.34, 0.10);
 		float eye_l = length((p.xy - vec2(eye_off.x, eye_off.y)) * vec2(1.0, 1.35));
 		float eye_r = length((p.xy - vec2(-eye_off.x, eye_off.y)) * vec2(1.0, 1.35));
+		// 2026-08 concept-sheet polish pass: 0.55 -> 0.75. The brief's FIRST
+		// silhouette bullet is "the head is FEATURELESS... no eyes" — the
+		// socket shading exists to suggest gauntness, not to draw eyes. At
+		// 0.55 it stacked with the sunken-socket BUMP that gen_orderly_meshes.gd
+		// already carves into the mesh (see _build_head's eye-socket bands,
+		// amp=-0.007 there too, also toned down in this same pass) — geometry
+		// self-shadow plus a 45%-darkening fragment tint on top of it produced
+		// two crisp dark discs that read as literal eyeballs at any normal
+		// viewing distance, not a suggestion (see the HeadCamera close-up shot
+		// that caught this). 0.75 keeps the sunken read (still visibly darker
+		// than the surrounding skin) without doubling up into "eyes."
 		float socket = smoothstep(0.30, 0.05, min(eye_l, eye_r)) * front;
-		col = mix(col, col * 0.55, socket * face_strength);
+		col = mix(col, col * 0.75, socket * face_strength);
 
 		float temple_l = length((p.xy - vec2(0.62, 0.20)) * vec2(1.0, 1.5));
 		float temple_r = length((p.xy - vec2(-0.62, 0.20)) * vec2(1.0, 1.5));

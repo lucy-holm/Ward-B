@@ -1,0 +1,19 @@
+[gd_resource type="StandardMaterial3D" format=3 uid="uid://wardbprmvinyl1"]
+
+; Moulded seat plastic — the tan/beige shell of the ward's beam seating.
+;
+; THIS WAS TEAL-GREEN and that was a guess, made before the concept art
+; existed. The art's clean-state plate shows the shells warm tan against cream
+; walls, and the decayed plate shows the SAME shells reading green-grey purely
+; from the grade and the fog — not from their albedo. Authoring the grade into
+; the material would have double-counted it and left the chairs green in the
+; lucid state, where the reference is clearly warm.
+;
+; Kept mid-value rather than as light as the clean plate reads: the walls sit
+; near 0.42 and seating this close to them in value is what lets a row of it
+; register as a silhouette instead of as a bright band.
+
+[resource]
+albedo_color = Color(0.47, 0.42, 0.33, 1)
+roughness = 0.55
+metallic = 0.0

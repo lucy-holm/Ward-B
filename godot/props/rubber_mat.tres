@@ -1,0 +1,11 @@
+[gd_resource type="StandardMaterial3D" format=3 uid="uid://wardbprmrubb1"]
+
+; Black rubber — castors and the corridor bumper rail. Very high roughness so
+; it stays matte black under a fitting instead of picking up the highlight the
+; steel next to it does; that contrast is what separates a castor from the
+; chrome leg above it.
+
+[resource]
+albedo_color = Color(0.1, 0.105, 0.108, 1)
+roughness = 0.85
+metallic = 0.0

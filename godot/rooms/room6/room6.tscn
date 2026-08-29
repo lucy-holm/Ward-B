@@ -1,4 +1,4 @@
-[gd_scene load_steps=43 format=3 uid="uid://wardbroom181f2b"]
+[gd_scene load_steps=97 format=3 uid="uid://wardbroom181f2b"]
 
 [ext_resource type="Script" path="res://rooms/room6/room6.gd" id="s_room"]
 [ext_resource type="Material" uid="uid://wardbmatd0cabd0" path="res://materials/floor.tres" id="m_floor"]
@@ -12,6 +12,33 @@
 [ext_resource type="PackedScene" path="res://fixtures/keypad.tscn" id="fx_keypad"]
 [ext_resource type="PackedScene" path="res://fixtures/door.tscn" id="fx_door"]
 [ext_resource type="Script" path="res://core/interactable.gd" id="s_interactable"]
+[ext_resource type="ArrayMesh" path="res://props/meshes/box_2000x100x20_b40.tres" id="am_box_2000x100x20_b40"]
+[ext_resource type="Material" path="res://props/trim_mat.tres" id="pm_trim"]
+[ext_resource type="ArrayMesh" path="res://props/meshes/box_2000x24x28_b60.tres" id="am_box_2000x24x28_b60"]
+[ext_resource type="ArrayMesh" path="res://props/meshes/box_50x115x48_b40.tres" id="am_box_50x115x48_b40"]
+[ext_resource type="Material" path="res://props/steel_mat.tres" id="pm_steel"]
+[ext_resource type="ArrayMesh" path="res://props/meshes/box_2000x145x40_b180.tres" id="am_box_2000x145x40_b180"]
+[ext_resource type="Material" path="res://props/rubber_mat.tres" id="pm_rubber"]
+[ext_resource type="ArrayMesh" path="res://props/meshes/cyl_r26_h2000_s10_b30.tres" id="am_cyl_r26_h2000_s10_b30"]
+[ext_resource type="ArrayMesh" path="res://props/meshes/box_22x90x45_b30.tres" id="am_box_22x90x45_b30"]
+[ext_resource type="Material" path="res://materials/chain.tres" id="pm_chain"]
+[ext_resource type="ArrayMesh" path="res://props/meshes/tube_32_27_h30_s10.tres" id="am_tube_32_27_h30_s10"]
+[ext_resource type="ArrayMesh" path="res://props/meshes/box_100x80x100_b60.tres" id="am_box_100x80x100_b60"]
+[ext_resource type="ArrayMesh" path="res://props/meshes/box_84x6x84_b20.tres" id="am_box_84x6x84_b20"]
+[ext_resource type="PackedScene" path="res://props/hanging_cable.tscn" id="pk_hanging_cable"]
+[ext_resource type="PackedScene" path="res://props/missing_ceiling_tile.tscn" id="pk_missing_ceiling_tile"]
+[ext_resource type="PackedScene" path="res://props/ward_sign.tscn" id="pk_ward_sign"]
+[ext_resource type="PackedScene" path="res://props/exit_sign.tscn" id="pk_exit_sign"]
+[ext_resource type="PackedScene" path="res://props/cabinet_header.tscn" id="pk_cabinet_header"]
+[ext_resource type="PackedScene" path="res://props/radiator.tscn" id="pk_radiator"]
+[ext_resource type="PackedScene" path="res://props/wall_vent.tscn" id="pk_wall_vent"]
+[ext_resource type="PackedScene" path="res://props/fire_extinguisher.tscn" id="pk_fire_extinguisher"]
+[ext_resource type="PackedScene" path="res://props/paper_scatter.tscn" id="pk_paper_scatter"]
+[ext_resource type="PackedScene" path="res://props/plaster_rubble.tscn" id="pk_plaster_rubble"]
+[ext_resource type="PackedScene" path="res://props/fallen_plaster_patch.tscn" id="pk_fallen_plaster_patch"]
+[ext_resource type="PackedScene" path="res://props/ceiling_troffer.tscn" id="pk_ceiling_troffer"]
+[ext_resource type="PackedScene" path="res://props/troffer_lamp.tscn" id="pk_troffer_lamp"]
+[ext_resource type="Script" path="res://core/light_object.gd" id="s_lightobj"]
 [ext_resource type="Script" path="res://core/room_exit.gd" id="s_exit"]
 
 [sub_resource type="BoxMesh" id="bm_0"]
@@ -111,6 +138,168 @@ size = Vector3(0.4000, 0.5000, 0.1400)
 
 [sub_resource type="BoxShape3D" id="bs_13"]
 size = Vector3(2.0000, 3.0000, 0.2000)
+
+[sub_resource type="MultiMesh" id="mm_skirtingrun0_0"]
+transform_format = 1
+instance_count = 6
+mesh = ExtResource("am_box_2000x100x20_b40")
+buffer = PackedFloat32Array(0.0000, 0.0000, -1.0000, -1.4700, 0.0000, 1.0000, 0.0000, 0.0500, 1.0000, 0.0000, 0.0000, -3.3000, 0.0000, 0.0000, -1.0000, -1.4700, 0.0000, 1.0000, 0.0000, 0.0500, 1.0000, 0.0000, 0.0000, -1.3000, 0.0000, 0.0000, -1.0000, -1.4700, 0.0000, 1.0000, 0.0000, 0.0500, 1.0000, 0.0000, 0.0000, 0.7000, 0.0000, 0.0000, -1.0000, -1.4700, 0.0000, 1.0000, 0.0000, 0.0500, 1.0000, 0.0000, 0.0000, 2.7000, 0.0000, 0.0000, -1.0000, -1.4700, 0.0000, 1.0000, 0.0000, 0.0500, 1.0000, 0.0000, 0.0000, 4.7000, 0.0000, 0.0000, -1.0000, -1.4700, 0.0000, 1.0000, 0.0000, 0.0500, 1.0000, 0.0000, 0.0000, 6.7000)
+
+[sub_resource type="MultiMesh" id="mm_skirtingrun0_1"]
+transform_format = 1
+instance_count = 6
+mesh = ExtResource("am_box_2000x24x28_b60")
+buffer = PackedFloat32Array(0.0000, 0.0000, -1.0000, -1.4660, 0.0000, 1.0000, 0.0000, 0.1120, 1.0000, 0.0000, 0.0000, -3.3000, 0.0000, 0.0000, -1.0000, -1.4660, 0.0000, 1.0000, 0.0000, 0.1120, 1.0000, 0.0000, 0.0000, -1.3000, 0.0000, 0.0000, -1.0000, -1.4660, 0.0000, 1.0000, 0.0000, 0.1120, 1.0000, 0.0000, 0.0000, 0.7000, 0.0000, 0.0000, -1.0000, -1.4660, 0.0000, 1.0000, 0.0000, 0.1120, 1.0000, 0.0000, 0.0000, 2.7000, 0.0000, 0.0000, -1.0000, -1.4660, 0.0000, 1.0000, 0.0000, 0.1120, 1.0000, 0.0000, 0.0000, 4.7000, 0.0000, 0.0000, -1.0000, -1.4660, 0.0000, 1.0000, 0.0000, 0.1120, 1.0000, 0.0000, 0.0000, 6.7000)
+
+[sub_resource type="MultiMesh" id="mm_skirtingrun2_0"]
+transform_format = 1
+instance_count = 5
+mesh = ExtResource("am_box_2000x100x20_b40")
+buffer = PackedFloat32Array(0.0000, 0.0000, -1.0000, 1.4900, 0.0000, 1.0000, 0.0000, 0.0500, 1.0000, 0.0000, 0.0000, -0.6000, 0.0000, 0.0000, -1.0000, 1.4900, 0.0000, 1.0000, 0.0000, 0.0500, 1.0000, 0.0000, 0.0000, 1.4000, 0.0000, 0.0000, -1.0000, 1.4900, 0.0000, 1.0000, 0.0000, 0.0500, 1.0000, 0.0000, 0.0000, 3.4000, 1.0000, 0.0000, 0.0000, 1.4800, 0.0000, 1.0000, 0.0000, 0.0500, 0.0000, 0.0000, 1.0000, 5.3900, 1.0000, 0.0000, 0.0000, 1.4800, 0.0000, 1.0000, 0.0000, 0.0500, 0.0000, 0.0000, 1.0000, 7.3900)
+
+[sub_resource type="MultiMesh" id="mm_skirtingrun2_1"]
+transform_format = 1
+instance_count = 5
+mesh = ExtResource("am_box_2000x24x28_b60")
+buffer = PackedFloat32Array(0.0000, 0.0000, -1.0000, 1.4940, 0.0000, 1.0000, 0.0000, 0.1120, 1.0000, 0.0000, 0.0000, -0.6000, 0.0000, 0.0000, -1.0000, 1.4940, 0.0000, 1.0000, 0.0000, 0.1120, 1.0000, 0.0000, 0.0000, 1.4000, 0.0000, 0.0000, -1.0000, 1.4940, 0.0000, 1.0000, 0.0000, 0.1120, 1.0000, 0.0000, 0.0000, 3.4000, 1.0000, 0.0000, 0.0000, 1.4800, 0.0000, 1.0000, 0.0000, 0.1120, 0.0000, 0.0000, 1.0000, 5.3860, 1.0000, 0.0000, 0.0000, 1.4800, 0.0000, 1.0000, 0.0000, 0.1120, 0.0000, 0.0000, 1.0000, 7.3860)
+
+[sub_resource type="MultiMesh" id="mm_skirtingrun4_0"]
+transform_format = 1
+instance_count = 2
+mesh = ExtResource("am_box_2000x100x20_b40")
+buffer = PackedFloat32Array(1.0000, 0.0000, 0.0000, -1.0000, 0.0000, 1.0000, 0.0000, 0.0500, 0.0000, 0.0000, 1.0000, 7.8700, 1.0000, 0.0000, 0.0000, 1.0000, 0.0000, 1.0000, 0.0000, 0.0500, 0.0000, 0.0000, 1.0000, 7.8700)
+
+[sub_resource type="MultiMesh" id="mm_skirtingrun4_1"]
+transform_format = 1
+instance_count = 2
+mesh = ExtResource("am_box_2000x24x28_b60")
+buffer = PackedFloat32Array(1.0000, 0.0000, 0.0000, -1.0000, 0.0000, 1.0000, 0.0000, 0.1120, 0.0000, 0.0000, 1.0000, 7.8660, 1.0000, 0.0000, 0.0000, 1.0000, 0.0000, 1.0000, 0.0000, 0.1120, 0.0000, 0.0000, 1.0000, 7.8660)
+
+[sub_resource type="MultiMesh" id="mm_skirtingrun6_0"]
+transform_format = 1
+instance_count = 5
+mesh = ExtResource("am_box_2000x100x20_b40")
+buffer = PackedFloat32Array(0.0000, 0.0000, -1.0000, 2.8100, 0.0000, 1.0000, 0.0000, 0.0500, 1.0000, 0.0000, 0.0000, -1.3200, -1.0000, 0.0000, 0.0000, 4.8000, 0.0000, 1.0000, 0.0000, 0.0500, -0.0000, 0.0000, -1.0000, -1.3100, -1.0000, 0.0000, 0.0000, 6.8000, 0.0000, 1.0000, 0.0000, 0.0500, -0.0000, 0.0000, -1.0000, -1.3100, -1.0000, 0.0000, 0.0000, 8.8000, 0.0000, 1.0000, 0.0000, 0.0500, -0.0000, 0.0000, -1.0000, -1.3100, 0.0000, 0.0000, 1.0000, 10.7900, 0.0000, 1.0000, 0.0000, 0.0500, -1.0000, 0.0000, 0.0000, -1.3200)
+
+[sub_resource type="MultiMesh" id="mm_skirtingrun6_1"]
+transform_format = 1
+instance_count = 5
+mesh = ExtResource("am_box_2000x24x28_b60")
+buffer = PackedFloat32Array(0.0000, 0.0000, -1.0000, 2.8140, 0.0000, 1.0000, 0.0000, 0.1120, 1.0000, 0.0000, 0.0000, -1.3200, -1.0000, 0.0000, 0.0000, 4.8000, 0.0000, 1.0000, 0.0000, 0.1120, -0.0000, 0.0000, -1.0000, -1.3060, -1.0000, 0.0000, 0.0000, 6.8000, 0.0000, 1.0000, 0.0000, 0.1120, -0.0000, 0.0000, -1.0000, -1.3060, -1.0000, 0.0000, 0.0000, 8.8000, 0.0000, 1.0000, 0.0000, 0.1120, -0.0000, 0.0000, -1.0000, -1.3060, 0.0000, 0.0000, 1.0000, 10.7860, 0.0000, 1.0000, 0.0000, 0.1120, -1.0000, 0.0000, 0.0000, -1.3200)
+
+[sub_resource type="MultiMesh" id="mm_skirtingrun8_0"]
+transform_format = 1
+instance_count = 4
+mesh = ExtResource("am_box_2000x100x20_b40")
+buffer = PackedFloat32Array(0.0000, 0.0000, -1.0000, -1.0400, 0.0000, 1.0000, 0.0000, 0.0500, 1.0000, 0.0000, 0.0000, -4.4800, -1.0000, 0.0000, 0.0000, 0.9500, 0.0000, 1.0000, 0.0000, 0.0500, -0.0000, 0.0000, -1.0000, -4.4700, -1.0000, 0.0000, 0.0000, 2.9500, 0.0000, 1.0000, 0.0000, 0.0500, -0.0000, 0.0000, -1.0000, -4.4700, -1.0000, 0.0000, 0.0000, 4.9500, 0.0000, 1.0000, 0.0000, 0.0500, -0.0000, 0.0000, -1.0000, -4.4700)
+
+[sub_resource type="MultiMesh" id="mm_skirtingrun8_1"]
+transform_format = 1
+instance_count = 4
+mesh = ExtResource("am_box_2000x24x28_b60")
+buffer = PackedFloat32Array(0.0000, 0.0000, -1.0000, -1.0360, 0.0000, 1.0000, 0.0000, 0.1120, 1.0000, 0.0000, 0.0000, -4.4800, -1.0000, 0.0000, 0.0000, 0.9500, 0.0000, 1.0000, 0.0000, 0.1120, -0.0000, 0.0000, -1.0000, -4.4660, -1.0000, 0.0000, 0.0000, 2.9500, 0.0000, 1.0000, 0.0000, 0.1120, -0.0000, 0.0000, -1.0000, -4.4660, -1.0000, 0.0000, 0.0000, 4.9500, 0.0000, 1.0000, 0.0000, 0.1120, -0.0000, 0.0000, -1.0000, -4.4660)
+
+[sub_resource type="MultiMesh" id="mm_skirtingrun10_0"]
+transform_format = 1
+instance_count = 2
+mesh = ExtResource("am_box_2000x100x20_b40")
+buffer = PackedFloat32Array(-1.0000, 0.0000, 0.0000, 8.5500, 0.0000, 1.0000, 0.0000, 0.0500, -0.0000, 0.0000, -1.0000, -4.4700, -1.0000, 0.0000, 0.0000, 10.5500, 0.0000, 1.0000, 0.0000, 0.0500, -0.0000, 0.0000, -1.0000, -4.4700)
+
+[sub_resource type="MultiMesh" id="mm_skirtingrun10_1"]
+transform_format = 1
+instance_count = 2
+mesh = ExtResource("am_box_2000x24x28_b60")
+buffer = PackedFloat32Array(-1.0000, 0.0000, 0.0000, 8.5500, 0.0000, 1.0000, 0.0000, 0.1120, -0.0000, 0.0000, -1.0000, -4.4660, -1.0000, 0.0000, 0.0000, 10.5500, 0.0000, 1.0000, 0.0000, 0.1120, -0.0000, 0.0000, -1.0000, -4.4660)
+
+[sub_resource type="MultiMesh" id="mm_bumperrailrun12_0"]
+transform_format = 1
+instance_count = 12
+mesh = ExtResource("am_box_50x115x48_b40")
+buffer = PackedFloat32Array(0.0000, 0.0000, -1.0000, -1.4560, 0.0000, 1.0000, 0.0000, 0.9000, 1.0000, 0.0000, 0.0000, -4.2200, 0.0000, 0.0000, -1.0000, -1.4560, 0.0000, 1.0000, 0.0000, 0.9000, 1.0000, 0.0000, 0.0000, -2.5800, 0.0000, 0.0000, -1.0000, -1.4560, 0.0000, 1.0000, 0.0000, 0.9000, 1.0000, 0.0000, 0.0000, -2.2200, 0.0000, 0.0000, -1.0000, -1.4560, 0.0000, 1.0000, 0.0000, 0.9000, 1.0000, 0.0000, 0.0000, -0.5800, 0.0000, 0.0000, -1.0000, -1.4560, 0.0000, 1.0000, 0.0000, 0.9000, 1.0000, 0.0000, 0.0000, -0.2200, 0.0000, 0.0000, -1.0000, -1.4560, 0.0000, 1.0000, 0.0000, 0.9000, 1.0000, 0.0000, 0.0000, 1.4200, 0.0000, 0.0000, -1.0000, -1.4560, 0.0000, 1.0000, 0.0000, 0.9000, 1.0000, 0.0000, 0.0000, 1.7800, 0.0000, 0.0000, -1.0000, -1.4560, 0.0000, 1.0000, 0.0000, 0.9000, 1.0000, 0.0000, 0.0000, 3.4200, 0.0000, 0.0000, -1.0000, -1.4560, 0.0000, 1.0000, 0.0000, 0.9000, 1.0000, 0.0000, 0.0000, 3.7800, 0.0000, 0.0000, -1.0000, -1.4560, 0.0000, 1.0000, 0.0000, 0.9000, 1.0000, 0.0000, 0.0000, 5.4200, 0.0000, 0.0000, -1.0000, -1.4560, 0.0000, 1.0000, 0.0000, 0.9000, 1.0000, 0.0000, 0.0000, 5.7800, 0.0000, 0.0000, -1.0000, -1.4560, 0.0000, 1.0000, 0.0000, 0.9000, 1.0000, 0.0000, 0.0000, 7.4200)
+
+[sub_resource type="MultiMesh" id="mm_bumperrailrun12_1"]
+transform_format = 1
+instance_count = 6
+mesh = ExtResource("am_box_2000x145x40_b180")
+buffer = PackedFloat32Array(0.0000, 0.0000, -1.0000, -1.4120, 0.0000, 1.0000, 0.0000, 0.9000, 1.0000, 0.0000, 0.0000, -3.4000, 0.0000, 0.0000, -1.0000, -1.4120, 0.0000, 1.0000, 0.0000, 0.9000, 1.0000, 0.0000, 0.0000, -1.4000, 0.0000, 0.0000, -1.0000, -1.4120, 0.0000, 1.0000, 0.0000, 0.9000, 1.0000, 0.0000, 0.0000, 0.6000, 0.0000, 0.0000, -1.0000, -1.4120, 0.0000, 1.0000, 0.0000, 0.9000, 1.0000, 0.0000, 0.0000, 2.6000, 0.0000, 0.0000, -1.0000, -1.4120, 0.0000, 1.0000, 0.0000, 0.9000, 1.0000, 0.0000, 0.0000, 4.6000, 0.0000, 0.0000, -1.0000, -1.4120, 0.0000, 1.0000, 0.0000, 0.9000, 1.0000, 0.0000, 0.0000, 6.6000)
+
+[sub_resource type="MultiMesh" id="mm_bumperrailrun14_0"]
+transform_format = 1
+instance_count = 8
+mesh = ExtResource("am_box_50x115x48_b40")
+buffer = PackedFloat32Array(0.0000, 0.0000, -1.0000, 1.5040, 0.0000, 1.0000, 0.0000, 0.9000, 1.0000, 0.0000, 0.0000, -0.5200, 0.0000, 0.0000, -1.0000, 1.5040, 0.0000, 1.0000, 0.0000, 0.9000, 1.0000, 0.0000, 0.0000, 1.1200, 0.0000, 0.0000, -1.0000, 1.5040, 0.0000, 1.0000, 0.0000, 0.9000, 1.0000, 0.0000, 0.0000, 1.4800, 0.0000, 0.0000, -1.0000, 1.5040, 0.0000, 1.0000, 0.0000, 0.9000, 1.0000, 0.0000, 0.0000, 3.1200, 0.0000, 0.0000, -1.0000, 1.5040, 0.0000, 1.0000, 0.0000, 0.9000, 1.0000, 0.0000, 0.0000, 3.4800, 0.0000, 0.0000, -1.0000, 1.5040, 0.0000, 1.0000, 0.0000, 0.9000, 1.0000, 0.0000, 0.0000, 5.1200, 1.0000, 0.0000, 0.0000, 0.6600, 0.0000, 1.0000, 0.0000, 0.9000, 0.0000, 0.0000, 1.0000, 6.2760, 1.0000, 0.0000, 0.0000, 2.3000, 0.0000, 1.0000, 0.0000, 0.9000, 0.0000, 0.0000, 1.0000, 6.2760)
+
+[sub_resource type="MultiMesh" id="mm_bumperrailrun14_1"]
+transform_format = 1
+instance_count = 4
+mesh = ExtResource("am_box_2000x145x40_b180")
+buffer = PackedFloat32Array(0.0000, 0.0000, -1.0000, 1.5480, 0.0000, 1.0000, 0.0000, 0.9000, 1.0000, 0.0000, 0.0000, 0.3000, 0.0000, 0.0000, -1.0000, 1.5480, 0.0000, 1.0000, 0.0000, 0.9000, 1.0000, 0.0000, 0.0000, 2.3000, 0.0000, 0.0000, -1.0000, 1.5480, 0.0000, 1.0000, 0.0000, 0.9000, 1.0000, 0.0000, 0.0000, 4.3000, 1.0000, 0.0000, 0.0000, 1.4800, 0.0000, 1.0000, 0.0000, 0.9000, 0.0000, 0.0000, 1.0000, 6.2320)
+
+[sub_resource type="MultiMesh" id="mm_bumperrailrun16_0"]
+transform_format = 1
+instance_count = 10
+mesh = ExtResource("am_box_50x115x48_b40")
+buffer = PackedFloat32Array(0.0000, 0.0000, -1.0000, 2.8240, 0.0000, 1.0000, 0.0000, 0.9000, 1.0000, 0.0000, 0.0000, -2.1400, 0.0000, 0.0000, -1.0000, 2.8240, 0.0000, 1.0000, 0.0000, 0.9000, 1.0000, 0.0000, 0.0000, -0.5000, -1.0000, 0.0000, 0.0000, 5.6200, 0.0000, 1.0000, 0.0000, 0.9000, -0.0000, 0.0000, -1.0000, -1.2960, -1.0000, 0.0000, 0.0000, 3.9800, 0.0000, 1.0000, 0.0000, 0.9000, -0.0000, 0.0000, -1.0000, -1.2960, -1.0000, 0.0000, 0.0000, 7.6200, 0.0000, 1.0000, 0.0000, 0.9000, -0.0000, 0.0000, -1.0000, -1.2960, -1.0000, 0.0000, 0.0000, 5.9800, 0.0000, 1.0000, 0.0000, 0.9000, -0.0000, 0.0000, -1.0000, -1.2960, -1.0000, 0.0000, 0.0000, 9.6200, 0.0000, 1.0000, 0.0000, 0.9000, -0.0000, 0.0000, -1.0000, -1.2960, -1.0000, 0.0000, 0.0000, 7.9800, 0.0000, 1.0000, 0.0000, 0.9000, -0.0000, 0.0000, -1.0000, -1.2960, 0.0000, 0.0000, 1.0000, 10.7760, 0.0000, 1.0000, 0.0000, 0.9000, -1.0000, 0.0000, 0.0000, -0.5000, 0.0000, 0.0000, 1.0000, 10.7760, 0.0000, 1.0000, 0.0000, 0.9000, -1.0000, 0.0000, 0.0000, -2.1400)
+
+[sub_resource type="MultiMesh" id="mm_bumperrailrun16_1"]
+transform_format = 1
+instance_count = 5
+mesh = ExtResource("am_box_2000x145x40_b180")
+buffer = PackedFloat32Array(0.0000, 0.0000, -1.0000, 2.8680, 0.0000, 1.0000, 0.0000, 0.9000, 1.0000, 0.0000, 0.0000, -1.3200, -1.0000, 0.0000, 0.0000, 4.8000, 0.0000, 1.0000, 0.0000, 0.9000, -0.0000, 0.0000, -1.0000, -1.2520, -1.0000, 0.0000, 0.0000, 6.8000, 0.0000, 1.0000, 0.0000, 0.9000, -0.0000, 0.0000, -1.0000, -1.2520, -1.0000, 0.0000, 0.0000, 8.8000, 0.0000, 1.0000, 0.0000, 0.9000, -0.0000, 0.0000, -1.0000, -1.2520, 0.0000, 0.0000, 1.0000, 10.7320, 0.0000, 1.0000, 0.0000, 0.9000, -1.0000, 0.0000, 0.0000, -1.3200)
+
+[sub_resource type="MultiMesh" id="mm_bumperrailrun18_0"]
+transform_format = 1
+instance_count = 6
+mesh = ExtResource("am_box_50x115x48_b40")
+buffer = PackedFloat32Array(0.0000, 0.0000, -1.0000, 0.0240, 0.0000, 1.0000, 0.0000, 0.9000, 1.0000, 0.0000, 0.0000, -5.3000, 0.0000, 0.0000, -1.0000, 0.0240, 0.0000, 1.0000, 0.0000, 0.9000, 1.0000, 0.0000, 0.0000, -3.6600, -1.0000, 0.0000, 0.0000, 2.8200, 0.0000, 1.0000, 0.0000, 0.9000, -0.0000, 0.0000, -1.0000, -4.4560, -1.0000, 0.0000, 0.0000, 1.1800, 0.0000, 1.0000, 0.0000, 0.9000, -0.0000, 0.0000, -1.0000, -4.4560, -1.0000, 0.0000, 0.0000, 4.8200, 0.0000, 1.0000, 0.0000, 0.9000, -0.0000, 0.0000, -1.0000, -4.4560, -1.0000, 0.0000, 0.0000, 3.1800, 0.0000, 1.0000, 0.0000, 0.9000, -0.0000, 0.0000, -1.0000, -4.4560)
+
+[sub_resource type="MultiMesh" id="mm_bumperrailrun18_1"]
+transform_format = 1
+instance_count = 3
+mesh = ExtResource("am_box_2000x145x40_b180")
+buffer = PackedFloat32Array(0.0000, 0.0000, -1.0000, 0.0680, 0.0000, 1.0000, 0.0000, 0.9000, 1.0000, 0.0000, 0.0000, -4.4800, -1.0000, 0.0000, 0.0000, 2.0000, 0.0000, 1.0000, 0.0000, 0.9000, -0.0000, 0.0000, -1.0000, -4.4120, -1.0000, 0.0000, 0.0000, 4.0000, 0.0000, 1.0000, 0.0000, 0.9000, -0.0000, 0.0000, -1.0000, -4.4120)
+
+[sub_resource type="MultiMesh" id="mm_bumperrailrun20_0"]
+transform_format = 1
+instance_count = 4
+mesh = ExtResource("am_box_50x115x48_b40")
+buffer = PackedFloat32Array(-1.0000, 0.0000, 0.0000, 9.3200, 0.0000, 1.0000, 0.0000, 0.9000, -0.0000, 0.0000, -1.0000, -4.4560, -1.0000, 0.0000, 0.0000, 7.6800, 0.0000, 1.0000, 0.0000, 0.9000, -0.0000, 0.0000, -1.0000, -4.4560, -1.0000, 0.0000, 0.0000, 11.3200, 0.0000, 1.0000, 0.0000, 0.9000, -0.0000, 0.0000, -1.0000, -4.4560, -1.0000, 0.0000, 0.0000, 9.6800, 0.0000, 1.0000, 0.0000, 0.9000, -0.0000, 0.0000, -1.0000, -4.4560)
+
+[sub_resource type="MultiMesh" id="mm_bumperrailrun20_1"]
+transform_format = 1
+instance_count = 2
+mesh = ExtResource("am_box_2000x145x40_b180")
+buffer = PackedFloat32Array(-1.0000, 0.0000, 0.0000, 8.5000, 0.0000, 1.0000, 0.0000, 0.9000, -0.0000, 0.0000, -1.0000, -4.4120, -1.0000, 0.0000, 0.0000, 10.5000, 0.0000, 1.0000, 0.0000, 0.9000, -0.0000, 0.0000, -1.0000, -4.4120)
+
+[sub_resource type="MultiMesh" id="mm_ceilingconduitrun22_0"]
+transform_format = 1
+instance_count = 5
+mesh = ExtResource("am_cyl_r26_h2000_s10_b30")
+buffer = PackedFloat32Array(-0.0000, 1.0000, 0.0000, 2.7500, 1.0000, 0.0000, 0.0000, 2.9100, -0.0000, 0.0000, -1.0000, -2.0000, -0.0000, 1.0000, 0.0000, 4.7500, 1.0000, 0.0000, 0.0000, 2.9100, -0.0000, 0.0000, -1.0000, -2.0000, -0.0000, 1.0000, 0.0000, 6.7500, 1.0000, 0.0000, 0.0000, 2.9100, -0.0000, 0.0000, -1.0000, -2.0000, -0.0000, 1.0000, 0.0000, 8.7500, 1.0000, 0.0000, 0.0000, 2.9100, -0.0000, 0.0000, -1.0000, -2.0000, 0.0000, -0.0000, 1.0000, 10.7500, 1.0000, 0.0000, 0.0000, 2.9100, -0.0000, 1.0000, 0.0000, -2.0000)
+
+[sub_resource type="MultiMesh" id="mm_ceilingconduitrun22_1"]
+transform_format = 1
+instance_count = 10
+mesh = ExtResource("am_box_22x90x45_b30")
+buffer = PackedFloat32Array(-1.0000, 0.0000, 0.0000, 3.6000, 0.0000, 1.0000, 0.0000, 2.9550, -0.0000, 0.0000, -1.0000, -2.0000, -1.0000, 0.0000, 0.0000, 1.9000, 0.0000, 1.0000, 0.0000, 2.9550, -0.0000, 0.0000, -1.0000, -2.0000, -1.0000, 0.0000, 0.0000, 5.6000, 0.0000, 1.0000, 0.0000, 2.9550, -0.0000, 0.0000, -1.0000, -2.0000, -1.0000, 0.0000, 0.0000, 3.9000, 0.0000, 1.0000, 0.0000, 2.9550, -0.0000, 0.0000, -1.0000, -2.0000, -1.0000, 0.0000, 0.0000, 7.6000, 0.0000, 1.0000, 0.0000, 2.9550, -0.0000, 0.0000, -1.0000, -2.0000, -1.0000, 0.0000, 0.0000, 5.9000, 0.0000, 1.0000, 0.0000, 2.9550, -0.0000, 0.0000, -1.0000, -2.0000, -1.0000, 0.0000, 0.0000, 9.6000, 0.0000, 1.0000, 0.0000, 2.9550, -0.0000, 0.0000, -1.0000, -2.0000, -1.0000, 0.0000, 0.0000, 7.9000, 0.0000, 1.0000, 0.0000, 2.9550, -0.0000, 0.0000, -1.0000, -2.0000, 0.0000, 0.0000, 1.0000, 10.7500, 0.0000, 1.0000, 0.0000, 2.9550, -1.0000, 0.0000, 0.0000, -1.1500, 0.0000, 0.0000, 1.0000, 10.7500, 0.0000, 1.0000, 0.0000, 2.9550, -1.0000, 0.0000, 0.0000, -2.8500)
+
+[sub_resource type="MultiMesh" id="mm_ceilingconduitrun22_2"]
+transform_format = 1
+instance_count = 10
+mesh = ExtResource("am_tube_32_27_h30_s10")
+buffer = PackedFloat32Array(-0.0000, 1.0000, 0.0000, 3.6000, 1.0000, 0.0000, 0.0000, 2.9100, -0.0000, 0.0000, -1.0000, -2.0000, -0.0000, 1.0000, 0.0000, 1.9000, 1.0000, 0.0000, 0.0000, 2.9100, -0.0000, 0.0000, -1.0000, -2.0000, -0.0000, 1.0000, 0.0000, 5.6000, 1.0000, 0.0000, 0.0000, 2.9100, -0.0000, 0.0000, -1.0000, -2.0000, -0.0000, 1.0000, 0.0000, 3.9000, 1.0000, 0.0000, 0.0000, 2.9100, -0.0000, 0.0000, -1.0000, -2.0000, -0.0000, 1.0000, 0.0000, 7.6000, 1.0000, 0.0000, 0.0000, 2.9100, -0.0000, 0.0000, -1.0000, -2.0000, -0.0000, 1.0000, 0.0000, 5.9000, 1.0000, 0.0000, 0.0000, 2.9100, -0.0000, 0.0000, -1.0000, -2.0000, -0.0000, 1.0000, 0.0000, 9.6000, 1.0000, 0.0000, 0.0000, 2.9100, -0.0000, 0.0000, -1.0000, -2.0000, -0.0000, 1.0000, 0.0000, 7.9000, 1.0000, 0.0000, 0.0000, 2.9100, -0.0000, 0.0000, -1.0000, -2.0000, 0.0000, -0.0000, 1.0000, 10.7500, 1.0000, 0.0000, 0.0000, 2.9100, -0.0000, 1.0000, 0.0000, -1.1500, 0.0000, -0.0000, 1.0000, 10.7500, 1.0000, 0.0000, 0.0000, 2.9100, -0.0000, 1.0000, 0.0000, -2.8500)
+
+[sub_resource type="MultiMesh" id="mm_ceilingconduitrun22_3"]
+transform_format = 1
+instance_count = 5
+mesh = ExtResource("am_box_100x80x100_b60")
+buffer = PackedFloat32Array(-1.0000, 0.0000, 0.0000, 2.7500, 0.0000, 1.0000, 0.0000, 2.9400, -0.0000, 0.0000, -1.0000, -2.0000, -1.0000, 0.0000, 0.0000, 4.7500, 0.0000, 1.0000, 0.0000, 2.9400, -0.0000, 0.0000, -1.0000, -2.0000, -1.0000, 0.0000, 0.0000, 6.7500, 0.0000, 1.0000, 0.0000, 2.9400, -0.0000, 0.0000, -1.0000, -2.0000, -1.0000, 0.0000, 0.0000, 8.7500, 0.0000, 1.0000, 0.0000, 2.9400, -0.0000, 0.0000, -1.0000, -2.0000, 0.0000, 0.0000, 1.0000, 10.7500, 0.0000, 1.0000, 0.0000, 2.9400, -1.0000, 0.0000, 0.0000, -2.0000)
+
+[sub_resource type="MultiMesh" id="mm_ceilingconduitrun22_4"]
+transform_format = 1
+instance_count = 5
+mesh = ExtResource("am_box_84x6x84_b20")
+buffer = PackedFloat32Array(-1.0000, 0.0000, 0.0000, 2.7500, 0.0000, 1.0000, 0.0000, 2.8960, -0.0000, 0.0000, -1.0000, -2.0000, -1.0000, 0.0000, 0.0000, 4.7500, 0.0000, 1.0000, 0.0000, 2.8960, -0.0000, 0.0000, -1.0000, -2.0000, -1.0000, 0.0000, 0.0000, 6.7500, 0.0000, 1.0000, 0.0000, 2.8960, -0.0000, 0.0000, -1.0000, -2.0000, -1.0000, 0.0000, 0.0000, 8.7500, 0.0000, 1.0000, 0.0000, 2.8960, -0.0000, 0.0000, -1.0000, -2.0000, 0.0000, 0.0000, 1.0000, 10.7500, 0.0000, 1.0000, 0.0000, 2.8960, -1.0000, 0.0000, 0.0000, -2.0000)
 
 [sub_resource type="BoxShape3D" id="bs_14"]
 size = Vector3(0.8000, 3.0000, 2.0000)
@@ -365,7 +554,7 @@ no_depth_test = false
 [node name="Interactables" type="Node3D" parent="."]
 
 [node name="dispenser6" type="Area3D" parent="Interactables"]
-transform = Transform3D(-1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, -1.000000, 6.3000, 1.4500, -5.8500)
+transform = Transform3D(-1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, -1.000000, 6.3000, 1.4500, -5.9000)
 collision_layer = 32
 collision_mask = 0
 script = ExtResource("s_interactable")
@@ -380,7 +569,7 @@ shape = SubResource("bs_11")
 transform = Transform3D(1.00000, 0, 0, 0, 1.00000, 0, 0, 0, 1.00000, 0.0000, 0.0000, 0.0000)
 
 [node name="keypad6" type="Area3D" parent="Interactables"]
-transform = Transform3D(0.000000, 0, 1.000000, 0, 1, 0, -1.000000, 0, 0.000000, 11.7500, 1.4500, -2.9000)
+transform = Transform3D(0.000000, 0, 1.000000, 0, 1, 0, -1.000000, 0, 0.000000, 11.8100, 1.4500, -2.9000)
 collision_layer = 32
 collision_mask = 0
 script = ExtResource("s_interactable")
@@ -408,6 +597,230 @@ shape = SubResource("bs_13")
 
 [node name="Model" parent="Interactables/exitdoor" instance=ExtResource("fx_door")]
 transform = Transform3D(1.00000, 0, 0, 0, 1.00000, 0, 0, 0, 1.00000, 0.0000, 0.0000, 0.0000)
+
+[node name="PropRuns" type="Node3D" parent="."]
+
+[node name="SkirtingRun0_0" type="MultiMeshInstance3D" parent="PropRuns"]
+multimesh = SubResource("mm_skirtingrun0_0")
+material_override = ExtResource("pm_trim")
+
+[node name="SkirtingRun0_1" type="MultiMeshInstance3D" parent="PropRuns"]
+multimesh = SubResource("mm_skirtingrun0_1")
+material_override = ExtResource("pm_trim")
+
+[node name="SkirtingRun2_0" type="MultiMeshInstance3D" parent="PropRuns"]
+multimesh = SubResource("mm_skirtingrun2_0")
+material_override = ExtResource("pm_trim")
+
+[node name="SkirtingRun2_1" type="MultiMeshInstance3D" parent="PropRuns"]
+multimesh = SubResource("mm_skirtingrun2_1")
+material_override = ExtResource("pm_trim")
+
+[node name="SkirtingRun4_0" type="MultiMeshInstance3D" parent="PropRuns"]
+multimesh = SubResource("mm_skirtingrun4_0")
+material_override = ExtResource("pm_trim")
+
+[node name="SkirtingRun4_1" type="MultiMeshInstance3D" parent="PropRuns"]
+multimesh = SubResource("mm_skirtingrun4_1")
+material_override = ExtResource("pm_trim")
+
+[node name="SkirtingRun6_0" type="MultiMeshInstance3D" parent="PropRuns"]
+multimesh = SubResource("mm_skirtingrun6_0")
+material_override = ExtResource("pm_trim")
+
+[node name="SkirtingRun6_1" type="MultiMeshInstance3D" parent="PropRuns"]
+multimesh = SubResource("mm_skirtingrun6_1")
+material_override = ExtResource("pm_trim")
+
+[node name="SkirtingRun8_0" type="MultiMeshInstance3D" parent="PropRuns"]
+multimesh = SubResource("mm_skirtingrun8_0")
+material_override = ExtResource("pm_trim")
+
+[node name="SkirtingRun8_1" type="MultiMeshInstance3D" parent="PropRuns"]
+multimesh = SubResource("mm_skirtingrun8_1")
+material_override = ExtResource("pm_trim")
+
+[node name="SkirtingRun10_0" type="MultiMeshInstance3D" parent="PropRuns"]
+multimesh = SubResource("mm_skirtingrun10_0")
+material_override = ExtResource("pm_trim")
+
+[node name="SkirtingRun10_1" type="MultiMeshInstance3D" parent="PropRuns"]
+multimesh = SubResource("mm_skirtingrun10_1")
+material_override = ExtResource("pm_trim")
+
+[node name="BumperRailRun12_0" type="MultiMeshInstance3D" parent="PropRuns"]
+multimesh = SubResource("mm_bumperrailrun12_0")
+material_override = ExtResource("pm_steel")
+
+[node name="BumperRailRun12_1" type="MultiMeshInstance3D" parent="PropRuns"]
+multimesh = SubResource("mm_bumperrailrun12_1")
+material_override = ExtResource("pm_rubber")
+
+[node name="BumperRailRun14_0" type="MultiMeshInstance3D" parent="PropRuns"]
+multimesh = SubResource("mm_bumperrailrun14_0")
+material_override = ExtResource("pm_steel")
+
+[node name="BumperRailRun14_1" type="MultiMeshInstance3D" parent="PropRuns"]
+multimesh = SubResource("mm_bumperrailrun14_1")
+material_override = ExtResource("pm_rubber")
+
+[node name="BumperRailRun16_0" type="MultiMeshInstance3D" parent="PropRuns"]
+multimesh = SubResource("mm_bumperrailrun16_0")
+material_override = ExtResource("pm_steel")
+
+[node name="BumperRailRun16_1" type="MultiMeshInstance3D" parent="PropRuns"]
+multimesh = SubResource("mm_bumperrailrun16_1")
+material_override = ExtResource("pm_rubber")
+
+[node name="BumperRailRun18_0" type="MultiMeshInstance3D" parent="PropRuns"]
+multimesh = SubResource("mm_bumperrailrun18_0")
+material_override = ExtResource("pm_steel")
+
+[node name="BumperRailRun18_1" type="MultiMeshInstance3D" parent="PropRuns"]
+multimesh = SubResource("mm_bumperrailrun18_1")
+material_override = ExtResource("pm_rubber")
+
+[node name="BumperRailRun20_0" type="MultiMeshInstance3D" parent="PropRuns"]
+multimesh = SubResource("mm_bumperrailrun20_0")
+material_override = ExtResource("pm_steel")
+
+[node name="BumperRailRun20_1" type="MultiMeshInstance3D" parent="PropRuns"]
+multimesh = SubResource("mm_bumperrailrun20_1")
+material_override = ExtResource("pm_rubber")
+
+[node name="CeilingConduitRun22_0" type="MultiMeshInstance3D" parent="PropRuns"]
+multimesh = SubResource("mm_ceilingconduitrun22_0")
+material_override = ExtResource("pm_steel")
+
+[node name="CeilingConduitRun22_1" type="MultiMeshInstance3D" parent="PropRuns"]
+multimesh = SubResource("mm_ceilingconduitrun22_1")
+material_override = ExtResource("pm_chain")
+
+[node name="CeilingConduitRun22_2" type="MultiMeshInstance3D" parent="PropRuns"]
+multimesh = SubResource("mm_ceilingconduitrun22_2")
+material_override = ExtResource("pm_chain")
+
+[node name="CeilingConduitRun22_3" type="MultiMeshInstance3D" parent="PropRuns"]
+multimesh = SubResource("mm_ceilingconduitrun22_3")
+material_override = ExtResource("pm_steel")
+
+[node name="CeilingConduitRun22_4" type="MultiMeshInstance3D" parent="PropRuns"]
+multimesh = SubResource("mm_ceilingconduitrun22_4")
+material_override = ExtResource("pm_chain")
+
+[node name="Props" type="Node3D" parent="."]
+
+[node name="HangingCable0" parent="Props" instance=ExtResource("pk_hanging_cable")]
+transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, 8.6000, 3.0000, -3.6000)
+
+[node name="MissingCeilingTile1" parent="Props" instance=ExtResource("pk_missing_ceiling_tile")]
+transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, 4.4000, 3.0000, -3.4000)
+
+[node name="MissingTileLegA" parent="Props" instance=ExtResource("pk_missing_ceiling_tile")]
+transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, 0.2000, 3.0000, 3.2000)
+
+[node name="WardSign3" parent="Props" instance=ExtResource("pk_ward_sign")]
+transform = Transform3D(0.000000, 0, 1.000000, 0, 1, 0, -1.000000, 0, 0.000000, 1.4800, 2.0500, 5.2000)
+
+[node name="Text" parent="Props/WardSign3"]
+text = "WARD B"
+
+[node name="ExitSign4" parent="Props" instance=ExtResource("pk_exit_sign")]
+transform = Transform3D(-1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, -1.000000, 11.6000, 2.3500, -1.3200)
+
+[node name="CabinetHeader5" parent="Props" instance=ExtResource("pk_cabinet_header")]
+transform = Transform3D(-1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, -1.000000, 6.3000, 2.0000, -6.0000)
+
+[node name="Radiator6" parent="Props" instance=ExtResource("pk_radiator")]
+transform = Transform3D(0.000000, 0, -1.000000, 0, 1, 0, 1.000000, 0, 0.000000, -1.4800, 0.4000, 5.4000)
+
+[node name="Radiator7" parent="Props" instance=ExtResource("pk_radiator")]
+transform = Transform3D(-1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, -1.000000, 3.4000, 0.4000, -1.3200)
+
+[node name="WallVent8" parent="Props" instance=ExtResource("pk_wall_vent")]
+transform = Transform3D(0.000000, 0, 1.000000, 0, 1, 0, -1.000000, 0, 0.000000, 1.4800, 2.3500, 1.2000)
+
+[node name="FireExtinguisher9" parent="Props" instance=ExtResource("pk_fire_extinguisher")]
+transform = Transform3D(0.000000, 0, -1.000000, 0, 1, 0, 1.000000, 0, 0.000000, -1.4800, 1.1500, -3.2000)
+
+[node name="PaperScatter10" parent="Props" instance=ExtResource("pk_paper_scatter")]
+transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, 2.6000, 0.0000, -3.9000)
+
+[node name="PlasterRubble11" parent="Props" instance=ExtResource("pk_plaster_rubble")]
+transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, 10.2000, 0.0000, -1.9000)
+
+[node name="FallenPlasterPatch12" parent="Props" instance=ExtResource("pk_fallen_plaster_patch")]
+transform = Transform3D(-1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, -1.000000, 9.4000, 0.6000, -1.3200)
+
+[node name="CeilingTroffer13" parent="Props" instance=ExtResource("pk_ceiling_troffer")]
+transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, 0.0000, 3.0000, 6.0000)
+
+[node name="TrofferLamp14_light" type="Node3D" parent="Props"]
+script = ExtResource("s_lightobj")
+visible_in_light = 1
+
+[node name="TrofferLamp14" parent="Props/TrofferLamp14_light" instance=ExtResource("pk_troffer_lamp")]
+transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, 0.0000, 3.0000, 6.0000)
+
+[node name="CeilingTroffer15" parent="Props" instance=ExtResource("pk_ceiling_troffer")]
+transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, 0.0000, 3.0000, 1.0000)
+
+[node name="TrofferLamp16_light" type="Node3D" parent="Props"]
+script = ExtResource("s_lightobj")
+visible_in_light = 1
+
+[node name="TrofferLamp16" parent="Props/TrofferLamp16_light" instance=ExtResource("pk_troffer_lamp")]
+transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, 0.0000, 3.0000, 1.0000)
+
+[node name="CeilingTroffer17" parent="Props" instance=ExtResource("pk_ceiling_troffer")]
+transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, 0.0000, 3.0000, -2.0000)
+
+[node name="TrofferLamp18_light" type="Node3D" parent="Props"]
+script = ExtResource("s_lightobj")
+visible_in_light = 1
+
+[node name="TrofferLamp18" parent="Props/TrofferLamp18_light" instance=ExtResource("pk_troffer_lamp")]
+transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, 0.0000, 3.0000, -2.0000)
+
+[node name="CeilingTroffer19" parent="Props" instance=ExtResource("pk_ceiling_troffer")]
+transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, 3.0000, 3.0000, -2.9000)
+
+[node name="TrofferLamp20_light" type="Node3D" parent="Props"]
+script = ExtResource("s_lightobj")
+visible_in_light = 1
+
+[node name="TrofferLamp20" parent="Props/TrofferLamp20_light" instance=ExtResource("pk_troffer_lamp")]
+transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, 3.0000, 3.0000, -2.9000)
+
+[node name="CeilingTroffer21" parent="Props" instance=ExtResource("pk_ceiling_troffer")]
+transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, 6.3000, 3.0000, -2.9000)
+
+[node name="TrofferLamp22_light" type="Node3D" parent="Props"]
+script = ExtResource("s_lightobj")
+visible_in_light = 1
+
+[node name="TrofferLamp22" parent="Props/TrofferLamp22_light" instance=ExtResource("pk_troffer_lamp")]
+transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, 6.3000, 3.0000, -2.9000)
+
+[node name="CeilingTroffer23" parent="Props" instance=ExtResource("pk_ceiling_troffer")]
+transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, 9.5000, 3.0000, -2.9000)
+
+[node name="TrofferLamp24_light" type="Node3D" parent="Props"]
+script = ExtResource("s_lightobj")
+visible_in_light = 1
+
+[node name="TrofferLamp24" parent="Props/TrofferLamp24_light" instance=ExtResource("pk_troffer_lamp")]
+transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, 9.5000, 3.0000, -2.9000)
+
+[node name="CeilingTroffer25" parent="Props" instance=ExtResource("pk_ceiling_troffer")]
+transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, 12.5000, 3.0000, -2.9000)
+
+[node name="TrofferLamp26_light" type="Node3D" parent="Props"]
+script = ExtResource("s_lightobj")
+visible_in_light = 1
+
+[node name="TrofferLamp26" parent="Props/TrofferLamp26_light" instance=ExtResource("pk_troffer_lamp")]
+transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, 12.5000, 3.0000, -2.9000)
 
 [node name="Lights" type="Node3D" parent="."]
 

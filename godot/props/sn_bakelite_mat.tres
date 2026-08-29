@@ -1,0 +1,23 @@
+[gd_resource type="StandardMaterial3D" format=3 uid="uid://wardbsnrmbklt1"]
+
+; payphone's handset and cord — dark, semi-gloss period plastic. Nothing in
+; the existing palette is both DARK and WARM: `chain` is cold pitted iron
+; (blue-grey undertone), `screen` is a near-black glass-look reserved for
+; CRT/troffer glazing and sits even darker than the luminance floor allows
+; for a new material (existing precedent, not a new one — see this file's
+; module header). Bakelite is warm dark brown-black, and that warmth is
+; most of what reads as "plastic handset" rather than "iron fitting" at the
+; small scale a handset is seen at.
+;
+; roughness 0.42 — semi-gloss moulded plastic, tighter than the matte irons
+; and laminates in this file but well short of sn_mirror's polish.
+;
+; Luminance: 0.2126*0.27 + 0.7152*0.21 + 0.0722*0.18 = 0.221, above the
+; ~0.20 floor with a deliberately small margin — this is meant to read as
+; the second-darkest material in the file after sn_mirror, and pushing it
+; lighter would start to compete with the mirror for "darkest thing here".
+
+[resource]
+albedo_color = Color(0.27, 0.21, 0.18, 1)
+roughness = 0.42
+metallic = 0.0

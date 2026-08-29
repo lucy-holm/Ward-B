@@ -28,7 +28,7 @@ GODOT="${GODOT:-godot}"
 TIMEOUT_S="${TIMEOUT_S:-300}"
 SUITES=("$@")
 if [ ${#SUITES[@]} -eq 0 ]; then
-  SUITES=(check_rooms test_mechanics test_settings test_triggers test_flicker \
+  SUITES=(check_rooms check_patrols check_telemetry check_experiments check_build_config test_mechanics test_settings test_triggers test_flicker \
           test_input_look test_room11 test_room13 test_room14 test_room15 test_room16 test_room17 test_rooms1819 test_room20)
 fi
 

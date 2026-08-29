@@ -1,0 +1,23 @@
+[gd_resource type="StandardMaterial3D" format=3 uid="uid://wardbprmsteel1"]
+
+; Brushed steel — chair frames, IV poles, troffer housings, vent surrounds.
+; Metallic is pinned near zero for the reason MIGRATION_NOTES gives
+; (Compatibility, no sky, no reflection probes: a genuinely metallic surface
+; has nothing to reflect and reads as flat black). It is sold instead as metal
+; by being TIGHTER (lower roughness) than every painted surface around it —
+; the walls sit at roughness ~0.55-0.95, so a 0.46 roughness here catches a
+; specular streak off a ceiling fitting that plaster never does.
+;
+; Realism pass (2026-08): darkened from albedo 0.42/0.435/0.45. That value was
+; tuned in isolation and never checked against a lit gallery shot — under a
+; troffer it read as almost WHITE, brighter than the cream wall enamel next to
+; it, which is backwards for a desaturated institutional palette where nothing
+; painted is supposed to be the brightest thing in the room except the window
+; glass and the light fittings themselves. This sits closer to the reference
+; board's "taupe" swatch: still legibly lighter and tighter than the plaster
+; behind it (that contrast is what makes it read as metal at all), just not
+; blown out under a fitting the way the old value was.
+[resource]
+albedo_color = Color(0.32, 0.325, 0.335, 1)
+roughness = 0.46
+metallic = 0.05

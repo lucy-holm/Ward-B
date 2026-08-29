@@ -7,19 +7,35 @@ name: Publish Godot build to itch.io
 # untouched — so no branch push can ever ship the Godot build by accident.
 # This one runs on manual dispatch ONLY.
 #
-# WHY THE GATE EXISTS. The Godot port covers rooms 1-7; the Three.js game
-# covers 1-20 (MIGRATION_NOTES.md: "Rooms 8-20 are not ported. Room 7 exits
-# to END"). Publishing Godot to the public playable channel today would take
-# 13 working rooms away from the audience. The `parity check` step below
-# enforces that programmatically rather than trusting anyone to remember it.
+# WHY THE GATE EXISTS — and why it is now inert but still here.
 #
-# DEFAULT CHANNEL IS NOT THE PUBLIC ONE. `html5-godot` uploads alongside the
-# live game instead of replacing it: on itch each channel is its own upload,
-# and a new one is not automatically the browser-playable build (the runbook
-# already records that a fresh upload shows a download button until someone
-# ticks "played in the browser" by hand). So this is safe to run now — it
-# gets a Godot build onto the project page for testing without touching what
-# players load. Switching to `html5` is the deliberate, parity-gated step.
+# This gate was written when the Godot port covered rooms 1-7 and the Three.js
+# game covered 1-20: publishing Godot then would have taken 13 working rooms
+# away from the audience. THAT IS NO LONGER TRUE. The Godot port has all 20
+# rooms, the parity check below passes on its own, and as of 2026-08-23 the
+# Godot build IS Ward B — see
+# docs/superpowers/specs/2026-08-23-threejs-deprecation.md.
+#
+# The check stays anyway. It costs one `find` and it is the only automated
+# thing standing between a bad merge and the public build. DO NOT DELETE IT ON
+# THE GROUNDS THAT IT ALWAYS PASSES — that is precisely when a guard is doing
+# its job.
+#
+# DEFAULT CHANNEL IS NOW THE PUBLIC ONE (`html5`), changed 2026-08-23 from
+# `html5-godot`. It defaulted to the safe alongside-channel while Three.js was
+# the game and this workflow was a testing convenience; now that Godot is the
+# game, defaulting to anything else would mean the normal path published to a
+# channel nobody plays. `html5-godot` is still available in the dropdown for
+# exactly its original purpose: getting a build onto the project page for
+# testing without touching what players load.
+#
+# TWO GUARDS REMAIN AND BOTH STILL APPLY: `confirm` must be typed as exactly
+# "ship godot", and the parity check refuses `html5` if Godot ever drops below
+# Three.js on room count. Neither is a formality.
+#
+# NOTE ON itch's PLAY BUTTON: a freshly created channel shows a download button
+# until someone ticks "played in the browser" by hand — the runbook records
+# this. It applies to `html5-godot`, not to `html5`, which is already set up.
 #
 # ONE-TIME SETUP: the BUTLER_API_KEY secret is already configured for
 # deploy-itch.yml and is reused here. Nothing else to do.
@@ -28,9 +44,9 @@ on:
   workflow_dispatch:
     inputs:
       channel:
-        description: "itch channel. html5-godot = safe (uploads alongside). html5 = REPLACES the public playable build."
+        description: "itch channel. html5 = the public playable build (default, Godot is the game). html5-godot = uploads alongside for testing."
         required: true
-        default: html5-godot
+        default: html5
         type: choice
         options:
           - html5-godot
@@ -116,6 +132,39 @@ jobs:
           mkdir -p "$dest"
           mv templates/* "$dest/"
           godot --version
+
+      # THE ONLY PLACE A TELEMETRY ENDPOINT IS EVER COMPILED IN.
+      #
+      # godot/core/build_config.gd is committed EMPTY, so the Pages deploy,
+      # the Helios/tailnet container and every local run produce a build with
+      # no collector URL in it at all. This step is what makes the itch build
+      # different, and it is deliberately not a reusable action or a shared
+      # step — if you find yourself copying it into another workflow, that
+      # workflow is about to start reporting Tom's own testing as player data.
+      #
+      # A second, independent gate lives in autoload/telemetry.gd: even with
+      # this baked in, the build refuses to transmit unless it is actually
+      # running on an itch host. See that file's header.
+      - name: Bake the telemetry endpoint (itch only)
+        env:
+          TELEMETRY_URL: ${{ vars.TELEMETRY_URL }}
+        run: |
+          set -euo pipefail
+          if [ -z "${TELEMETRY_URL:-}" ]; then
+            echo "::error::The TELEMETRY_URL repo variable is empty. The public build would ship with telemetry silently disabled, which looks exactly like a healthy build until someone checks the dashboard weeks later. Set it under Settings -> Secrets and variables -> Actions -> Variables."
+            exit 1
+          fi
+          godot/tools/write_build_config.sh "$TELEMETRY_URL" "$(git rev-parse --short HEAD)"
+          # Ask the ENGINE what it resolved, rather than trusting the file the
+          # shell just wrote. This catches a stale import cache and a bad
+          # substitution, both of which produce a parseable file that simply
+          # never reports — a failure mode indistinguishable from a healthy
+          # build until someone checks the dashboard weeks later.
+          godot --headless --path godot --import || true
+          out=$(WARDB_EXPECT_ENDPOINT=1 godot --headless --path godot tools/check_build_config.tscn 2>&1)
+          echo "$out"
+          grep -q "OK - build config" <<<"$out" || {
+            echo "::error::The engine did not resolve a baked telemetry endpoint."; exit 1; }
 
       - name: Export Godot web build
         run: |

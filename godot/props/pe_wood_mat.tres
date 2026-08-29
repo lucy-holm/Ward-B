@@ -1,0 +1,23 @@
+[gd_resource type="StandardMaterial3D" format=3 uid="uid://wardbpewood1"]
+
+; Dark varnished wood — photo_frame's surround, wall_calendar's backing
+; board. Nothing else in the kit is wood-toned (materials/door.tres is
+; painted timber, a cool green-grey, not bare wood), so this is the one
+; warm-brown surface in the human-effects set, matching the material board's
+; "dark brown" swatch. Reserved for small PERSONAL objects rather than
+; institutional fixtures — that distinction (issued steel/enamel vs. a
+; brought-from-home wooden frame) is part of what sells "somebody lived
+; here" over "this is hospital stock".
+;
+; Kept deliberately above the ~0.20 luminance floor the caution on dark
+; albedo names (this sits ~0.23) — a photo frame this small is easy to lose
+; entirely into ACES-tonemapped shadow, and it is one of the highest-value
+; "a person was here" reads in the whole set, so it cannot afford to crush to
+; black in the unmedicated state. Small metallic tick (0.03) only, for a
+; faint varnish sheen; roughness stays well above steel's 0.46 so it never
+; reads as metal.
+
+[resource]
+albedo_color = Color(0.30, 0.22, 0.16, 1)
+roughness = 0.55
+metallic = 0.03

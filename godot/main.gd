@@ -425,11 +425,25 @@ func _ready() -> void:
 		hud_toast("it's wearing thin.")
 		WardAudio.set_medication_warning(true))
 
-	Telemetry.event("page_load")
+	# The ?room= dev jump, ported from src/main.ts:91-92. Lets a playtest start
+	# at any room without walking the whole ward to reach it. An unknown or
+	# absent id falls back to room1, so a typo opens the game rather than a
+	# black screen.
+	#
+	# A session that used it is stamped debug=true for the whole run, exactly
+	# as the TS build does — someone who skipped nine rooms is not a data
+	# point about how long room 10 takes, and the collector needs to be able
+	# to exclude them. Set BEFORE page_load() so the very first batch carries
+	# the flag; setting it afterwards would leave page_load looking clean.
+	var requested := WebEnv.query_param("room")
+	var start_room := requested if ROOM_SCENES.has(requested) else "room1"
+	Telemetry.debug = not requested.is_empty()
+
+	Telemetry.page_load()
 	GameState.run_started_unix = int(Time.get_unix_time_from_system())
 
 	_apply_mood(StateManager.state, true)
-	load_room("room1")
+	load_room(start_room)
 	# Deliberately does NOT call player.set_input_enabled(true) here — the
 	# scene is meant to be visible as a backdrop behind the start overlay
 	# ("initial presentation: scene visible behind the start overlay",
@@ -439,6 +453,10 @@ func _ready() -> void:
 func _on_admit_pressed() -> void:
 	hud.visible = true
 	player.set_input_enabled(true)
+	# Starts idle/perf sampling and stamps the run clocks. Deliberately here
+	# and not in _ready: everything before ADMIT ME is the player reading an
+	# overlay, and counting that as play time would inflate every duration.
+	Telemetry.start()
 	# CLICK TO CAPTURE, but fired from the ADMIT ME button itself rather than
 	# waiting for player.gd's own first-click handler: a Button's `pressed`
 	# signal already consumes the click as GUI input, so it never reaches
@@ -473,7 +491,9 @@ func _try_shift() -> void:
 	match result:
 		StateManager.ShiftResult.OK:
 			shift_fx()
-			Telemetry.event("shift", {"to": "lucid" if StateManager.is_lucid() else "unmed"})
+			# The `shift` event is NOT raised here. It is raised in
+			# _on_state_changed for every shift, manual or scripted — see the
+			# F13 note there. Raising it in both places double-counted.
 		StateManager.ShiftResult.NO_PILLS:
 			hud_toast("nothing left to swallow.")
 			Telemetry.event("pills_empty")
@@ -481,7 +501,18 @@ func _try_shift() -> void:
 			pass
 
 
-func _on_state_changed(next: StateManager.State, _prev: StateManager.State, _source: String) -> void:
+func _on_state_changed(next: StateManager.State, prev: StateManager.State, source: String) -> void:
+	# F13: log EVERY shift, not just the manual Q press, so total lucid time
+	# and "chosen vs imposed lucidity" can be reconstructed. The Godot signal
+	# already carries prev and source ("manual" from StateManager.shift(), the
+	# caller's own string from force_state()), so unlike the TS version this
+	# needs no in-progress flag to tell the two apart — but it does mean the
+	# event belongs here and ONLY here.
+	Telemetry.event("shift", {
+		"direction": "%s->%s" % [_state_name(prev), _state_name(next)],
+		"source": source if not source.is_empty() else "forced",
+	})
+
 	_apply_mood(next, false)
 
 	if next != StateManager.State.LUCID:
@@ -500,6 +531,13 @@ func _on_state_changed(next: StateManager.State, _prev: StateManager.State, _sou
 # the revert is deferred, tick by tick, until they step clear. This is why
 # the player can never be embedded in geometry, and the only case where
 # lucidity outlasts 45 seconds.
+## The wire spelling of a state, matching the TS `${prev}->${next}` direction
+## string. The enum's own names are upper case; the collector stores the lower
+## case forms the Three.js build has been sending since launch.
+func _state_name(state: StateManager.State) -> String:
+	return "lucid" if state == StateManager.State.LUCID else "unmed"
+
+
 func _on_medication_depleted() -> void:
 	_awaiting_revert = true
 
@@ -913,16 +951,24 @@ func load_room(id: String) -> void:
 	if current_room.has_method("on_enter"):
 		current_room.on_enter(self)
 
+	# Resets the per-room counters and clocks BEFORE the enter event, so a
+	# revisit of a room already seen is measured on its own rather than
+	# carrying the previous visit's totals.
+	Telemetry.mark_room_enter()
 	Telemetry.event("room_enter")
 	Telemetry.flush()
 
 
 func complete_room(to: String) -> void:
-	Telemetry.event("room_complete")
+	# Rollups are read BEFORE load_room(), which resets the room counters.
+	Telemetry.event("room_complete", Telemetry.room_rollup())
 	GameState.complete_room(current_room_id)
 	if to == "END":
 		player.set_input_enabled(false)
-		Telemetry.event("game_complete")
+		Telemetry.event("game_complete", Telemetry.session_rollup())
+		# Beacon: this is the last thing that will ever be sent for this
+		# session, and game_complete is the event the whole funnel is built
+		# to measure.
 		Telemetry.flush(true)
 		return
 	load_room(to)
@@ -933,6 +979,9 @@ func complete_room(to: String) -> void:
 ## right for every single-level room and wrong for every stacked one.
 func teleport_player(x: float, z: float, to_level := "") -> void:
 	player.teleport(x, z, to_level)
+	# Drops the distance baseline so this jump — an orderly's catch, a room
+	# reset — is not billed to the player as walking.
+	Telemetry.resync_distance()
 
 
 ## Floor height for a room script — e.g. to seat a prop or a room-owned actor
@@ -962,6 +1011,13 @@ func open_keypad(code: String, on_success: Callable, on_denied := Callable()) ->
 		Telemetry.event("keypad_denied", {"entered": attempt})
 		if on_denied.is_valid():
 			on_denied.call(attempt))
+
+	keypad.closed.connect(func() -> void:
+		# Abandoning a keypad is a distinct signal from failing one: it says
+		# the player did not have the code and knew it, rather than guessing
+		# wrong. `attempts` is what separates "opened it by accident" from
+		# "tried three times and gave up".
+		Telemetry.event("keypad_close", {"attempts": keypad.attempts()}))
 
 	Telemetry.event("keypad_open")
 	keypad.open(code)

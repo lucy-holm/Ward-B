@@ -19,12 +19,26 @@ height = 256
 noise = SubResource("FastNoiseLite_wall_mottle")
 
 [sub_resource type="FastNoiseLite" id="FastNoiseLite_wall_island"]
-noise_type = 1
+; island_tex noise (2026-08, crazing pass): was noise_type=1 (Simplex Smooth,
+; 2-octave FBM) — that produces smooth, rounded amoeba blobs, not the "fine
+; network of small islands" the PBR board's cracked-paint panel actually
+; shows. Switched to Cellular with cellular_return_type=4 (DISTANCE2_SUB,
+; i.e. F2-F1): that returns ~0 exactly ON the Voronoi cell boundary (both
+; nearest points are ~equidistant there) and rises toward the cell centre —
+; the standard "cracked earth"/crazed-paint procedural technique. The peel
+; shader thresholds LOW island_tex values as exposed, so this reads as thin
+; cracks (low F2-F1) opening onto the substrate, with paint intact in the
+; cell interiors (high F2-F1) — exactly inverted from the old shader's
+; smooth blob silhouette, and much closer to the reference. fractal_octaves
+; pinned to 1 (no FBM layering) so the cell pattern stays crisp rather than
+; blurring into the old amoeba look through a different noise function.
+noise_type = 2
 seed = 303
-frequency = 0.015
-fractal_octaves = 2
-fractal_lacunarity = 2.0
-fractal_gain = 0.3
+frequency = 0.085
+fractal_octaves = 1
+cellular_distance_function = 0
+cellular_return_type = 4
+cellular_jitter = 0.85
 
 [sub_resource type="NoiseTexture2D" id="NoiseTexture2D_wall_island"]
 generate_mipmaps = true
@@ -52,7 +66,7 @@ shader_parameter/decay = 0.22
 shader_parameter/paint_clean_color = Color(0.615, 0.565, 0.485, 1)
 shader_parameter/paint_soiled_color = Color(0.535, 0.49, 0.415, 1)
 shader_parameter/plaster_color = Color(0.50, 0.45, 0.375, 1)
-shader_parameter/lath_color = Color(0.24, 0.21, 0.17, 1)
+shader_parameter/lath_color = Color(0.40, 0.355, 0.30, 1)
 shader_parameter/green_cast_color = Color(0.38, 0.395, 0.31, 1)
 shader_parameter/shadow_color = Color(0.32, 0.33, 0.27, 1)
 shader_parameter/rust_color = Color(0.56, 0.32, 0.27, 1)
@@ -60,25 +74,32 @@ shader_parameter/grime_color = Color(0.36, 0.24, 0.17, 1)
 shader_parameter/band_color = Color(0.22, 0.245, 0.235, 1)
 shader_parameter/band_height = 1.1
 shader_parameter/band_softness = 0.22
+shader_parameter/dado_tile = 0.16
+shader_parameter/dado_grout = 0.011
+shader_parameter/dado_grout_darken = 0.3
+shader_parameter/dado_tile_variation = 0.1
 shader_parameter/rail_width = 0.025
 shader_parameter/mottle_tex = SubResource("NoiseTexture2D_wall_mottle")
 shader_parameter/island_tex = SubResource("NoiseTexture2D_wall_island")
 shader_parameter/mottle_scale = 0.22
-shader_parameter/island_scale = 0.8
+shader_parameter/island_scale = 1.45
 shader_parameter/streak_scale = 0.5
 shader_parameter/streak_squash = 0.08
 shader_parameter/mottle_strength = 0.16
 shader_parameter/streak_strength = 0.22
-shader_parameter/normal_strength = 1.1
+shader_parameter/normal_strength = 0.45
 shader_parameter/roughness_paint = 0.55
 shader_parameter/roughness_plaster = 0.95
 ; ao_strength 0.22 -> 0.27: a touch more contact-shadow depth at the peel
 ; lip so exposed plaster reads as recessed, not just recolored.
-shader_parameter/ao_strength = 0.27
+shader_parameter/ao_strength = 0.11
 shader_parameter/parallax_strength = 0.12
-shader_parameter/peel_threshold_min = 0.08
-shader_parameter/peel_threshold_max = 0.66
-shader_parameter/edge_width_near = 0.045
-shader_parameter/edge_width_far = 0.12
+shader_parameter/peel_threshold_min = 0.05
+shader_parameter/peel_patch_strength = 0.85
+shader_parameter/peel_patch_lo = 0.34
+shader_parameter/peel_patch_hi = 0.70
+shader_parameter/peel_threshold_max = 0.18
+shader_parameter/edge_width_near = 0.07
+shader_parameter/edge_width_far = 0.16
 shader_parameter/dist_fade_near = 5.0
 shader_parameter/dist_fade_far = 18.0

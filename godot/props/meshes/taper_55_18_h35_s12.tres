@@ -1,0 +1,13 @@
+[gd_resource type="ArrayMesh" format=4]
+
+[resource]
+_surfaces = [{
+"aabb": AABB(-0.055, -0.0175, -0.055, 0.11, 0.035, 0.11),
+"format": 34359742471,
+"index_count": 144,
+"index_data": PackedByteArray("AAABAAIAAAADAAEABAAFAAYABwAIAAkAAwAKAAEAAwALAAoABAAGAAwABwANAAgACwAOAAoACwAPAA4ABAAMABAABwARAA0ADwASAA4ADwATABIABAAQABQABwAVABEAEwAWABIAEwAXABYABAAUABgABwAZABUAFwAaABYAFwAbABoABAAYABwABwAdABkAGwAeABoAGwAfAB4ABAAcACAABwAhAB0AHwAiAB4AHwAjACIABAAgACQABwAlACEAIwAmACIAIwAnACYABAAkACgABwApACUAJwAqACYAJwArACoABAAoACwABwAtACkAKwAuACoAKwAvAC4ABAAsADAABwAxAC0ALwACAC4ALwAAAAIABAAwAAUABwAJADEA"),
+"primitive": 3,
+"uv_scale": Vector4(0, 0, 0, 0),
+"vertex_count": 50,
+"vertex_data": PackedByteArray("rkdhPSlcj7wAAAAAu2Z/PClcjzy8dBM8vHSTPClcjzwAAAAAJBlDPSlcj7yuR+E8AAAAAClcjzwAAAAAvHSTPClcjzwAAAAAu2Z/PClcjzy8dBM8AAAAAClcj7wAAAAAJBlDPSlcj7yuR+E8rkdhPSlcj7wAAAAAvHQTPClcjzy7Zn88rkfhPClcj7wkGUM9vHQTPClcjzy7Zn88rkfhPClcj7wkGUM9Q6eiISlcjzy8dJM8in94Iilcj7yuR2E9Q6eiISlcjzy8dJM8in94Iilcj7yuR2E9vHQTvClcjzy7Zn88rkfhvClcj7wkGUM9vHQTvClcjzy7Zn88rkfhvClcj7wkGUM9u2Z/vClcjzy8dBM8JBlDvSlcj7yuR+E8u2Z/vClcjzy8dBM8JBlDvSlcj7yuR+E8vHSTvClcjzxDpyIirkdhvSlcj7yKf/givHSTvClcjzxDpyIirkdhvSlcj7yKf/giu2Z/vClcjzy8dBO8JBlDvSlcj7yuR+G8u2Z/vClcjzy8dBO8JBlDvSlcj7yuR+G8vHQTvClcjzy7Zn+8rkfhvClcj7wkGUO9vHQTvClcjzy7Zn+8rkfhvClcj7wkGUO95fpzoilcjzy8dJO8qF86oylcj7yuR2G95fpzoilcjzy8dJO8qF86oylcj7yuR2G9vHQTPClcjzy7Zn+8rkfhPClcj7wkGUO9vHQTPClcjzy7Zn+8rkfhPClcj7wkGUO9u2Z/PClcjzy8dBO8JBlDPSlcj7yuR+G8u2Z/PClcjzy8dBO8JBlDPSlcj7yuR+G8OL7GwfBSTtW+rda3NEcvzDi+xsHwUk7Vvq3WtzRHL8z/f///AAD/v/9///8AAP+//3///wAA/7//fwAAAAD/v/9/AAAAAP+//38AAAAA/79omta3bzwsu2ia1rdvPCy7/3///wAA/7//fwAAAAD/v/9/xsHwUtar/3/GwfBS1qv/f///AAD/v/9/AAAAAP+/lmXWt/5j16WWZda3/mPXpf9///8AAP+//38AAAAA/79AUta3/mMnqEBS1rf+Yyeo/3///wAA/7//fwAAAAD/v8ZBxsHwUq+qxkHGwfBSr6r/f///AAD/v/9/AAAAAP+/1zdA0m88mqbXN0DSbzyapv9///8AAP+//38AAAAA/7/XN5Xl1C5knNc3leXULmSc/3///wAA/7//fwAAAAD/v8ZB//9RKIaWxkH//1Eohpb/f///AAD/v/9/AAAAAP+/J8iV5QkS4JsnyJXlCRLgm/9///8AAP+//38AAAAA/78nyEDSPUgZ2yfIQNI9SBnb/3///wAA/7//fwAAAAD/vw==")
+}]

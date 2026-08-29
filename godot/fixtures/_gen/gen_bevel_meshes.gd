@@ -21,6 +21,11 @@ func _initialize() -> void:
 		"kp_body": [Vector3(0.4, 0.5, 0.14), 0.010],
 		"kp_backing": [Vector3(0.32, 0.42, 0.02), 0.005],
 		"kp_key": [Vector3(0.066, 0.038, 0.012), 0.003],
+		# The door LEAF: the solid slab the rails, stiles and panels are applied
+		# to. It was missing entirely — the door was a frame with two panels
+		# floating in it and open air behind, which is why the recessed panels
+		# read as holes rather than as panels.
+		"door_leaf": [Vector3(1.80, 2.90, 0.10), 0.010],
 		"door_jamb_side": [Vector3(0.10, 3.0, 0.16), 0.010],
 		"door_jamb_top": [Vector3(2.0, 0.10, 0.16), 0.010],
 		"door_rail_h": [Vector3(1.80, 0.15, 0.06), 0.008],

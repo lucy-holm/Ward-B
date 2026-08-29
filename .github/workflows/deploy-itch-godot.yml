@@ -133,6 +133,39 @@ jobs:
           mv templates/* "$dest/"
           godot --version
 
+      # THE ONLY PLACE A TELEMETRY ENDPOINT IS EVER COMPILED IN.
+      #
+      # godot/core/build_config.gd is committed EMPTY, so the Pages deploy,
+      # the Helios/tailnet container and every local run produce a build with
+      # no collector URL in it at all. This step is what makes the itch build
+      # different, and it is deliberately not a reusable action or a shared
+      # step — if you find yourself copying it into another workflow, that
+      # workflow is about to start reporting Tom's own testing as player data.
+      #
+      # A second, independent gate lives in autoload/telemetry.gd: even with
+      # this baked in, the build refuses to transmit unless it is actually
+      # running on an itch host. See that file's header.
+      - name: Bake the telemetry endpoint (itch only)
+        env:
+          TELEMETRY_URL: ${{ vars.TELEMETRY_URL }}
+        run: |
+          set -euo pipefail
+          if [ -z "${TELEMETRY_URL:-}" ]; then
+            echo "::error::The TELEMETRY_URL repo variable is empty. The public build would ship with telemetry silently disabled, which looks exactly like a healthy build until someone checks the dashboard weeks later. Set it under Settings -> Secrets and variables -> Actions -> Variables."
+            exit 1
+          fi
+          godot/tools/write_build_config.sh "$TELEMETRY_URL" "$(git rev-parse --short HEAD)"
+          # Ask the ENGINE what it resolved, rather than trusting the file the
+          # shell just wrote. This catches a stale import cache and a bad
+          # substitution, both of which produce a parseable file that simply
+          # never reports — a failure mode indistinguishable from a healthy
+          # build until someone checks the dashboard weeks later.
+          godot --headless --path godot --import || true
+          out=$(WARDB_EXPECT_ENDPOINT=1 godot --headless --path godot tools/check_build_config.tscn 2>&1)
+          echo "$out"
+          grep -q "OK - build config" <<<"$out" || {
+            echo "::error::The engine did not resolve a baked telemetry endpoint."; exit 1; }
+
       - name: Export Godot web build
         run: |
           set -euo pipefail

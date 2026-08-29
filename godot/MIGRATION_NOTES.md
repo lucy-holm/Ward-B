@@ -146,12 +146,62 @@ Deliberate correction while porting: the original rolled its flicker as a
 per-**frame** probability, so the ward visibly flickered faster at 144fps
 than at 60. It is a per-second rate here.
 
-### Telemetry is wire-compatible
+### Telemetry is wire-compatible, and complete
 Batch envelope and per-event row mirror `src/game/telemetry.ts`
 field-for-field, including 2dp rounding on `x`/`z`/`yaw`/`med` and omitting
 (not nulling) `dropped`/`experiment`/`variant`. The existing worker and
 dashboard keep working. Web builds use `navigator.sendBeacon` via
 `JavaScriptBridge` on unload, matching the original.
+
+Brought to full parity when Godot became the shipping build (2026-08-29).
+Until then the port had the envelope right but was missing most of what fills
+it, and — because nothing ever assigned `Telemetry.endpoint` — **transmitted
+nothing at all, on any host**. Added: `session_start` and the F19 session
+context, idle tracking (`idle_start`/`idle_end` and the `active_ms` that
+`room_complete` diffs against), perf sampling (`perf` with
+`fps_p50`/`fps_p10`), browser error capture (F17), the localStorage retry
+buffer, the `?notrack=1` opt-out (F22), the A/B assignment port
+(`core/experiments.gd`), the `?room=` dev jump and its `debug` stamp, the
+`room_complete`/`game_complete` rollup counters (F12/F14), and `keypad_close`.
+
+Two behaviours were WRONG rather than missing, and both were silent:
+
+- `shift` was raised only from `_try_shift` and carried `{"to": ...}`. So
+  every scripted or imposed shift went unlogged (half of F13), and the field
+  name was not the `{direction, source}` the collector has stored since the
+  Three.js build launched. It is now raised from `_on_state_changed` only,
+  which sees both kinds.
+- `_detect_env` tested `hostname.contains("itch")`. That missed
+  `*.hwcdn.net`, which is where itch actually serves the game frame from — so
+  real plays would have been labelled `unknown` — and it would have accepted
+  a lookalike like `itch.io.example.com`.
+
+Identity (`wardb-player-v1`, `wardb-run-v1`) is read from **localStorage on
+web, using the same keys as the Three.js build**, not from `user://`. itch
+serves both builds from one sandboxed origin, so a returning player keeps
+their id and run counter across the engine migration instead of appearing as
+a new stranger the day Godot shipped.
+
+### Telemetry only ever transmits from itch
+Two independent gates, both of which must agree before a request leaves:
+
+1. **Build time** — `core/build_config.gd` is committed with an empty
+   endpoint. Only `.github/workflows/deploy-itch-godot.yml` runs
+   `tools/write_build_config.sh` to populate it. Pages, the Helios/tailnet
+   container and every local run therefore have no collector URL compiled in.
+2. **Run time** — `autoload/telemetry.gd` refuses to send unless
+   `classify_host(location.hostname)` says `itch`. This covers what the build
+   gate cannot: the itch build's files are downloadable and re-hostable.
+
+Off-itch it still `print()`s the batch as `[telemetry] {...}`. That is not a
+leak and it is load-bearing — `tools/verify_web.mjs` proves GDScript ran by
+looking for that prefix, and `tools/verify_touch.mjs` reconstructs the
+player's path from the `pos` rows in it.
+
+Verified by `tools/check_telemetry.tscn` (the decision table),
+`tools/verify_telemetry_gate.mjs` (the full matrix in a real browser, against
+a real export, with a real itch hostname) and
+`tools/verify_telemetry_session.mjs` (the interactive events).
 
 ---
 
@@ -394,8 +444,13 @@ wire.
   Their patrol, sight, grace and chase loops have never once run in the Godot
   build against a moving orderly, so no threat pacing in this port has been
   observed rather than assumed.
-- **A/B experiments framework** (`src/game/experiments.ts`) is not ported;
-  `Telemetry` reserves the `experiment`/`variant` payload fields for it.
+- ~~**A/B experiments framework** (`src/game/experiments.ts`) is not ported;
+  `Telemetry` reserves the `experiment`/`variant` payload fields for it.~~
+  **Ported** 2026-08-29 as `core/experiments.gd`. FNV-1a is reproduced
+  bit-for-bit and pinned against vectors generated from the TS original in
+  `tools/check_experiments.tscn`, so a player already bucketed by the
+  Three.js build stays in the same arm. The registry still ships with nothing
+  active, exactly as the original does.
 - **No map viewer.** `/map.html?room=<id>` has no Godot equivalent; the
   editor partly covers it, but patrol paths and sight envelopes are not
   visualised.

@@ -113,6 +113,26 @@ jobs:
           mv templates/* "$dest/"
           godot --version
 
+      # Pages is staging. It must NOT report, and the way that is guaranteed
+      # is by NOT running godot/tools/write_build_config.sh here — the
+      # committed build_config.gd has an empty endpoint. This step asserts
+      # that rather than assuming it, so a stray commit of a populated config
+      # fails the deploy instead of quietly turning every playtest into
+      # player data. Same reasoning as VITE_TELEMETRY_URL being unset below.
+      - name: Assert this build cannot report telemetry
+        run: |
+          set -euo pipefail
+          godot/tools/write_build_config.sh "" ""
+          if ! git diff --quiet godot/core/build_config.gd; then
+            echo "::error::godot/core/build_config.gd is committed with a NON-EMPTY value. A Pages/staging build would transmit telemetry. Regenerate it with 'godot/tools/write_build_config.sh \"\" \"\"' and commit that."
+            git --no-pager diff godot/core/build_config.gd
+            exit 1
+          fi
+          echo "build_config.gd is empty — this build cannot transmit."
+          # ...and confirm the engine agrees, not just the file's bytes.
+          godot --headless --path godot --import || true
+          godot --headless --path godot tools/check_build_config.tscn
+
       - name: Export Godot web build
         run: |
           set -euo pipefail

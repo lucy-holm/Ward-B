@@ -2,7 +2,26 @@
 """Compose press/out/cover-titled.png and cover-plain.png from a Godot
 capture. itch's cover requirement is exactly 630x500 — see press/README.md.
 
-Usage: python3 press/make_covers.py [--b-colour red|teal]
+Usage: python3 press/make_covers.py [--b-colour red|teal] [--lift GAMMA]
+
+BRIGHTNESS. The source plate is room 2 unmedicated, which is the darkest the
+ward ever gets — mean luminance about 9/255. That is correct for the game and
+poor for a 630x500 store thumbnail seen at a glance, where the author reported
+"you can't really see what's in it". --lift applies a GAMMA curve to the frame
+before the type goes on: v' = (v/255) ** (1/gamma).
+
+Gamma, not a multiply, and not the game's own brightness setting:
+  * a multiply scales everything, so the ceiling panel clips to white long
+    before the walls come up out of black;
+  * gamma lifts the shadows and leaves the highlights nearly where they are,
+    which is the same reasoning the posterise shader's shadow_gamma uniform is
+    built on — this ward's signal lives in the bottom of the range;
+  * recapturing at a higher in-game brightness would change what the frame
+    CLAIMS the game looks like. A cover treatment is honest about being a
+    treatment; a gameplay frame shot at an atypical setting is not.
+
+The type is unaffected: the lift is applied to the plate only, and the bottom
+gradient that keeps the title legible is composited after it.
 
 THE "B" COLOUR IS AN OPEN QUESTION, hence the flag. The previous cover set the
 B in red and press/README.md describes the treatment that way, but the GAME's
@@ -48,6 +67,7 @@ DIM = (166, 176, 173)
 
 B_COLOUR = RED
 OUT_TITLED = "cover-titled.png"
+LIFT = 1.0
 
 
 def crop_to_cover(im: Image.Image) -> Image.Image:
@@ -65,6 +85,15 @@ def crop_to_cover(im: Image.Image) -> Image.Image:
         y0 = (h - new_h) // 2
         im = im.crop((0, y0, w, y0 + new_h))
     return im.resize((COVER_W, COVER_H), Image.LANCZOS)
+
+
+def lift_shadows(im: Image.Image, gamma: float) -> Image.Image:
+    """Gamma-lift the frame. gamma 1.0 is a byte-exact passthrough."""
+    if abs(gamma - 1.0) < 1e-6:
+        return im
+    inv = 1.0 / gamma
+    lut = [min(255, int(round(255.0 * ((i / 255.0) ** inv)))) for i in range(256)]
+    return im.point(lut * 3)
 
 
 def tracked_text_size(draw, text, font, tracking):
@@ -110,7 +139,7 @@ def bottom_gradient(im: Image.Image, strength=0.75, start_frac=0.45) -> Image.Im
 def main():
     os.makedirs(OUT_DIR, exist_ok=True)
     base = Image.open(RAW).convert("RGB")
-    cover = crop_to_cover(base)
+    cover = lift_shadows(crop_to_cover(base), LIFT)
 
     # --- cover-plain.png -----------------------------------------------
     plain = cover.copy()
@@ -155,7 +184,14 @@ if __name__ == "__main__":
     ap.add_argument("--b-colour", choices=["red", "teal"], default="red",
                     help="colour of the title's B — see the module docstring")
     ap.add_argument("--out", default=None, help="override the titled filename")
+    ap.add_argument("--lift", type=float, default=1.0,
+                    help="shadow-lift gamma for the frame; 1.0 = untouched")
+    ap.add_argument("--plate", default=None,
+                    help="source frame under press/raw/; defaults to hero-r2.png")
     a = ap.parse_args()
     B_COLOUR = RED if a.b_colour == "red" else TEAL
     OUT_TITLED = a.out or "cover-titled.png"
+    LIFT = a.lift
+    if a.plate:
+        RAW = os.path.join(ROOT, "raw", a.plate)
     main()

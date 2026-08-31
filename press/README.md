@@ -30,6 +30,45 @@ see "On generated art" below.
   that built the two files above from `raw/`. Real, checked-in tools now,
   not throwaway — see "Regenerating" below.
 
+## Cover brightness
+
+The cover plate is room 2 unmedicated — the darkest the ward ever gets, mean
+luminance about 9/255. Correct for the game, poor for a 630x500 store
+thumbnail seen at a glance. `make_covers.py --lift GAMMA` applies a shadow
+lift to the frame before the type goes on; **the shipped cover is `--lift
+1.6`**.
+
+Gamma rather than a multiply, and rather than recapturing at a higher in-game
+brightness:
+
+- a multiply clips the ceiling panel to white long before the walls come up
+  out of black;
+- gamma lifts the shadows and leaves highlights roughly in place — the same
+  reasoning `ui/shaders/posterize.gdshader`'s `shadow_gamma` is built on;
+- recapturing at the game's own maximum brightness (2.0) was tried and barely
+  helps: tonemap exposure only moves 0.525 -> 0.840, so the frame stays dark.
+  It also changes what the shot CLAIMS the game looks like. A cover treatment
+  is honest about being a treatment; a gameplay frame shot at an atypical
+  setting is not.
+
+Measured on the `4118` scrawl against the bare wall beside it, the lift
+*improves* code legibility rather than washing it out — gamma raises the
+mid-dark red strokes faster than the near-black wall:
+
+| lift | frame mean | code contrast |
+|---|---|---|
+| 1.0 (raw) | 11.3 | 75.2 |
+| 1.4 | 19.3 | 94.8 |
+| **1.6 (shipped)** | **23.9** | — |
+| 1.8 | 29.0 | 104.9 |
+| 2.2 | 39.1 | 110.0 |
+| 2.6 | 48.6 | 112.5 |
+
+Above ~2.0 the ordered dither and film grain amplify into visible noise and
+the ward loses its murk, which is the contrast the whole game runs on. The
+usable range is roughly 1.4-1.8. `press/out/lift-*.png` holds the ladder for
+comparison; regenerate any rung with `python3 press/make_covers.py --lift 1.8`.
+
 ## Recommended screenshot set (in this order)
 
 1. **`r2-keypad`** — dark corridor, a lit ceiling panel, the readable

@@ -2,6 +2,14 @@
 #
 #   godot --path godot --resolution 640x360 tools/check_scrawl_visibility.tscn
 #   godot --path godot --resolution 640x360 tools/check_scrawl_visibility.tscn -- room2
+#   godot --path godot --resolution 640x360 tools/check_scrawl_visibility.tscn -- room2 blame
+#
+# `blame` takes the worst-scoring scrawl in the room and re-measures it once
+# per candidate occluder with that candidate hidden, then prints what each
+# removal would BUY. It answers "which prop do I move" directly, which is the
+# question the score leaves open: room 2's code is blocked by three separate
+# fittings on the same wall run, and removing any one of them on its own
+# changes the score by nothing at all.
 #
 # MUST RUN WINDOWED. --headless skips rendering entirely, so every scrawl
 # measures 0 visible pixels and the audit reports the whole ward as blocked —
@@ -62,6 +70,17 @@
 # about the gate rather than about occlusion. The gate is a design decision;
 # what is being audited here is whether geometry is in the way once the gate
 # opens.
+#
+# KNOWN LIMITATION — A SCRAWL AT THE BACK OF A DEEP NOOK reads low here and is
+# fine in play. Room 10 writes each half of its code on a nook end cap 1.6 m
+# wide and 1.6 m deep; every viewpoint sampled below is out in the corridor, so
+# the nook's own bracket walls clip the ends of the text and the halves score
+# 85% and 53%. `blame` names those brackets (W23/W24, W26/W27) rather than any
+# prop, which is the tell: architecture, not dressing. Photographed from the
+# nook mouth — where the room's own clue sends the player, "they scratch their
+# numbers where the west wall breaks" — both halves are fully legible. WHEN
+# BLAME RETURNS ONLY WALL SEGMENTS, SHOOT IT FROM THE MOUTH BEFORE BELIEVING
+# THE NUMBER.
 extends Node
 
 # A four-digit code is 25% per digit and the digits are spaced, so material
@@ -88,6 +107,7 @@ const LATERAL_OFFSETS: Array[float] = [-1.1, 0.0, 1.1]
 var failures: Array[String] = []
 var notes: Array[String] = []
 var checked := 0
+var _blame := false
 
 var _camera: Camera3D
 var _visuals: Array[VisualInstance3D] = []
@@ -98,6 +118,7 @@ func _ready() -> void:
 	var args := OS.get_cmdline_user_args()
 	if args.size() > 0:
 		only = String(args[0])
+	_blame = args.size() > 1 and String(args[1]) == "blame"
 
 	_camera = Camera3D.new()
 	_camera.fov = Tuning.CAMERA_FOV
@@ -188,6 +209,9 @@ func _audit_room(room_id: String) -> void:
 
 		for n in gated:
 			n.visible = false
+
+		if _blame and best < NOTE_BELOW:
+			await _blame_occluders(room, label, best)
 
 		var tag := "(CODE) " if is_code else ""
 		if not any:
@@ -353,6 +377,46 @@ func _floor_bounds(room: Node) -> AABB:
 			local.size.y if (i & 2) else 0.0,
 			local.size.z if (i & 4) else 0.0)))
 	return out
+
+
+## Re-measures `label` once per candidate occluder with that candidate hidden,
+## and prints the ones whose removal actually improves the score.
+##
+## Candidates are the room's TOP-LEVEL dressing nodes — a child of Props,
+## PropRuns, Interactables or Geometry — rather than every MeshInstance3D,
+## because the unit a person can move in gen_rooms.py is `r.model(...)` or
+## `r.prop_run(...)`, not the sub-mesh of a cabinet carcass. Naming a sub-mesh
+## would be a finding nobody can act on.
+func _blame_occluders(room: Node, label: Label3D, baseline: float) -> void:
+	print("      blame for %s (baseline %d%%):" % [label.name, roundi(baseline * 100.0)])
+	var floor_box := _floor_bounds(room)
+	var viewpoints := _viewpoints(label, floor_box)
+	var found := false
+
+	for group_name in ["Props", "PropRuns", "Interactables", "Geometry"]:
+		var group := room.get_node_or_null(group_name)
+		if group == null:
+			continue
+		for candidate in group.get_children():
+			var node := candidate as Node3D
+			if node == null or not node.visible:
+				continue
+			node.visible = false
+			var best := 0.0
+			for viewpoint in viewpoints:
+				var score := await _visibility_from(label, viewpoint)
+				best = maxf(best, score)
+			node.visible = true
+			# Only worth printing if removing it actually buys something; a
+			# prop that is merely NEAR the scrawl changes nothing.
+			if best > baseline + 0.02:
+				found = true
+				print("        hiding %-28s -> %d%% (+%d)" % [
+					String(node.name), roundi(best * 100.0),
+					roundi((best - baseline) * 100.0)])
+	if not found:
+		print("        no single removal helps — the occluders are additive, "
+			+ "or the scrawl is blocked by the room shell itself")
 
 
 ## Makes every hidden ancestor of `label` visible, up to (not including) the

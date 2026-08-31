@@ -393,6 +393,7 @@ func _ready() -> void:
 	# RESUME button clickable at all.
 	start_overlay.process_mode = Node.PROCESS_MODE_ALWAYS
 	start_overlay.hud_scale_changed.connect(hud.refresh_scale)
+	start_overlay.monochrome_changed.connect(apply_style_now)
 	start_overlay.resumed.connect(_close_pause)
 	touch_controls.pause_pressed.connect(_open_pause)
 
@@ -759,6 +760,14 @@ func _posterize_material() -> ShaderMaterial:
 ## crossfade with the ward. Re-running this must therefore not clobber a mood
 ## crossfade in flight, so it finishes by re-asserting the current state's
 ## values instantly rather than tweening them.
+## Re-applies the whole style block, including the black-and-white setting.
+## Public because the config panel changes it live and the ward is rendering
+## behind that panel while it does — the same contract apply_brightness_now
+## has, and for the same reason.
+func apply_style_now() -> void:
+	_apply_style_settings()
+
+
 func _apply_style_settings() -> void:
 	var mat := _posterize_material()
 	if mat == null:
@@ -769,6 +778,11 @@ func _apply_style_settings() -> void:
 	mat.set_shader_parameter("dither_amount", WardSettings.get_style(WardSettings.KEY_STYLE_DITHER))
 	mat.set_shader_parameter("tint_amount", WardSettings.get_style(WardSettings.KEY_STYLE_TINT))
 	mat.set_shader_parameter("shadow_gamma", WardSettings.get_style(WardSettings.KEY_STYLE_GAMMA))
+	# Black and white. Set here rather than in _set_style because it is a
+	# player setting and does not crossfade with the ward state — the two
+	# states differ in exposure and tint ramp, not in whether the world has
+	# colour, and easing it would read as the setting lagging the toggle.
+	mat.set_shader_parameter("mono_amount", 1.0 if WardSettings.is_monochrome() else 0.0)
 
 	# The single biggest performance lever available on this renderer: the web
 	# export runs at CSS x devicePixelRatio (measured at 1081x2202 on a 2.6x

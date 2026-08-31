@@ -132,17 +132,30 @@ layout_mode = 2
 size_flags_horizontal = 4
 mouse_filter = 2
 
-[node name="Rows" type="VBoxContainer" parent="SettingsPanel/Center/Card"]
+; The settings card outgrew the screen once it reached five rows: the card is
+; bottom-anchored and grows UPWARD (so the live ward stays visible above it —
+; see start_overlay.gd's header), and at five rows it pushed the CONFIGURATION
+; title off the top of a 1280x900 window entirely. Capping the scroll height at
+; a fraction of the viewport in _apply_scale keeps both properties: the ward
+; still shows above, and the panel can take more rows later without this
+; recurring.
+[node name="Scroll" type="ScrollContainer" parent="SettingsPanel/Center/Card"]
 layout_mode = 2
+mouse_filter = 2
+horizontal_scroll_mode = 0
+
+[node name="Rows" type="VBoxContainer" parent="SettingsPanel/Center/Card/Scroll"]
+layout_mode = 2
+size_flags_horizontal = 3
 mouse_filter = 2
 theme_override_constants/separation = 16
 
-[node name="BrightnessRow" type="VBoxContainer" parent="SettingsPanel/Center/Card/Rows"]
+[node name="BrightnessRow" type="VBoxContainer" parent="SettingsPanel/Center/Card/Scroll/Rows"]
 layout_mode = 2
 mouse_filter = 2
 theme_override_constants/separation = 8
 
-[node name="Label" type="RichTextLabel" parent="SettingsPanel/Center/Card/Rows/BrightnessRow"]
+[node name="Label" type="RichTextLabel" parent="SettingsPanel/Center/Card/Scroll/Rows/BrightnessRow"]
 layout_mode = 2
 mouse_filter = 2
 bbcode_enabled = true
@@ -151,11 +164,11 @@ scroll_active = false
 theme_override_colors/default_color = Color(0.914, 0.949, 0.937, 0.9)
 theme_override_font_sizes/normal_font_size = 13
 
-[node name="SliderRow" type="HBoxContainer" parent="SettingsPanel/Center/Card/Rows/BrightnessRow"]
+[node name="SliderRow" type="HBoxContainer" parent="SettingsPanel/Center/Card/Scroll/Rows/BrightnessRow"]
 layout_mode = 2
 theme_override_constants/separation = 14
 
-[node name="Slider" type="HSlider" parent="SettingsPanel/Center/Card/Rows/BrightnessRow/SliderRow"]
+[node name="Slider" type="HSlider" parent="SettingsPanel/Center/Card/Scroll/Rows/BrightnessRow/SliderRow"]
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 4
@@ -164,7 +177,7 @@ max_value = 2.0
 step = 0.05
 value = 1.25
 
-[node name="Value" type="Label" parent="SettingsPanel/Center/Card/Rows/BrightnessRow/SliderRow"]
+[node name="Value" type="Label" parent="SettingsPanel/Center/Card/Scroll/Rows/BrightnessRow/SliderRow"]
 layout_mode = 2
 size_flags_vertical = 4
 mouse_filter = 2
@@ -173,16 +186,16 @@ horizontal_alignment = 2
 theme_override_colors/font_color = Color(0.624, 0.847, 0.796, 1)
 theme_override_font_sizes/font_size = 13
 
-[node name="Rule" type="HSeparator" parent="SettingsPanel/Center/Card/Rows"]
+[node name="Rule" type="HSeparator" parent="SettingsPanel/Center/Card/Scroll/Rows"]
 layout_mode = 2
 mouse_filter = 2
 
-[node name="SensitivityRow" type="VBoxContainer" parent="SettingsPanel/Center/Card/Rows"]
+[node name="SensitivityRow" type="VBoxContainer" parent="SettingsPanel/Center/Card/Scroll/Rows"]
 layout_mode = 2
 mouse_filter = 2
 theme_override_constants/separation = 8
 
-[node name="Label" type="RichTextLabel" parent="SettingsPanel/Center/Card/Rows/SensitivityRow"]
+[node name="Label" type="RichTextLabel" parent="SettingsPanel/Center/Card/Scroll/Rows/SensitivityRow"]
 layout_mode = 2
 mouse_filter = 2
 bbcode_enabled = true
@@ -191,11 +204,11 @@ scroll_active = false
 theme_override_colors/default_color = Color(0.914, 0.949, 0.937, 0.9)
 theme_override_font_sizes/normal_font_size = 13
 
-[node name="SliderRow" type="HBoxContainer" parent="SettingsPanel/Center/Card/Rows/SensitivityRow"]
+[node name="SliderRow" type="HBoxContainer" parent="SettingsPanel/Center/Card/Scroll/Rows/SensitivityRow"]
 layout_mode = 2
 theme_override_constants/separation = 14
 
-[node name="Slider" type="HSlider" parent="SettingsPanel/Center/Card/Rows/SensitivityRow/SliderRow"]
+[node name="Slider" type="HSlider" parent="SettingsPanel/Center/Card/Scroll/Rows/SensitivityRow/SliderRow"]
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 4
@@ -204,7 +217,7 @@ max_value = 3.0
 step = 0.05
 value = 1.0
 
-[node name="Value" type="Label" parent="SettingsPanel/Center/Card/Rows/SensitivityRow/SliderRow"]
+[node name="Value" type="Label" parent="SettingsPanel/Center/Card/Scroll/Rows/SensitivityRow/SliderRow"]
 layout_mode = 2
 size_flags_vertical = 4
 mouse_filter = 2
@@ -213,16 +226,16 @@ horizontal_alignment = 2
 theme_override_colors/font_color = Color(0.624, 0.847, 0.796, 1)
 theme_override_font_sizes/font_size = 13
 
-[node name="Rule2" type="HSeparator" parent="SettingsPanel/Center/Card/Rows"]
+[node name="Rule2" type="HSeparator" parent="SettingsPanel/Center/Card/Scroll/Rows"]
 layout_mode = 2
 mouse_filter = 2
 
-[node name="HudScaleRow" type="VBoxContainer" parent="SettingsPanel/Center/Card/Rows"]
+[node name="HudScaleRow" type="VBoxContainer" parent="SettingsPanel/Center/Card/Scroll/Rows"]
 layout_mode = 2
 mouse_filter = 2
 theme_override_constants/separation = 8
 
-[node name="Label" type="RichTextLabel" parent="SettingsPanel/Center/Card/Rows/HudScaleRow"]
+[node name="Label" type="RichTextLabel" parent="SettingsPanel/Center/Card/Scroll/Rows/HudScaleRow"]
 layout_mode = 2
 mouse_filter = 2
 bbcode_enabled = true
@@ -231,11 +244,11 @@ scroll_active = false
 theme_override_colors/default_color = Color(0.914, 0.949, 0.937, 0.9)
 theme_override_font_sizes/normal_font_size = 13
 
-[node name="SliderRow" type="HBoxContainer" parent="SettingsPanel/Center/Card/Rows/HudScaleRow"]
+[node name="SliderRow" type="HBoxContainer" parent="SettingsPanel/Center/Card/Scroll/Rows/HudScaleRow"]
 layout_mode = 2
 theme_override_constants/separation = 14
 
-[node name="Slider" type="HSlider" parent="SettingsPanel/Center/Card/Rows/HudScaleRow/SliderRow"]
+[node name="Slider" type="HSlider" parent="SettingsPanel/Center/Card/Scroll/Rows/HudScaleRow/SliderRow"]
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 4
@@ -244,7 +257,7 @@ max_value = 1.6
 step = 0.05
 value = 1.0
 
-[node name="Value" type="Label" parent="SettingsPanel/Center/Card/Rows/HudScaleRow/SliderRow"]
+[node name="Value" type="Label" parent="SettingsPanel/Center/Card/Scroll/Rows/HudScaleRow/SliderRow"]
 layout_mode = 2
 size_flags_vertical = 4
 mouse_filter = 2
@@ -253,22 +266,48 @@ horizontal_alignment = 2
 theme_override_colors/font_color = Color(0.624, 0.847, 0.796, 1)
 theme_override_font_sizes/font_size = 13
 
-[node name="Rule3" type="HSeparator" parent="SettingsPanel/Center/Card/Rows"]
+[node name="Rule3" type="HSeparator" parent="SettingsPanel/Center/Card/Scroll/Rows"]
 layout_mode = 2
 mouse_filter = 2
 
-[node name="ToggleRow" type="HBoxContainer" parent="SettingsPanel/Center/Card/Rows"]
+[node name="MonoRow" type="HBoxContainer" parent="SettingsPanel/Center/Card/Scroll/Rows"]
 layout_mode = 2
 mouse_filter = 2
 theme_override_constants/separation = 14
 
-[node name="Toggle" type="Button" parent="SettingsPanel/Center/Card/Rows/ToggleRow"]
+[node name="Toggle" type="Button" parent="SettingsPanel/Center/Card/Scroll/Rows/MonoRow"]
 layout_mode = 2
 size_flags_vertical = 0
 toggle_mode = true
 text = "[  ]"
 
-[node name="Label" type="RichTextLabel" parent="SettingsPanel/Center/Card/Rows/ToggleRow"]
+[node name="Label" type="RichTextLabel" parent="SettingsPanel/Center/Card/Scroll/Rows/MonoRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+mouse_filter = 2
+bbcode_enabled = true
+fit_content = true
+scroll_active = false
+theme_override_colors/default_color = Color(0.914, 0.949, 0.937, 0.9)
+theme_override_font_sizes/normal_font_size = 13
+
+[node name="Rule4" type="HSeparator" parent="SettingsPanel/Center/Card/Scroll/Rows"]
+layout_mode = 2
+mouse_filter = 2
+
+[node name="ToggleRow" type="HBoxContainer" parent="SettingsPanel/Center/Card/Scroll/Rows"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 14
+
+[node name="Toggle" type="Button" parent="SettingsPanel/Center/Card/Scroll/Rows/ToggleRow"]
+layout_mode = 2
+size_flags_vertical = 0
+toggle_mode = true
+text = "[  ]"
+
+[node name="Label" type="RichTextLabel" parent="SettingsPanel/Center/Card/Scroll/Rows/ToggleRow"]
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 4

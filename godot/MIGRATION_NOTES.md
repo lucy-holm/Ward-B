@@ -563,6 +563,53 @@ readout is `1.00x` rather than brightness's `125%` — same panel, different
 units on purpose, because look speed is the one row a player arrives at
 already knowing what number they want, and the multiplier is that convention.
 
+### Black and white, and why it is not the duotone
+
+The posterise shader already had a knob that looks like a black-and-white
+control and is not one. `tint_amount` collapses the frame onto a two-colour
+ramp **by luminance**, and luminance is exactly what this ward's wall graffiti
+has least of: pure red weighs 0.2126 in LUMA, so rooms 3, 4 and 6 lose their
+text to near-grey at tint 1.0. That is why `KEY_STYLE_TINT` ships at 0. The
+text is narrative, and room 5's own hint — "the code is written where he
+walks" — means **hue is carrying puzzle-relevant information**. Wiring a
+player-facing toggle to the duotone would have shipped unsolvable rooms.
+
+So `mono_amount` is a separate uniform with a different conversion. It
+desaturates by luminance only where the pixel is already NEUTRAL, and lets a
+saturated pixel keep its peak channel instead:
+
+    float ink  = clamp((max_c - min_c) * mono_ink_gain, 0.0, 1.0);
+    float grey = mix(dot(c, LUMA), max_c, ink);
+
+A grey wall converts at true LUMA and is unaffected. The red ink converts at
+its red channel and keeps its contrast. Measured at the room-3 spawn, on the
+brightest 5% of pixels in the graffiti block against the bare wall beside it:
+
+| mode | stroke contrast | retained |
+|---|---|---|
+| colour | 104.9 | — |
+| `mono_amount` (ink gain 4) | 104.5 | **99.6%** |
+| plain luminance | 25.6 | 24% |
+
+Applied AFTER the `enabled` blend, not folded into `styled`: black and white is
+a player setting and the posterise pass is a dev one, so folding them together
+would silently switch colour back on for anyone who turned the style off in
+`ui/dev_panel.gd`.
+
+`tools/test_settings.tscn` asserts both halves — that the toggle moves
+`mono_amount`, and that it leaves `tint_amount` alone. The second is the one
+that protects the puzzles: if a later change reroutes the toggle to the duotone
+because it is "the desaturation knob", that test fails.
+
+### The settings card scrolls now
+
+Five rows was one too many. The card is bottom-anchored and grows upward, so
+that the live ward stays visible above it, and at five rows it pushed the
+CONFIGURATION title clean off the top of a 1280x900 window. `Rows` now sits in
+a `ScrollContainer` whose height `_apply_scale` binds to `min(content, 0.58 *
+viewport)` — bound to the CONTENT, not set to the cap, or the shorter mid-game
+panel would reserve empty space under its last control.
+
 ### The mid-game pause panel, and the argument it overturns
 
 `ui/start_overlay.gd`'s header used to argue there should be NO mid-game

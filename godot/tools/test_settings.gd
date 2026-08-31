@@ -19,6 +19,9 @@
 #   hud size        — scales the font sizes the REAL HUD writes into its theme
 #                     overrides, on top of the viewport derivation rather than
 #                     replacing it.
+#   black and white — reaches the REAL posterise material as mono_amount, and
+#                     leaves the dev-only duotone alone. The second half of
+#                     that matters more than the first: see the test.
 #
 # Cross-process persistence (surviving an actual restart, not merely staying
 # resident in one process) is proven separately by
@@ -38,7 +41,7 @@ const ROOM2_BAKED_CODE := "4118"
 # hypothetical: a RefCounted FakeMain made room2.on_enter raise, and both
 # randomize-codes tests — the entire point of this file — were skipped while
 # the run still exited 0. _finish fails the suite if the count does not match.
-const EXPECTED_ASSERTIONS := 37
+const EXPECTED_ASSERTIONS := 44
 
 
 # Stands in for main.gd's room-script API. room2.on_enter/_regenerate_code
@@ -68,6 +71,8 @@ func _ready() -> void:
 	_test_look_sensitivity_scales_turn()
 	_test_hud_scale_roundtrip_and_clamp()
 	_test_hud_scale_resizes_the_hud()
+	_test_monochrome_roundtrip()
+	_test_monochrome_reaches_the_shader()
 	_test_room2_randomize_on()
 	_test_room2_randomize_off()
 	_restore_defaults()
@@ -349,6 +354,74 @@ func _test_hud_scale_resizes_the_hud() -> void:
 	game.queue_free()
 
 
+# --- black and white ---------------------------------------------------
+
+func _test_monochrome_roundtrip() -> void:
+	WardSettings.set_monochrome(true)
+	_check(WardSettings.is_monochrome(), "monochrome should read back true right after being set")
+
+	WardSettings._reset_cache_for_tests()
+	_check(
+		WardSettings.is_monochrome(),
+		"monochrome must survive a cache drop — i.e. it really reached user://settings.cfg")
+
+	WardSettings.set_monochrome(false)
+	_check(not WardSettings.is_monochrome(), "monochrome should read back false again — not sticky")
+
+
+## The setting has to reach the SHADER, and it has to reach the right uniform.
+##
+## The wrong uniform is a live hazard here, not a hypothetical. The posterise
+## shader already had a `tint_amount` duotone that looks like a black-and-white
+## control and is not one: it collapses the frame onto a two-colour ramp BY
+## LUMINANCE, and pure red weighs 0.2126 in LUMA, so rooms 3, 4 and 6 lose
+## their wall graffiti at tint 1.0. That text is narrative, and room 5's hint
+## ("the code is written where he walks") makes hue puzzle-relevant — wiring
+## the player's toggle to it would have shipped unsolvable rooms.
+##
+## Measured, not assumed: at the room-3 spawn the graffiti strokes hold 104.5
+## of contrast against the wall under mono_amount (colour is 104.9, so 99.6%
+## survives), against 25.6 for a plain luminance conversion. So this asserts
+## BOTH that mono_amount moves and that tint_amount does not.
+func _test_monochrome_reaches_the_shader() -> void:
+	var game: Node = load("res://main.tscn").instantiate()
+	add_child(game)
+	var mat: ShaderMaterial = game._posterize_material()
+	_check(mat != null, "main.tscn must expose a posterise material to drive")
+	if mat == null:
+		return
+
+	var tint_before: float = float(mat.get_shader_parameter("tint_amount"))
+
+	WardSettings.set_monochrome(true)
+	game.apply_style_now()
+	_check(
+		is_equal_approx(float(mat.get_shader_parameter("mono_amount")), 1.0),
+		"monochrome ON must push mono_amount = 1.0 (got %s)"
+			% str(mat.get_shader_parameter("mono_amount")))
+
+	WardSettings.set_monochrome(false)
+	game.apply_style_now()
+	_check(
+		is_equal_approx(float(mat.get_shader_parameter("mono_amount")), 0.0),
+		"monochrome OFF must push mono_amount = 0.0 (got %s)"
+			% str(mat.get_shader_parameter("mono_amount")))
+
+	# THE ONE THAT PROTECTS THE PUZZLES. If a later change reroutes the toggle
+	# to the duotone because it is "the desaturation knob", this fails.
+	WardSettings.set_monochrome(true)
+	game.apply_style_now()
+	_check(
+		is_equal_approx(float(mat.get_shader_parameter("tint_amount")), tint_before),
+		"the black-and-white toggle must NOT touch the duotone — that route greys out "
+		+ "the wall codes in rooms 3, 4 and 6 (tint was %f, now %f)"
+			% [tint_before, float(mat.get_shader_parameter("tint_amount"))])
+
+	WardSettings.set_monochrome(false)
+	game.apply_style_now()
+	game.queue_free()
+
+
 # --- randomize codes, end to end through a real room -------------------
 
 func _load_room2() -> Node:
@@ -414,6 +487,7 @@ func _restore_defaults() -> void:
 	WardSettings.set_brightness(WardSettings.DEFAULT_BRIGHTNESS)
 	WardSettings.set_look_sensitivity(WardSettings.DEFAULT_LOOK_SENSITIVITY)
 	WardSettings.set_hud_scale(WardSettings.DEFAULT_HUD_SCALE)
+	WardSettings.set_monochrome(WardSettings.DEFAULT_MONOCHROME)
 
 
 func _finish() -> void:

@@ -36,6 +36,7 @@ const KEY_RANDOMIZE_CODES := "randomize_codes"
 const KEY_BRIGHTNESS := "brightness"
 const KEY_LOOK_SENSITIVITY := "look_sensitivity"
 const KEY_HUD_SCALE := "hud_scale"
+const KEY_MONOCHROME := "monochrome"
 
 # --- Render style (ui/shaders/posterize.gdshader + 3D resolution scale) -----
 #
@@ -125,6 +126,21 @@ const HUD_SCALE_MIN := 0.75
 const HUD_SCALE_MAX := 1.6
 const HUD_SCALE_STEP := 0.05
 
+## Black and white. A PLAYER setting, unlike the style block below.
+##
+## Deliberately NOT the same thing as KEY_STYLE_TINT, which is the dev-only
+## duotone. That collapses the frame onto a two-colour ramp by luminance, and
+## luminance is what the ward's red wall graffiti has least of — rooms 3, 4
+## and 6 lose their text at tint 1.0, which is why it ships at 0. Those walls
+## are narrative, and room 5's hint ("the code is written where he walks")
+## means hue is carrying puzzle-relevant information. Reusing the duotone as a
+## black-and-white toggle would have made rooms unsolvable.
+##
+## ui/shaders/posterize.gdshader's `mono_amount` desaturates by luminance only
+## where the pixel is already neutral and lets saturated ink keep its peak
+## channel, so the writing stays the brightest thing on a grey wall.
+const DEFAULT_MONOCHROME := false
+
 ## Every style knob in one table: default, range, step and display label.
 ##
 ## ONE TABLE, THREE CONSUMERS — this is the reason the style block is keyed
@@ -201,6 +217,7 @@ static var _randomize_codes := DEFAULT_RANDOMIZE_CODES
 static var _brightness := DEFAULT_BRIGHTNESS
 static var _look_sensitivity := DEFAULT_LOOK_SENSITIVITY
 static var _hud_scale := DEFAULT_HUD_SCALE
+static var _monochrome := DEFAULT_MONOCHROME
 static var _style := {}
 
 
@@ -231,6 +248,7 @@ static func _ensure_loaded() -> void:
 	_hud_scale = clampf(
 		float(cfg.get_value(SECTION, KEY_HUD_SCALE, DEFAULT_HUD_SCALE)),
 		HUD_SCALE_MIN, HUD_SCALE_MAX)
+	_monochrome = bool(cfg.get_value(SECTION, KEY_MONOCHROME, DEFAULT_MONOCHROME))
 	# Clamped against the CURRENT spec rather than trusted as written, so a
 	# stored value from a build whose range has since narrowed is pulled back
 	# in instead of being pushed to the shader out of range.
@@ -250,6 +268,7 @@ static func _save() -> void:
 	cfg.set_value(SECTION, KEY_BRIGHTNESS, _brightness)
 	cfg.set_value(SECTION, KEY_LOOK_SENSITIVITY, _look_sensitivity)
 	cfg.set_value(SECTION, KEY_HUD_SCALE, _hud_scale)
+	cfg.set_value(SECTION, KEY_MONOCHROME, _monochrome)
 	for key: String in STYLE_SPEC:
 		cfg.set_value(SECTION, key, _style.get(key, float(STYLE_SPEC[key]["default"])))
 	var err := cfg.save(PATH)
@@ -307,6 +326,17 @@ static func set_hud_scale(value: float) -> void:
 	_save()
 
 
+static func is_monochrome() -> bool:
+	_ensure_loaded()
+	return _monochrome
+
+
+static func set_monochrome(enabled: bool) -> void:
+	_ensure_loaded()
+	_monochrome = enabled
+	_save()
+
+
 ## Reads one style knob. Unknown keys return 0.0 with a warning rather than
 ## erroring: a stale key left in a dev panel is a cosmetic bug, not a reason
 ## to take the whole render pipeline down.
@@ -346,4 +376,5 @@ static func _reset_cache_for_tests() -> void:
 	_brightness = DEFAULT_BRIGHTNESS
 	_look_sensitivity = DEFAULT_LOOK_SENSITIVITY
 	_hud_scale = DEFAULT_HUD_SCALE
+	_monochrome = DEFAULT_MONOCHROME
 	_style = {}

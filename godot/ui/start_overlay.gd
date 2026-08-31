@@ -67,6 +67,7 @@ extends CanvasLayer
 signal admit_pressed
 signal brightness_changed
 signal hud_scale_changed
+signal monochrome_changed
 ## Emitted from the RESUME button mid-game. main.gd unpauses and re-takes the
 ## mouse from inside this signal's call stack — see the header.
 signal resumed
@@ -76,6 +77,8 @@ const INTRO_BBCODE := "You are a patient. What you see depends on what you've ta
 const TOGGLE_BBCODE := "randomize keypad codes\n[color=#e9f2ef99]a fresh code — and a fresh wall clue — every time you enter a room or get caught.[/color]"
 
 const BRIGHTNESS_BBCODE := "brightness\n[color=#e9f2ef99]the ward is meant to be dark. raise this until the walls behind this panel are just barely there — no further.[/color]"
+
+const MONO_BBCODE := "black and white\n[color=#e9f2ef99]drains the colour out of the ward. the writing on the walls stays the brightest thing on them — it has to, you need to read it.[/color]"
 
 const HUD_SCALE_BBCODE := "hud size\n[color=#e9f2ef99]the pill count and the lucidity clock, larger or smaller. they are the two things you have to read while something is walking toward you.[/color]"
 
@@ -92,18 +95,24 @@ const COLOR_GHOST_BORDER := Color(0.914, 0.949, 0.937, 0.3)
 @onready var _intro_label: RichTextLabel = $StartPanel/CenterContainer/Center/Card/Intro
 @onready var _settings_center: VBoxContainer = $SettingsPanel/Center
 @onready var _done_btn: Button = $SettingsPanel/Center/DoneBtn
-@onready var _rows: VBoxContainer = $SettingsPanel/Center/Card/Rows
-@onready var _brightness_label: RichTextLabel = $SettingsPanel/Center/Card/Rows/BrightnessRow/Label
-@onready var _brightness_slider: HSlider = $SettingsPanel/Center/Card/Rows/BrightnessRow/SliderRow/Slider
-@onready var _brightness_value: Label = $SettingsPanel/Center/Card/Rows/BrightnessRow/SliderRow/Value
-@onready var _sensitivity_label: RichTextLabel = $SettingsPanel/Center/Card/Rows/SensitivityRow/Label
-@onready var _sensitivity_slider: HSlider = $SettingsPanel/Center/Card/Rows/SensitivityRow/SliderRow/Slider
-@onready var _sensitivity_value: Label = $SettingsPanel/Center/Card/Rows/SensitivityRow/SliderRow/Value
-@onready var _hud_scale_label: RichTextLabel = $SettingsPanel/Center/Card/Rows/HudScaleRow/Label
-@onready var _hud_scale_slider: HSlider = $SettingsPanel/Center/Card/Rows/HudScaleRow/SliderRow/Slider
-@onready var _hud_scale_value: Label = $SettingsPanel/Center/Card/Rows/HudScaleRow/SliderRow/Value
-@onready var _toggle_row: Control = $SettingsPanel/Center/Card/Rows/ToggleRow
-@onready var _toggle_rule: Control = $SettingsPanel/Center/Card/Rows/Rule3
+@onready var _rows: VBoxContainer = $SettingsPanel/Center/Card/Scroll/Rows
+@onready var _scroll: ScrollContainer = $SettingsPanel/Center/Card/Scroll
+@onready var _brightness_label: RichTextLabel = $SettingsPanel/Center/Card/Scroll/Rows/BrightnessRow/Label
+@onready var _brightness_slider: HSlider = $SettingsPanel/Center/Card/Scroll/Rows/BrightnessRow/SliderRow/Slider
+@onready var _brightness_value: Label = $SettingsPanel/Center/Card/Scroll/Rows/BrightnessRow/SliderRow/Value
+@onready var _sensitivity_label: RichTextLabel = $SettingsPanel/Center/Card/Scroll/Rows/SensitivityRow/Label
+@onready var _sensitivity_slider: HSlider = $SettingsPanel/Center/Card/Scroll/Rows/SensitivityRow/SliderRow/Slider
+@onready var _sensitivity_value: Label = $SettingsPanel/Center/Card/Scroll/Rows/SensitivityRow/SliderRow/Value
+@onready var _hud_scale_label: RichTextLabel = $SettingsPanel/Center/Card/Scroll/Rows/HudScaleRow/Label
+@onready var _hud_scale_slider: HSlider = $SettingsPanel/Center/Card/Scroll/Rows/HudScaleRow/SliderRow/Slider
+@onready var _hud_scale_value: Label = $SettingsPanel/Center/Card/Scroll/Rows/HudScaleRow/SliderRow/Value
+@onready var _mono_toggle: Button = $SettingsPanel/Center/Card/Scroll/Rows/MonoRow/Toggle
+@onready var _mono_label: RichTextLabel = $SettingsPanel/Center/Card/Scroll/Rows/MonoRow/Label
+# The randomize-codes row and the separator ABOVE it. Both are hidden mid-game;
+# see _seed_controls. Note this is Rule4, not Rule3 — Rule3 now rules off the
+# black-and-white row, which is a DISPLAY setting and stays visible mid-game.
+@onready var _toggle_row: Control = $SettingsPanel/Center/Card/Scroll/Rows/ToggleRow
+@onready var _toggle_rule: Control = $SettingsPanel/Center/Card/Scroll/Rows/Rule4
 @onready var _settings_title: Label = $SettingsPanel/Center/Title
 @onready var _settings_sub: Label = $SettingsPanel/Center/Sub
 
@@ -118,8 +127,8 @@ var _mid_game := false
 # already had twice. Text scales with font_size like everything else here,
 # gives a far larger touch target, and reads as on-voice for a game already
 # rendering its HUD in monospace.
-@onready var _toggle: Button = $SettingsPanel/Center/Card/Rows/ToggleRow/Toggle
-@onready var _toggle_label: RichTextLabel = $SettingsPanel/Center/Card/Rows/ToggleRow/Label
+@onready var _toggle: Button = $SettingsPanel/Center/Card/Scroll/Rows/ToggleRow/Toggle
+@onready var _toggle_label: RichTextLabel = $SettingsPanel/Center/Card/Scroll/Rows/ToggleRow/Label
 
 # Authored against 720p, same convention as ui/hud.gd and ui/keypad.gd, which
 # both had to be retrofitted with exactly this after the author reported the
@@ -143,6 +152,7 @@ func _ready() -> void:
 	_setup_rich_label(_brightness_label, BRIGHTNESS_BBCODE)
 	_setup_rich_label(_sensitivity_label, SENSITIVITY_BBCODE)
 	_setup_rich_label(_hud_scale_label, HUD_SCALE_BBCODE)
+	_setup_rich_label(_mono_label, MONO_BBCODE)
 
 	_start_panel.visible = true
 	_settings_panel.visible = false
@@ -166,6 +176,7 @@ func _ready() -> void:
 	_brightness_slider.value_changed.connect(_on_brightness_changed)
 	_sensitivity_slider.value_changed.connect(_on_sensitivity_changed)
 	_hud_scale_slider.value_changed.connect(_on_hud_scale_changed)
+	_mono_toggle.toggled.connect(_on_monochrome_changed)
 
 	_apply_scale()
 	get_viewport().size_changed.connect(_apply_scale)
@@ -239,28 +250,47 @@ func _apply_scale() -> void:
 	_hud_scale_slider.custom_minimum_size = Vector2(0, maxf(28.0, 30.0 * s))
 
 	_toggle_label.add_theme_font_size_override("normal_font_size", int(13 * s))
-	_style_toggle(s)
+	_mono_label.add_theme_font_size_override("normal_font_size", int(13 * s))
+	_style_toggle(_toggle, s)
+	_style_toggle(_mono_toggle, s)
 
 	_style_button(_done_btn, s, false)
 
+	# Cap the card's height so it cannot push its own title off the top. Bound
+	# to the CONTENT height, not set to the cap outright, or a short panel (the
+	# mid-game one hides a row) would reserve empty space below its last
+	# control. Deferred because the rows have to lay out at the new font sizes
+	# before their combined height means anything.
+	_fit_scroll.call_deferred(vp.y)
 
-func _style_toggle(s: float) -> void:
+
+# Takes the button rather than reaching for _toggle: there are two of these
+# now (randomize codes, black and white) and they must look identical.
+## Bounds the settings card to a little over half the viewport, leaving the
+## live ward visible above it — the whole reason this panel is see-through and
+## bottom-weighted. Anything taller scrolls.
+func _fit_scroll(viewport_h: float) -> void:
+	var wanted := _rows.get_combined_minimum_size().y
+	_scroll.custom_minimum_size = Vector2(0, minf(wanted, viewport_h * 0.58))
+
+
+func _style_toggle(btn: Button, s: float) -> void:
 	var flat := StyleBoxEmpty.new()
 	for state in ["normal", "hover", "pressed", "focus"]:
-		_toggle.add_theme_stylebox_override(state, flat)
-	_toggle.add_theme_font_size_override("font_size", int(17 * s))
-	_toggle.add_theme_color_override("font_color", COLOR_INK)
-	_toggle.add_theme_color_override("font_hover_color", COLOR_LUCID)
-	_toggle.add_theme_color_override("font_pressed_color", COLOR_LUCID)
+		btn.add_theme_stylebox_override(state, flat)
+	btn.add_theme_font_size_override("font_size", int(17 * s))
+	btn.add_theme_color_override("font_color", COLOR_INK)
+	btn.add_theme_color_override("font_hover_color", COLOR_LUCID)
+	btn.add_theme_color_override("font_pressed_color", COLOR_LUCID)
 	# Above the ~44pt thumb guideline even at SCALE_MIN.
-	_toggle.custom_minimum_size = Vector2(maxf(44.0, 44.0 * s), maxf(40.0, 40.0 * s))
-	_refresh_toggle_text()
+	btn.custom_minimum_size = Vector2(maxf(44.0, 44.0 * s), maxf(40.0, 40.0 * s))
+	_refresh_toggle_text(btn)
 
 
-func _refresh_toggle_text() -> void:
-	_toggle.text = "[X]" if _toggle.button_pressed else "[  ]"
-	_toggle.add_theme_color_override(
-		"font_color", COLOR_LUCID if _toggle.button_pressed else COLOR_INK)
+func _refresh_toggle_text(btn: Button) -> void:
+	btn.text = "[X]" if btn.button_pressed else "[  ]"
+	btn.add_theme_color_override(
+		"font_color", COLOR_LUCID if btn.button_pressed else COLOR_INK)
 
 
 func _style_card(card: PanelContainer, s: float, bg_alpha: float) -> void:
@@ -351,7 +381,9 @@ func _on_config_pressed() -> void:
 # and a redundant write.
 func _seed_controls() -> void:
 	_toggle.set_pressed_no_signal(WardSettings.is_randomize_codes_enabled())
-	_refresh_toggle_text()
+	_refresh_toggle_text(_toggle)
+	_mono_toggle.set_pressed_no_signal(WardSettings.is_monochrome())
+	_refresh_toggle_text(_mono_toggle)
 	_brightness_slider.set_value_no_signal(WardSettings.get_brightness())
 	_update_brightness_readout()
 	_sensitivity_slider.set_value_no_signal(WardSettings.get_look_sensitivity())
@@ -389,9 +421,18 @@ func _on_done_pressed() -> void:
 	_start_panel.visible = true
 
 
+func _on_monochrome_changed(pressed: bool) -> void:
+	WardSettings.set_monochrome(pressed)
+	_refresh_toggle_text(_mono_toggle)
+	# Live, like brightness and HUD size: the ward renders behind this panel,
+	# so draining its colour is visible on the same tick the box is ticked.
+	monochrome_changed.emit()
+	Telemetry.event("settings_change", {"key": "monochrome", "value": pressed})
+
+
 func _on_toggle_changed(pressed: bool) -> void:
 	WardSettings.set_randomize_codes(pressed)
-	_refresh_toggle_text()
+	_refresh_toggle_text(_toggle)
 	# randomizeCodes is a live gameplay variable (fixed vs. random keypad
 	# codes) that previously wasn't recorded in any payload, so its effect on
 	# completion/frustration metrics couldn't be analysed. Logged on every

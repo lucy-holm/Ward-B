@@ -64,6 +64,13 @@ func _ready() -> void:
 		await get_tree().create_timer(2.5).timeout
 
 	if want_lucid:
+		# Grant the shift ABILITY too, not just the state. The HUD gates its
+		# pill readout on can_shift and StateManager only drains the meter
+		# while it is held, so a forced lucid without it photographs a state
+		# the game never actually reaches: medicated, with the bottom row of
+		# the HUD missing and the countdown frozen at full. Room 1's cup is
+		# what grants this in play, and every room after it assumes it.
+		StateManager.can_shift = true
 		StateManager.force_state(StateManager.State.LUCID, "shoot_game")
 		# _apply_mood crossfades the environment over 0.45s and _set_style
 		# rides the same curve; shooting sooner catches the ward mid-fade,

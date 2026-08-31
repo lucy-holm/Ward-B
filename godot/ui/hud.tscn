@@ -70,11 +70,19 @@ theme_override_font_sizes/font_size = 15
 
 [node name="Medication" type="ProgressBar" parent="Margin/Root/Bottom"]
 layout_mode = 2
-custom_minimum_size = Vector2(180, 6)
+custom_minimum_size = Vector2(240, 16)
 size_flags_vertical = 4
 max_value = 100.0
 value = 0.0
 show_percentage = false
+
+[node name="Countdown" type="Label" parent="Margin/Root/Bottom"]
+layout_mode = 2
+visible = false
+size_flags_vertical = 4
+text = "45s"
+theme_override_colors/font_color = Color(0.624, 0.847, 0.796, 1)
+theme_override_font_sizes/font_size = 15
 
 [node name="Center" type="Control" parent="."]
 mouse_filter = 2

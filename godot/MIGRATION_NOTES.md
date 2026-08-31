@@ -373,6 +373,10 @@ cd godot
 # (codes -> a real room, brightness -> real exposure, sensitivity -> real yaw)
 /Applications/Godot.app/Contents/MacOS/Godot --headless --path . tools/test_settings.tscn
 
+# HUD readouts: countdown rounding, warn threshold, and that every Control in
+# the layer is still MOUSE_FILTER_IGNORE
+/Applications/Godot.app/Contents/MacOS/Godot --headless --path . tools/test_hud.tscn
+
 # web export, then prove it RUNS in a real browser (WebGL2 + GDScript ran)
 /Applications/Godot.app/Contents/MacOS/Godot --headless --path . --export-release "Web" build/index.html
 python3 -m http.server 8899 --directory build &
@@ -553,12 +557,52 @@ readout is `1.00x` rather than brightness's `125%` — same panel, different
 units on purpose, because look speed is the one row a player arrives at
 already knowing what number they want, and the multiplier is that convention.
 
+### The HUD bottom row is sized for reading under pressure
+
+`ui/hud.gd`'s pill readout and medication meter used to be the SMALLEST things
+on screen (26pt text, a 180x8 bar with ProgressBar's default theme). Over any
+lit floor — room 3's window wall, room 5's alcove — the meter was a grey
+hairline on grey and effectively invisible, which is a problem specific to
+those two readouts: they are the only ones a player must act on mid-room
+("can I shift", "how long have I got") rather than read once on entry.
+
+Three changes, none of which add chrome over the game:
+
+- **Type up, 26 -> 32pt, above the objective line rather than below it**, and
+  the pill count is colour-coded (lucid accent held, dimmed spent) so at
+  `PILLS_MAX` 1 it answers its real yes/no question peripherally.
+- **A real meter.** Bordered dark track plus a `240x16` accent fill, both
+  built in `_style_med_bar()`. The fill is recoloured for the warning state
+  **through its stylebox, not `med_bar.modulate`** — modulate tints the track
+  as well, so the empty part of the meter went red with the full part and the
+  bar stopped reading as a gauge at the one moment it is read hardest.
+- **A numeric countdown beside it**, `ceili`-rounded. It is a deadline: with
+  `floori`/`roundi` it reads "0s" while the player still has most of a second
+  of lucidity, in a game whose only escape from an orderly is a shift.
+
+Every label also gets a scaled dark outline (`OUTLINE_PX`). The HUD is drawn
+straight onto the ward with nothing behind it, and the ward is not a uniform
+backdrop; an outline buys what a backing plate would without putting a panel
+over the game.
+
+`tools/test_hud.tscn` pins the arithmetic and the wiring — countdown rounding,
+the exact `<=` warn threshold shared with `StateManager`, meter and countdown
+appearing together, and that every Control in the layer is still
+`MOUSE_FILTER_IGNORE`. That last one is the point of the harness: the
+Countdown label is a new HUD node, and one Control left at the default filter
+is what made the entire first mobile build unplayable.
+
 ### Things that bit, worth not re-learning
 
 - **`tools/shoot_game.gd` now dismisses the start overlay** before shooting.
   Without that, every "how dark is the ward" screenshot is a photograph of the
   title card — and that is the harness the lighting work is judged with.
   `tools/shoot_overlay.tscn` is the one to use when the overlay is the subject.
+- **`lucid` in that harness grants `can_shift` too**, not just the state. The
+  HUD gates its pill readout on the ability and `StateManager` only drains the
+  meter while it is held, so a forced lucid without it photographs a state the
+  game never reaches: medicated, bottom row half missing, countdown frozen
+  full. Room 1's cup is what grants it in play.
 - **The HUD is hidden until ADMIT ME.** The TS build leaves its HUD up because
   its start overlay is opaque; ours is not, and the first render showed the
   room-1 objective line running through the WARD B title and the reticle dot

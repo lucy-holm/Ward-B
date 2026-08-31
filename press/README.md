@@ -32,42 +32,45 @@ see "On generated art" below.
 
 ## Cover brightness
 
-The cover plate is room 2 unmedicated — the darkest the ward ever gets, mean
-luminance about 9/255. Correct for the game, poor for a 630x500 store
-thumbnail seen at a glance. `make_covers.py --lift GAMMA` applies a shadow
-lift to the frame before the type goes on; **the shipped cover is `--lift
-1.6`**.
+The cover plate is room 2 unmedicated — the darkest the ward ever gets — which
+is right for the game and poor for a 630x500 store tile seen at a glance.
 
-Gamma rather than a multiply, and rather than recapturing at a higher in-game
-brightness:
+**The shipped cover is `raw/hero-r2-bright.png` at `--lift 1.3`**: a plate
+recaptured with the game's own brightness setting at its maximum (2.0), then
+given a gentle gamma lift for the tile. Reproduce with:
 
-- a multiply clips the ceiling panel to white long before the walls come up
-  out of black;
-- gamma lifts the shadows and leaves highlights roughly in place — the same
-  reasoning `ui/shaders/posterize.gdshader`'s `shadow_gamma` is built on;
-- recapturing at the game's own maximum brightness (2.0) was tried and barely
-  helps: tonemap exposure only moves 0.525 -> 0.840, so the frame stays dark.
-  It also changes what the shot CLAIMS the game looks like. A cover treatment
-  is honest about being a treatment; a gameplay frame shot at an atypical
-  setting is not.
+```
+python3 press/make_covers.py --plate hero-r2-bright.png --lift 1.3
+```
 
-Measured on the `4118` scrawl against the bare wall beside it, the lift
-*improves* code legibility rather than washing it out — gamma raises the
-mid-dark red strokes faster than the near-black wall:
+WHY BOTH LEVERS, rather than post-lifting the default-brightness plate harder.
+A pure post-lift reaches the same mean luminance, but it amplifies the ordered
+dither and the film grain along with the signal, and past roughly `--lift 2.0`
+the tile reads as compression noise instead of a dark ward. Lifting the frame
+in-engine first means the renderer produces a properly exposed image with the
+grain at its natural relative level, so the remaining 1.3 of post is doing much
+less work and the tile stays clean. Chosen by looking at the ladder, not by
+arithmetic — both routes measure about the same and only one of them looks
+right.
 
-| lift | frame mean | code contrast |
-|---|---|---|
-| 1.0 (raw) | 11.3 | 75.2 |
-| 1.4 | 19.3 | 94.8 |
-| **1.6 (shipped)** | **23.9** | — |
-| 1.8 | 29.0 | 104.9 |
-| 2.2 | 39.1 | 110.0 |
-| 2.6 | 48.6 | 112.5 |
+It is also still a real frame at a setting a real player can select: 2.0 is the
+top of `WardSettings.BRIGHTNESS_MIN..MAX`, not a value invented for the shot.
 
-Above ~2.0 the ordered dither and film grain amplify into visible noise and
-the ward loses its murk, which is the contrast the whole game runs on. The
-usable range is roughly 1.4-1.8. `press/out/lift-*.png` holds the ladder for
-comparison; regenerate any rung with `python3 press/make_covers.py --lift 1.8`.
+The gamma lift is applied to the plate only; the bottom gradient that keeps the
+title legible is composited after it, so type contrast is unaffected.
+
+Gamma rather than a multiply throughout: a multiply clips the ceiling panel to
+white long before the walls come up out of black. Same reasoning
+`ui/shaders/posterize.gdshader`'s `shadow_gamma` is built on — this ward's
+signal lives at the bottom of the range.
+
+Measured on the `4118` scrawl against the bare wall beside it, lifting
+*improves* code legibility rather than washing it out, because gamma raises the
+mid-dark red strokes faster than the near-black wall (contrast 75.2 raw, 104.9
+at lift 1.8). So the ceiling on brightness is aesthetic, not legibility.
+
+`press/out/lift-*.png` keeps the post-lift-only ladder (1.4 / 1.8 / 2.2 / 2.6)
+for comparison.
 
 ## Recommended screenshot set (in this order)
 

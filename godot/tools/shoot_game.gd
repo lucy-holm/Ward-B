@@ -1,6 +1,20 @@
 # Screenshot THE REAL GAME — main.tscn, its player camera, its WorldEnvironment.
 #
-#   godot --path godot --resolution 1280x720 tools/shoot_game.tscn -- <name> [seconds] [room_id]
+#   godot --path godot --resolution 1280x720 tools/shoot_game.tscn -- <name> [seconds] [room_id] [lucid] [style_overrides] [nohud] [x,z,yaw[,level[,y]]]
+#
+# Arg 6: pass "nohud" for a clean plate — hides main.gd's `hud` CanvasLayer
+# right before the frame is grabbed, same real camera/lighting/room as every
+# other shot from this harness, just without the HUD chrome on top. Added so
+# hero/cover shots don't have to fall back to tools/shoot.tscn's hand-built
+# camera and lose the real player rig.
+#
+# Arg 7: reposition the REAL player after the room has loaded and its spawn
+# has already run, via player.gd's own spawn_at(x, z, yaw, level, y) — the
+# same call every room's spawn point uses. Exists because this harness has no
+# way to simulate WASD/mouse-look, so every shot is otherwise stuck at
+# whatever direction the room's spawn point happens to face. `level` defaults
+# to WardLevels.FLAT_LEVEL_ID ("__flat"); pass a room's named level (e.g.
+# room17's "balcony") to frame from an upper floor.
 #
 # WHY THIS EXISTS, AND WHY tools/shoot.gd IS NOT ENOUGH.
 #
@@ -39,6 +53,8 @@ func _ready() -> void:
 	# leave the last variant shot as the machine's saved style and silently
 	# change what every later screenshot — and the editor — renders.
 	var overrides: String = args[4] if args.size() > 4 else ""
+	var want_nohud: bool = args.size() > 5 and str(args[5]).begins_with("nohud")
+	var reposition: String = args[6] if args.size() > 6 else ""
 
 	var game: Node = load("res://main.tscn").instantiate()
 	add_child(game)
@@ -62,6 +78,27 @@ func _ready() -> void:
 		game.load_room(room_id)
 		# Room load rebuilds lights and re-runs the mood; give it time to settle.
 		await get_tree().create_timer(2.5).timeout
+
+	if not reposition.is_empty() and game.get("player") != null:
+		var parts := reposition.split(",")
+		# Guarded rather than indexed blind: a typo'd reposition arg would
+		# otherwise crash the harness mid-capture and leave a stale or missing
+		# PNG, which reads as "the shot looked like that" rather than "the shot
+		# never happened".
+		if parts.size() < 3:
+			push_error("reposition needs at least x,z,yaw — got '%s'" % reposition)
+			get_tree().quit(1)
+			return
+		var rx := float(parts[0])
+		var rz := float(parts[1])
+		var ryaw := float(parts[2])
+		var rlevel: String = parts[3] if parts.size() > 3 else WardLevels.FLAT_LEVEL_ID
+		var ry: float = float(parts[4]) if parts.size() > 4 else 0.0
+		game.player.spawn_at(rx, rz, ryaw, rlevel, ry)
+		# Let the per-tick vertical ease and any position-driven state (fog,
+		# trigger volumes) settle at the new spot before anything downstream
+		# (lucid crossfade, capture) reads it.
+		await get_tree().create_timer(0.3).timeout
 
 	if want_lucid:
 		# Grant the shift ABILITY too, not just the state. The HUD gates its
@@ -97,6 +134,13 @@ func _ready() -> void:
 				# leaves the shader on its previous value.
 				mat.set_shader_parameter(k, int(v) if k == "levels" else v)
 			print("style overrides: %s" % overrides)
+		await get_tree().process_frame
+
+	if want_nohud and game.get("hud") != null:
+		game.hud.visible = false
+		# Without this the visibility write hasn't reached the framebuffer yet
+		# and get_viewport().get_texture() below still hands back the PREVIOUS
+		# frame — the HUD-visible one. Cost a whole capture the first time.
 		await get_tree().process_frame
 
 	# Report what is ACTUALLY governing the render, not what we hope is.

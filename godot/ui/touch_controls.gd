@@ -16,6 +16,11 @@ extends CanvasLayer
 
 signal interact_pressed
 signal shift_pressed
+## A phone has no Escape key, and the settings this opens (HUD size, look
+## sensitivity) are exactly the ones a touch player most needs to change. A
+## mid-game panel reachable only from a keyboard would be a desktop feature
+## wearing a mobile-friendly label.
+signal pause_pressed
 
 @onready var _stick_base: Panel = $Root/StickBase
 @onready var _stick_knob: Panel = $Root/StickKnob
@@ -38,6 +43,7 @@ const BTN_MAX := 260.0
 func _ready() -> void:
 	$Root/Buttons/Interact.pressed.connect(func() -> void: interact_pressed.emit())
 	$Root/Buttons/Shift.pressed.connect(func() -> void: shift_pressed.emit())
+	$Root/Pause.pressed.connect(func() -> void: pause_pressed.emit())
 
 	var touch := DisplayServer.is_touchscreen_available()
 	visible = touch
@@ -71,6 +77,22 @@ func _layout() -> void:
 		sb.set_corner_radius_all(int(btn * 0.5))
 		for state in ["normal", "hover", "pressed", "focus"]:
 			b.add_theme_stylebox_override(state, sb)
+
+	# Pause sits TOP-right, deliberately far from the two action buttons: it is
+	# the one control here that must never be hit by accident mid-chase, and it
+	# is also the only one that is not under the thumb during play. Sized down
+	# from the action buttons for the same reason, but still over the ~44pt
+	# guideline at the smallest viewport this ships to.
+	var pause: Button = $Root/Pause
+	var pause_size := maxf(44.0, btn * 0.44)
+	pause.custom_minimum_size = Vector2(pause_size, pause_size)
+	pause.size = Vector2(pause_size, pause_size)
+	pause.add_theme_font_size_override("font_size", int(pause_size * 0.42))
+	var psb: StyleBoxFlat = pause.get_theme_stylebox("normal").duplicate()
+	psb.set_corner_radius_all(int(pause_size * 0.5))
+	for state in ["normal", "hover", "pressed", "focus"]:
+		pause.add_theme_stylebox_override(state, psb)
+	pause.position = Vector2(vp.x - m - pause_size, m)
 
 	# E sits above Q, both hugging the bottom-right corner under the thumb.
 	interact.position = Vector2(vp.x - m - btn, vp.y - m - btn * 2.1)

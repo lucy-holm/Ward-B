@@ -35,6 +35,7 @@ const SECTION := "gameplay"
 const KEY_RANDOMIZE_CODES := "randomize_codes"
 const KEY_BRIGHTNESS := "brightness"
 const KEY_LOOK_SENSITIVITY := "look_sensitivity"
+const KEY_HUD_SCALE := "hud_scale"
 
 # --- Render style (ui/shaders/posterize.gdshader + 3D resolution scale) -----
 #
@@ -105,6 +106,24 @@ const DEFAULT_LOOK_SENSITIVITY := 1.0
 const LOOK_SENSITIVITY_MIN := 0.25
 const LOOK_SENSITIVITY_MAX := 3.0
 const LOOK_SENSITIVITY_STEP := 0.05
+
+## HUD size: a multiplier on the viewport-derived scale ui/hud.gd already
+## computes, NOT an absolute font size.
+##
+## hud.gd derives every font size and the medication bar from viewport height
+## against a 720p baseline, because project stretch is disabled and a fixed
+## pixel size renders at a third of its intended relative size on a large
+## canvas. That derivation is the thing to keep; this rides on top of it, so
+## the HUD still adapts to the display and the player is only saying "bigger
+## than that" or "smaller than that".
+const DEFAULT_HUD_SCALE := 1.0
+
+# MIN is where the bottom row is still above the size it shipped at before the
+# prominence pass; MAX is where the objective line starts wrapping to two
+# lines at 720p, which costs more legibility than the extra size buys.
+const HUD_SCALE_MIN := 0.75
+const HUD_SCALE_MAX := 1.6
+const HUD_SCALE_STEP := 0.05
 
 ## Every style knob in one table: default, range, step and display label.
 ##
@@ -181,6 +200,7 @@ static var _loaded := false
 static var _randomize_codes := DEFAULT_RANDOMIZE_CODES
 static var _brightness := DEFAULT_BRIGHTNESS
 static var _look_sensitivity := DEFAULT_LOOK_SENSITIVITY
+static var _hud_scale := DEFAULT_HUD_SCALE
 static var _style := {}
 
 
@@ -208,6 +228,9 @@ static func _ensure_loaded() -> void:
 	_look_sensitivity = clampf(
 		float(cfg.get_value(SECTION, KEY_LOOK_SENSITIVITY, DEFAULT_LOOK_SENSITIVITY)),
 		LOOK_SENSITIVITY_MIN, LOOK_SENSITIVITY_MAX)
+	_hud_scale = clampf(
+		float(cfg.get_value(SECTION, KEY_HUD_SCALE, DEFAULT_HUD_SCALE)),
+		HUD_SCALE_MIN, HUD_SCALE_MAX)
 	# Clamped against the CURRENT spec rather than trusted as written, so a
 	# stored value from a build whose range has since narrowed is pulled back
 	# in instead of being pushed to the shader out of range.
@@ -226,6 +249,7 @@ static func _save() -> void:
 	cfg.set_value(SECTION, KEY_RANDOMIZE_CODES, _randomize_codes)
 	cfg.set_value(SECTION, KEY_BRIGHTNESS, _brightness)
 	cfg.set_value(SECTION, KEY_LOOK_SENSITIVITY, _look_sensitivity)
+	cfg.set_value(SECTION, KEY_HUD_SCALE, _hud_scale)
 	for key: String in STYLE_SPEC:
 		cfg.set_value(SECTION, key, _style.get(key, float(STYLE_SPEC[key]["default"])))
 	var err := cfg.save(PATH)
@@ -272,6 +296,17 @@ static func set_look_sensitivity(value: float) -> void:
 	_save()
 
 
+static func get_hud_scale() -> float:
+	_ensure_loaded()
+	return _hud_scale
+
+
+static func set_hud_scale(value: float) -> void:
+	_ensure_loaded()
+	_hud_scale = clampf(value, HUD_SCALE_MIN, HUD_SCALE_MAX)
+	_save()
+
+
 ## Reads one style knob. Unknown keys return 0.0 with a warning rather than
 ## erroring: a stale key left in a dev panel is a cosmetic bug, not a reason
 ## to take the whole render pipeline down.
@@ -310,4 +345,5 @@ static func _reset_cache_for_tests() -> void:
 	_randomize_codes = DEFAULT_RANDOMIZE_CODES
 	_brightness = DEFAULT_BRIGHTNESS
 	_look_sensitivity = DEFAULT_LOOK_SENSITIVITY
+	_hud_scale = DEFAULT_HUD_SCALE
 	_style = {}

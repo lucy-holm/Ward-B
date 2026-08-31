@@ -387,6 +387,14 @@ func _ready() -> void:
 	# real, already-loaded ward (see start_overlay.gd), so dragging the slider
 	# has to write through to the frame behind it on the same tick.
 	start_overlay.brightness_changed.connect(apply_brightness_now)
+	# Mid-game pause. The overlay must keep processing and keep taking GUI
+	# input while the tree is paused, or the panel it puts up cannot be
+	# dismissed and the run is stuck — PROCESS_MODE_ALWAYS is what makes the
+	# RESUME button clickable at all.
+	start_overlay.process_mode = Node.PROCESS_MODE_ALWAYS
+	start_overlay.hud_scale_changed.connect(hud.refresh_scale)
+	start_overlay.resumed.connect(_close_pause)
+	touch_controls.pause_pressed.connect(_open_pause)
 
 	# Layer 20, above even the start overlay (10): the panel is a debug tool
 	# and has to stay reachable from the title card, which is where you are
@@ -476,7 +484,43 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif event.is_action_pressed("interact"):
 		_interact()
 	elif event.is_action_pressed("ui_release_mouse"):
-		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+		# Escape used to only drop pointer lock. It now opens the pause panel,
+		# which releases the mouse on the way — so the old behaviour is a
+		# subset of the new one and nothing that relied on it is lost.
+		_open_pause()
+
+
+# --- mid-game pause --------------------------------------------------------
+#
+# GATED ON THE PLAYER ACTUALLY HOLDING INPUT. That single condition is what
+# keeps this from opening on top of the keypad, the start screen, the end card
+# or the dev panel: every one of those already takes input off the player, so
+# there is never a second layer fighting this one for the cursor. It also means
+# a paused game cannot be paused again, because pausing takes input away.
+func _open_pause() -> void:
+	if not player.is_input_enabled():
+		return
+	# Releases the mouse, which the panel needs before a slider can be grabbed.
+	player.set_input_enabled(false)
+	# StateManager is PROCESS_MODE_PAUSABLE (see its _ready), so the medication
+	# meter stops here rather than draining behind the panel — a player who
+	# opens settings at 3 seconds left must not come back reverted.
+	get_tree().paused = true
+	start_overlay.open_mid_game()
+	Telemetry.event("pause_open")
+
+
+func _close_pause() -> void:
+	get_tree().paused = false
+	player.set_input_enabled(true)
+	# Re-take the mouse. This runs inside the RESUME button's `pressed` handler
+	# — a real user gesture, and therefore the only context in which a browser
+	# will grant pointer lock. Requesting it anywhere later (a deferred call, a
+	# _process check) is silently refused and leaves the run without mouse-look.
+	# Same reasoning, same guard, as _on_admit_pressed.
+	if not DisplayServer.is_touchscreen_available():
+		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+	Telemetry.event("pause_close")
 
 
 func _physics_process(_delta: float) -> void:

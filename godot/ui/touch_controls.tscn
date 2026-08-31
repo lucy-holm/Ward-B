@@ -59,6 +59,24 @@ mouse_filter = 2
 visible = false
 theme_override_styles/panel = SubResource("SB_stick_knob")
 
+; Sibling of Buttons rather than a child of it, and positioned top-right by
+; _layout(). Root is MOUSE_FILTER_IGNORE so it never eats the look-drag; a
+; Button child still picks input on its own, which is exactly the arrangement
+; the two action buttons already rely on.
+[node name="Pause" type="Button" parent="Root"]
+layout_mode = 0
+offset_left = 10.0
+offset_top = 10.0
+offset_right = 54.0
+offset_bottom = 54.0
+text = "="
+theme_override_font_sizes/font_size = 20
+theme_override_colors/font_color = Color(0.88, 0.93, 0.91, 1)
+theme_override_styles/normal = SubResource("SB_button")
+theme_override_styles/hover = SubResource("SB_button")
+theme_override_styles/pressed = SubResource("SB_button")
+theme_override_styles/focus = SubResource("SB_button")
+
 ; Full-rect on purpose: _layout() assigns absolute viewport coordinates to the
 ; buttons, so this container must span the whole viewport. Anchoring it to the
 ; bottom-right corner made those coordinates relative to that corner and threw

@@ -100,9 +100,25 @@ const OUTLINE_PX := 7
 const COLOR_OUTLINE := Color(0.012, 0.02, 0.02, 0.85)
 
 
+## Re-runs the layout. Public because the mid-game settings panel changes the
+## HUD-size setting live, and the HUD is behind that panel while it does.
+func refresh_scale() -> void:
+	_apply_scale()
+
+
 func _apply_scale() -> void:
 	var h := float(get_viewport().get_visible_rect().size.y)
-	var s := clampf(h / BASE_HEIGHT, SCALE_MIN, SCALE_MAX)
+	# CLAMP THE DERIVATION, THEN APPLY THE SETTING — in that order, and not the
+	# other way round. SCALE_MIN/SCALE_MAX bound what the DISPLAY is allowed to
+	# ask for; the player's setting rides on top of that answer. Clamping the
+	# product instead lets the display's bound eat the player's choice whole: at
+	# a viewport shorter than the baseline the product sits under SCALE_MIN, so
+	# every hud-size value from 75% to 160% clamped to the same number and the
+	# slider did nothing at all.
+	var base := clampf(h / BASE_HEIGHT, SCALE_MIN, SCALE_MAX)
+	# No second clamp: WardSettings has already bounded the multiplier to
+	# [HUD_SCALE_MIN, HUD_SCALE_MAX] on the way in and on the way out of disk.
+	var s := base * WardSettings.get_hud_scale()
 
 	objective_label.add_theme_font_size_override("font_size", int(SIZE_OBJECTIVE * s))
 	toast_label.add_theme_font_size_override("font_size", int(SIZE_TOAST * s))

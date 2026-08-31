@@ -16,6 +16,9 @@
 #   look sensitivity— scales how far the REAL player node actually turns for a
 #                     given look delta, on both axes, without breaking the
 #                     pitch clamp.
+#   hud size        — scales the font sizes the REAL HUD writes into its theme
+#                     overrides, on top of the viewport derivation rather than
+#                     replacing it.
 #
 # Cross-process persistence (surviving an actual restart, not merely staying
 # resident in one process) is proven separately by
@@ -35,7 +38,7 @@ const ROOM2_BAKED_CODE := "4118"
 # hypothetical: a RefCounted FakeMain made room2.on_enter raise, and both
 # randomize-codes tests — the entire point of this file — were skipped while
 # the run still exited 0. _finish fails the suite if the count does not match.
-const EXPECTED_ASSERTIONS := 30
+const EXPECTED_ASSERTIONS := 37
 
 
 # Stands in for main.gd's room-script API. room2.on_enter/_regenerate_code
@@ -63,6 +66,8 @@ func _ready() -> void:
 	_test_brightness_scales_exposure()
 	_test_look_sensitivity_roundtrip_and_clamp()
 	_test_look_sensitivity_scales_turn()
+	_test_hud_scale_roundtrip_and_clamp()
+	_test_hud_scale_resizes_the_hud()
 	_test_room2_randomize_on()
 	_test_room2_randomize_off()
 	_restore_defaults()
@@ -287,6 +292,63 @@ func _yaw_after_look(player: Node, sensitivity: float) -> float:
 	return player.yaw
 
 
+# --- hud size ----------------------------------------------------------
+
+func _test_hud_scale_roundtrip_and_clamp() -> void:
+	WardSettings.set_hud_scale(1.3)
+	_check(
+		is_equal_approx(WardSettings.get_hud_scale(), 1.3),
+		"hud scale should read back 1.3 (got %f)" % WardSettings.get_hud_scale())
+
+	WardSettings._reset_cache_for_tests()
+	_check(
+		is_equal_approx(WardSettings.get_hud_scale(), 1.3),
+		"hud scale must survive a cache drop — i.e. it really reached user://settings.cfg")
+
+	WardSettings.set_hud_scale(99.0)
+	_check(
+		is_equal_approx(WardSettings.get_hud_scale(), WardSettings.HUD_SCALE_MAX),
+		"hud scale must clamp to HUD_SCALE_MAX (got %f)" % WardSettings.get_hud_scale())
+	WardSettings.set_hud_scale(0.0)
+	_check(
+		is_equal_approx(WardSettings.get_hud_scale(), WardSettings.HUD_SCALE_MIN),
+		"hud scale must clamp to HUD_SCALE_MIN (got %f)" % WardSettings.get_hud_scale())
+
+
+## Drives the REAL HUD's real _apply_scale and reads the font size it actually
+## wrote, rather than recomputing the multiply here — same reasoning as the
+## brightness and sensitivity tests above.
+func _test_hud_scale_resizes_the_hud() -> void:
+	var game: Node = load("res://main.tscn").instantiate()
+	add_child(game)
+	var hud: CanvasLayer = game.hud
+
+	WardSettings.set_hud_scale(1.0)
+	hud.refresh_scale()
+	var at_1: int = hud.pills_label.get_theme_font_size("font_size")
+
+	WardSettings.set_hud_scale(WardSettings.HUD_SCALE_MAX)
+	hud.refresh_scale()
+	var at_max: int = hud.pills_label.get_theme_font_size("font_size")
+
+	WardSettings.set_hud_scale(WardSettings.HUD_SCALE_MIN)
+	hud.refresh_scale()
+	var at_min: int = hud.pills_label.get_theme_font_size("font_size")
+
+	_check(at_max > at_1, "raising hud size must enlarge the pill readout (%d -> %d)" % [at_1, at_max])
+	_check(at_min < at_1, "lowering hud size must shrink the pill readout (%d -> %d)" % [at_1, at_min])
+	# The medication meter is the other half of the bottom row and is sized
+	# separately from the fonts; a setting that moved only the type would leave
+	# a 32pt readout beside a bar sized for 26.
+	_check(
+		hud.med_bar.custom_minimum_size.x > 0.0,
+		"the medication meter must still be sized after a scale refresh")
+
+	WardSettings.set_hud_scale(WardSettings.DEFAULT_HUD_SCALE)
+	hud.refresh_scale()
+	game.queue_free()
+
+
 # --- randomize codes, end to end through a real room -------------------
 
 func _load_room2() -> Node:
@@ -351,6 +413,7 @@ func _restore_defaults() -> void:
 	WardSettings.set_randomize_codes(WardSettings.DEFAULT_RANDOMIZE_CODES)
 	WardSettings.set_brightness(WardSettings.DEFAULT_BRIGHTNESS)
 	WardSettings.set_look_sensitivity(WardSettings.DEFAULT_LOOK_SENSITIVITY)
+	WardSettings.set_hud_scale(WardSettings.DEFAULT_HUD_SCALE)
 
 
 func _finish() -> void:

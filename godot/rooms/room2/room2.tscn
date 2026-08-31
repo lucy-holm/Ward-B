@@ -566,13 +566,13 @@ transform = Transform3D(-1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, -1.000000
 transform = Transform3D(0.000000, 0, 1.000000, 0, 1, 0, -1.000000, 0, 0.000000, 1.4800, 1.6000, -1.2000)
 
 [node name="MedCabinetSmashed7" parent="Props" instance=ExtResource("pk_med_cabinet_smashed")]
-transform = Transform3D(0.000000, 0, -1.000000, 0, 1, 0, 1.000000, 0, 0.000000, -1.4800, 1.3500, -6.6000)
+transform = Transform3D(0.000000, 0, -1.000000, 0, 1, 0, 1.000000, 0, 0.000000, -1.4800, 1.3500, -7.3500)
 
 [node name="PillSpill8" parent="Props" instance=ExtResource("pk_pill_spill")]
-transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, -1.0000, 0.0000, -6.6000)
+transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, -1.0000, 0.0000, -7.3500)
 
 [node name="PillSpillB" parent="Props" instance=ExtResource("pk_pill_spill")]
-transform = Transform3D(0.764842, 0, 0.644218, 0, 1, 0, -0.644218, 0, 0.764842, -0.4500, 0.0000, -5.9000)
+transform = Transform3D(0.764842, 0, 0.644218, 0, 1, 0, -0.644218, 0, 0.764842, -0.4500, 0.0000, -6.6500)
 
 [node name="PaperScatter10" parent="Props" instance=ExtResource("pk_paper_scatter")]
 transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, 0.6000, 0.0000, -4.1000)

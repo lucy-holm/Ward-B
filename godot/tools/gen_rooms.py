@@ -2575,11 +2575,15 @@ def room2():
     # exposed conduit and a missing ceiling tile.
     #
     # Faces: west x -1.48, east x 1.48, north wall segments z -8.88, cap z 4.38.
-    # NOTHING HERE CARRIES A COLLIDER. The corridor is 3.2m wide and is the only
-    # route to room 3; a prop that narrowed it would be a soft-lock risk for no
-    # visual gain, so the fittings are all collider-free wall/ceiling/floor
-    # dressing. med_cabinet_smashed WOULD carry one, which is exactly why it is
-    # placed on the north wall beside the door rather than along the run.
+    # The corridor is 3.2m wide and is the only route to room 3, so nothing here
+    # may narrow it: the fittings are wall/ceiling/floor dressing chosen to sit
+    # flat against a face. med_cabinet_smashed is the one exception and DOES
+    # bring a collider from its prop scene — this comment used to claim it was
+    # kept off the run for that reason, which was never true of the built room.
+    # It is harmless: player movement is resolved by WardCollision.try_move
+    # against room geometry, not by the physics solver (the player's
+    # collision_mask is 0), so a StaticBody3D on a prop is inert for walking.
+    # At 0.30m deep on a 3.2m corridor it leaves 2.78m clear regardless.
     r.prop_run("skirting", "z", -11, 4.5, -1.48)
     r.prop_run("skirting", "z", -11, 4.5, 1.48)
 
@@ -2604,9 +2608,18 @@ def room2():
     r.model("reg_notice", (1.48, -1.2), facing="nx")
 
     # The smashed cabinet and what came out of it.
-    r.model("med_cabinet_smashed", (-1.48, -6.6), facing="px")
-    r.model("pill_spill", (-1.0, -6.6))
-    r.model("pill_spill", (-0.45, -5.9), facing=0.7, name="PillSpillB")
+    #
+    # KEPT NORTH OF z=-6.75, CLEAR OF codeScrawl. The cabinet is 0.86m wide and
+    # sat at z=-6.6, so it spanned z[-7.03,-6.17] and covered the leading digit
+    # of the code written at z[-6.59,-4.41] on this same wall. Nothing flagged
+    # it: it is a legal prop placement, the room still validates, and the two
+    # lines are twenty apart in this file. tools/check_scrawl_visibility.tscn
+    # measured the result at 30% readable and its `blame` mode named this prop
+    # exactly — hiding it alone restored the code to 100%.
+    # The spills move with it; they are what came out of THIS cabinet.
+    r.model("med_cabinet_smashed", (-1.48, -7.35), facing="px")
+    r.model("pill_spill", (-1.0, -7.35))
+    r.model("pill_spill", (-0.45, -6.65), facing=0.7, name="PillSpillB")
     r.model("paper_scatter", (0.6, -4.1))
     r.model("fallen_plaster_patch", (1.48, 0.4), facing="nx")
     r.model("plaster_rubble", (1.05, 0.4))

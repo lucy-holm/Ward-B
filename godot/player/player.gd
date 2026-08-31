@@ -226,6 +226,9 @@ func _handle_drag(e: InputEventScreenDrag) -> void:
 	elif e.index == _touch_look_id:
 		# Convert the viewport-unit delta into the equivalent number of
 		# "sensitivity pixels" so _apply_look stays a single code path.
+		# Divides by the BASE constant only — the player's sensitivity
+		# multiplier is applied in _apply_look and so rides on top of the
+		# viewport-normalised touch sweep rather than cancelling out of it.
 		_look_accum += e.relative * (_touch_rad_per_unit() / Tuning.LOOK_SENSITIVITY)
 
 
@@ -318,11 +321,23 @@ func _update_verticality() -> void:
 	global_position.y += (world_levels.floor_height_at(level, p.x, p.z) - p.y) * WardLevels.Y_EASE
 
 
+# THE ONE PLACE LOOK SPEED IS DECIDED — mouse, trackpad-drag and touch all
+# funnel through here (see _handle_drag's unit conversion), so the player's
+# sensitivity setting is applied once, at the end, rather than at each of the
+# three input sites.
+#
+# The setting is a multiplier and defaults to 1.0, so a player who never opens
+# CONFIGURATION gets exactly Tuning.LOOK_SENSITIVITY and the ported feel is
+# unchanged. Read per-frame rather than cached: WardSettings.get_look_
+# sensitivity() is a bool test and a float read behind its `_loaded` early-out,
+# and reading live means a value changed in the config panel is in force on the
+# next look frame with no signal to wire or invalidate.
 func _apply_look() -> void:
 	if _look_accum == Vector2.ZERO:
 		return
-	yaw -= _look_accum.x * Tuning.LOOK_SENSITIVITY
-	pitch = clampf(pitch - _look_accum.y * Tuning.LOOK_SENSITIVITY, -PITCH_LIMIT, PITCH_LIMIT)
+	var rad_per_px := Tuning.LOOK_SENSITIVITY * WardSettings.get_look_sensitivity()
+	yaw -= _look_accum.x * rad_per_px
+	pitch = clampf(pitch - _look_accum.y * rad_per_px, -PITCH_LIMIT, PITCH_LIMIT)
 	_look_accum = Vector2.ZERO
 	_apply_rotation()
 

@@ -13,6 +13,9 @@
 #                     OFF: the baked code stands and the scrawl is untouched.
 #   brightness      — scales main.gd's real tonemap_exposure target for BOTH
 #                     ward states, preserving the LUCID:UNMED ratio.
+#   look sensitivity— scales how far the REAL player node actually turns for a
+#                     given look delta, on both axes, without breaking the
+#                     pitch clamp.
 #
 # Cross-process persistence (surviving an actual restart, not merely staying
 # resident in one process) is proven separately by
@@ -32,7 +35,7 @@ const ROOM2_BAKED_CODE := "4118"
 # hypothetical: a RefCounted FakeMain made room2.on_enter raise, and both
 # randomize-codes tests — the entire point of this file — were skipped while
 # the run still exited 0. _finish fails the suite if the count does not match.
-const EXPECTED_ASSERTIONS := 20
+const EXPECTED_ASSERTIONS := 30
 
 
 # Stands in for main.gd's room-script API. room2.on_enter/_regenerate_code
@@ -58,6 +61,8 @@ func _ready() -> void:
 	_test_setting_roundtrip()
 	_test_brightness_roundtrip_and_clamp()
 	_test_brightness_scales_exposure()
+	_test_look_sensitivity_roundtrip_and_clamp()
+	_test_look_sensitivity_scales_turn()
 	_test_room2_randomize_on()
 	_test_room2_randomize_off()
 	_restore_defaults()
@@ -182,6 +187,106 @@ func _test_brightness_scales_exposure() -> void:
 	game.queue_free()
 
 
+# --- look sensitivity --------------------------------------------------
+
+func _test_look_sensitivity_roundtrip_and_clamp() -> void:
+	WardSettings.set_look_sensitivity(1.5)
+	_check(
+		is_equal_approx(WardSettings.get_look_sensitivity(), 1.5),
+		"look sensitivity should read back 1.5 (got %f)" % WardSettings.get_look_sensitivity())
+
+	WardSettings._reset_cache_for_tests()
+	_check(
+		is_equal_approx(WardSettings.get_look_sensitivity(), 1.5),
+		"look sensitivity must survive a cache drop — i.e. it really reached user://settings.cfg")
+
+	# Out-of-range must clamp rather than persist. An unclamped value here is
+	# worse than an unclamped brightness: a stored 50x would make the camera
+	# unusable on the next boot, from a config panel the player can only reach
+	# BEFORE a run, with no in-game route back to fix it.
+	WardSettings.set_look_sensitivity(99.0)
+	_check(
+		is_equal_approx(WardSettings.get_look_sensitivity(), WardSettings.LOOK_SENSITIVITY_MAX),
+		"look sensitivity must clamp to LOOK_SENSITIVITY_MAX (got %f)"
+			% WardSettings.get_look_sensitivity())
+	WardSettings.set_look_sensitivity(-5.0)
+	_check(
+		is_equal_approx(WardSettings.get_look_sensitivity(), WardSettings.LOOK_SENSITIVITY_MIN),
+		"look sensitivity must clamp to LOOK_SENSITIVITY_MIN (got %f)"
+			% WardSettings.get_look_sensitivity())
+
+	WardSettings._reset_cache_for_tests()
+	_check(
+		is_equal_approx(WardSettings.get_look_sensitivity(), WardSettings.LOOK_SENSITIVITY_MIN),
+		"a clamped look sensitivity must persist clamped")
+
+
+# Drives the REAL player node's real _apply_look rather than recomputing
+# `delta * LOOK_SENSITIVITY * setting` here — the same reasoning as the
+# brightness/exposure test above. A test that duplicated the arithmetic would
+# still pass if _apply_look stopped consulting the setting at all.
+#
+# Input stays DISABLED on purpose: _physics_process returns early without it,
+# so nothing else in the scene tree can consume _look_accum between the poke
+# and the assertion, and the measurement is exact rather than racy.
+func _test_look_sensitivity_scales_turn() -> void:
+	var player: Node = (load("res://player/player.tscn") as PackedScene).instantiate()
+	add_child(player)
+
+	var base := _yaw_after_look(player, 1.0)
+	_check(
+		is_equal_approx(base, -100.0 * Tuning.LOOK_SENSITIVITY),
+		"sensitivity 1.0 must reproduce Tuning.LOOK_SENSITIVITY exactly — the ported feel is the default (got %f)"
+			% base)
+	_check(
+		is_equal_approx(_yaw_after_look(player, 2.0), base * 2.0),
+		"sensitivity 2.0 must turn exactly twice as far")
+	_check(
+		is_equal_approx(_yaw_after_look(player, 0.5), base * 0.5),
+		"sensitivity 0.5 must turn exactly half as far")
+
+	# Pitch rides the same multiplier — a setting that sped up yaw only would
+	# feel broken rather than fast.
+	WardSettings.set_look_sensitivity(2.0)
+	player.yaw = 0.0
+	player.pitch = 0.0
+	player._look_accum = Vector2(0.0, 10.0)
+	player._apply_look()
+	var pitch: float = player.pitch
+	_check(
+		is_equal_approx(pitch, -10.0 * Tuning.LOOK_SENSITIVITY * 2.0),
+		"pitch must scale with the same multiplier as yaw (got %f)" % pitch)
+
+	# THE CLAMP MUST SURVIVE THE MULTIPLIER. PITCH_LIMIT is what stops the
+	# camera rolling over the top; a big enough sensitivity multiplied into a
+	# big enough delta is exactly the input that would breach it if the
+	# multiply had been applied after the clamp instead of before.
+	WardSettings.set_look_sensitivity(WardSettings.LOOK_SENSITIVITY_MAX)
+	player.pitch = 0.0
+	player._look_accum = Vector2(0.0, -100000.0)
+	player._apply_look()
+	var limit: float = player.PITCH_LIMIT
+	pitch = player.pitch
+	_check(
+		is_equal_approx(pitch, limit),
+		"pitch must still clamp to PITCH_LIMIT at max sensitivity (got %f, want %f)"
+			% [pitch, limit])
+
+	player.queue_free()
+
+
+## One look event of a fixed 100px right-drag at `sensitivity`, from a known
+## zero. A helper rather than a lambda because Callable.call() returns Variant
+## and this project builds with inference warnings as errors.
+func _yaw_after_look(player: Node, sensitivity: float) -> float:
+	WardSettings.set_look_sensitivity(sensitivity)
+	player.yaw = 0.0
+	player.pitch = 0.0
+	player._look_accum = Vector2(100.0, 0.0)
+	player._apply_look()
+	return player.yaw
+
+
 # --- randomize codes, end to end through a real room -------------------
 
 func _load_room2() -> Node:
@@ -245,6 +350,7 @@ func _test_room2_randomize_off() -> void:
 func _restore_defaults() -> void:
 	WardSettings.set_randomize_codes(WardSettings.DEFAULT_RANDOMIZE_CODES)
 	WardSettings.set_brightness(WardSettings.DEFAULT_BRIGHTNESS)
+	WardSettings.set_look_sensitivity(WardSettings.DEFAULT_LOOK_SENSITIVITY)
 
 
 func _finish() -> void:

@@ -369,6 +369,10 @@ cd godot
 # pill economy incl. force_state semantics
 /Applications/Godot.app/Contents/MacOS/Godot --headless --path . tools/test_mechanics.tscn
 
+# player settings: persistence, and each setting through the thing it changes
+# (codes -> a real room, brightness -> real exposure, sensitivity -> real yaw)
+/Applications/Godot.app/Contents/MacOS/Godot --headless --path . tools/test_settings.tscn
+
 # web export, then prove it RUNS in a real browser (WebGL2 + GDScript ran)
 /Applications/Godot.app/Contents/MacOS/Godot --headless --path . --export-release "Web" build/index.html
 python3 -m http.server 8899 --directory build &
@@ -523,6 +527,31 @@ CanvasLayer swatches would not respond at all and would mislead. There is
 deliberately no mid-game config route — that would mean pausing and restoring
 mouse capture, this project's most bug-prone area, for a setting that can now
 be judged properly up front.
+
+### Look sensitivity
+
+New; the Three.js build has no equivalent. A **multiplier on
+`Tuning.LOOK_SENSITIVITY`**, deliberately not a second absolute rad/px value:
+`tuning.gd`'s header forbids tuning its ported constants by feel, and a
+setting that replaced 0.0024 outright would fork that number into a second
+home and make the 1:1-with-`tuning.ts` claim untestable. Defaulting the
+multiplier to 1.0 reproduces the ported feel exactly, and the range is
+0.25x-3.0x (a full 800 px sweep turns ~27 degrees at the bottom, ~330 at the
+top — past which the wall scrawls, which carry both narrative and puzzle
+content, can no longer be read while turning).
+
+Applied once, in `player.gd._apply_look()`, which is the single point every
+pointer already funnels through — `_handle_drag` converts a touch drag into
+"sensitivity pixels" against the BASE constant precisely so it does, so touch
+gets the setting too rather than needing a second knob.
+
+Unlike brightness there is **no live-preview signal**. The mouse is not
+captured while the panel is up (the panel needs the cursor to drag its own
+slider), so there is no camera turning behind the scrim for a preview to show;
+`player.gd` reads the setting on the next look frame after ADMIT ME. The
+readout is `1.00x` rather than brightness's `125%` — same panel, different
+units on purpose, because look speed is the one row a player arrives at
+already knowing what number they want, and the multiplier is that convention.
 
 ### Things that bit, worth not re-learning
 

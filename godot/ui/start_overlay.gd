@@ -10,8 +10,9 @@
 #   - CONFIGURATION's DONE button returns to the START panel, not into the
 #     game — there is no route from here straight into a run except ADMIT ME.
 #
-# BRIGHTNESS has no Three.js counterpart; it is new here, so the layout and
-# copy are written to match the existing panel rather than ported.
+# BRIGHTNESS and LOOK SENSITIVITY have no Three.js counterpart; they are new
+# here, so their layout and copy are written to match the existing panel
+# rather than ported.
 #
 # WHY THE CONFIG PANEL IS SEE-THROUGH AND BOTTOM-WEIGHTED
 #
@@ -54,6 +55,8 @@ const TOGGLE_BBCODE := "randomize keypad codes\n[color=#e9f2ef99]a fresh code �
 
 const BRIGHTNESS_BBCODE := "brightness\n[color=#e9f2ef99]the ward is meant to be dark. raise this until the walls behind this panel are just barely there — no further.[/color]"
 
+const SENSITIVITY_BBCODE := "look sensitivity\n[color=#e9f2ef99]how far the ward turns when you move the mouse — or drag, on a phone. lower it if the corridors make you seasick; raise it if you can't check behind you fast enough.[/color]"
+
 const COLOR_INK := Color(0.914, 0.949, 0.937)
 const COLOR_LUCID := Color(0.624, 0.847, 0.796)
 const COLOR_GHOST_BORDER := Color(0.914, 0.949, 0.937, 0.3)
@@ -69,6 +72,9 @@ const COLOR_GHOST_BORDER := Color(0.914, 0.949, 0.937, 0.3)
 @onready var _brightness_label: RichTextLabel = $SettingsPanel/Center/Card/Rows/BrightnessRow/Label
 @onready var _brightness_slider: HSlider = $SettingsPanel/Center/Card/Rows/BrightnessRow/SliderRow/Slider
 @onready var _brightness_value: Label = $SettingsPanel/Center/Card/Rows/BrightnessRow/SliderRow/Value
+@onready var _sensitivity_label: RichTextLabel = $SettingsPanel/Center/Card/Rows/SensitivityRow/Label
+@onready var _sensitivity_slider: HSlider = $SettingsPanel/Center/Card/Rows/SensitivityRow/SliderRow/Slider
+@onready var _sensitivity_value: Label = $SettingsPanel/Center/Card/Rows/SensitivityRow/SliderRow/Value
 # A toggle Button showing "[  ]" / "[X]", NOT a CheckBox. CheckBox draws its
 # tick from a fixed-size theme icon that custom_minimum_size does not scale,
 # so on a 1728x1080 canvas it rendered as a small washed-out square next to
@@ -99,6 +105,7 @@ func _ready() -> void:
 	_setup_rich_label(_intro_label, INTRO_BBCODE)
 	_setup_rich_label(_toggle_label, TOGGLE_BBCODE)
 	_setup_rich_label(_brightness_label, BRIGHTNESS_BBCODE)
+	_setup_rich_label(_sensitivity_label, SENSITIVITY_BBCODE)
 
 	_start_panel.visible = true
 	_settings_panel.visible = false
@@ -107,11 +114,16 @@ func _ready() -> void:
 	_brightness_slider.max_value = WardSettings.BRIGHTNESS_MAX
 	_brightness_slider.step = WardSettings.BRIGHTNESS_STEP
 
+	_sensitivity_slider.min_value = WardSettings.LOOK_SENSITIVITY_MIN
+	_sensitivity_slider.max_value = WardSettings.LOOK_SENSITIVITY_MAX
+	_sensitivity_slider.step = WardSettings.LOOK_SENSITIVITY_STEP
+
 	_admit_btn.pressed.connect(_on_admit_pressed)
 	_config_btn.pressed.connect(_on_config_pressed)
 	_done_btn.pressed.connect(_on_done_pressed)
 	_toggle.toggled.connect(_on_toggle_changed)
 	_brightness_slider.value_changed.connect(_on_brightness_changed)
+	_sensitivity_slider.value_changed.connect(_on_sensitivity_changed)
 
 	_apply_scale()
 	get_viewport().size_changed.connect(_apply_scale)
@@ -171,6 +183,13 @@ func _apply_scale() -> void:
 	# HSlider's default grabber is tiny; on a phone it is unusable. Height
 	# also drives the grabber hit area.
 	_brightness_slider.custom_minimum_size = Vector2(0, maxf(28.0, 30.0 * s))
+
+	_sensitivity_label.add_theme_font_size_override("normal_font_size", int(13 * s))
+	_sensitivity_value.add_theme_font_size_override("font_size", int(13 * s))
+	# Same no-reflow reasoning as brightness, sized for the widest readout
+	# this row can produce ("3.00x").
+	_sensitivity_value.custom_minimum_size = Vector2(52.0 * s, 0)
+	_sensitivity_slider.custom_minimum_size = Vector2(0, maxf(28.0, 30.0 * s))
 
 	_toggle_label.add_theme_font_size_override("normal_font_size", int(13 * s))
 	_style_toggle(s)
@@ -270,6 +289,8 @@ func _on_config_pressed() -> void:
 	_refresh_toggle_text()
 	_brightness_slider.set_value_no_signal(WardSettings.get_brightness())
 	_update_brightness_readout()
+	_sensitivity_slider.set_value_no_signal(WardSettings.get_look_sensitivity())
+	_update_sensitivity_readout()
 	_start_panel.visible = false
 	_settings_panel.visible = true
 
@@ -308,5 +329,31 @@ func _on_brightness_changed(value: float) -> void:
 	Telemetry.event("settings_change", {"key": "brightness", "value": value})
 
 
+func _on_sensitivity_changed(value: float) -> void:
+	WardSettings.set_look_sensitivity(value)
+	_update_sensitivity_readout()
+	# No live-preview signal, unlike brightness: the mouse is not captured
+	# while this panel is up (set_input_enabled(false) releases it and the
+	# panel needs the cursor to drag this very slider), so there is no camera
+	# turning behind the scrim for a preview to show. player.gd reads the
+	# setting on the next look frame after ADMIT ME, which is the first moment
+	# it can mean anything.
+	#
+	# Logged for the same reason brightness is: look speed changes how quickly
+	# a player can sweep a room, so it is a confound for every "did they see
+	# it" and "how long did room N take" metric.
+	Telemetry.event("settings_change", {"key": "lookSensitivity", "value": value})
+
+
 func _update_brightness_readout() -> void:
 	_brightness_value.text = "%d%%" % roundi(_brightness_slider.value * 100.0)
+
+
+# "1.00x", not a percentage like brightness. The two readouts are deliberately
+# in different units: brightness is a display calibration the player judges
+# against the visible ward, where a percentage reads naturally, while look
+# speed is the multiplier convention every other first-person game uses, and
+# "25%"-"300%" would be the odd one out on the only row a player arrives at
+# already knowing what they want.
+func _update_sensitivity_readout() -> void:
+	_sensitivity_value.text = "%.2fx" % _sensitivity_slider.value

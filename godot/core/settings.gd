@@ -34,6 +34,7 @@ const SECTION := "gameplay"
 
 const KEY_RANDOMIZE_CODES := "randomize_codes"
 const KEY_BRIGHTNESS := "brightness"
+const KEY_LOOK_SENSITIVITY := "look_sensitivity"
 
 # --- Render style (ui/shaders/posterize.gdshader + 3D resolution scale) -----
 #
@@ -77,6 +78,33 @@ const DEFAULT_BRIGHTNESS := 1.25
 const BRIGHTNESS_MIN := 0.6
 const BRIGHTNESS_MAX := 2.0
 const BRIGHTNESS_STEP := 0.05
+
+## Look speed: a MULTIPLIER on Tuning.LOOK_SENSITIVITY, not a replacement for
+## it.
+##
+## WHY A MULTIPLIER. Tuning.LOOK_SENSITIVITY is 0.0024 rad/px, ported 1:1 from
+## src/tuning.ts, and tuning.gd's header forbids tuning those values by feel.
+## Storing an absolute rad/px here would fork that number into a second home
+## and make the port-parity claim untestable. A multiplier defaulting to 1.0
+## leaves the ported feel as the reference point the player adjusts AROUND,
+## and 1.0 still reproduces it bit-for-bit.
+##
+## Applies to touch look as well, and deliberately so: player.gd converts a
+## screen drag into "sensitivity pixels" precisely so both pointers land in
+## one _apply_look, and a player who finds the turn rate wrong on a phone has
+## the same complaint as one on a mouse.
+const DEFAULT_LOOK_SENSITIVITY := 1.0
+
+# Range endpoints, picked against the two failure modes rather than as a
+# round-numbered span. MIN is where a full 800px mouse sweep still turns you
+# ~27 degrees — slow, but not so slow that checking your back becomes a chore
+# in a game whose threat model is "an orderly is behind you". MAX is where
+# that same sweep passes a full turn (~330 degrees), beyond which the ward
+# smears badly enough at this FOV that the wall scrawls — narrative AND puzzle
+# content — cannot be read while moving.
+const LOOK_SENSITIVITY_MIN := 0.25
+const LOOK_SENSITIVITY_MAX := 3.0
+const LOOK_SENSITIVITY_STEP := 0.05
 
 ## Every style knob in one table: default, range, step and display label.
 ##
@@ -152,6 +180,7 @@ const STYLE_SPEC := {
 static var _loaded := false
 static var _randomize_codes := DEFAULT_RANDOMIZE_CODES
 static var _brightness := DEFAULT_BRIGHTNESS
+static var _look_sensitivity := DEFAULT_LOOK_SENSITIVITY
 static var _style := {}
 
 
@@ -176,6 +205,9 @@ static func _ensure_loaded() -> void:
 	_brightness = clampf(
 		float(cfg.get_value(SECTION, KEY_BRIGHTNESS, DEFAULT_BRIGHTNESS)),
 		BRIGHTNESS_MIN, BRIGHTNESS_MAX)
+	_look_sensitivity = clampf(
+		float(cfg.get_value(SECTION, KEY_LOOK_SENSITIVITY, DEFAULT_LOOK_SENSITIVITY)),
+		LOOK_SENSITIVITY_MIN, LOOK_SENSITIVITY_MAX)
 	# Clamped against the CURRENT spec rather than trusted as written, so a
 	# stored value from a build whose range has since narrowed is pulled back
 	# in instead of being pushed to the shader out of range.
@@ -193,6 +225,7 @@ static func _save() -> void:
 	var cfg := ConfigFile.new()
 	cfg.set_value(SECTION, KEY_RANDOMIZE_CODES, _randomize_codes)
 	cfg.set_value(SECTION, KEY_BRIGHTNESS, _brightness)
+	cfg.set_value(SECTION, KEY_LOOK_SENSITIVITY, _look_sensitivity)
 	for key: String in STYLE_SPEC:
 		cfg.set_value(SECTION, key, _style.get(key, float(STYLE_SPEC[key]["default"])))
 	var err := cfg.save(PATH)
@@ -221,6 +254,21 @@ static func get_brightness() -> float:
 static func set_brightness(value: float) -> void:
 	_ensure_loaded()
 	_brightness = clampf(value, BRIGHTNESS_MIN, BRIGHTNESS_MAX)
+	_save()
+
+
+## Read on every look frame by player.gd rather than cached there, because a
+## static getter behind the `_loaded` early-out is a bool test and a float
+## read — cheaper than the signal wiring a cache would need to stay correct
+## when the config panel changes the value mid-session.
+static func get_look_sensitivity() -> float:
+	_ensure_loaded()
+	return _look_sensitivity
+
+
+static func set_look_sensitivity(value: float) -> void:
+	_ensure_loaded()
+	_look_sensitivity = clampf(value, LOOK_SENSITIVITY_MIN, LOOK_SENSITIVITY_MAX)
 	_save()
 
 
@@ -261,4 +309,5 @@ static func _reset_cache_for_tests() -> void:
 	_loaded = false
 	_randomize_codes = DEFAULT_RANDOMIZE_CODES
 	_brightness = DEFAULT_BRIGHTNESS
+	_look_sensitivity = DEFAULT_LOOK_SENSITIVITY
 	_style = {}

@@ -72,6 +72,11 @@ class StubMain:
 	var teleports: Array = []
 	var glow_fades: Array = []
 	var threat := -1.0
+	var noises: Array[String] = []
+
+	func emit_noise(source: String, _position: Vector3, _source_level := "") -> int:
+		noises.append(source)
+		return 0
 
 	func hud_toast(text: String) -> void:
 		toasts.append(text)
@@ -258,7 +263,11 @@ func _phosphor_nodes(room: Node) -> Array:
 
 func _omni_lights(room: Node) -> Array:
 	var out: Array = []
-	_find_all(room, out, func(n: Node) -> bool: return n is OmniLight3D)
+	# Battery locator lights are outside the room's switched mains circuit.
+	# Their steady behavior is covered by test_flicker; test the fluorescents
+	# here so this still detects a breaker being overwritten by Atmosphere.
+	_find_all(room, out, func(n: Node) -> bool:
+		return n is OmniLight3D and not bool(n.get_meta("atmosphere_exempt", false)))
 	return out
 
 

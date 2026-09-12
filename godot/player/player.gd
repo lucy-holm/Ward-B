@@ -10,6 +10,8 @@
 # original's YXZ euler order), and the unmed "sway" is camera roll.
 extends CharacterBody3D
 
+signal pointer_capture_refused
+
 const PITCH_LIMIT := 1.45  # rad, ~83.1 degrees
 
 @onready var camera: Camera3D = $Camera3D
@@ -78,6 +80,28 @@ func _ready() -> void:
 	# with nothing via the engine; the mask stays clear and try_move does the
 	# work. The layer is still set so orderlies/interactables can find us.
 	collision_mask = 0
+	WardInput.mode_changed.connect(_on_input_mode_changed)
+	_on_input_mode_changed(WardInput.mode)
+
+
+func _clear_touch_state() -> void:
+	_touch_stick_id = -1
+	_touch_stick_origin = Vector2.ZERO
+	_touch_stick_vec = Vector2.ZERO
+	_touch_look_id = -1
+	_look_accum = Vector2.ZERO
+
+
+func _on_input_mode_changed(next_mode: WardInput.Mode) -> void:
+	# A touch can arrive while a pointer drag is active, and a pointer can be
+	# introduced while a finger is holding the virtual stick. Clear both kinds
+	# of transient state at the boundary so neither modality leaves movement or
+	# look input stuck after the switch.
+	_clear_touch_state()
+	_capture_attempted = false
+	_capture_refused = false
+	if next_mode == WardInput.Mode.TOUCH or not _input_enabled:
+		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 
 
 func set_input_enabled(enabled: bool) -> void:
@@ -86,30 +110,17 @@ func set_input_enabled(enabled: bool) -> void:
 	# outside a user gesture, so asking here is at best a no-op and at worst
 	# misleading — it makes the code look like capture is handled when it is
 	# not. Capture is requested on the first click, in _unhandled_input.
-	# Only release the cursor when input is actually being taken away. This
-	# used to also fire whenever a touchscreen existed, which on an iPad with a
-	# trackpad attached fought every capture attempt: the device reports a
-	# touchscreen, so the cursor was forced back to VISIBLE and look was dead.
-	# A pure touch device never asks for capture in the first place (capture is
-	# requested only from a real mouse button, and touch->mouse emulation is
-	# off), so dropping the _is_touch() term costs nothing there.
+	# Only release the cursor when input is actually being taken away. A device
+	# can report a touchscreen and still be using a trackpad, so this decision
+	# belongs to WardInput's current mode rather than a hardware capability bit.
 	if not enabled:
+		_clear_touch_state()
 		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 
 
 func is_input_enabled() -> bool:
 	return _input_enabled
 
-
-func _is_touch() -> bool:
-	return DisplayServer.is_touchscreen_available()
-
-
-## True once a REAL pointer has been used. Not the same question as
-## _is_touch(): an iPad with a trackpad is both at once, which is exactly the
-## case that was broken. Reliable only because touch->mouse emulation is
-## disabled in project.godot — with it on, every touch drag would set this.
-var _pointer_seen := false
 
 ## Set when we have asked for pointer lock and it did not take. iPadOS Safari
 ## may refuse the request outright, and _apply_look only ran while the mouse
@@ -120,11 +131,18 @@ var _pointer_seen := false
 var _capture_refused := false
 
 ## Set the moment we actually REQUEST pointer lock. The refusal check below is
-## gated on this rather than on _pointer_seen, because _pointer_seen is set by
-## mouse MOTION too — so on desktop, merely moving the cursor across the canvas
-## before clicking would otherwise latch "refused" and make the camera swing on
-## hover, with no click and no capture.
+## gated on this rather than on pointer presence, because merely moving the
+## cursor across the canvas before clicking must not latch "refused" and make
+## the camera swing on hover, with no click and no capture.
 var _capture_attempted := false
+
+## The visible-cursor fallback is a one-time explanation for this run. Keep
+## this separate from the per-attempt refusal latch: pause/resume and a mode
+## change may retry capture, but must not spam the same hint on every click.
+var _capture_hint_shown := false
+var _capture_wait_seconds := 0.0
+
+const CAPTURE_GRACE_SECONDS := 0.35
 
 
 ## `spawn_y` seats the player at the spawn point's floor height immediately
@@ -154,8 +172,24 @@ func teleport(x: float, z: float, to_level := "") -> void:
 		level = to_level
 
 
+func request_pointer_capture() -> bool:
+	# Called only from a real pointer button gesture (player click or a start /
+	# resume button). iPadOS may refuse the browser request; _process observes
+	# that refusal and keeps the visible-cursor drag fallback alive.
+	if not WardInput.is_pointer_mode():
+		return false
+	_capture_attempted = true
+	_capture_refused = false
+	_capture_wait_seconds = 0.0
+	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+	return true
+
+
 func _unhandled_input(event: InputEvent) -> void:
 	if not _input_enabled:
+		return
+	if (event is InputEventMouseButton or event is InputEventMouseMotion) \
+			and event.device == InputEvent.DEVICE_ID_EMULATION:
 		return
 
 	# CLICK TO CAPTURE. On the web, pointer lock can ONLY be requested from
@@ -166,22 +200,20 @@ func _unhandled_input(event: InputEvent) -> void:
 	# clicking the viewport did nothing at all. Re-requesting here, inside a
 	# real click, is the only thing that works in a browser.
 	if event is InputEventMouseButton and (event as InputEventMouseButton).pressed:
-		_pointer_seen = true
+		WardInput.set_pointer_mode()
 		if Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
-			_capture_attempted = true
-			Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+			request_pointer_capture()
 			# Whether the request was honoured is decided by the browser, not
 			# here, so _process checks the outcome a frame later rather than
 			# assuming it worked.
 			return
 
 	if event is InputEventMouseMotion:
-		_pointer_seen = true
 		var motion := event as InputEventMouseMotion
 		if Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 			# Pointer lock granted: every motion is look, cursor is hidden.
 			_look_accum += motion.relative
-		elif _capture_refused and motion.button_mask != 0:
+		elif WardInput.is_pointer_mode() and _capture_refused and motion.button_mask != 0:
 			# NO POINTER LOCK — DRAG TO LOOK, and only while a button is held.
 			#
 			# iPadOS Safari refuses pointer lock, so the cursor stays visible
@@ -226,6 +258,9 @@ func _handle_drag(e: InputEventScreenDrag) -> void:
 	elif e.index == _touch_look_id:
 		# Convert the viewport-unit delta into the equivalent number of
 		# "sensitivity pixels" so _apply_look stays a single code path.
+		# Divides by the BASE constant only — the player's sensitivity
+		# multiplier is applied in _apply_look and so rides on top of the
+		# viewport-normalised touch sweep rather than cancelling out of it.
 		_look_accum += e.relative * (_touch_rad_per_unit() / Tuning.LOOK_SENSITIVITY)
 
 
@@ -318,11 +353,23 @@ func _update_verticality() -> void:
 	global_position.y += (world_levels.floor_height_at(level, p.x, p.z) - p.y) * WardLevels.Y_EASE
 
 
+# THE ONE PLACE LOOK SPEED IS DECIDED — mouse, trackpad-drag and touch all
+# funnel through here (see _handle_drag's unit conversion), so the player's
+# sensitivity setting is applied once, at the end, rather than at each of the
+# three input sites.
+#
+# The setting is a multiplier and defaults to 1.0, so a player who never opens
+# CONFIGURATION gets exactly Tuning.LOOK_SENSITIVITY and the ported feel is
+# unchanged. Read per-frame rather than cached: WardSettings.get_look_
+# sensitivity() is a bool test and a float read behind its `_loaded` early-out,
+# and reading live means a value changed in the config panel is in force on the
+# next look frame with no signal to wire or invalidate.
 func _apply_look() -> void:
 	if _look_accum == Vector2.ZERO:
 		return
-	yaw -= _look_accum.x * Tuning.LOOK_SENSITIVITY
-	pitch = clampf(pitch - _look_accum.y * Tuning.LOOK_SENSITIVITY, -PITCH_LIMIT, PITCH_LIMIT)
+	var rad_per_px := Tuning.LOOK_SENSITIVITY * WardSettings.get_look_sensitivity()
+	yaw -= _look_accum.x * rad_per_px
+	pitch = clampf(pitch - _look_accum.y * rad_per_px, -PITCH_LIMIT, PITCH_LIMIT)
 	_look_accum = Vector2.ZERO
 	_apply_rotation()
 
@@ -359,9 +406,16 @@ func _process(delta: float) -> void:
 	# the request was refused — switch to reading motion deltas directly so an
 	# iPad trackpad can still turn the camera. Latches, because a refusal is a
 	# property of the platform rather than of one frame.
-	if _capture_attempted and _input_enabled and not _capture_refused:
+	if WardInput.is_pointer_mode() and _capture_attempted and _input_enabled:
+		_capture_wait_seconds += delta
 		if Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
+			# Enable drag fallback as soon as the browser has visibly declined
+			# capture, while giving a pending asynchronous request a short grace
+			# period before showing the user-facing explanation.
 			_capture_refused = true
+			if not _capture_hint_shown and _capture_wait_seconds >= CAPTURE_GRACE_SECONDS:
+				_capture_hint_shown = true
+				pointer_capture_refused.emit()
 
 	var t := _bob_clock
 	var bob := sin(t * 9.0) * 0.035 if is_moving else 0.0

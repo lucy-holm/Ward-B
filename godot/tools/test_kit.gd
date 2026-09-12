@@ -199,6 +199,7 @@ func _test_keypad_refuses_unmed() -> void:
 		"keypad: unmed interaction must show the verbatim refusal toast")
 	_check(not main.keypad_opened, "keypad: unmed interaction must NOT open the keypad UI")
 	_check(not lock.is_unlocked(), "keypad: refusing unmed must not unlock the door")
+	main.free()
 
 
 func _test_keypad_accepts_lucid() -> void:
@@ -227,6 +228,7 @@ func _test_keypad_accepts_lucid() -> void:
 	# An id this lock does not own must fall through untouched.
 	var other := lock.handle_interact("dispenser1", main)
 	_check(not other, "keypad: handle_interact must return false for an id it does not own")
+	main.free()
 
 	StateManager.force_state(StateManager.State.UNMED, "test")
 
@@ -251,6 +253,7 @@ func _test_keypad_regenerate_noop_when_disabled() -> void:
 	StateManager.force_state(StateManager.State.LUCID, "test")
 	lock.handle_interact("keypad", main)
 	_check(main.keypad_code == "0000", "keypad: the code must be unchanged after a disabled regenerate()")
+	main.free()
 	StateManager.force_state(StateManager.State.UNMED, "test")
 
 
@@ -272,6 +275,7 @@ func _test_keypad_regenerate_rerolls_when_enabled() -> void:
 	_check(
 		(main.scrawls["codeScrawlA"] as String).length() == 7,
 		"keypad: a masked clue must still be 4 chars + 3 separators long")
+	main.free()
 
 	# Restore the setting so this suite cannot leave a stray on-disk change
 	# behind for the real game or a later test run to inherit.

@@ -1,4 +1,6 @@
-# itch.io store page metadata — Ward B
+# itch.io store page metadata — Ward B (historical archive)
+
+> **Current copy:** use [`press/store-description.md`](../../../press/store-description.md), [`press/store-description.html`](../../../press/store-description.html), and [`press/release-notes.md`](../../../press/release-notes.md). This document records an earlier metadata pass and is retained for historical decisions; it is no longer the source of truth for the public page.
 
 Field-by-field copy for the itch.io "Edit game" form. Paste each fenced
 block into the field named in its heading. Written from the game's own
@@ -6,12 +8,21 @@ voice (lowercase interior text, clipped, clinical-but-haunted) where the
 field is player-facing copy; plain and direct where the field is
 itch's own UI chrome (tags, genre, install instructions).
 
-Sourced from: `README.md`, `index.html` start overlay, `src/main.ts`
-`endOfBuild()`, `src/rooms/room1.ts` / `room13.ts` / `room15.ts` /
-`room17.ts` / `room20.ts`, `.claude/skills/designing-a-room/SKILL.md`
-voice guide. 20 rooms confirmed in `src/main.ts`'s room registry
-(room1–room20), one-way, no backtracking. Current build tag in the
-game itself: `GREYBOX PROTOTYPE — v0.2`.
+**Historical snapshot, updated 2026-08-31 for the Godot build.** The Three.js build (`src/`) this
+doc originally cited was deprecated and frozen on 2026-08-23 — the Godot
+build in `godot/` is the only maintained build and the one that ships
+publicly (`docs/superpowers/specs/2026-08-23-threejs-deprecation.md`). Every
+claim below was re-checked against `godot/` on that date; see the changelog
+at the bottom of this doc for exactly what changed and why.
+
+Sourced from: `README.md`, `godot/ui/start_overlay.tscn` start overlay,
+`godot/main.gd` (`_ready()`'s room registry and `?room=` dev jump),
+`godot/rooms/room1/room1.gd` / `room13.gd` / `room15.gd` / `room17.gd` /
+`room20.gd`, `godot/project.godot` input map, `.claude/skills/designing-a-room/SKILL.md`
+voice guide. 20 rooms confirmed in `main.gd`'s `ROOM_SCENES` registry
+(room1–room20, room19 a same-id variant picked at load time), one-way, no
+backtracking. Current build tag in the game itself, unchanged from the
+Three.js build: `GREYBOX PROTOTYPE — v0.2` (`godot/ui/start_overlay.tscn`).
 
 ---
 
@@ -189,10 +200,14 @@ Justification, one line each:
 - **browser** — signals no-download/no-install, which is a real
   decision factor for itch visitors deciding whether to click.
 
-Deliberately left out: `three-js` (real but a near-zero-traffic tag —
-nobody browses by game engine on itch except other devs), anything
-overly clever/unique to this game (nobody searches a tag they've never
-seen before it exists).
+Deliberately left out: `godot` (the game's actual engine as of this build —
+real, but the same reasoning as before applies: near-zero-traffic tag,
+nobody browses by game engine on itch except other devs), anything overly
+clever/unique to this game (nobody searches a tag they've never seen
+before it exists). Previously this listed `three-js`, the engine at the
+time this doc was written; that build is deprecated and frozen, so the tag
+would now be actively wrong rather than merely low-value — swap in
+`godot`, or leave engine off tags entirely, but don't ship `three-js`.
 
 ---
 
@@ -279,11 +294,19 @@ apologizing for it.
   legible UI moment (threat line, meter, keypad glow), or genuine
   spatial interest (room17's verticality).
 
-**Practical capture note:** use the room-jump URL trick from
-`README.md` (`?room=room17`, `?room=room2`, etc.) to load straight into
-the room you want to screenshot instead of replaying from room1 — jumping
-past room1 grants shift + a full pill automatically, so lucid/unmed
-shots are both reachable immediately.
+**Practical capture note:** the maintained capture pipeline is
+`press/README.md` — real Godot screenshot harnesses in `godot/tools/`
+(`shoot_game.tscn` for anything that's a verdict about how the game looks,
+`shoot.tscn` for hand-framed shots, `shoot_overlay.tscn` for the start/
+config/pause panels), not a browser. All 15 current press captures were
+made that way; read `press/README.md` before recapturing anything.
+
+The room-jump URL trick still works in the deployed web build too
+(`?room=room17`, `?room=room2`, etc. — ported to Godot as `main.gd`'s
+`?room=` dev jump, same behavior: jumping past room1 grants shift + a full
+pill automatically, so lucid/unmed shots are both reachable immediately).
+Useful for a quick manual look in a browser; not how the press set itself
+is produced.
 
 Aim for **4–6 screenshots**: 1 keypad-in-dark, 1 room17 verticality, 1
 threat/sight-cone moment, 1 scrawl close-up, and 1–2 more of whatever
@@ -321,7 +344,7 @@ still walking their routes, lucidity only lasts about 45 seconds before
 it reverts on its own, and going lucid costs your one pill. Pills
 refill at wall dispensers. Every shift is a decision, not a toggle.
 
-Twenty rooms, one way through, no backtracking. Built in Vite + three.js.
+Twenty rooms, one way through, no backtracking. Built in Godot 4.7.
 
 This is a **greybox** — every room is untextured grey geometry. The
 prototype exists to test whether the core mechanic holds up over a
@@ -344,3 +367,58 @@ burying it, gives a concrete time estimate (itch devlog readers decide
 fast whether something's worth a click-through), and ends with an
 explicit feedback ask — devlogs that ask a specific question get more
 comments than ones that just announce.
+
+---
+
+## Changelog — 2026-08-31 Godot re-verification
+
+Every factual claim in this doc was checked against `godot/` (not `src/`,
+which is now a frozen archive) and corrected where the port changed
+something. What changed, old → new:
+
+- **Engine.** `Vite + three.js` → `Godot 4.7`. Only the devlog draft
+  (§8) stated this explicitly; fixed there.
+- **Source citations.** `src/main.ts`, `src/rooms/room*.ts` →
+  `godot/main.gd`, `godot/rooms/room*/room*.gd`. The room-by-room content
+  claims themselves (two-storey room, pushable-crate room, the one room
+  that breaks "lucid is safe", colored-shape sorting, patrol-timing
+  rooms, code-and-keypad rooms) all still hold — checked against
+  `room13.gd`, `room15.gd`, `room17.gd`, `room20.gd` and their header
+  comments, which port the same beats deliberately.
+- **`three-js` tag** (§4) → left out in favor of `godot`, with the
+  reasoning note corrected — it was already a low-value tag, now it
+  would also be factually wrong.
+- **Screenshot capture method** (§7) → the "use the room-jump URL trick"
+  note pointed at a Playwright-driven browser flow. It's replaced with a
+  pointer to `press/README.md`'s Godot screenshot harnesses, which is now
+  the real, checked-in capture pipeline. The `?room=` URL trick itself
+  still works unchanged (ported to `main.gd`), so that part of the note
+  survives as a secondary, manual-check option.
+
+**Everything else re-verified unchanged:**
+- Room count: 20 (room1–room20, room19 a same-slot variant), one-way, no
+  backtracking — confirmed in `main.gd`'s `ROOM_SCENES`.
+- Controls: WASD move, mouse look, E interact, Q shift (desktop);
+  on-screen stick + drag-to-look + on-screen buttons (touch) — confirmed
+  in `godot/project.godot`'s `[input]` map and `main.tscn`'s touch
+  controls layer. Unchanged from the Three.js build.
+- Platform: still a single `html5` itch channel, browser-playable, no
+  install, desktop and mobile — confirmed in
+  `.github/workflows/deploy-itch-godot.yml`. The publish path changed
+  (manual `deploy-itch-godot.yml` dispatch instead of an automatic push
+  to `release`) but that's a publishing-process detail, not something
+  this player-facing copy claims.
+- Build tag: `GREYBOX PROTOTYPE — v0.2`, unchanged, still shown on the
+  game's own start screen (`ui/start_overlay.tscn`) — the "greybox
+  prototype" framing throughout this doc is still the game's own
+  self-description, not stale copy left over from Three.js.
+- Pill/state mechanic description (unmedicated reads walls, lucid reads
+  machinery, ~45s meter, one pill, wall dispensers refill): unchanged,
+  confirmed against `godot/autoload/state_manager.gd` and `CLAUDE.md`.
+
+**What this doc does NOT claim and shouldn't:** nothing here describes
+the Godot build's visual specifics (the posterise/dither pass, the prop
+kit, per-fitting lighting) because the original doc didn't describe the
+Three.js build's visuals either — it's copy for itch's text fields, not
+a visual spec. See `press/README.md` for what changed visually and how
+that's represented in the screenshots.

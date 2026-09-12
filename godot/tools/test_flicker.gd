@@ -33,6 +33,9 @@ func _ready() -> void:
 		_fail("expected at least 2 room lights, found %d" % lights.size())
 		_finish()
 		return
+	var locator := _find_named_light(main, "CanopyGlow")
+	if locator == null:
+		_fail("expected dispenser CanopyGlow locator light")
 
 	# --- UNMEDICATED: should flicker ---
 	StateManager.force_state(StateManager.State.UNMED, "test")
@@ -58,6 +61,29 @@ func _ready() -> void:
 		_fail("unmed: lights are in lockstep — per-light phase offset is not applied")
 
 	print("unmed  spread=%.3f  min/max=%.2f" % [spread, deepest])
+	if locator != null:
+		var locator_base := locator.light_energy
+		var locator_min := locator_base
+		var locator_max := locator_base
+		for f in 90:
+			await get_tree().process_frame
+			locator_min = minf(locator_min, locator.light_energy)
+			locator_max = maxf(locator_max, locator.light_energy)
+		if locator_max - locator_min > 0.001:
+			_fail("dispenser locator light flickered (spread %.4f)" % (locator_max - locator_min))
+		var before_circuit := locator.light_energy
+		main.atmosphere.set_all_circuits(false, true)
+		await get_tree().process_frame
+		if absf(locator.light_energy - before_circuit) > 0.001:
+			_fail("dispenser locator dimmed with circuit off (%.4f -> %.4f)"
+				% [before_circuit, locator.light_energy])
+		main.atmosphere.set_all_circuits(true, true)
+		await get_tree().process_frame
+		if absf(locator.light_energy - before_circuit) > 0.001:
+			_fail("dispenser locator changed when circuit restored (%.4f -> %.4f)"
+				% [before_circuit, locator.light_energy])
+		if locator.shadow_enabled:
+			_fail("dispenser locator must not cast shadows")
 
 	# --- LUCID: should be steady ---
 	GameState.refill()
@@ -92,11 +118,21 @@ func _sample(lights: Array) -> Array:
 
 func _find_lights(node: Node) -> Array:
 	var out: Array = []
-	if node is OmniLight3D:
+	if node is OmniLight3D and not bool(node.get_meta("atmosphere_exempt", false)):
 		out.append(node)
 	for child in node.get_children():
 		out.append_array(_find_lights(child))
 	return out
+
+
+func _find_named_light(node: Node, wanted: String) -> OmniLight3D:
+	if node is OmniLight3D and node.name == wanted:
+		return node as OmniLight3D
+	for child in node.get_children():
+		var found := _find_named_light(child, wanted)
+		if found != null:
+			return found
+	return null
 
 
 func _fail(msg: String) -> void:

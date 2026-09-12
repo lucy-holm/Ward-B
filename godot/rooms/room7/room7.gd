@@ -1,19 +1,10 @@
-# ROOM 7 — the Records Room.
-#
-# Three shelving rows still force a serpentine crossing (east gap, west gap,
-# east gap), but the beat is a forced backtrack, not a single crossing: the
-# exit keypad sits right past the maze, reachable lucid and blind with no
-# code in hand. The code — and the dispenser, still hidden behind a row —
-# both live in the back half, by the entrance you just walked away from. So
-# the route is keypad first (safe, useless), then unmed back through the maze
-# to read the code and refill, then unmed (or lucid, if you spend the pill
-# right there) forward through it again to actually open the door. His patrol
-# lives in the pocket between all three rows — the belt you cross both ways —
-# with a row's mass to duck behind on either approach.
-#
-# PORT NOTE: in the Godot build this room's exit is "END" — rooms 8+ are not
-# ported yet, so the exit chain terminates here. Everything else about the
-# success/exit logic is unchanged from the TS.
+# ROOM 7 — Records matching.
+# Three shape-marked seals occupy separate sheltered shelf areas. Read the
+# discharge request raw, choose its matching seal, then file it while lucid.
+# Shapes repeat the later sorting-room vocabulary without another digit lock.
+# Catch: reroll only an uncollected request; held seals and opened doors persist.
+# Fairness: the request is behind row A, every seal sits outside the patrol
+# belt and behind shelf cover, and the original dispenser/escape lanes remain.
 extends Node3D
 
 const ORDERLY := preload("res://orderly/orderly.tscn")
@@ -29,7 +20,7 @@ const SPAWN_Z := 4.0
 # East legs sit at x=1.0, not 1.3: his body radius is 0.4 and row B starts at
 # x=1.5, so anything past 1.1 wedges him against the shelf mid-leg. The south
 # edge was pulled from z=-1.3 up to z=0.3 after playtest 7 — the old SE
-# corner sat 3.47m from keypad7 with the keypad almost dead ahead down the
+# corner sat 3.47m from the old lock with its panel almost dead ahead down the
 # east leg (~1.28s worst-case time-to-contact); it is now 5.06m, ~1.65s.
 # Still > 0.5m clear of ROW_C (2.1m), and the belt still spans the full
 # corridor width, so the double-crossing separation holds.
@@ -40,7 +31,9 @@ const WAYPOINTS: Array[Vector3] = [
 	Vector3(-4.3, 0, 0.3),
 ]
 
-var _code := "0452"
+const RECORD_SHAPES := ["circle", "square", "triangle"]
+var _required_shape := "circle"
+var _record_held := false
 
 var _orderly: CharacterBody3D = null
 var _door_unlocked := false
@@ -52,14 +45,15 @@ var _main: Node = null
 func on_enter(main: Node) -> void:
 	_main = main
 	_door_unlocked = false
+	_record_held = false
 	_saw_unmed_toast = false
 
 	for node in _interactables():
 		node.availability = _is_available
 
-	_regenerate_code()
+	_choose_record()
 	_spawn_orderly()
-	main.hud_objective("the records room. paperwork nobody reads. something hums, somewhere behind it.")
+	main.hud_objective("one discharge file. read its shape raw, then find the matching seal behind the shelves.")
 
 
 func _interactables() -> Array[Interactable]:
@@ -78,48 +72,77 @@ func _interactables() -> Array[Interactable]:
 
 
 func _is_available(id: String) -> bool:
-	match id:
-		"exitdoor":
-			return false
-		"keypad7":
-			return not _door_unlocked
+	if id == "exitdoor":
+		return false
+	if id == "record_reader7":
+		return not _door_unlocked
+	if id.begins_with("record7_"):
+		return not _record_held
 	return true
 
 
 func on_interact(id: String) -> bool:
-	if id == "keypad7":
-		if not StateManager.is_lucid():
-			_main.hud_toast("the keypad is a smear of static. you can't read it like this.")
+	if id.begins_with("record7_"):
+		var selected := id.trim_prefix("record7_")
+		if not RECORD_SHAPES.has(selected) or _record_held:
 			return true
-		# main.open_keypad emits keypad_open/success/denied itself.
-		_main.open_keypad(_code, _on_code_accepted)
+		if StateManager.is_lucid():
+			_main.hud_toast("the seal has no shape while you're quiet.")
+			return true
+		if selected != _required_shape:
+			Telemetry.event("puzzle_step", {"puzzle": "records7", "step": "mismatch", "shape": selected})
+			_main.emit_noise("record_mismatch", _main.player.global_position, _main.player.level)
+			_main.hud_toast("wrong file. match the shape on the door reader.")
+			return true
+		_record_held = true
+		_main.remove_interactable(id)
+		Telemetry.event("puzzle_step", {"puzzle": "records7", "step": "record_taken", "shape": selected})
+		_main.hud_toast("the %s seal fits your hand. keep it." % selected)
+		_main.hud_objective("carry the seal through the shelves. the archive reader needs lucid hands.")
 		return true
-
-	return false
-
-
-func _on_code_accepted() -> void:
+	if id != "record_reader7":
+		return false
+	if _door_unlocked:
+		return true
+	if not _record_held:
+		_main.hud_toast("the reader wants a %s seal. look behind the shelves." % _required_shape)
+		return true
+	if not StateManager.is_lucid():
+		_main.hud_toast("the slot won't hold still. steady your hands.")
+		return true
 	_door_unlocked = true
 	_main.move_interactable("exitdoor", Vector3(-1, 1.5, -5.85), PI / 2.0)
 	_main.unlock_door("DoorCollider")
-	# Interpolates the LIVE code — a rerolled code must read back correctly.
-	_main.hud_toast("%s. filed under nothing." % _code)
+	Telemetry.event("puzzle_step", {"puzzle": "records7", "step": "complete"})
+	_main.hud_toast("filed under your shape. the door lets you through.")
 	_main.hud_objective("the door is open. go.")
+	return true
+
+
+func _choose_record(avoid_previous := false) -> void:
+	if _record_held or _door_unlocked:
+		return
+	var previous := _required_shape
+	var choices: Array = RECORD_SHAPES.duplicate()
+	if avoid_previous:
+		choices.erase(previous)
+	_required_shape = str(choices.pick_random())
+	_update_request_display()
+	Telemetry.event("puzzle_layout", {"puzzle": "records7", "shape": _required_shape})
+
+func _update_request_display() -> void:
+	_main.update_scrawl_text("recordClue7", "discharge file:\n" + _required_shape)
+	var reader: Interactable = _main._find_interactable(self, "record_reader7")
+	if reader != null:
+		var model := reader.get_node_or_null("Model")
+		if model != null and model.has_method("set_shape"):
+			model.set_shape(_required_shape)
 
 
 func on_state_change(next: StateManager.State) -> void:
 	if next == StateManager.State.UNMED and not _saw_unmed_toast:
 		_saw_unmed_toast = true
 		_main.hud_toast("the shelves throw a shadow that keeps his shape.")
-
-
-# --- randomize-codes (CLAUDE.md hard rule) ---------------------------------
-
-func _regenerate_code() -> void:
-	if not WardCodes.is_randomize_codes_enabled():
-		return
-	_code = WardCodes.random_code_4()
-	_main.update_scrawl_text("codeScrawl", WardCodes.code_clue_text(_code))
 
 
 # --- the orderly -----------------------------------------------------------
@@ -157,16 +180,14 @@ func _on_chase_started() -> void:
 # emitting after the teleport would record the spawn point for every catch
 # and flatten the catch heat-map into a single dot.
 #
-# The reroll goes LAST, so a player cannot memorise the code across a reset —
-# which matters most here, where the code is a full maze-crossing away from
-# the keypad that spends it.
+# An uncollected request changes last; a held seal survives every catch.
 func _on_caught() -> void:
 	Telemetry.event("orderly_caught")
 	StateManager.force_state(StateManager.State.LUCID, "catch")
 	_main.shift_fx()
 	_main.teleport_player(SPAWN_X, SPAWN_Z)
 	_main.hud_toast('hands. a needle. "you\'ll lose your place," he says.')
-	_regenerate_code()
+	_choose_record(true)
 
 
 func _physics_process(_delta: float) -> void:

@@ -84,6 +84,9 @@ class StubMain:
 	func shift_fx() -> void:
 		pass
 
+	func restore_checkpoint() -> bool:
+		return false
+
 	func teleport_player(x: float, z: float, to_level := "") -> void:
 		teleports.append([x, z, to_level])
 		if player != null:

@@ -1,4 +1,4 @@
-[gd_resource type="StandardMaterial3D" format=3 uid="uid://wardbprmenam1"]
+[gd_resource type="ShaderMaterial" load_steps=3 format=3 uid="uid://wardbprmenam1"]
 
 ; Chipped cream enamel — the sink basin, window sills and reveals; anything
 ; painted in the ward's original 1970s spec rather than replaced since.
@@ -17,7 +17,19 @@
 ; describes against the wall's CURRENT baseline rather than its old one — see
 ; the reference board's "CHIPPED ENAMEL SINK" swatch, which reads distinctly
 ; whiter than the surrounding wall plaster, not level with it.
+
+; 2026-09-12: shared three-tap wear replaces the flat colour placeholder.
+; Retains the authored palette; dirt/chips also vary highlight roughness.
+
+[ext_resource type="Shader" path="res://props/ward_wear.gdshader" id="1_shader"]
+[ext_resource type="Texture2D" path="res://props/ward_wear_noise.tres" id="2_noise"]
+
 [resource]
-albedo_color = Color(0.70, 0.655, 0.565, 1)
-roughness = 0.5
-metallic = 0.02
+shader = ExtResource("1_shader")
+shader_parameter/wear_tex = ExtResource("2_noise")
+shader_parameter/paint_color = Color(0.7, 0.655, 0.565, 1)
+shader_parameter/substrate_color = Color(0.24, 0.19, 0.145, 1)
+shader_parameter/chip_threshold = 0.27
+shader_parameter/dirt_strength = 0.19
+shader_parameter/paint_roughness = 0.5
+shader_parameter/metalness = 0.02

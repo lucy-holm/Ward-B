@@ -112,6 +112,8 @@ func _test_strict_containment() -> void:
 	_check(not v.contains(1.34, 0.0, unmed),
 		"overlaps_circle must NOT change what contains() reports — enter/exit "
 		+ "stays a point test on the body centre")
+	v.free()
+	d.free()
 
 
 # The filter lives INSIDE the containment test, which is what makes property 4
@@ -140,6 +142,9 @@ func _test_state_filter_is_part_of_containment() -> void:
 			and TriggerVolume.States.BOTH == StateObject.Affinity.BOTH,
 		"TriggerVolume.States must stay aligned with StateObject.Affinity — the "
 		+ "generator emits one integer for a plate's mesh and its trigger")
+	lucid_only.free()
+	unmed_only.free()
+	both.free()
 
 
 # 2 + 3. The set-diff: enter fires once on entry and NOT once per frame; exit

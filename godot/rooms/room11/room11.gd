@@ -8,7 +8,7 @@
 # Three chambers, north to south, joined by two unmed-sealed gates:
 #   Z1 the entry hall     z[12,22]    spawn, dispenser11
 #   Z2 the ward floor     z[-10,12]   sunken lower ward + railed mezzanine
-#   Z3 the exit chamber   z[-18,-10]  keypad, door, safety dispenser
+#   Z3 the exit chamber   z[-18,-10]  seal reader, door, safety dispenser
 #
 # THE ECONOMY. on_enter forces UNMED at the threshold, so whatever state the
 # player left room 10 in, they arrive here raw and gate 1 always costs a pill.
@@ -17,9 +17,9 @@
 # unmed-sealed ONLY, so a lucid player can always retreat through either one
 # for free, in either direction.
 #
-# THE ROUTE. The code is scrawled on the east wall at MEZZANINE eye height
-# (y = 0.9 + 1.65), not ground height: to read it you climb the ramp at
-# z[8,10] and walk north along the platform. Up to read, back down to continue.
+# THE ROUTE. The discharge request is scrawled on the east wall at MEZZANINE
+# eye height (y = 0.9 + 1.65): climb the ramp at z[8,10] to read it, then
+# search the three treatment bays and carry the matching upright seal down.
 #
 # --- TWO ORDERLIES, ONE PER HEIGHT BAND, AND WHAT ACTUALLY SEPARATES THEM ---
 #
@@ -39,7 +39,7 @@
 #   the 8.17m-ish inspection guideline and far past the 6m he can see.
 #
 #   UPPER (WAYPOINTS_B, x=2, z[1.2,6.8]) — he patrols the platform's west
-#   rail. The code scrawl on the east wall is at (8.78, 4); nearest patrol
+#   rail. The request scrawl on the east wall is at (8.78, 4); nearest patrol
 #   point is (2, 4), i.e. 6.78m, just past his 6m range. Reading the code from
 #   the wall is therefore unseeable from his loop.
 #
@@ -60,7 +60,9 @@
 # deliberately: this room has one level and passing '__flat' explicitly would
 # imply otherwise. Y re-eases from the lookup on the next tick either way.
 #
-# CODE: 2593.
+# PUZZLE: read the requested upright seal from the mezzanine, search three
+# treatment bays raw, then file the matching seal while lucid. A held seal
+# survives a catch; only an uncollected request is rerolled.
 extends Node3D
 
 const ORDERLY := preload("res://orderly/orderly.tscn")
@@ -69,6 +71,9 @@ const SPAWN_X := 0.0
 const SPAWN_Z := 20.0
 
 const MEZZ_Y := 0.9
+const TREATMENT_SHAPES := ["circle", "square", "triangle"]
+var _required_shape := "circle"
+var _seal_held := false
 
 # Orderly LOWER — the sunken west side. Validated by check_rooms.gd's
 # _check_patrol, which reads EVERY constant whose name starts with WAYPOINTS.
@@ -89,12 +94,10 @@ const WAYPOINTS_B: Array[Vector3] = [
 	Vector3(2, MEZZ_Y, 6.8),
 ]
 
-# Door swing, from kit.ts's keypadDoor: hinge at the gap's start (x=-1) and
+# Door swing, from the former keypadDoor layout: hinge at the gap's start (x=-1) and
 # DOOR_SWING_DEPTH 0.85 past the wall line, rotated a quarter turn so it lies
 # flat against the vestibule's west wall.
 const DOOR_OPEN_POS := Vector3(-1, 1.5, -18.85)
-
-var _code := "2593"
 
 var _orderly_lower: CharacterBody3D = null
 var _orderly_upper: CharacterBody3D = null
@@ -107,12 +110,13 @@ var _main: Node = null
 func on_enter(main: Node) -> void:
 	_main = main
 	_door_unlocked = false
+	_seal_held = false
 	_saw_unmed_toast = false
 
 	for node in _interactables():
 		node.availability = _is_available
 
-	_regenerate_code()
+	_choose_shape()
 	_spawn_orderlies()
 
 	# Forces the double spend regardless of how room 10 was left. Touches the
@@ -143,49 +147,73 @@ func _is_available(id: String) -> bool:
 	match id:
 		"exitdoor":
 			return false
-		"keypad11":
-			return not _door_unlocked
-	return true
+		"reader11": return not _door_unlocked
+		_: return not (id.begins_with("treatment11_") and _seal_held)
 
 
 func on_interact(id: String) -> bool:
-	if id == "keypad11":
-		if not StateManager.is_lucid():
-			_main.hud_toast("the keypad is a smear of static. you can't read it like this.")
+	if id.begins_with("treatment11_"):
+		var shape := id.trim_prefix("treatment11_")
+		if not TREATMENT_SHAPES.has(shape):
+			return false
+		if _seal_held or _door_unlocked:
 			return true
-		# TWO arguments: main.open_keypad(code, on_success). It emits
-		# keypad_open / keypad_success / keypad_denied telemetry itself.
-		_main.open_keypad(_code, _on_code_accepted)
+		if StateManager.is_lucid():
+			_main.hud_toast("the seal has no shape while you're quiet.")
+			return true
+		if shape != _required_shape:
+			Telemetry.event("puzzle_step", {"puzzle":"treatment11", "step":"mismatch", "shape":shape})
+			_main.emit_noise("treatment_mismatch", _main.player.global_position, _main.player.level)
+			_main.hud_toast("wrong seal. the mezzanine shows what they requested.")
+			return true
+		_seal_held = true
+		_main.remove_interactable(id)
+		Telemetry.event("puzzle_step", {"puzzle":"treatment11", "step":"seal_taken", "shape":shape})
+		_main.hud_toast("the %s seal fits your hand. keep it." % shape)
+		_main.hud_objective("carry the seal to the reader. calm hands can file it.")
 		return true
+	if id != "reader11": return false
+	if not _seal_held:
+		_main.hud_toast("the reader wants a %s seal. search the treatment bays." % _required_shape)
+		return true
+	if not StateManager.is_lucid():
+		_main.hud_toast("the reader will not hold still. steady your hands.")
+		return true
+	_on_reader_accepted()
+	return true
 
-	return false
 
 
-func _on_code_accepted() -> void:
+func _on_reader_accepted() -> void:
+	if _door_unlocked:
+		return
 	_door_unlocked = true
 	_main.move_interactable("exitdoor", DOOR_OPEN_POS, PI / 2.0)
 	_main.unlock_door("DoorCollider")
-	# Interpolates the LIVE code — a rerolled code must read back correctly.
-	_main.hud_toast("%s. gravity was the last lock." % _code)
+	Telemetry.event("puzzle_step", {"puzzle":"treatment11", "step":"complete", "shape":_required_shape})
+	_main.hud_toast("filed under %s. the door lets you through." % _required_shape)
 	_main.hud_objective("the door is open. go.")
 
 
 func on_state_change(next: StateManager.State) -> void:
 	if next == StateManager.State.UNMED and not _saw_unmed_toast:
 		_saw_unmed_toast = true
-		_main.hud_toast("something moves on the floor below. something else, above.")
+		_main.hud_toast("the treatment bays throw two shadows now.")
 
 
-# --- randomize-codes (CLAUDE.md hard rule) ---------------------------------
-#
-# Called from on_enter AND from the catch handler, so a code cannot be
-# memorised across a reset.
+# A catch changes an uncollected request; earned seals remain valid.
 
-func _regenerate_code() -> void:
-	if not WardCodes.is_randomize_codes_enabled():
-		return
-	_code = WardCodes.random_code_4()
-	_main.update_scrawl_text("codeScrawl", WardCodes.code_clue_text(_code))
+func _choose_shape(avoid_previous := false) -> void:
+	if _seal_held or _door_unlocked: return
+	var choices: Array = TREATMENT_SHAPES.duplicate()
+	if avoid_previous: choices.erase(_required_shape)
+	_required_shape = str(choices.pick_random())
+	_main.update_scrawl_text("shapeRequest11", "discharge request:\n" + _required_shape)
+	var reader: Interactable = _main._find_interactable(self, "reader11")
+	if reader != null and reader.get_node_or_null("Model") != null:
+		var model: Node = reader.get_node("Model")
+		if model.has_method("set_shape"): model.set_shape(_required_shape)
+	Telemetry.event("puzzle_layout", {"puzzle":"treatment11", "shape":_required_shape})
 
 
 # --- the orderlies ---------------------------------------------------------
@@ -237,7 +265,7 @@ func _on_caught() -> void:
 	_main.shift_fx()
 	_main.teleport_player(SPAWN_X, SPAWN_Z)
 	_main.hud_toast('hands. a needle. "up or down, you\'re still mine," he says.')
-	_regenerate_code()
+	_choose_shape(true)
 
 
 # Chase-priority threat aggregation, ported from room11.ts's update(): chasing

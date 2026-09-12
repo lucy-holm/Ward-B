@@ -12,3 +12,6 @@ build/
 
 # playwright installed transiently for tools/verify_web.mjs
 node_modules/
+
+# Python room/prop generators and map viewer.
+__pycache__/

@@ -451,13 +451,13 @@ def _mover_entries(movers):
     layer toggle list stays the reference's list; a tooltip is enough to
     tell it apart from ordinary geometry."""
     out = []
-    for name, size, pos, mat in movers:
+    for name, size, pos, mat, level in movers:
         sx, sy, sz = size
         x, y, z = pos
         out.append({
             "minX": x - sx / 2.0, "maxX": x + sx / 2.0,
             "minZ": z - sz / 2.0, "maxZ": z + sz / 2.0,
-            "mat": mat, "state": "both", "level": None, "name": name,
+            "mat": mat, "state": "both", "level": level, "name": name,
             "light": None, "hasCollider": True, "kind": "mover",
             "y": y, "height": sy,
         })

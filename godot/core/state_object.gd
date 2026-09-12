@@ -47,6 +47,7 @@ enum Affinity {
 signal presence_changed(present: bool)
 
 var _present := true
+var _scrawl_normalize_queued := false
 
 
 func _ready() -> void:
@@ -54,6 +55,33 @@ func _ready() -> void:
 		return
 	StateManager.state_changed.connect(_on_state_changed)
 	_apply(StateManager.state)
+	# Every generated room places wall writing under this shared state wrapper.
+	# Normalize after one frame, when Label3D has built its text mesh, so the
+	# runtime envelope applies equally to old committed rooms and new authored
+	# scenes without a generator or scene-file migration.
+	if name == "Scrawls":
+		queue_scrawl_normalize()
+
+
+## Coalesce multiple dynamic clue updates in one frame into one mesh refit.
+func queue_scrawl_normalize() -> void:
+	if _scrawl_normalize_queued:
+		return
+	_scrawl_normalize_queued = true
+	call_deferred("_normalize_scrawls_deferred")
+
+
+func _normalize_scrawls_deferred() -> void:
+	if not is_inside_tree():
+		_scrawl_normalize_queued = false
+		return
+	WardScrawl.restore_authored(self)
+	await get_tree().process_frame
+	if not is_inside_tree():
+		_scrawl_normalize_queued = false
+		return
+	WardScrawl.normalize(self)
+	_scrawl_normalize_queued = false
 
 
 func _on_state_changed(next: StateManager.State, _prev: StateManager.State, _source: String) -> void:

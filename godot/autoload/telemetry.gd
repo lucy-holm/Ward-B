@@ -90,7 +90,12 @@ var _idle_poll_accum := 0.0
 
 var _page_load_called := false
 var _started := false
+var _completed := false
 var _quit_fired := false
+## Browser backgrounding is a suspension, not a terminal session end. While
+## suspended we keep the session identity and queue, but exclude the hidden
+## interval from active time and stop frame/perf sampling.
+var _suspended := false
 ## Set once the page is going away. Gates the webglcontextlost handler — see
 ## _drain_web_errors for why a context loss during teardown is not a fault.
 var _unloading := false
@@ -109,8 +114,15 @@ var _active_since_ms := 0
 # event every TELEMETRY_PERF_INTERVAL_MS and reset.
 var _perf_samples: PackedFloat32Array = PackedFloat32Array()
 var _perf_window_start_ms := 0
+var _skip_perf_delta_once := false
 
 var _unload_callback: Variant = null
+
+const MAX_EVENT_KEYS := 32
+const MAX_EVENT_KEY_CHARS := 64
+const MAX_EVENT_ARRAY_ITEMS := 32
+const MAX_EVENT_DEPTH := 3
+const MAX_EVENT_STRING_CHARS := 512
 
 # ---- rollup counters (F12) ----------------------------------------------
 #
@@ -161,7 +173,7 @@ func _ready() -> void:
 func active_ms() -> int:
 	if disabled or not _started:
 		return 0
-	if _idle:
+	if _idle or _suspended or _completed:
 		return _active_accum_ms
 	return _active_accum_ms + (_mono_ms() - _active_since_ms)
 
@@ -172,6 +184,8 @@ func run_index() -> int:
 
 func _process(delta: float) -> void:
 	if disabled:
+		return
+	if _suspended or _completed:
 		return
 
 	# Positional sampling, matching the TS positionSampleMs. Drives movement
@@ -202,7 +216,9 @@ func _process(delta: float) -> void:
 
 	# One sample per frame; one sort per window. The TS version does this off
 	# requestAnimationFrame, which is what _process is here.
-	if delta > 0.0:
+	if _skip_perf_delta_once:
+		_skip_perf_delta_once = false
+	elif delta > 0.0:
 		_perf_samples.append(1.0 / delta)
 	if _mono_ms() - _perf_window_start_ms >= Tuning.TELEMETRY_PERF_INTERVAL_MS:
 		_emit_perf()
@@ -216,7 +232,7 @@ func _process(delta: float) -> void:
 # event before any node consumes it. Nothing is marked handled here — this
 # observes, it does not intercept.
 func _input(event_in: InputEvent) -> void:
-	if disabled or not _started:
+	if disabled or not _started or _suspended or _completed:
 		return
 	if (
 		event_in is InputEventKey
@@ -233,10 +249,25 @@ func _input(event_in: InputEvent) -> void:
 func event(name: String, data: Dictionary = {}) -> void:
 	if disabled:
 		return
+	if name == "game_complete" and not _completed:
+		# End-card time is not play time. Accrue through this event before
+		# freezing the active/perf clocks; main.gd builds the rollup payload just
+		# before calling event(), so this does not change that snapshot.
+		if _started and not _idle and not _suspended:
+			_active_accum_ms += _mono_ms() - _active_since_ms
+		_completed = true
+		_perf_samples = PackedFloat32Array()
+	# main loads room1 behind the start overlay. Keep this marker because the
+	# browser verification tools use it to know the scene booted, but label it
+	# as presentation so funnels can exclude it. start() emits the admitted
+	# room_enter below; later room loads are genuine progression.
+	if not _started and name == "room_enter":
+		data = data.duplicate()
+		data["admitted"] = false
 
 	var snap := _snapshot()
 	var row := {
-		"name": name,
+		"name": name.substr(0, 64),
 		"t": _wall_ms(),
 		"room": snap.get("room", ""),
 		"x": _round2(snap.get("x", 0.0)),
@@ -247,6 +278,13 @@ func event(name: String, data: Dictionary = {}) -> void:
 		"state": snap.get("state", "unmed"),
 		"med": _round2(snap.get("medication", 0.0)),
 	}
+	# room19 is one logical room with two authored routes. Keep the logical
+	# room id for compatibility, and stamp the selected branch so reports can
+	# compare both variants without guessing from scene filenames.
+	if name == "room_enter" and row["room"] == "room19" and not data.has("room_variant"):
+		var power := str(GameState.get_flag("room18.power", ""))
+		if power == "lights" or power == "doors":
+			row["room_variant"] = power
 	# Caller-supplied fields win, mirroring the TS spread order `...data`.
 	# Guarded because a caller passing something that is not a Dictionary used
 	# to abort event() BEFORE the append below, losing the event entirely and
@@ -254,8 +292,12 @@ func event(name: String, data: Dictionary = {}) -> void:
 	# never lose a row over a bad extra field — the row without the field is
 	# strictly better than no row.
 	if data is Dictionary:
+		var data_keys := 0
 		for k: String in data:
-			row[k] = data[k]
+			if data_keys >= MAX_EVENT_KEYS:
+				break
+			row[k.substr(0, MAX_EVENT_KEY_CHARS)] = _bound_value(data[k])
+			data_keys += 1
 
 	_bump_counters(name, data)
 
@@ -328,18 +370,57 @@ func start() -> void:
 	if disabled or _started:
 		return
 	_started = true
-
-	var ctx := _session_context()
-	ctx["version"] = _build_version()
-	event("session_start", ctx)
-
+	_completed = false
+	# Initialise clocks before session_start so any future active-time fields on
+	# that event have a valid admitted baseline.
 	var t := _mono_ms()
 	_active_since_ms = t
 	_last_activity_ms = t
 	_perf_window_start_ms = t
 	_perf_samples = PackedFloat32Array()
+	_skip_perf_delta_once = false
 	mark_game_start()
 	mark_room_enter()
+
+	var ctx := _session_context()
+	ctx["version"] = _build_version()
+	event("session_start", ctx)
+	event("room_enter", {"admitted": true})
+
+
+## Called by BrowserLifecycle when the page becomes hidden (or a native app is
+## backgrounded). This deliberately does not emit `quit`: players commonly
+## switch tabs or lock a phone and then return to the same run.
+func suspend_for_visibility() -> void:
+	if disabled or _suspended:
+		return
+	var now := _mono_ms()
+	if _started and not _idle and not _completed:
+		_active_accum_ms += now - _active_since_ms
+		_active_since_ms = now
+	# Keep a bounded lifecycle marker so offline reports can remove known
+	# background time from wall-clock puzzle gaps. This is not a terminal event.
+	event("visibility_hidden")
+	_suspended = true
+	# A hidden page may be killed before it is shown again. Beacon is best
+	# effort here, but the event is still a normal batch if beacon is rejected.
+	flush(true)
+
+
+## Called by BrowserLifecycle when the page becomes visible again. The same
+## session remains active, and the hidden interval contributes no active time.
+func resume_from_visibility() -> void:
+	if disabled or not _suspended:
+		return
+	_suspended = false
+	# Start a clean window after visibility suspension. Pre-hide samples and the
+	# long hidden frame must never be mixed into a resumed FPS statistic.
+	_perf_samples = PackedFloat32Array()
+	_perf_window_start_ms = _mono_ms()
+	_skip_perf_delta_once = true
+	if _started and not _idle and not _completed:
+		_active_since_ms = _mono_ms()
+	event("visibility_visible")
 
 
 # ---- rollup bookkeeping --------------------------------------------------
@@ -542,18 +623,22 @@ func _send_beacon(body: String) -> bool:
 
 
 func _notification(what: int) -> void:
-	# Desktop close, and the mobile/web background transition. The web unload
-	# path is separate — see _install_web_hooks — because pagehide is not
-	# surfaced as an engine notification.
-	if what == NOTIFICATION_WM_CLOSE_REQUEST or what == NOTIFICATION_APPLICATION_PAUSED:
+	# Desktop close is terminal. Application pause is a suspension and is
+	# intentionally paired with resume; browser pagehide is handled separately
+	# because it is not surfaced as an engine notification.
+	if what == NOTIFICATION_WM_CLOSE_REQUEST:
 		_fire_quit()
+	elif what == NOTIFICATION_APPLICATION_PAUSED:
+		suspend_for_visibility()
+	elif what == NOTIFICATION_APPLICATION_RESUMED:
+		resume_from_visibility()
 
 
 func _fire_quit() -> void:
 	if disabled:
 		return
 	_unloading = true
-	if not _quit_fired:
+	if not _completed and not _quit_fired:
 		_quit_fired = true
 		event("quit")
 	flush(true)
@@ -579,9 +664,6 @@ func _install_web_hooks() -> void:
 			window.__wardbUnload = _unload_callback
 			WebEnv.eval_js(
 				"addEventListener('pagehide', () => window.__wardbUnload());"
-				+ "document.addEventListener('visibilitychange', () => {"
-				+ "  if (document.visibilityState === 'hidden') window.__wardbUnload();"
-				+ "});"
 			)
 
 	# Error capture. The handlers push onto a bounded JS-side array that
@@ -649,6 +731,8 @@ func _drain_web_errors() -> void:
 # ---- idle detection (F9) -------------------------------------------------
 
 func _handle_activity() -> void:
+	if disabled or not _started or _suspended or _completed:
+		return
 	var now := _mono_ms()
 	_last_activity_ms = now
 	if _idle:
@@ -775,6 +859,39 @@ func _snapshot() -> Dictionary:
 	if snapshot_provider.is_valid():
 		return snapshot_provider.call()
 	return {}
+
+
+## Keep event rows useful when an authored payload grows accidentally. The
+## worker applies the same bounds, but applying them before queueing also keeps
+## the local retry buffer and the 500-row queue bounded in bytes as well as
+## count. Unknown event names and fields remain valid for additive rollouts.
+func _bound_value(value: Variant, depth := 0) -> Variant:
+	if value is String:
+		return value.substr(0, MAX_EVENT_STRING_CHARS)
+	if value is float or value is int:
+		var number := float(value)
+		if is_nan(number) or is_inf(number):
+			return null
+		return value
+	if value is bool or value == null:
+		return value
+	if depth >= MAX_EVENT_DEPTH:
+		return "[truncated]"
+	if value is Array:
+		var out: Array = []
+		for item in value.slice(0, MAX_EVENT_ARRAY_ITEMS):
+			out.append(_bound_value(item, depth + 1))
+		return out
+	if value is Dictionary:
+		var out := {}
+		var count := 0
+		for key: Variant in value:
+			if count >= MAX_EVENT_KEYS:
+				break
+			out[str(key).substr(0, MAX_EVENT_KEY_CHARS)] = _bound_value(value[key], depth + 1)
+			count += 1
+		return out
+	return null
 
 
 func _build_version() -> String:

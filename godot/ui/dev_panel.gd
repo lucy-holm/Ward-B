@@ -42,8 +42,8 @@ const PRESETS := {
 	# Matches the shipped defaults: posterised value, hue left alone. See the
 	# tint note in core/settings.gd for why this and not full duotone.
 	"Recommended": {
-		"style_enabled": 1.0, "style_levels": 4.0, "style_pixel_size": 2.0,
-		"style_dither": 1.0, "style_tint": 0.0, "style_resolution": 1.0,
+		"style_enabled": 1.0, "style_levels": 8.0, "style_pixel_size": 2.0,
+		"style_dither": 0.75, "style_tint": 0.0,
 	},
 	# Both of the duotone looks are kept as presets because they are worth
 	# LOOKING at even though they are not the default — but note that either

@@ -13,6 +13,15 @@
 #                     OFF: the baked code stands and the scrawl is untouched.
 #   brightness      — scales main.gd's real tonemap_exposure target for BOTH
 #                     ward states, preserving the LUCID:UNMED ratio.
+#   look sensitivity— scales how far the REAL player node actually turns for a
+#                     given look delta, on both axes, without breaking the
+#                     pitch clamp.
+#   hud size        — scales the font sizes the REAL HUD writes into its theme
+#                     overrides, on top of the viewport derivation rather than
+#                     replacing it.
+#   black and white — reaches the REAL posterise material as mono_amount, and
+#                     leaves the dev-only duotone alone. The second half of
+#                     that matters more than the first: see the test.
 #
 # Cross-process persistence (surviving an actual restart, not merely staying
 # resident in one process) is proven separately by
@@ -32,7 +41,7 @@ const ROOM2_BAKED_CODE := "4118"
 # hypothetical: a RefCounted FakeMain made room2.on_enter raise, and both
 # randomize-codes tests — the entire point of this file — were skipped while
 # the run still exited 0. _finish fails the suite if the count does not match.
-const EXPECTED_ASSERTIONS := 20
+const EXPECTED_ASSERTIONS := 49
 
 
 # Stands in for main.gd's room-script API. room2.on_enter/_regenerate_code
@@ -58,6 +67,13 @@ func _ready() -> void:
 	_test_setting_roundtrip()
 	_test_brightness_roundtrip_and_clamp()
 	_test_brightness_scales_exposure()
+	_test_look_sensitivity_roundtrip_and_clamp()
+	_test_look_sensitivity_scales_turn()
+	_test_hud_scale_roundtrip_and_clamp()
+	_test_hud_scale_resizes_the_hud()
+	_test_monochrome_roundtrip()
+	_test_monochrome_reaches_the_shader()
+	_test_style_resolution_selection()
 	_test_room2_randomize_on()
 	_test_room2_randomize_off()
 	_restore_defaults()
@@ -182,6 +198,257 @@ func _test_brightness_scales_exposure() -> void:
 	game.queue_free()
 
 
+# --- look sensitivity --------------------------------------------------
+
+func _test_look_sensitivity_roundtrip_and_clamp() -> void:
+	WardSettings.set_look_sensitivity(1.5)
+	_check(
+		is_equal_approx(WardSettings.get_look_sensitivity(), 1.5),
+		"look sensitivity should read back 1.5 (got %f)" % WardSettings.get_look_sensitivity())
+
+	WardSettings._reset_cache_for_tests()
+	_check(
+		is_equal_approx(WardSettings.get_look_sensitivity(), 1.5),
+		"look sensitivity must survive a cache drop — i.e. it really reached user://settings.cfg")
+
+	# Out-of-range must clamp rather than persist. An unclamped value here is
+	# worse than an unclamped brightness: a stored 50x would make the camera
+	# unusable on the next boot, from a config panel the player can only reach
+	# BEFORE a run, with no in-game route back to fix it.
+	WardSettings.set_look_sensitivity(99.0)
+	_check(
+		is_equal_approx(WardSettings.get_look_sensitivity(), WardSettings.LOOK_SENSITIVITY_MAX),
+		"look sensitivity must clamp to LOOK_SENSITIVITY_MAX (got %f)"
+			% WardSettings.get_look_sensitivity())
+	WardSettings.set_look_sensitivity(-5.0)
+	_check(
+		is_equal_approx(WardSettings.get_look_sensitivity(), WardSettings.LOOK_SENSITIVITY_MIN),
+		"look sensitivity must clamp to LOOK_SENSITIVITY_MIN (got %f)"
+			% WardSettings.get_look_sensitivity())
+
+	WardSettings._reset_cache_for_tests()
+	_check(
+		is_equal_approx(WardSettings.get_look_sensitivity(), WardSettings.LOOK_SENSITIVITY_MIN),
+		"a clamped look sensitivity must persist clamped")
+
+
+# Drives the REAL player node's real _apply_look rather than recomputing
+# `delta * LOOK_SENSITIVITY * setting` here — the same reasoning as the
+# brightness/exposure test above. A test that duplicated the arithmetic would
+# still pass if _apply_look stopped consulting the setting at all.
+#
+# Input stays DISABLED on purpose: _physics_process returns early without it,
+# so nothing else in the scene tree can consume _look_accum between the poke
+# and the assertion, and the measurement is exact rather than racy.
+func _test_look_sensitivity_scales_turn() -> void:
+	var player: Node = (load("res://player/player.tscn") as PackedScene).instantiate()
+	add_child(player)
+
+	var base := _yaw_after_look(player, 1.0)
+	_check(
+		is_equal_approx(base, -100.0 * Tuning.LOOK_SENSITIVITY),
+		"sensitivity 1.0 must reproduce Tuning.LOOK_SENSITIVITY exactly — the ported feel is the default (got %f)"
+			% base)
+	_check(
+		is_equal_approx(_yaw_after_look(player, 2.0), base * 2.0),
+		"sensitivity 2.0 must turn exactly twice as far")
+	_check(
+		is_equal_approx(_yaw_after_look(player, 0.5), base * 0.5),
+		"sensitivity 0.5 must turn exactly half as far")
+
+	# Pitch rides the same multiplier — a setting that sped up yaw only would
+	# feel broken rather than fast.
+	WardSettings.set_look_sensitivity(2.0)
+	player.yaw = 0.0
+	player.pitch = 0.0
+	player._look_accum = Vector2(0.0, 10.0)
+	player._apply_look()
+	var pitch: float = player.pitch
+	_check(
+		is_equal_approx(pitch, -10.0 * Tuning.LOOK_SENSITIVITY * 2.0),
+		"pitch must scale with the same multiplier as yaw (got %f)" % pitch)
+
+	# THE CLAMP MUST SURVIVE THE MULTIPLIER. PITCH_LIMIT is what stops the
+	# camera rolling over the top; a big enough sensitivity multiplied into a
+	# big enough delta is exactly the input that would breach it if the
+	# multiply had been applied after the clamp instead of before.
+	WardSettings.set_look_sensitivity(WardSettings.LOOK_SENSITIVITY_MAX)
+	player.pitch = 0.0
+	player._look_accum = Vector2(0.0, -100000.0)
+	player._apply_look()
+	var limit: float = player.PITCH_LIMIT
+	pitch = player.pitch
+	_check(
+		is_equal_approx(pitch, limit),
+		"pitch must still clamp to PITCH_LIMIT at max sensitivity (got %f, want %f)"
+			% [pitch, limit])
+
+	player.queue_free()
+
+
+## One look event of a fixed 100px right-drag at `sensitivity`, from a known
+## zero. A helper rather than a lambda because Callable.call() returns Variant
+## and this project builds with inference warnings as errors.
+func _yaw_after_look(player: Node, sensitivity: float) -> float:
+	WardSettings.set_look_sensitivity(sensitivity)
+	player.yaw = 0.0
+	player.pitch = 0.0
+	player._look_accum = Vector2(100.0, 0.0)
+	player._apply_look()
+	return player.yaw
+
+
+# --- hud size ----------------------------------------------------------
+
+func _test_hud_scale_roundtrip_and_clamp() -> void:
+	WardSettings.set_hud_scale(1.3)
+	_check(
+		is_equal_approx(WardSettings.get_hud_scale(), 1.3),
+		"hud scale should read back 1.3 (got %f)" % WardSettings.get_hud_scale())
+
+	WardSettings._reset_cache_for_tests()
+	_check(
+		is_equal_approx(WardSettings.get_hud_scale(), 1.3),
+		"hud scale must survive a cache drop — i.e. it really reached user://settings.cfg")
+
+	WardSettings.set_hud_scale(99.0)
+	_check(
+		is_equal_approx(WardSettings.get_hud_scale(), WardSettings.HUD_SCALE_MAX),
+		"hud scale must clamp to HUD_SCALE_MAX (got %f)" % WardSettings.get_hud_scale())
+	WardSettings.set_hud_scale(0.0)
+	_check(
+		is_equal_approx(WardSettings.get_hud_scale(), WardSettings.HUD_SCALE_MIN),
+		"hud scale must clamp to HUD_SCALE_MIN (got %f)" % WardSettings.get_hud_scale())
+
+
+## Drives the REAL HUD's real _apply_scale and reads the font size it actually
+## wrote, rather than recomputing the multiply here — same reasoning as the
+## brightness and sensitivity tests above.
+func _test_hud_scale_resizes_the_hud() -> void:
+	var game: Node = load("res://main.tscn").instantiate()
+	add_child(game)
+	var hud: CanvasLayer = game.hud
+
+	WardSettings.set_hud_scale(1.0)
+	hud.refresh_scale()
+	var at_1: int = hud.pills_label.get_theme_font_size("font_size")
+
+	WardSettings.set_hud_scale(WardSettings.HUD_SCALE_MAX)
+	hud.refresh_scale()
+	var at_max: int = hud.pills_label.get_theme_font_size("font_size")
+
+	WardSettings.set_hud_scale(WardSettings.HUD_SCALE_MIN)
+	hud.refresh_scale()
+	var at_min: int = hud.pills_label.get_theme_font_size("font_size")
+
+	_check(at_max > at_1, "raising hud size must enlarge the pill readout (%d -> %d)" % [at_1, at_max])
+	_check(at_min < at_1, "lowering hud size must shrink the pill readout (%d -> %d)" % [at_1, at_min])
+	# The medication meter is the other half of the bottom row and is sized
+	# separately from the fonts; a setting that moved only the type would leave
+	# a 32pt readout beside a bar sized for 26.
+	_check(
+		hud.med_bar.custom_minimum_size.x > 0.0,
+		"the medication meter must still be sized after a scale refresh")
+
+	WardSettings.set_hud_scale(WardSettings.DEFAULT_HUD_SCALE)
+	hud.refresh_scale()
+	game.queue_free()
+
+
+# --- black and white ---------------------------------------------------
+
+func _test_monochrome_roundtrip() -> void:
+	WardSettings.set_monochrome(true)
+	_check(WardSettings.is_monochrome(), "monochrome should read back true right after being set")
+
+	WardSettings._reset_cache_for_tests()
+	_check(
+		WardSettings.is_monochrome(),
+		"monochrome must survive a cache drop — i.e. it really reached user://settings.cfg")
+
+	WardSettings.set_monochrome(false)
+	_check(not WardSettings.is_monochrome(), "monochrome should read back false again — not sticky")
+
+
+## The setting has to reach the SHADER, and it has to reach the right uniform.
+##
+## The wrong uniform is a live hazard here, not a hypothetical. The posterise
+## shader already had a `tint_amount` duotone that looks like a black-and-white
+## control and is not one: it collapses the frame onto a two-colour ramp BY
+## LUMINANCE, and pure red weighs 0.2126 in LUMA, so rooms 3, 4 and 6 lose
+## their wall graffiti at tint 1.0. That text is narrative, and room 5's hint
+## ("the code is written where he walks") makes hue puzzle-relevant — wiring
+## the player's toggle to it would have shipped unsolvable rooms.
+##
+## Measured, not assumed: at the room-3 spawn the graffiti strokes hold 104.5
+## of contrast against the wall under mono_amount (colour is 104.9, so 99.6%
+## survives), against 25.6 for a plain luminance conversion. So this asserts
+## BOTH that mono_amount moves and that tint_amount does not.
+func _test_monochrome_reaches_the_shader() -> void:
+	var game: Node = load("res://main.tscn").instantiate()
+	add_child(game)
+	var mat: ShaderMaterial = game._posterize_material()
+	_check(mat != null, "main.tscn must expose a posterise material to drive")
+	if mat == null:
+		return
+
+	var tint_before: float = float(mat.get_shader_parameter("tint_amount"))
+
+	WardSettings.set_monochrome(true)
+	game.apply_style_now()
+	_check(
+		is_equal_approx(float(mat.get_shader_parameter("mono_amount")), 1.0),
+		"monochrome ON must push mono_amount = 1.0 (got %s)"
+			% str(mat.get_shader_parameter("mono_amount")))
+
+	WardSettings.set_monochrome(false)
+	game.apply_style_now()
+	_check(
+		is_equal_approx(float(mat.get_shader_parameter("mono_amount")), 0.0),
+		"monochrome OFF must push mono_amount = 0.0 (got %s)"
+			% str(mat.get_shader_parameter("mono_amount")))
+
+	# THE ONE THAT PROTECTS THE PUZZLES. If a later change reroutes the toggle
+	# to the duotone because it is "the desaturation knob", this fails.
+	WardSettings.set_monochrome(true)
+	game.apply_style_now()
+	_check(
+		is_equal_approx(float(mat.get_shader_parameter("tint_amount")), tint_before),
+		"the black-and-white toggle must NOT touch the duotone — that route greys out "
+		+ "the wall codes in rooms 3, 4 and 6 (tint was %f, now %f)"
+			% [tint_before, float(mat.get_shader_parameter("tint_amount"))])
+
+	WardSettings.set_monochrome(false)
+	game.apply_style_now()
+	game.queue_free()
+
+
+# The web canvas uses device pixels, so a fresh touch profile starts the 3D
+# pass at half scale. The helper takes platform facts as arguments so this
+# remains deterministic in the headless suite; the saved-value check then
+# proves a player's explicit dev-panel choice survives a cache reload.
+func _test_style_resolution_selection() -> void:
+	_check(
+		is_equal_approx(WardSettings.style_resolution_default(true, true), 0.5),
+		"web touch default must use 0.5 3D scale")
+	_check(
+		is_equal_approx(WardSettings.style_resolution_default(true, false), 1.0),
+		"web desktop default must remain full 3D scale")
+	_check(
+		is_equal_approx(WardSettings.style_resolution_default(false, true), 1.0),
+		"native touch default must remain full 3D scale")
+	_check(
+		is_equal_approx(WardSettings.style_resolution_default(false, false), 1.0),
+		"native desktop default must remain full 3D scale")
+
+	WardSettings.set_style(WardSettings.KEY_STYLE_RESOLUTION, 0.75)
+	WardSettings._reset_cache_for_tests()
+	_check(
+		is_equal_approx(
+			WardSettings.get_style(WardSettings.KEY_STYLE_RESOLUTION), 0.75),
+		"an explicit saved 3D scale must survive reload unchanged")
+
+
 # --- randomize codes, end to end through a real room -------------------
 
 func _load_room2() -> Node:
@@ -245,6 +512,10 @@ func _test_room2_randomize_off() -> void:
 func _restore_defaults() -> void:
 	WardSettings.set_randomize_codes(WardSettings.DEFAULT_RANDOMIZE_CODES)
 	WardSettings.set_brightness(WardSettings.DEFAULT_BRIGHTNESS)
+	WardSettings.set_look_sensitivity(WardSettings.DEFAULT_LOOK_SENSITIVITY)
+	WardSettings.set_hud_scale(WardSettings.DEFAULT_HUD_SCALE)
+	WardSettings.set_monochrome(WardSettings.DEFAULT_MONOCHROME)
+	WardSettings.reset_style()
 
 
 func _finish() -> void:

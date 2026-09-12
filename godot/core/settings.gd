@@ -34,6 +34,9 @@ const SECTION := "gameplay"
 
 const KEY_RANDOMIZE_CODES := "randomize_codes"
 const KEY_BRIGHTNESS := "brightness"
+const KEY_LOOK_SENSITIVITY := "look_sensitivity"
+const KEY_HUD_SCALE := "hud_scale"
+const KEY_MONOCHROME := "monochrome"
 
 # --- Render style (ui/shaders/posterize.gdshader + 3D resolution scale) -----
 #
@@ -78,6 +81,74 @@ const BRIGHTNESS_MIN := 0.6
 const BRIGHTNESS_MAX := 2.0
 const BRIGHTNESS_STEP := 0.05
 
+## Look speed: a MULTIPLIER on Tuning.LOOK_SENSITIVITY, not a replacement for
+## it.
+##
+## WHY A MULTIPLIER. Tuning.LOOK_SENSITIVITY is 0.0024 rad/px, ported 1:1 from
+## src/tuning.ts, and tuning.gd's header forbids tuning those values by feel.
+## Storing an absolute rad/px here would fork that number into a second home
+## and make the port-parity claim untestable. A multiplier defaulting to 1.0
+## leaves the ported feel as the reference point the player adjusts AROUND,
+## and 1.0 still reproduces it bit-for-bit.
+##
+## Applies to touch look as well, and deliberately so: player.gd converts a
+## screen drag into "sensitivity pixels" precisely so both pointers land in
+## one _apply_look, and a player who finds the turn rate wrong on a phone has
+## the same complaint as one on a mouse.
+const DEFAULT_LOOK_SENSITIVITY := 1.0
+
+# Range endpoints, picked against the two failure modes rather than as a
+# round-numbered span. MIN is where a full 800px mouse sweep still turns you
+# ~27 degrees — slow, but not so slow that checking your back becomes a chore
+# in a game whose threat model is "an orderly is behind you". MAX is where
+# that same sweep passes a full turn (~330 degrees), beyond which the ward
+# smears badly enough at this FOV that the wall scrawls — narrative AND puzzle
+# content — cannot be read while moving.
+const LOOK_SENSITIVITY_MIN := 0.25
+const LOOK_SENSITIVITY_MAX := 3.0
+const LOOK_SENSITIVITY_STEP := 0.05
+
+## HUD size: a multiplier on the viewport-derived scale ui/hud.gd already
+## computes, NOT an absolute font size.
+##
+## hud.gd derives every font size and the medication bar from viewport height
+## against a 720p baseline, because project stretch is disabled and a fixed
+## pixel size renders at a third of its intended relative size on a large
+## canvas. That derivation is the thing to keep; this rides on top of it, so
+## the HUD still adapts to the display and the player is only saying "bigger
+## than that" or "smaller than that".
+const DEFAULT_HUD_SCALE := 1.0
+
+# MIN is where the bottom row is still above the size it shipped at before the
+# prominence pass; MAX is where the objective line starts wrapping to two
+# lines at 720p, which costs more legibility than the extra size buys.
+const HUD_SCALE_MIN := 0.75
+const HUD_SCALE_MAX := 1.6
+const HUD_SCALE_STEP := 0.05
+
+## Black and white. A PLAYER setting, unlike the style block below.
+##
+## Deliberately NOT the same thing as KEY_STYLE_TINT, which is the dev-only
+## duotone. That collapses the frame onto a two-colour ramp by luminance, and
+## luminance is what the ward's red wall graffiti has least of — rooms 3, 4
+## and 6 lose their text at tint 1.0, which is why it ships at 0. Those walls
+## are narrative, and room 5's hint ("the code is written where he walks")
+## means hue is carrying puzzle-relevant information. Reusing the duotone as a
+## black-and-white toggle would have made rooms unsolvable.
+##
+## ui/shaders/posterize.gdshader's `mono_amount` desaturates by luminance only
+## where the pixel is already neutral and lets saturated ink keep its peak
+## channel, so the writing stays the brightest thing on a grey wall.
+const DEFAULT_MONOCHROME := false
+
+# The browser presents the Godot canvas at CSS size multiplied by the device
+# pixel ratio. On a touch phone that can make the full-resolution 3D pass
+# needlessly fragment-bound, while the HUD remains a native-resolution Canvas
+# layer. Keep desktop and explicit user choices at full scale; only a fresh
+# web/touch profile gets the conservative default.
+const DEFAULT_STYLE_RESOLUTION := 1.0
+const DEFAULT_STYLE_RESOLUTION_WEB_TOUCH := 0.5
+
 ## Every style knob in one table: default, range, step and display label.
 ##
 ## ONE TABLE, THREE CONSUMERS — this is the reason the style block is keyed
@@ -104,15 +175,18 @@ const STYLE_SPEC := {
 		"label": "Style enabled", "hint": "0 = untouched frame, byte-exact passthrough",
 	},
 	KEY_STYLE_LEVELS: {
-		"default": 4.0, "min": 2.0, "max": 16.0, "step": 1.0,
-		"label": "Quantise levels", "hint": "2 = pure 1-bit; 4 keeps keypad digits legible",
+		# Eight tones retain the worn plaster and orderly silhouette instead
+		# of reducing whole surfaces to a high-contrast stipple. Existing saved
+		# dev-panel preferences remain authoritative.
+		"default": 8.0, "min": 2.0, "max": 16.0, "step": 1.0,
+		"label": "Quantise levels", "hint": "2 = pure 1-bit; 8 retains shadow and surface detail",
 	},
 	KEY_STYLE_PIXEL_SIZE: {
 		"default": 2.0, "min": 1.0, "max": 8.0, "step": 1.0,
 		"label": "Dither pixel size", "hint": "Device pixels per styled pixel",
 	},
 	KEY_STYLE_DITHER: {
-		"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.05,
+		"default": 0.75, "min": 0.0, "max": 1.0, "step": 0.05,
 		"label": "Dither amount", "hint": "0 = flat banding, 1 = full ordered dither",
 	},
 	# DEFAULTS TO 0 (keep hue) on evidence, not taste. Full duotone collapses
@@ -144,7 +218,7 @@ const STYLE_SPEC := {
 		"label": "Shadow detail", "hint": "Concentrates levels in the dark; 1.0 = linear",
 	},
 	KEY_STYLE_RESOLUTION: {
-		"default": 1.0, "min": 0.25, "max": 1.0, "step": 0.05,
+		"default": DEFAULT_STYLE_RESOLUTION, "min": 0.25, "max": 1.0, "step": 0.05,
 		"label": "3D resolution scale", "hint": "Viewport.scaling_3d_scale — the big perf lever",
 	},
 }
@@ -152,7 +226,23 @@ const STYLE_SPEC := {
 static var _loaded := false
 static var _randomize_codes := DEFAULT_RANDOMIZE_CODES
 static var _brightness := DEFAULT_BRIGHTNESS
+static var _look_sensitivity := DEFAULT_LOOK_SENSITIVITY
+static var _hud_scale := DEFAULT_HUD_SCALE
+static var _monochrome := DEFAULT_MONOCHROME
 static var _style := {}
+
+
+## Pure selection logic for the initial 3D scale. Keeping platform inputs as
+## arguments lets the settings suite prove the mobile branch without needing
+## to pretend a headless process is a phone.
+static func style_resolution_default(for_web: bool, has_touch: bool) -> float:
+	return DEFAULT_STYLE_RESOLUTION_WEB_TOUCH if for_web and has_touch else DEFAULT_STYLE_RESOLUTION
+
+
+static func _default_style_value(key: String) -> float:
+	if key == KEY_STYLE_RESOLUTION:
+		return style_resolution_default(OS.has_feature("web"), DisplayServer.is_touchscreen_available())
+	return float(STYLE_SPEC[key]["default"])
 
 
 static func _ensure_loaded() -> void:
@@ -165,7 +255,7 @@ static func _ensure_loaded() -> void:
 	# leaves every get_style() falling through to 0.0, which reads as "style
 	# disabled, zero levels" rather than "first run, use the defaults".
 	for key: String in STYLE_SPEC:
-		_style[key] = float(STYLE_SPEC[key]["default"])
+		_style[key] = _default_style_value(key)
 
 	var cfg := ConfigFile.new()
 	if cfg.load(PATH) != OK:
@@ -176,13 +266,20 @@ static func _ensure_loaded() -> void:
 	_brightness = clampf(
 		float(cfg.get_value(SECTION, KEY_BRIGHTNESS, DEFAULT_BRIGHTNESS)),
 		BRIGHTNESS_MIN, BRIGHTNESS_MAX)
+	_look_sensitivity = clampf(
+		float(cfg.get_value(SECTION, KEY_LOOK_SENSITIVITY, DEFAULT_LOOK_SENSITIVITY)),
+		LOOK_SENSITIVITY_MIN, LOOK_SENSITIVITY_MAX)
+	_hud_scale = clampf(
+		float(cfg.get_value(SECTION, KEY_HUD_SCALE, DEFAULT_HUD_SCALE)),
+		HUD_SCALE_MIN, HUD_SCALE_MAX)
+	_monochrome = bool(cfg.get_value(SECTION, KEY_MONOCHROME, DEFAULT_MONOCHROME))
 	# Clamped against the CURRENT spec rather than trusted as written, so a
 	# stored value from a build whose range has since narrowed is pulled back
 	# in instead of being pushed to the shader out of range.
 	for key: String in STYLE_SPEC:
 		var spec: Dictionary = STYLE_SPEC[key]
 		_style[key] = clampf(
-			float(cfg.get_value(SECTION, key, spec["default"])),
+			float(cfg.get_value(SECTION, key, _default_style_value(key))),
 			float(spec["min"]), float(spec["max"]))
 
 
@@ -193,8 +290,11 @@ static func _save() -> void:
 	var cfg := ConfigFile.new()
 	cfg.set_value(SECTION, KEY_RANDOMIZE_CODES, _randomize_codes)
 	cfg.set_value(SECTION, KEY_BRIGHTNESS, _brightness)
+	cfg.set_value(SECTION, KEY_LOOK_SENSITIVITY, _look_sensitivity)
+	cfg.set_value(SECTION, KEY_HUD_SCALE, _hud_scale)
+	cfg.set_value(SECTION, KEY_MONOCHROME, _monochrome)
 	for key: String in STYLE_SPEC:
-		cfg.set_value(SECTION, key, _style.get(key, float(STYLE_SPEC[key]["default"])))
+		cfg.set_value(SECTION, key, _style.get(key, _default_style_value(key)))
 	var err := cfg.save(PATH)
 	if err != OK:
 		push_warning(
@@ -224,6 +324,43 @@ static func set_brightness(value: float) -> void:
 	_save()
 
 
+## Read on every look frame by player.gd rather than cached there, because a
+## static getter behind the `_loaded` early-out is a bool test and a float
+## read — cheaper than the signal wiring a cache would need to stay correct
+## when the config panel changes the value mid-session.
+static func get_look_sensitivity() -> float:
+	_ensure_loaded()
+	return _look_sensitivity
+
+
+static func set_look_sensitivity(value: float) -> void:
+	_ensure_loaded()
+	_look_sensitivity = clampf(value, LOOK_SENSITIVITY_MIN, LOOK_SENSITIVITY_MAX)
+	_save()
+
+
+static func get_hud_scale() -> float:
+	_ensure_loaded()
+	return _hud_scale
+
+
+static func set_hud_scale(value: float) -> void:
+	_ensure_loaded()
+	_hud_scale = clampf(value, HUD_SCALE_MIN, HUD_SCALE_MAX)
+	_save()
+
+
+static func is_monochrome() -> bool:
+	_ensure_loaded()
+	return _monochrome
+
+
+static func set_monochrome(enabled: bool) -> void:
+	_ensure_loaded()
+	_monochrome = enabled
+	_save()
+
+
 ## Reads one style knob. Unknown keys return 0.0 with a warning rather than
 ## erroring: a stale key left in a dev panel is a cosmetic bug, not a reason
 ## to take the whole render pipeline down.
@@ -250,7 +387,7 @@ static func set_style(key: String, value: float) -> void:
 static func reset_style() -> void:
 	_ensure_loaded()
 	for key: String in STYLE_SPEC:
-		_style[key] = float(STYLE_SPEC[key]["default"])
+		_style[key] = _default_style_value(key)
 	_save()
 
 
@@ -261,4 +398,7 @@ static func _reset_cache_for_tests() -> void:
 	_loaded = false
 	_randomize_codes = DEFAULT_RANDOMIZE_CODES
 	_brightness = DEFAULT_BRIGHTNESS
+	_look_sensitivity = DEFAULT_LOOK_SENSITIVITY
+	_hud_scale = DEFAULT_HUD_SCALE
+	_monochrome = DEFAULT_MONOCHROME
 	_style = {}

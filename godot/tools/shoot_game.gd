@@ -1,6 +1,20 @@
 # Screenshot THE REAL GAME — main.tscn, its player camera, its WorldEnvironment.
 #
-#   godot --path godot --resolution 1280x720 tools/shoot_game.tscn -- <name> [seconds] [room_id]
+#   godot --path godot --resolution 1280x720 tools/shoot_game.tscn -- <name> [seconds] [room_id] [lucid] [style_overrides] [nohud] [x,z,yaw[,level[,y[,pitch]]]]
+#
+# Arg 6: pass "nohud" for a clean plate — hides main.gd's `hud` CanvasLayer
+# right before the frame is grabbed, same real camera/lighting/room as every
+# other shot from this harness, just without the HUD chrome on top. Added so
+# hero/cover shots don't have to fall back to tools/shoot.tscn's hand-built
+# camera and lose the real player rig.
+#
+# Arg 7: reposition the REAL player after the room has loaded and its spawn
+# has already run, via player.gd's own spawn_at(x, z, yaw, level, y) — the
+# same call every room's spawn point uses. Exists because this harness has no
+# way to simulate WASD/mouse-look, so every shot is otherwise stuck at
+# whatever direction the room's spawn point happens to face. `level` defaults
+# to WardLevels.FLAT_LEVEL_ID ("__flat"); pass a room's named level (e.g.
+# room17's "balcony") to frame from an upper floor.
 #
 # WHY THIS EXISTS, AND WHY tools/shoot.gd IS NOT ENOUGH.
 #
@@ -39,9 +53,13 @@ func _ready() -> void:
 	# leave the last variant shot as the machine's saved style and silently
 	# change what every later screenshot — and the editor — renders.
 	var overrides: String = args[4] if args.size() > 4 else ""
+	var want_nohud: bool = args.size() > 5 and str(args[5]).begins_with("nohud")
+	var reposition: String = args[6] if args.size() > 6 else ""
 
 	var game: Node = load("res://main.tscn").instantiate()
 	add_child(game)
+	# Captures must never erase or replace a real milestone save on this host.
+	Telemetry.debug = true
 
 	# Dismiss the start overlay, exactly as pressing ADMIT ME does.
 	#
@@ -63,7 +81,40 @@ func _ready() -> void:
 		# Room load rebuilds lights and re-runs the mood; give it time to settle.
 		await get_tree().create_timer(2.5).timeout
 
+	if not reposition.is_empty() and game.get("player") != null:
+		var parts := reposition.split(",")
+		# Guarded rather than indexed blind: a typo'd reposition arg would
+		# otherwise crash the harness mid-capture and leave a stale or missing
+		# PNG, which reads as "the shot looked like that" rather than "the shot
+		# never happened".
+		if parts.size() < 3:
+			push_error("reposition needs at least x,z,yaw — got '%s'" % reposition)
+			get_tree().quit(1)
+			return
+		var rx := float(parts[0])
+		var rz := float(parts[1])
+		var ryaw := float(parts[2])
+		var rlevel: String = parts[3] if parts.size() > 3 else WardLevels.FLAT_LEVEL_ID
+		var ry: float = float(parts[4]) if parts.size() > 4 else 0.0
+		game.player.spawn_at(rx, rz, ryaw, rlevel, ry)
+		# Optional look pitch frames high wall clues and low pickups using the
+		# actual player camera, without altering saved settings. Radians.
+		if parts.size() > 5:
+			game.player.pitch = clampf(float(parts[5]), -1.25, 1.25)
+			game.player._apply_rotation()
+		# Let the per-tick vertical ease and any position-driven state (fog,
+		# trigger volumes) settle at the new spot before anything downstream
+		# (lucid crossfade, capture) reads it.
+		await get_tree().create_timer(0.3).timeout
+
 	if want_lucid:
+		# Grant the shift ABILITY too, not just the state. The HUD gates its
+		# pill readout on can_shift and StateManager only drains the meter
+		# while it is held, so a forced lucid without it photographs a state
+		# the game never actually reaches: medicated, with the bottom row of
+		# the HUD missing and the countdown frozen at full. Room 1's cup is
+		# what grants this in play, and every room after it assumes it.
+		StateManager.can_shift = true
 		StateManager.force_state(StateManager.State.LUCID, "shoot_game")
 		# _apply_mood crossfades the environment over 0.45s and _set_style
 		# rides the same curve; shooting sooner catches the ward mid-fade,
@@ -90,6 +141,18 @@ func _ready() -> void:
 				# leaves the shader on its previous value.
 				mat.set_shader_parameter(k, int(v) if k == "levels" else v)
 			print("style overrides: %s" % overrides)
+		await get_tree().process_frame
+
+	if want_nohud and game.get("hud") != null:
+		game.hud.visible = false
+		# Without this the visibility write hasn't reached the framebuffer yet
+		# and get_viewport().get_texture() below still hands back the PREVIOUS
+		# frame — the HUD-visible one. Cost a whole capture the first time.
+		await get_tree().process_frame
+	# Optional press cover: compose type in Godot over the live player camera,
+	# so the background remains a real render rather than an edited screenshot.
+	if args.size() > 7 and args[7] == "cover":
+		_add_press_title()
 		await get_tree().process_frame
 
 	# Report what is ACTUALLY governing the render, not what we hope is.
@@ -119,3 +182,34 @@ func _find_active_camera(node: Node) -> Camera3D:
 		if c != null:
 			return c
 	return null
+
+
+func _add_press_title() -> void:
+	var layer := CanvasLayer.new()
+	layer.layer = 100
+	add_child(layer)
+	var size := get_viewport().get_visible_rect().size
+	var gradient := Gradient.new()
+	gradient.set_color(0, Color(0.015, 0.025, 0.025, 0.0))
+	gradient.set_color(1, Color(0.015, 0.025, 0.025, 0.96))
+	var texture := GradientTexture2D.new()
+	texture.gradient = gradient
+	texture.fill_from = Vector2(0, 0)
+	texture.fill_to = Vector2(0, 1)
+	var shade := TextureRect.new()
+	shade.texture = texture
+	shade.position = Vector2(0, size.y * 0.42)
+	shade.size = Vector2(size.x, size.y * 0.58)
+	layer.add_child(shade)
+	for line in [["WARD B", 66, 0.67, Color(0.92, 0.95, 0.94)],
+		["ONE PILL. TWO REALITIES.", 20, 0.83, Color(0.624, 0.847, 0.796)],
+		["SURVIVAL HORROR PLAYTEST", 13, 0.91, Color(0.75, 0.79, 0.77)]]:
+		var label := Label.new()
+		label.text = line[0]
+		label.add_theme_font_override("font", preload("res://fonts/SpecialElite-Regular.ttf"))
+		label.add_theme_font_size_override("font_size", line[1])
+		label.add_theme_color_override("font_color", line[3])
+		label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		label.position = Vector2(0, size.y * line[2])
+		label.size.x = size.x
+		layer.add_child(label)

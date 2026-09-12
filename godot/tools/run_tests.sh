@@ -28,8 +28,9 @@ GODOT="${GODOT:-godot}"
 TIMEOUT_S="${TIMEOUT_S:-300}"
 SUITES=("$@")
 if [ ${#SUITES[@]} -eq 0 ]; then
-  SUITES=(check_rooms check_patrols check_telemetry check_experiments check_build_config test_mechanics test_settings test_triggers test_flicker \
-          test_input_look test_room11 test_room13 test_room14 test_room15 test_room16 test_room17 test_rooms1819 test_room20)
+  SUITES=(check_rooms check_patrols check_telemetry check_experiments check_build_config test_mechanics test_settings test_hud test_pause test_kit test_triggers test_flicker \
+          test_input_look test_orderly_pursuit test_noise_dispatch test_checkpoints test_checkpoint_flow test_shadow_budget test_browser_lifecycle \
+          test_room6 test_early_variety test_late_variety test_bell_sequence test_scrawl_layout test_room11 test_room13 test_room14 test_room15 test_room16 test_room17 test_rooms1819 test_room20)
 fi
 
 echo "==> rebuilding the import cache (this is the load-bearing step)"
@@ -53,8 +54,13 @@ for s in "${SUITES[@]}"; do
     if kill -0 $pid 2>/dev/null; then kill -9 $pid 2>/dev/null; echo "__TIMEOUT__"; fi
     wait $pid 2>/dev/null
   )
+  status=$?
   if grep -q "__TIMEOUT__" <<<"$out"; then
     echo "TIMEOUT after ${TIMEOUT_S}s"; fail=1
+  elif [ "$status" -ne 0 ] || grep -qE 'SCRIPT ERROR:|Parse Error:|^ERROR:' <<<"$out"; then
+    echo "FAILED (exit $status or engine error, even if a partial test printed OK)"
+    sed 's/^/    /' <<<"$out" | tail -20
+    fail=1
   elif grep -qE "(^[[:space:]]*|: )OK [-—–] " <<<"$out"; then
     grep -oE "OK [-—–] .*" <<<"$out" | head -1
   else

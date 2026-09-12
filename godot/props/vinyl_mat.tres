@@ -1,4 +1,4 @@
-[gd_resource type="StandardMaterial3D" format=3 uid="uid://wardbprmvinyl1"]
+[gd_resource type="ShaderMaterial" load_steps=3 format=3 uid="uid://wardbprmvinyl1"]
 
 ; Moulded seat plastic — the tan/beige shell of the ward's beam seating.
 ;
@@ -13,7 +13,19 @@
 ; near 0.42 and seating this close to them in value is what lets a row of it
 ; register as a silhouette instead of as a bright band.
 
+
+; 2026-09-12: shared three-tap wear replaces the flat colour placeholder.
+; Retains the authored palette; dirt/chips also vary highlight roughness.
+
+[ext_resource type="Shader" path="res://props/ward_wear.gdshader" id="1_shader"]
+[ext_resource type="Texture2D" path="res://props/ward_wear_noise.tres" id="2_noise"]
+
 [resource]
-albedo_color = Color(0.47, 0.42, 0.33, 1)
-roughness = 0.55
-metallic = 0.0
+shader = ExtResource("1_shader")
+shader_parameter/wear_tex = ExtResource("2_noise")
+shader_parameter/paint_color = Color(0.47, 0.42, 0.33, 1)
+shader_parameter/substrate_color = Color(0.31, 0.285, 0.23, 1)
+shader_parameter/chip_threshold = 0.25
+shader_parameter/dirt_strength = 0.22
+shader_parameter/paint_roughness = 0.55
+shader_parameter/metalness = 0.0

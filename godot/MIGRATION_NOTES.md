@@ -230,49 +230,26 @@ Physics ticks at a fixed 60 Hz, which is strictly better than the original's
 `dt` clamped to 0.05 s. Per-tick displacement (0.057 m) stays far below the
 0.35 m radius, so tunnelling remains impossible.
 
-### 2.2 Orderly movement: straight-line today, `NavigationAgent3D` if baked
-The chase *rules* are ported exactly (see §3). The **movement** is layered.
+### 2.2 Orderly movement: bounded collision-aware pursuit
 
-The original stepped in a straight line and slid along AABBs, which meant a
-blocked orderly could **wedge permanently** — nothing re-paths, so he grinds
-against a corner forever. `kit.patrol()` exists purely to validate ≥0.5 m
-clearance on every leg at authoring time and catch that at build time.
+The September survival pass replaces the empty-navigation fallback with
+`OrderlyPlanner`, a room-local visibility graph around live AABB corners.
+Clear authored patrol legs keep their direct path. Chase, investigation and
+return routes can go around cover, with bounded planning and collision checks
+on every movement step. No room needs a baked `NavigationRegion3D`.
 
-`NavigationAgent3D` was introduced to remove that bug class. **It has never
-actually been active**, and this section previously claimed otherwise.
+Medication still ends pursuit. Noise from authored puzzle actions can draw a
+nearby orderly into a brief investigation; new sounds while lucid can change
+his position, but cannot make him catch a lucid player. Fixed-level identity
+continues to gate sight, catch and navigation. Moving gates invalidate routes.
+The extra pressure is an intentional gameplay deviation from the frozen
+Three.js implementation, not port parity.
 
-> 🐞 **The frozen-orderly bug.** `_move_toward` gated on
-> `NavigationServer3D.map_get_iteration_id(...) != 0` as a proxy for "a usable
-> navmesh exists". It does not mean that — it means "the navigation server has
-> synced", which becomes true in *every* scene about three physics frames in.
-> No room in this project has ever contained a `NavigationRegion3D`, so the map
-> had **zero regions**, every path query returned an empty path, and
-> `get_next_path_position()` answered with the orderly's *own* position. `dir`
-> came out zero-length and he returned before stepping. Every orderly in the
-> game stood frozen on waypoint 0, in every room, for the entire life of the
-> port. `check_rooms` never caught it because it validates patrol *wiring* —
-> waypoints present, legs clear — and never ticks physics, so a perfectly
-> authored patrol loop that is never walked passes every check.
-
-The guard now tests the thing it depends on: whether the agent handed back a
-position meaningfully different from where he already is. That degrades
-correctly in both directions — with no navmesh he walks the **straight-line
-path the Three.js build used**, which is what the patrol legs were authored and
-clearance-validated against; bake `NavigationRegion3D`s later and he starts
-pathing around obstacles with no code change. `kit.patrol()`'s clearance
-validation is therefore still load-bearing, not vestigial.
-
-Because straight-line is what actually runs, rooms 5/6/7 are back on the
-geometry they were originally tuned for (room 7's east leg at `x = 1.0` to
-avoid wedging against a shelf, room 6's dt-simulated waypoints), so the
-reaction-time audits hold as written.
-
-Regression test: `_test_orderly_patrols` in `tools/test_mechanics.gd` asserts
-he displaces from spawn and visits every waypoint. It was confirmed to fail
-against the broken guard before being committed alongside the fix.
-
-The final step still resolves through the same AABB routine as the player,
-so he can never end up inside geometry a navmesh might smooth over.
+`tools/test_orderly_pursuit.tscn` exercises route clearance, dynamic blockers,
+level boundaries and investigation; the existing patrol and room suites remain
+load-bearing. `docs/audits/2026-09-12-orderly-pursuit.md` records planner limits.
+Human playtesting still needs to establish whether stronger pursuit leaves
+sufficient time to understand clues and reach medication.
 
 ### 2.3 Footsteps are spatial — more information than before
 His mesh is hidden while you are lucid, so footsteps are the *only* way to
@@ -368,6 +345,20 @@ cd godot
 # behaviour: state-conditional geometry, trap guard, axis-separated slide,
 # pill economy incl. force_state semantics
 /Applications/Godot.app/Contents/MacOS/Godot --headless --path . tools/test_mechanics.tscn
+
+# player settings: persistence, and each setting through the thing it changes
+# (codes -> a real room, brightness -> real exposure, sensitivity -> real yaw)
+/Applications/Godot.app/Contents/MacOS/Godot --headless --path . tools/test_settings.tscn
+
+# HUD readouts: countdown rounding, warn threshold, and that every Control in
+# the layer is still MOUSE_FILTER_IGNORE
+/Applications/Godot.app/Contents/MacOS/Godot --headless --path . tools/test_hud.tscn
+
+# mid-game pause: the input gate, the paused meter, and the hand-back on RESUME
+/Applications/Godot.app/Contents/MacOS/Godot --headless --path . tools/test_pause.tscn
+
+# are the wall codes still readable? (MUST run windowed — see the tool header)
+/Applications/Godot.app/Contents/MacOS/Godot --path . --resolution 480x270 tools/check_scrawl_visibility.tscn
 
 # web export, then prove it RUNS in a real browser (WebGL2 + GDScript ran)
 /Applications/Godot.app/Contents/MacOS/Godot --headless --path . --export-release "Web" build/index.html
@@ -524,12 +515,183 @@ deliberately no mid-game config route — that would mean pausing and restoring
 mouse capture, this project's most bug-prone area, for a setting that can now
 be judged properly up front.
 
+### Look sensitivity
+
+New; the Three.js build has no equivalent. A **multiplier on
+`Tuning.LOOK_SENSITIVITY`**, deliberately not a second absolute rad/px value:
+`tuning.gd`'s header forbids tuning its ported constants by feel, and a
+setting that replaced 0.0024 outright would fork that number into a second
+home and make the 1:1-with-`tuning.ts` claim untestable. Defaulting the
+multiplier to 1.0 reproduces the ported feel exactly, and the range is
+0.25x-3.0x (a full 800 px sweep turns ~27 degrees at the bottom, ~330 at the
+top — past which the wall scrawls, which carry both narrative and puzzle
+content, can no longer be read while turning).
+
+Applied once, in `player.gd._apply_look()`, which is the single point every
+pointer already funnels through — `_handle_drag` converts a touch drag into
+"sensitivity pixels" against the BASE constant precisely so it does, so touch
+gets the setting too rather than needing a second knob.
+
+Unlike brightness there is **no live-preview signal**. The mouse is not
+captured while the panel is up (the panel needs the cursor to drag its own
+slider), so there is no camera turning behind the scrim for a preview to show;
+`player.gd` reads the setting on the next look frame after ADMIT ME. The
+readout is `1.00x` rather than brightness's `125%` — same panel, different
+units on purpose, because look speed is the one row a player arrives at
+already knowing what number they want, and the multiplier is that convention.
+
+### Black and white, and why it is not the duotone
+
+The posterise shader already had a knob that looks like a black-and-white
+control and is not one. `tint_amount` collapses the frame onto a two-colour
+ramp **by luminance**, and luminance is exactly what this ward's wall graffiti
+has least of: pure red weighs 0.2126 in LUMA, so rooms 3, 4 and 6 lose their
+text to near-grey at tint 1.0. That is why `KEY_STYLE_TINT` ships at 0. The
+text is narrative, and room 5's own hint — "the code is written where he
+walks" — means **hue is carrying puzzle-relevant information**. Wiring a
+player-facing toggle to the duotone would have shipped unsolvable rooms.
+
+So `mono_amount` is a separate uniform with a different conversion. It
+desaturates by luminance only where the pixel is already NEUTRAL, and lets a
+saturated pixel keep its peak channel instead:
+
+    float ink  = clamp((max_c - min_c) * mono_ink_gain, 0.0, 1.0);
+    float grey = mix(dot(c, LUMA), max_c, ink);
+
+A grey wall converts at true LUMA and is unaffected. The red ink converts at
+its red channel and keeps its contrast. Measured at the room-3 spawn, on the
+brightest 5% of pixels in the graffiti block against the bare wall beside it:
+
+| mode | stroke contrast | retained |
+|---|---|---|
+| colour | 104.9 | — |
+| `mono_amount` (ink gain 4) | 104.5 | **99.6%** |
+| plain luminance | 25.6 | 24% |
+
+Applied AFTER the `enabled` blend, not folded into `styled`: black and white is
+a player setting and the posterise pass is a dev one, so folding them together
+would silently switch colour back on for anyone who turned the style off in
+`ui/dev_panel.gd`.
+
+`tools/test_settings.tscn` asserts both halves — that the toggle moves
+`mono_amount`, and that it leaves `tint_amount` alone. The second is the one
+that protects the puzzles: if a later change reroutes the toggle to the duotone
+because it is "the desaturation knob", that test fails.
+
+### The settings card scrolls now
+
+Five rows was one too many. The card is bottom-anchored and grows upward, so
+that the live ward stays visible above it, and at five rows it pushed the
+CONFIGURATION title clean off the top of a 1280x900 window. `Rows` now sits in
+a `ScrollContainer` whose height `_apply_scale` binds to `min(content, 0.58 *
+viewport)` — bound to the CONTENT, not set to the cap, or the shorter mid-game
+panel would reserve empty space under its last control.
+
+### The mid-game pause panel, and the argument it overturns
+
+`ui/start_overlay.gd`'s header used to argue there should be NO mid-game
+config route: it means pausing, re-showing that layer over a captured mouse
+and restoring capture afterwards — the exact area where this project has
+already shipped an unplayable mobile build. **That argument was right about
+the risk and wrong about the conclusion**, and what changed is the set of
+settings. Brightness can be judged before ADMIT ME against the see-through
+config panel. Look sensitivity and HUD size cannot: both are only answerable
+by playing, and sending a player back to the title card to adjust them is
+worse than the capture risk.
+
+The risk is handled rather than accepted:
+
+- **Capture is re-requested from inside the RESUME button's own `pressed`
+  handler.** That is a real user gesture and therefore the one context a
+  browser will grant pointer lock in — the same trick ADMIT ME already uses,
+  and the reason `resumed` is a signal main.gd acts on synchronously instead
+  of main.gd polling for a closed panel.
+- **Opening is gated on one condition: the player must actually hold input.**
+  That single test is what keeps the panel off the keypad, the start screen,
+  the end card and the dev panel — every one of those already takes input
+  away — so two layers can never fight over the cursor. It also makes a
+  second pause while paused a harmless no-op.
+- **`start_overlay` is `PROCESS_MODE_ALWAYS`**, or its own RESUME button is
+  unclickable and the run is stuck behind a menu it cannot dismiss.
+  `StateManager` stays `PAUSABLE`, so the medication meter stops with the
+  tree: a player who opens settings at three seconds left must not come back
+  reverted.
+- **The randomize-codes row is hidden mid-game.** It is a per-run gameplay
+  variable, the room's code is already generated by the time this panel can
+  be reached, and flipping it mid-run would either do nothing or silently
+  reroll a code the player is halfway through reading. Mid-game is display
+  and controls only; the heading reads PAUSED and the button reads RESUME.
+
+Reached with Escape (which previously only dropped pointer lock — strictly a
+subset of what it now does) or a top-right touch button. The touch button is
+not optional: a phone has no Escape key, and HUD size and look sensitivity
+are precisely the settings a touch player most needs.
+
+`tools/test_pause.tscn` pins all of it, and `tools/shoot_overlay.tscn` gained
+a `pause` mode plus a hud-scale argument, because a display setting can only
+be judged by looking at it.
+
+### HUD size
+
+A multiplier on the viewport-derived scale `ui/hud.gd` already computes, not
+an absolute font size — the 720p-baseline derivation is what keeps the HUD
+the right relative size on any display, and the setting only says "bigger
+than that" or "smaller than that".
+
+**Clamp the derivation, then apply the setting — in that order.** Clamping
+the product instead lets the display's bound eat the player's choice whole:
+on any viewport shorter than the 720p baseline the product sits under
+`SCALE_MIN`, so every value from 75% to 160% clamped to the same number and
+the slider did nothing at all. That is what the first cut did, and the test
+that caught it is the one that reads the font size the real HUD actually
+wrote rather than recomputing the multiply.
+
+### The HUD bottom row is sized for reading under pressure
+
+`ui/hud.gd`'s pill readout and medication meter used to be the SMALLEST things
+on screen (26pt text, a 180x8 bar with ProgressBar's default theme). Over any
+lit floor — room 3's window wall, room 5's alcove — the meter was a grey
+hairline on grey and effectively invisible, which is a problem specific to
+those two readouts: they are the only ones a player must act on mid-room
+("can I shift", "how long have I got") rather than read once on entry.
+
+Three changes, none of which add chrome over the game:
+
+- **Type up, 26 -> 32pt, above the objective line rather than below it**, and
+  the pill count is colour-coded (lucid accent held, dimmed spent) so at
+  `PILLS_MAX` 1 it answers its real yes/no question peripherally.
+- **A real meter.** Bordered dark track plus a `240x16` accent fill, both
+  built in `_style_med_bar()`. The fill is recoloured for the warning state
+  **through its stylebox, not `med_bar.modulate`** — modulate tints the track
+  as well, so the empty part of the meter went red with the full part and the
+  bar stopped reading as a gauge at the one moment it is read hardest.
+- **A numeric countdown beside it**, `ceili`-rounded. It is a deadline: with
+  `floori`/`roundi` it reads "0s" while the player still has most of a second
+  of lucidity, in a game whose only escape from an orderly is a shift.
+
+Every label also gets a scaled dark outline (`OUTLINE_PX`). The HUD is drawn
+straight onto the ward with nothing behind it, and the ward is not a uniform
+backdrop; an outline buys what a backing plate would without putting a panel
+over the game.
+
+`tools/test_hud.tscn` pins the arithmetic and the wiring — countdown rounding,
+the exact `<=` warn threshold shared with `StateManager`, meter and countdown
+appearing together, and that every Control in the layer is still
+`MOUSE_FILTER_IGNORE`. That last one is the point of the harness: the
+Countdown label is a new HUD node, and one Control left at the default filter
+is what made the entire first mobile build unplayable.
+
 ### Things that bit, worth not re-learning
 
 - **`tools/shoot_game.gd` now dismisses the start overlay** before shooting.
   Without that, every "how dark is the ward" screenshot is a photograph of the
   title card — and that is the harness the lighting work is judged with.
   `tools/shoot_overlay.tscn` is the one to use when the overlay is the subject.
+- **`lucid` in that harness grants `can_shift` too**, not just the state. The
+  HUD gates its pill readout on the ability and `StateManager` only drains the
+  meter while it is held, so a forced lucid without it photographs a state the
+  game never reaches: medicated, bottom row half missing, countdown frozen
+  full. Room 1's cup is what grants it in play.
 - **The HUD is hidden until ADMIT ME.** The TS build leaves its HUD up because
   its start overlay is opaque; ours is not, and the first render showed the
   room-1 objective line running through the WARD B title and the reticle dot

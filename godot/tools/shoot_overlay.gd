@@ -2,7 +2,13 @@
 # them — over the real main.tscn, its real player camera, its real
 # WorldEnvironment and a real loaded room.
 #
-#   godot --path . --resolution 1728x1080 tools/shoot_overlay.tscn -- <name> [start|config] [brightness]
+#   godot --path . --resolution 1728x1080 tools/shoot_overlay.tscn -- <name> [start|config|pause] [brightness] [hud_scale]
+#
+# `pause` presses ADMIT ME first and then opens the mid-game panel, so the shot
+# is the panel as a player meets it: over a live, unpaused-a-moment-ago ward
+# rather than over the title card. It is a different picture from `config` —
+# the heading reads PAUSED, the button reads RESUME, and the randomize-codes
+# row is absent, all of which are the point of the mid-game mode.
 #
 # Must run WINDOWED. --headless skips rendering entirely and writes a black
 # image, which is worse than no check because it looks like a result.
@@ -21,12 +27,19 @@ func _ready() -> void:
 	var shot_name: String = args[0] if args.size() > 0 else "overlay"
 	var panel: String = args[1] if args.size() > 1 else "start"
 	var brightness: float = float(args[2]) if args.size() > 2 else -1.0
+	# Arg 4, same idea as brightness: a display setting can only be judged by
+	# looking at it, and the `pause` panel renders over the live HUD, so this
+	# is the one place the HUD-size slider's extremes can actually be seen.
+	var hud_scale: float = float(args[3]) if args.size() > 3 else -1.0
 
 	if brightness > 0.0:
 		WardSettings.set_brightness(brightness)
+	if hud_scale > 0.0:
+		WardSettings.set_hud_scale(hud_scale)
 
 	var game: Node = load("res://main.tscn").instantiate()
 	add_child(game)
+	Telemetry.debug = true # captures cannot overwrite a player's milestone
 	# Long enough for room 1 to load, the mood to apply and the lights to
 	# settle; the mood crossfade alone is 0.45 s.
 	await get_tree().create_timer(4.0).timeout
@@ -37,7 +50,25 @@ func _ready() -> void:
 		get_tree().quit(1)
 		return
 
-	if panel == "config":
+	if panel == "checkpoint":
+		overlay.set_checkpoint_label("the doctor's office")
+		await get_tree().process_frame
+		await get_tree().process_frame
+	elif panel == "end":
+		overlay._on_admit_pressed()
+		game.complete_room("END")
+		await get_tree().process_frame
+		await get_tree().process_frame
+	elif panel == "pause":
+		# Drive the real buttons and the real main.gd path rather than poking
+		# visibility, so the shot also exercises _open_pause's input gate and
+		# the pause of the tree.
+		overlay._on_admit_pressed()
+		await get_tree().process_frame
+		game._open_pause()
+		await get_tree().process_frame
+		await get_tree().process_frame
+	elif panel == "config":
 		# Drive the real button rather than poking visibility, so the shot
 		# also exercises _on_config_pressed's re-seeding path.
 		overlay._config_btn.emit_signal("pressed")

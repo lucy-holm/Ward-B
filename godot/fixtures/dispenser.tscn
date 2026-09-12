@@ -21,6 +21,12 @@
 ; tilted a few degrees — small manufactured-object asymmetry per the brief,
 ; kept well inside the body so it reads as "installed", not "broken".
 ;
+; Accessibility pass: the medication station has a small unshaded canopy strip
+; above the cabinet and a tight, non-shadowing OmniLight3D. The light is a soft
+; local cue in the unmedicated rooms, while the dark-to-pale value contrast and
+; the word MEDICATION still carry the read when the monochrome filter removes
+; hue. The light has no gameplay/state logic and no shadow cost.
+;
 ; Visuals only — no collision, no gameplay script. The room generator supplies
 ; the Area3D + CollisionShape3D this gets instanced under.
 
@@ -73,6 +79,10 @@ size = Vector3(0.018, 0.1, 0.018)
 
 [sub_resource type="BoxMesh" id="bm_notice"]
 size = Vector3(0.07, 0.1, 0.006)
+
+[sub_resource type="BoxMesh" id="bm_canopy"]
+size = Vector3(0.24, 0.025, 0.026)
+material = ExtResource("m_glow")
 
 [node name="Dispenser" type="Node3D"]
 
@@ -169,6 +179,19 @@ vertical_alignment = 1
 [node name="Slot" type="MeshInstance3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.15, -0.095)
 mesh = SubResource("bm_slot")
+
+[node name="CanopyLight" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.385, -0.102)
+mesh = SubResource("bm_canopy")
+
+[node name="CanopyGlow" type="OmniLight3D" parent="."]
+position = Vector3(0, 0.39, -0.24)
+metadata/atmosphere_exempt = true
+light_color = Color(1, 0.84, 0.58, 1)
+light_energy = 0.12
+omni_range = 1.1
+omni_attenuation = 1.35
+shadow_enabled = false
 
 [node name="Tray" type="MeshInstance3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.29, -0.13)

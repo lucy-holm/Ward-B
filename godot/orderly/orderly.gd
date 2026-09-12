@@ -6,34 +6,41 @@
 # chase aborts instantly.
 #
 # PORTED EXACTLY (do not "improve" these — they are the design):
-#  * The chase has NO exit condition other than the player shifting lucid or
-#    a catch landing. No lost-sight timer, no leash, no give-up. Sight is not
-#    even evaluated during a chase. At 4.3 m/s vs the player's 3.4 he cannot
-#    be outrun: spending the pill is the only answer. Adding conventional
-#    stealth-AI memory here would gut the risk/reward core of the game.
+#  * The chase has NO lost-sight timer, leash or give-up. It ends when the
+#    player shifts lucid, is caught, or crosses onto a different fixed level.
+#    Sight is not evaluated during a chase. At 4.3 m/s vs the player's 3.4 he
+#    cannot be outrun: spending the pill is the intended answer.
 #  * Contact catches in EVERY mode, including patrol and returning. Sneaking
 #    up behind him still gets you caught.
-#  * Sight is evaluated ONLY in patrol mode.
+#  * Sight is evaluated in patrol and investigation modes only.
 #  * His facing is the last direction he MOVED, and it persists while he is
 #    paused at a waypoint — he keeps staring down the leg he just walked, and
 #    the cone stays live. The head visually tracks the player once the ramp
 #    is up, but detection uses the BODY vector. The head is a lie.
 #
-# DELIBERATE DEVIATION (agreed, see MIGRATION_NOTES): movement uses
-# NavigationAgent3D rather than the original's straight-line step + AABB
-# slide. The original could WEDGE permanently on a corner — a blocked orderly
-# never re-paths and grinds forever, which is why kit.patrol() exists to
-# validate 0.5 m clearance on every leg at authoring time. NavAgent removes
-# that whole bug class. Cost: he now paths AROUND obstacles during a chase,
-# where before he would beeline and scrape. Rooms 5/6/7 were tuned against
-# the old behaviour and want a playtest pass.
+# DELIBERATE DEVIATION (agreed, see MIGRATION_NOTES): movement uses the bounded
+# OrderlyPlanner visibility graph rather than the original's straight-line step + AABB
+# slide. The old fallback could WEDGE permanently on a corner. Planner legs
+# route around live AABBs without requiring a baked navmesh.
 extends CharacterBody3D
 
 signal warned                ## ramp crossed warnAt — "he is looking at you"
 signal chase_started
 signal caught
+signal investigation_started
+signal investigation_ended
+signal pursuit_stalled
+signal pursuit_recovered
 
-enum Mode { PATROL, CHASE, RETURNING }
+enum Mode { PATROL, CHASE, RETURNING, INVESTIGATING }
+
+## Authored noise is intentionally a small pressure layer. These limits live
+## with the actor so room scripts only provide a target and source label.
+const HEARING_RADIUS := 8.0
+const NOISE_COOLDOWN_SEC := 2.5
+const INVESTIGATION_SEARCH_SEC := 1.2
+const INVESTIGATION_REPLAN_SEC := 0.25
+const INVESTIGATION_TARGET_EPSILON := 0.8
 
 @export var waypoints: Array[Vector3] = []
 @export var sight_range := Tuning.ORDERLY_SIGHT_RANGE
@@ -57,8 +64,8 @@ enum Mode { PATROL, CHASE, RETURNING }
 # level is also always '__flat' — see WardLevels.FLAT_LEVEL_ID. Kept as a
 # literal rather than the constant so the inspector shows a plain default.
 @export var level := "__flat"
+@export var orderly_id := ""
 
-@onready var _nav: NavigationAgent3D = $NavigationAgent3D
 @onready var _occlusion_ray: RayCast3D = $OcclusionRay
 @onready var _body: Node3D = $Body
 @onready var _footsteps: AudioStreamPlayer3D = $Footsteps
@@ -81,6 +88,23 @@ var _warned := false
 var _wp_index := 0
 var _pause_left := 0.0
 var _return_pause := 0.0
+var _return_target_index := -1
+
+var _planner: OrderlyPlanner = null
+var _route: Array[Vector2] = []
+var _route_index := 0
+var _route_target := Vector2(INF, INF)
+var _route_clock := 0.0
+var _last_collision_revision := -1
+var _route_attempted := false
+var _route_blocked := false
+var _pursuit_is_stalled := false
+
+var _noise_cooldown := 0.0
+var _investigation_target := Vector2.ZERO
+var _investigation_source := ""
+var _investigation_search_left := 0.0
+var _investigation_return_index := -1
 
 # Last direction he actually moved, in XZ. Drives the sight cone. Persists
 # through waypoint pauses on purpose.
@@ -112,6 +136,8 @@ func _ready() -> void:
 	collision_layer = WardCollision.LAYER_ORDERLY
 	collision_mask = 0
 	add_to_group("orderly")
+	if orderly_id.is_empty():
+		orderly_id = name
 
 	if not waypoints.is_empty():
 		global_position = waypoints[0]
@@ -133,6 +159,12 @@ func setup(player: Node3D, fallback: WardCollision, levels: WardLevels = null) -
 	_player = player
 	collision_fallback = fallback
 	world_levels = levels
+	_planner = OrderlyPlanner.new()
+	_planner.set_context(collision_fallback, level, Tuning.ORDERLY_RADIUS,
+			StateManager.State.UNMED, world_levels)
+	_route_attempted = false
+	_route_blocked = false
+	_last_collision_revision = -1
 	_apply_floor_height()
 
 
@@ -145,10 +177,49 @@ func is_chasing() -> bool:
 	return mode == Mode.CHASE
 
 
+func is_investigating() -> bool:
+	return mode == Mode.INVESTIGATING
+
+
+## Hear one authored room event. A chase is never overridden, and repeated
+## events are ignored during the cooldown. Returning orderlies may investigate
+## once their current return is interrupted; the return target is restored when
+## the search ends.
+func hear_noise(position: Vector3, source_level: String, source: String) -> bool:
+	if _player == null or _planner == null:
+		return false
+	if mode == Mode.CHASE or mode == Mode.INVESTIGATING:
+		return false
+	if _noise_cooldown > 0.0 or source_level != level:
+		return false
+	var target := Vector2(position.x, position.z)
+	var here := Vector2(global_position.x, global_position.z)
+	if here.distance_to(target) > HEARING_RADIUS:
+		return false
+	var route := _planner.plan(here, target)
+	if route.is_empty() and here.distance_to(target) > 0.08:
+		return false
+	_investigation_target = target
+	_investigation_source = source.left(32)
+	_investigation_search_left = 0.0
+	_investigation_return_index = _return_target_index if mode == Mode.RETURNING else -1
+	_noise_cooldown = NOISE_COOLDOWN_SEC
+	_route = route
+	_route_index = 0
+	_route_target = target
+	_route_clock = 0.0
+	_route_attempted = true
+	mode = Mode.INVESTIGATING
+	_emit_investigation_started()
+	return true
+
+
 func _on_state_changed(next: StateManager.State, _prev: StateManager.State, _src: String) -> void:
 	# Shifting lucid aborts an in-progress chase outright. This is the escape.
-	if next == StateManager.State.LUCID and mode == Mode.CHASE:
-		_begin_return()
+	if next == StateManager.State.LUCID and (mode == Mode.CHASE or mode == Mode.INVESTIGATING):
+		if mode == Mode.INVESTIGATING:
+			_end_investigation("lucid")
+		_begin_return("lucid")
 	_apply_visibility(next)
 
 
@@ -159,6 +230,17 @@ func _apply_visibility(state: int) -> void:
 func _physics_process(delta: float) -> void:
 	if _player == null:
 		return
+	# Reconcile live gates and moving props once for all orderlies sharing this
+	# room cache. _move_toward compares the resulting revision before deciding
+	# whether its cached route remains valid.
+	if collision_fallback != null:
+		collision_fallback.sync_live_once_per_frame()
+	_noise_cooldown = maxf(0.0, _noise_cooldown - delta)
+	_route_clock += delta
+	# A fixed-level orderly must never continue a chase after the player has
+	# crossed a stairwell. This also catches an externally forced level change.
+	if mode == Mode.CHASE and not _player_is_vulnerable():
+		_begin_return("level_mismatch")
 
 	# 1. move (sets `facing` when actually stepping)
 	_stepping = false
@@ -169,6 +251,8 @@ func _physics_process(delta: float) -> void:
 			_chase_step(delta)
 		Mode.RETURNING:
 			_return_step(delta)
+		Mode.INVESTIGATING:
+			_investigation_step(delta)
 	_tick_footsteps(delta)
 
 	# visual yaw only; the cone uses `facing` directly
@@ -187,7 +271,7 @@ func _physics_process(delta: float) -> void:
 		return
 
 	# 3. sight — patrol mode ONLY. During a chase he is effectively omniscient.
-	if mode == Mode.PATROL:
+	if mode == Mode.PATROL or mode == Mode.INVESTIGATING:
 		_update_sight(delta, to_player)
 
 
@@ -287,11 +371,11 @@ func _patrol_step(delta: float) -> void:
 		_pause_left = Tuning.ORDERLY_PAUSE_AT_WAYPOINT
 		return
 
-	_move_toward(target, Tuning.ORDERLY_SPEED, delta)
+	_move_toward(target, Tuning.ORDERLY_SPEED, delta, false)
 
 
 func _chase_step(delta: float) -> void:
-	_move_toward(_player.global_position, Tuning.ORDERLY_CHASE_SPEED, delta)
+	_move_toward(_player.global_position, Tuning.ORDERLY_CHASE_SPEED, delta, true)
 
 
 func _return_step(delta: float) -> void:
@@ -299,9 +383,7 @@ func _return_step(delta: float) -> void:
 		_return_pause -= delta
 		return
 
-	# Nearest waypoint is recomputed every tick, so the target can switch
-	# mid-walk — ported as-is.
-	var idx := _nearest_waypoint()
+	var idx := _return_target_index
 	if idx < 0:
 		return
 	var target: Vector3 = waypoints[idx]
@@ -311,41 +393,71 @@ func _return_step(delta: float) -> void:
 		_pause_left = Tuning.ORDERLY_PAUSE_AT_WAYPOINT
 		return
 
-	_move_toward(target, Tuning.ORDERLY_SPEED, delta)
+	_move_toward(target, Tuning.ORDERLY_SPEED, delta, false)
 
 
-func _move_toward(target: Vector3, speed: float, delta: float) -> void:
+func _investigation_step(delta: float) -> void:
+	if _flat_distance(Vector3(_investigation_target.x, global_position.y,
+			_investigation_target.y)) < 0.08:
+		_stepping = false
+		_investigation_search_left += delta
+		if _investigation_search_left >= INVESTIGATION_SEARCH_SEC:
+			_end_investigation("search_complete")
+		return
+	_move_toward(Vector3(_investigation_target.x, global_position.y,
+			_investigation_target.y), Tuning.ORDERLY_SPEED, delta, false)
+
+
+func _move_toward(target: Vector3, speed: float, delta: float, pursuit: bool) -> void:
 	var step := speed * delta
-	var dir: Vector2
+	var here := Vector2(global_position.x, global_position.z)
+	var destination := Vector2(target.x, target.z)
+	if collision_fallback == null:
+		_route = [destination]
+		_route_index = 0
+		_route_target = destination
+		_route_clock = 0.0
+		_route_attempted = true
+	if _planner == null:
+		_planner = OrderlyPlanner.new(collision_fallback, level, Tuning.ORDERLY_RADIUS)
+		_planner.world_levels = world_levels
+	var revision_changed := collision_fallback != null and \
+			collision_fallback.revision != _last_collision_revision
+	var target_changed := _route_target.distance_to(destination) > \
+			(INVESTIGATION_TARGET_EPSILON if pursuit else 0.05)
+	# An empty route is a failed attempt, not a request to rebuild on every
+	# physics tick. Retry failures on the same throttle as moving targets. A
+	# live collider revision still invalidates a cached route immediately.
+	var retry_interval := INVESTIGATION_REPLAN_SEC if pursuit else 0.35
+	var retry_due := _route_clock >= retry_interval
+	var route_exhausted := _route_attempted and not _route.is_empty() and \
+		_route_index >= _route.size()
+	var need_plan := collision_fallback != null and (not _route_attempted or \
+		_route_blocked or (revision_changed and retry_due) or \
+		(route_exhausted and retry_due) or \
+		(target_changed and retry_due))
+	if need_plan:
+		_planner.set_context(collision_fallback, level, Tuning.ORDERLY_RADIUS,
+				StateManager.State.UNMED, world_levels)
+		_route = _planner.plan(here, destination)
+		_route_index = 0
+		_route_target = destination
+		_route_clock = 0.0
+		_route_attempted = true
+		_route_blocked = false
+		_last_collision_revision = _planner.last_revision
+		if pursuit:
+			_set_pursuit_stall(_route.is_empty(), _planner.last_reason)
+	if _route.is_empty() or _route_index >= _route.size():
+		return
 
-	if _nav.is_navigation_finished() or _nav.target_position.distance_to(target) > 0.05:
-		_nav.target_position = target
-
-	# Use the navmesh ONLY if it actually handed us somewhere new to walk to.
-	#
-	# This used to gate on `map_get_iteration_id(...) != 0`, which reads like
-	# "is there a usable navmesh?" but only means "has the navigation server
-	# synced at least once" — true in EVERY scene from about the third physics
-	# frame. No room in this project has ever contained a NavigationRegion3D,
-	# so the map has zero regions, every path query returns an empty path, and
-	# get_next_path_position() answers with the agent's OWN position. dir came
-	# out zero-length and _move_toward returned before stepping: every orderly
-	# in the game stood frozen on waypoint 0 forever.
-	#
-	# Testing the returned position directly means this degrades correctly in
-	# both directions — with no navmesh he walks the straight-line path the
-	# Three.js build used (which is what the patrol legs were authored and
-	# clearance-validated against), and if regions are baked later he starts
-	# pathing around obstacles with no change here.
-	var to_next := Vector2.ZERO
-	if not _nav.is_navigation_finished():
-		var next := _nav.get_next_path_position()
-		to_next = Vector2(next.x - global_position.x, next.z - global_position.z)
-
-	if to_next.length() > 0.01:
-		dir = to_next
-	else:
-		dir = Vector2(target.x - global_position.x, target.z - global_position.z)
+	var next_point: Vector2 = _route[_route_index]
+	if here.distance_to(next_point) < 0.08:
+		_route_index += 1
+		if _route_index >= _route.size():
+			return
+		next_point = _route[_route_index]
+	var dir := next_point - here
 
 	var len := dir.length()
 	if len < 0.0001:
@@ -358,14 +470,18 @@ func _move_toward(target: Vector3, speed: float, delta: float) -> void:
 	var from := Vector2(global_position.x, global_position.z)
 	var to := from + move
 
-	# Even with NavAgent driving direction, resolve the final step through
-	# the same AABB routine the player uses, so he can never end up inside
-	# geometry the navmesh smoothed over.
+	# Resolve the final step through the same AABB routine the player uses, so a
+	# moving collider cannot invalidate a route between planning ticks.
 	if collision_fallback != null:
 		# His own fixed level, never the player's — a railing tagged to the
 		# balcony blocks the balcony patroller and not the one underneath.
 		to = collision_fallback.try_move(
 			from, to, Tuning.ORDERLY_RADIUS, StateManager.State.UNMED, level)
+		# A route can become stale between its throttled revision checks. The
+		# collision resolver prevents clipping; remember a rejected step so the
+		# next physics tick invalidates the route immediately.
+		if from.distance_to(to) + 0.0001 < from.distance_to(from + move):
+			_route_blocked = true
 
 	global_position.x = to.x
 	global_position.z = to.y
@@ -408,14 +524,81 @@ func _begin_chase() -> void:
 	mode = Mode.CHASE
 	ramp = 1.0
 	_warned = false
+	_route.clear()
+	_route_index = 0
+	_route_clock = 0.0
+	_route_attempted = false
+	_route_blocked = false
+	_set_pursuit_stall(false, "")
 	chase_started.emit()
 
 
-func _begin_return() -> void:
+func _begin_return(reason := "") -> void:
 	mode = Mode.RETURNING
 	ramp = 0.0
 	_warned = false
 	_return_pause = Tuning.ORDERLY_ESCAPE_PAUSE_SEC
+	_return_target_index = _nearest_waypoint()
+	_route.clear()
+	_route_index = 0
+	_route_clock = 0.0
+	_route_attempted = false
+	_route_blocked = false
+	_set_pursuit_stall(false, reason)
+
+
+func _end_investigation(reason: String) -> void:
+	if mode != Mode.INVESTIGATING:
+		return
+	mode = Mode.RETURNING
+	_investigation_search_left = 0.0
+	var resume_index := _investigation_return_index
+	_investigation_return_index = -1
+	_route.clear()
+	_route_index = 0
+	_route_clock = 0.0
+	_route_attempted = false
+	_route_blocked = false
+	investigation_ended.emit()
+	Telemetry.event("investigation_ended", {
+		"source": _bounded_source(_investigation_source),
+		"reason": _bounded_source(reason),
+		"orderly_id": _bounded_source(orderly_id),
+	})
+	_return_target_index = resume_index if resume_index >= 0 else _nearest_waypoint()
+
+
+func _emit_investigation_started() -> void:
+	investigation_started.emit()
+	Telemetry.event("investigation_started", {
+		"source": _bounded_source(_investigation_source),
+		"reason": "noise",
+		"orderly_id": _bounded_source(orderly_id),
+	})
+
+
+func _set_pursuit_stall(stalled: bool, reason: String) -> void:
+	if stalled == _pursuit_is_stalled:
+		return
+	_pursuit_is_stalled = stalled
+	if stalled:
+		pursuit_stalled.emit()
+		Telemetry.event("pursuit_stalled", {
+			"source": "planner",
+			"reason": _bounded_source(reason if not reason.is_empty() else "unreachable"),
+			"orderly_id": _bounded_source(orderly_id),
+		})
+	else:
+		pursuit_recovered.emit()
+		Telemetry.event("pursuit_recovered", {
+			"source": "planner",
+			"reason": _bounded_source(reason if not reason.is_empty() else "route_available"),
+			"orderly_id": _bounded_source(orderly_id),
+		})
+
+
+func _bounded_source(value: String) -> String:
+	return value.left(32)
 
 
 ## Yaw-relative bearing to the player: 0 = dead ahead, positive = right.

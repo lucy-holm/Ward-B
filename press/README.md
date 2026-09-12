@@ -1,80 +1,49 @@
-# press/ — itch.io store imagery
+# Ward B — current itch.io press kit
 
-Generated 2026-07-26 by capturing real frames from the built game. Copy
-for the store page itself lives in
-`docs/superpowers/specs/2026-07-26-itch-page-metadata.md`.
+Updated 2026-09-12 for the survival-horror playtest. The maintained and public
+game is `godot/`. The current marketing assets are in **`current/`**.
 
-**These are real gameplay frames, not concept art.** That's deliberate —
-see "On generated art" below.
+## Publish these assets
 
-## What's here
+- `current/cover.png` — 630×500 cover. The title and tagline are composed by
+  Godot over an actual player-camera render of the observation ward.
+- `store-description.md` and `store-description.html` — current page copy;
+  the HTML version is ready for itch.io's rich-text/source editor.
+- `release-notes.md` — the release announcement/devlog copy.
+- `current/01-observation-ward.png` — furnished asylum recovery bays, lucid.
+- `current/02-treatment-bays.png` — lower treatment beds beside the mezzanine.
+- `current/03-shape-seal-mono.png` — upright shape puzzle in monochrome.
+- `current/04-wall-bell-mono.png` — a high-contrast call-bell fixture.
+- `current/05-gallery.png` — the gallery stair and floor change.
+- `current/06-relay-choice.png` — the relay console and two power choices.
+- `current/07-loading-bay.png` — the crate at the first loading-bay gate.
+- `current/08-asylum-mono.png` — the same observation ward unmedicated.
 
-- `out/cover-titled.png` — **630×500, itch's exact cover requirement.**
-  The room2 corridor with the title set in the game's own typography
-  (mono, teal accent, red `B`). This is the recommended cover.
-- `out/cover-plain.png` — same frame, same size, no title. Use if you'd
-  rather itch's own title chrome do the work.
-- `out/contact-sheet.png` — all 18 captures at a glance.
-- `raw/*.png` — 1600×900 source frames. `hero-*` are captured with the
-  HUD hidden (clean plates for compositing); the rest keep the HUD.
+Recommended screenshot order: 01, 03, 04, 02, 05, 08, 06, 07. The color and
+monochrome examples show selectable display styles as well as different ward
+states; medication and the display-style setting are separate controls.
+Screenshots show real gameplay at 1600×900, including the HUD. They are not
+concept art, reconstructed scenes or claims of a finished commercial game.
 
-## Recommended screenshot set (in this order)
+`raw/` and `out/` retain the August 31 captures and cover experiments for
+history. They are superseded by `current/`; do not upload their obsolete
+keypad views or use their older prototype framing for this release.
 
-1. **`r2-keypad`** — the single best frame in the build. Dark corridor,
-   a lit ceiling panel, the readable `4118` scrawl, "they lock it from
-   the inside", the staff door, a pill on the floor. It teaches the core
-   mechanic — *unmedicated means you can read the walls* — without a
-   caption. Lead with it.
-2. **`r13-corridor`** — lucid state: bright, blown-out, hard one-point
-   perspective. Put it second precisely because it looks like a different
-   game to shot 1. That contrast IS the pitch.
-3. **`r10-wing`** — two orderlies visible in the same frame. Establishes
-   the threat and that the space is populated.
-4. **`hero-r17`** — an orderly close and looming. The most legibly
-   "horror" frame available.
-5. **`r7-records`** — lucid, bright, legible fixtures. Shows variety of
-   space beyond corridors.
+## Reproduce
 
-Note shot 1 reveals room2's code (`4118`). Minor spoiler for the first
-keypad, and moot if a player enables randomised codes — worth it for how
-well the frame reads.
+From the repository root:
 
-## What we learned shooting this — worth acting on
+```sh
+GODOT=/opt/homebrew/bin/godot press/capture-current.sh
+```
 
-Most rooms photograph *badly*, and the contact sheet makes it obvious.
-`r12-floor`, `r12-wide`, `r15-sorting`, `r16-breaker`, `r20-crate` and
-`r1-cell` are near-featureless dark red fields: geometry too far from any
-light source, nothing in frame to give scale.
+The script uses `godot/tools/shoot_game.tscn`: the real `main.tscn`, player
+camera, room scripts, lighting and post-processing. It runs windowed because
+headless Godot cannot supply the framebuffer. Exact camera poses and display
+mode overrides are recorded in the script; it does not edit saved settings.
+The optional `cover` argument renders the title overlay in the engine.
 
-This is not purely a screenshot problem. If a room is illegible in a
-still, it's plausibly hard to *read* in motion too — a player entering
-room 12 or 15 may be facing the same "where am I, what's here" problem.
-Worth checking against the drop-off curve once real players accumulate:
-if those rooms show high `duration_s` spread or cluster quits, poor
-spatial legibility is a candidate cause, not just difficulty.
-
-The frames that do work all have one of three things: a visible light
-source with something lit near it, a bright lucid-state room, or a human
-silhouette for scale.
-
-## On generated art (deliberately not used)
-
-An image model could produce a far prettier cover than any of these. It
-would also be a lie: players click a moody rendered corridor and get
-untextured grey boxes. On itch that earns "not what was advertised"
-ratings, and the page copy is at pains to be honest that this is a
-greybox prototype — the cover shouldn't undercut that.
-
-Generated art is defensible for things that clearly aren't gameplay: a
-devlog banner, a logo/wordmark treatment. Not for the cover or
-screenshots.
-
-## Regenerating
-
-Capture scripts are throwaway (they lived in `/tmp` for this pass). To
-redo: `npm run build`, `npx vite preview --port 4173`, then drive
-Playwright against `?room=<id>&notrack=1` — click `#startBtn`, `KeyW` to
-move, mouse-drag on the canvas to look (pointer lock does NOT work
-headless; the drag path activates precisely because of that), and inject
-`#hud{display:none}` for clean plates. Always pass `notrack=1` so capture
-runs never reach the telemetry pipeline.
+Only the cover omits the HUD. There is no screenshot retouching or enlargement.
+The local build's telemetry endpoint is empty, and captures use debug mode to
+avoid changing milestone saves. Publishing the game itself uses the separate
+`deploy-itch-godot.yml` workflow, which bakes in the public telemetry endpoint.

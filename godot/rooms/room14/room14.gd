@@ -323,7 +323,8 @@ func _on_caught() -> void:
 	Telemetry.event("orderly_caught")
 	StateManager.force_state(StateManager.State.LUCID, "catch")
 	_main.shift_fx()
-	_main.teleport_player(SPAWN_X, SPAWN_Z)
+	if not _main.restore_checkpoint():
+		_main.teleport_player(SPAWN_X, SPAWN_Z)
 	_toast('hands. a needle. "back to the start of the wing," he says.')
 
 

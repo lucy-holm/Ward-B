@@ -108,6 +108,17 @@ var _base_energy: Array[float] = []
 var _base_color: Array[Color] = []
 var _dip: Array[float] = []
 var _clock := 0.0
+var _shadow_budget := preload("res://core/shadow_budget.gd").new()
+var _shadow_viewpoint: Node3D
+var _shadow_limit := -1
+var _shadow_poll := 0.0
+
+func configure_shadows(viewpoint: Node3D, touch_browser: bool) -> void:
+	_shadow_viewpoint = viewpoint
+	_shadow_limit = 2 if touch_browser else -1
+	_shadow_poll = 0.0
+	if is_instance_valid(viewpoint):
+		_shadow_budget.update(viewpoint.global_position, _shadow_limit)
 
 # Parallel to _lights: which circuit each collected fitting is on. Rebuilt by
 # collect_lights, exactly like the other three arrays.
@@ -160,6 +171,8 @@ func collect_lights(room: Node) -> void:
 	if room == null:
 		return
 	_collect(room)
+	_shadow_budget.collect(_lights)
+	_shadow_poll = 0.0
 	# Deliberately NOT clearing _circuits: see its declaration. A circuit that
 	# was switched off before this reload is still off after it, and the fresh
 	# light nodes pick that up by name on their very first frame.
@@ -168,6 +181,13 @@ func collect_lights(room: Node) -> void:
 func _collect(node: Node) -> void:
 	if node is OmniLight3D:
 		var l := node as OmniLight3D
+		# Self-contained locator lights own their authored energy/color. Keep
+		# them outside this collector entirely so mood, flicker, and circuit
+		# writes can never stomp their accessibility cue.
+		if bool(node.get_meta("atmosphere_exempt", false)):
+			for child in node.get_children():
+				_collect(child)
+			return
 		_lights.append(l)
 		_base_energy.append(l.light_energy)
 		_base_color.append(l.light_color)
@@ -235,6 +255,10 @@ func set_light_color(tint: Color, instant: bool) -> void:
 
 func _process(delta: float) -> void:
 	_clock += delta
+	_shadow_poll -= delta
+	if _shadow_poll <= 0.0 and is_instance_valid(_shadow_viewpoint):
+		_shadow_poll = 0.75
+		_shadow_budget.update(_shadow_viewpoint.global_position, _shadow_limit)
 	# Ease toward the target so the fittings dim/brighten with the mood tween
 	# rather than snapping a frame before it.
 	#

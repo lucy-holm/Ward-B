@@ -9,16 +9,19 @@
 #   godot --headless --path godot tools/test_settings_persist_write.tscn
 #   godot --headless --path godot tools/test_settings_persist_read.tscn
 #
-# Deliberately writes NON-DEFAULT values for both settings, so the reader
+# Deliberately writes NON-DEFAULT values for every setting, so the reader
 # cannot pass by accidentally reporting the defaults.
 extends Node
 
 const EXPECT_BRIGHTNESS := 1.65
+const EXPECT_LOOK_SENSITIVITY := 1.85
 
 
 func _ready() -> void:
 	WardSettings.set_randomize_codes(true)
 	WardSettings.set_brightness(EXPECT_BRIGHTNESS)
-	print("test_settings_persist_write: wrote randomize_codes=true brightness=%.2f to %s"
-		% [EXPECT_BRIGHTNESS, ProjectSettings.globalize_path(WardSettings.PATH)])
+	WardSettings.set_look_sensitivity(EXPECT_LOOK_SENSITIVITY)
+	print("test_settings_persist_write: wrote randomize_codes=true brightness=%.2f look_sensitivity=%.2f to %s"
+		% [EXPECT_BRIGHTNESS, EXPECT_LOOK_SENSITIVITY,
+			ProjectSettings.globalize_path(WardSettings.PATH)])
 	get_tree().quit(0)

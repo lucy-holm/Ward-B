@@ -5,9 +5,9 @@
 [sub_resource type="ShaderMaterial" id="Mat_post"]
 shader = ExtResource("1_post")
 shader_parameter/enabled = 1.0
-shader_parameter/levels = 4
+shader_parameter/levels = 8
 shader_parameter/pixel_size = 2.0
-shader_parameter/dither_amount = 1.0
+shader_parameter/dither_amount = 0.75
 shader_parameter/tint_amount = 0.0
 shader_parameter/tint_lo = Color(0.051, 0.059, 0.071, 1)
 shader_parameter/tint_hi = Color(0.91, 0.894, 0.839, 1)

@@ -14,12 +14,22 @@
 // it is on itch.zone. Nothing is stubbed on the page side.
 import { chromium } from 'playwright';
 import { spawn } from 'node:child_process';
-import { writeFileSync } from 'node:fs';
+import { cpSync, mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
 
 const PORT = 8901;
 const COLLECTOR = 'https://collector.invalid.example/ingest';
 const BOOT_TIMEOUT_MS = 90000;
+const EXPORT_DIR = mkdtempSync(join(tmpdir(), 'wardb-telemetry-gate-'));
+const SOURCE_DIR = join(dirname(fileURLToPath(import.meta.url)), '..');
+const PROJECT_DIR = mkdtempSync(join(tmpdir(), 'wardb-telemetry-gate-project-'));
+cpSync(SOURCE_DIR, PROJECT_DIR, {
+  recursive: true,
+  filter: (path) => !['.godot', '.git', 'build', '__pycache__'].includes(path.split('/').at(-1)),
+});
 
 const results = [];
 function check(name, pass, detail = '') {
@@ -28,14 +38,14 @@ function check(name, pass, detail = '') {
 }
 
 function exportBuild(endpoint) {
-  execFileSync('tools/write_build_config.sh', [endpoint, ''], { stdio: 'inherit' });
-  execFileSync('godot', ['--headless', '--path', '.', '--import'], { stdio: 'ignore' });
-  execFileSync('godot', ['--headless', '--path', '.', '--export-release', 'Web', 'build/index.html'], {
+  execFileSync('tools/write_build_config.sh', [endpoint, ''], { stdio: 'ignore', cwd: PROJECT_DIR });
+  execFileSync('godot', ['--headless', '--path', PROJECT_DIR, '--import'], { stdio: 'ignore' });
+  execFileSync('godot', ['--headless', '--path', PROJECT_DIR, '--export-release', 'Web', join(EXPORT_DIR, 'index.html')], {
     stdio: 'ignore',
   });
 }
 
-const server = spawn('python3', ['-m', 'http.server', String(PORT), '--directory', 'build'], {
+const server = spawn('python3', ['-m', 'http.server', String(PORT), '--directory', EXPORT_DIR], {
   stdio: 'ignore',
 });
 await new Promise((r) => setTimeout(r, 800));
@@ -181,9 +191,8 @@ try {
   check('?notrack=1 on itch: nothing even queued', optOutLogs.length === 0, `${optOutLogs.length} lines`);
 } finally {
   server.kill();
-  // ALWAYS leave the tree with an empty config — a populated one committed by
-  // accident is exactly what the whole build-time gate exists to prevent.
-  execFileSync('tools/write_build_config.sh', ['', ''], { stdio: 'inherit' });
+  rmSync(EXPORT_DIR, { recursive: true, force: true });
+  rmSync(PROJECT_DIR, { recursive: true, force: true });
 }
 
 const failed = results.filter((r) => !r.pass);

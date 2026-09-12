@@ -14,7 +14,7 @@
 # Not a gate, not an unmed panel, not a keypad — wall, permanently. The only
 # way on is the east stairwell (x[6,8], z16 -> z10), across the gallery, and
 # down the west shaft (x[-8,-6], z4 -> z8), which is a hole cut in the
-# gallery's own decking, into the pocket where keypad17 and the code clue are.
+# gallery's own decking, into the pocket where the final bell is mounted.
 # Up, across, down. The flat route was never on the table.
 #
 # --- THREE ORDERLIES, AND WHAT ACTUALLY SEPARATES THEM ---------------------
@@ -58,22 +58,30 @@
 #
 # PILL ECONOMY (PILLS_MAX 1, binary). on_enter forces unmed, which is free.
 # dispenser17a by spawn tops off to 1. The hall, the climb, the gallery, the
-# descent and the code are all unmed and all free. ONE shift, at the keypad.
+# descent and the bells can all be completed raw. Medication remains an
+# optional escape from pursuit, with its own warning-first shutter threat.
 # dispenser17c sits at the west shaft's ground landing because the pocket has
 # no walk-back: the sealed wall stops the flat route and the east stair cannot
 # be re-entered from the pocket side, so a mistimed 45s revert down there
 # would otherwise mean retracing the entire crossing.
 #
-# NO COLLIDER IN THIS ROOM IS STATE-FILTERED, so circle_hits_solid_unmed can
+# No unmedicated-only barrier is introduced, so circle_hits_solid_unmed can
 # never find a trapped case at any XZ on either level: the timer expiring on
 # the gallery, mid-stair or in the pocket is always a free instant revert.
 # Exposure, never a soft-lock.
 #
-# CODE: 9137. EXIT: room18 (not ported yet; this room is deliberately not
-# registered in main.gd's ROOM_SCENES).
+# LATE LUCID HAZARD — the gallery's shutter is warning-first, not a silent
+# trap. Entering its lucid warning zone starts a 3s lamp/click cadence. The
+# player can cross before it closes, or shift unmedicated at any point to
+# retract it. If the player remains in the closing footprint, the catch/reset
+# teleports them to the marked safe platform and returns the shutter to its
+# open position. Unmedicated never activates or damages the player.
+#
+# THREE BELLS: circle -> square -> triangle, echoing room 8. EXIT: room18.
 extends Node3D
 
 const ORDERLY := preload("res://orderly/orderly.tscn")
+const BELL_SEQUENCE := preload("res://kit/bell_sequence.gd")
 
 const SPAWN_X := 0.0
 const SPAWN_Z := 32.0
@@ -82,6 +90,15 @@ const SPAWN_Z := 32.0
 const SPAWN_LEVEL := "ground"
 
 const BALCONY_Y := 3.4
+
+const SHUTTER_RETRACTED_Z := -6.4
+const SHUTTER_CLOSED_Z := 2.0
+const SHUTTER_WIDTH := 17.4
+const SHUTTER_THICK := 0.22
+const SHUTTER_WARNING_SEC := 3.0
+const SHUTTER_SPEED := 3.5
+const SHUTTER_SAFE_X := -7.45
+const SHUTTER_SAFE_Z := -1.7
 
 # ORDERLY-SOUTH — the approach. A flat back-and-forth across the south hall;
 # the crossing to the east stair mouth (x~7, z=16) is a through-point, not a
@@ -109,7 +126,7 @@ const WAYPOINTS_B: Array[Vector3] = [
 
 # ORDERLY-POCKET — the floor directly beneath the gallery, the same rectangle
 # as WAYPOINTS_B at 0 instead of 3.4. Confined to x[0,6] z[3,9]: clear of the
-# west wall and dispenser17c, clear of both code scrawls by more than the 8.2m
+# west wall and dispenser17c, clear of the exit-wall scrawls by more than the 8.2m
 # inspection distance, and 0.61m off the landing guard's corner (needs >0.5).
 const WAYPOINTS_C: Array[Vector3] = [
 	Vector3(6, 0, 9),
@@ -122,33 +139,61 @@ const WAYPOINTS_C: Array[Vector3] = [
 # z=-6, rotated a quarter turn so the leaf lies flat in the vestibule.
 const DOOR_OPEN_POS := Vector3(-1, 1.5, -6.85)
 
-var _code := "9137"
+var _bells: RefCounted = BELL_SEQUENCE.new()
 
 var _orderlies: Array[CharacterBody3D] = []
 var _door_unlocked := false
 var _saw_unmed_toast := false
 
+var _shutter: AnimatableBody3D = null
+var _shutter_shape: CollisionShape3D = null
+var _warning_lamp: MeshInstance3D = null
+var _shutter_warning := false
+var _shutter_closing := false
+var _shutter_closed := false
+var _warning_elapsed := 0.0
+var _click_elapsed := 0.0
+var _hazard_catch_reset := false
+
 var _main: Node = null
+
+
+func _ready() -> void:
+	_shutter = get_node_or_null("Geometry/GalleryShutter17") as AnimatableBody3D
+	_shutter_shape = get_node_or_null("Geometry/GalleryShutter17/Shape") as CollisionShape3D
+	_warning_lamp = get_node_or_null("Geometry/ShutterWarningLamp") as MeshInstance3D
+	_set_shutter(SHUTTER_RETRACTED_Z)
+	if _warning_lamp != null:
+		_warning_lamp.visible = false
 
 
 func on_enter(main: Node) -> void:
 	_main = main
 	_door_unlocked = false
 	_saw_unmed_toast = false
+	_shutter_warning = false
+	_shutter_closing = false
+	_shutter_closed = false
+	_warning_elapsed = 0.0
+	_click_elapsed = 0.0
+	_hazard_catch_reset = false
+	_set_shutter(SHUTTER_RETRACTED_Z)
+	if _warning_lamp != null:
+		_warning_lamp.visible = false
 
+	_bells.configure(_main, self, "gallery_calls17", "bell17_",
+		["circle", "square", "triangle"], _on_bells_accepted, "bellOrder17")
 	for node in _interactables():
 		node.availability = _is_available
-
-	_regenerate_code()
 	_spawn_orderlies()
 
 	# Forced raw at the threshold — free, since force_state never touches
-	# inventory, and it guarantees the room's single lucid spend happens at
-	# the keypad rather than being carried in from room 16.
+	# inventory, so the first bell's raw-state rule is evident on arrival. Medication
+	# is optional here and can trigger the gallery shutter.
 	StateManager.force_state(StateManager.State.UNMED, "room17-entry")
 	main.shift_fx()
 	main.hud_toast("you come to mid-stride, raw. this ward doesn't stay on one floor.")
-	main.hud_objective("the day room stacks itself. climb before you can cross.")
+	main.hud_objective("three calls: entry, gallery, then the ward below. find the numbered order before climbing.")
 
 
 func _interactables() -> Array[Interactable]:
@@ -168,54 +213,179 @@ func _interactables() -> Array[Interactable]:
 
 func _is_available(id: String) -> bool:
 	match id:
-		# Scenery: the keypad opens it, never a hand on the door.
+		# Scenery: the bells open it, never a hand on the door.
 		"exitdoor":
 			return false
-		"keypad17":
-			return not _door_unlocked
+		"bell17_circle", "bell17_square", "bell17_triangle":
+			return _bells.is_available(id)
 	return true
 
 
 func on_interact(id: String) -> bool:
-	if id == "keypad17":
-		if not StateManager.is_lucid():
-			_main.hud_toast("the keypad is a smear of static. you can't read it like this.")
-			return true
-		# TWO arguments: open_keypad(code, on_success). It emits
-		# keypad_open / keypad_success / keypad_denied telemetry itself.
-		_main.open_keypad(_code, _on_code_accepted)
-		return true
-
-	return false
+	if not id.begins_with("bell17_"):
+		return false
+	return _bells.handle(id)
 
 
-func _on_code_accepted() -> void:
+func _on_bells_accepted() -> void:
 	_door_unlocked = true
 	_main.move_interactable("exitdoor", DOOR_OPEN_POS, PI / 2.0)
 	# Drops the doorway on EVERY level. RailNorthDoorGap (level 'balcony') is
 	# what still keeps a gallery traveler from walking out over the vestibule
 	# once this is gone.
 	_main.unlock_door("DoorCollider")
-	# Interpolates the LIVE code — a rerolled code must read back correctly.
-	_main.hud_toast("%s. two floors, one lock." % _code)
+	_main.hud_toast("three bells. two floors, one lock.")
 	_main.hud_objective("the door is open. go.")
 
 
 func on_state_change(next: StateManager.State) -> void:
+	if next == StateManager.State.UNMED and (_shutter_warning or _shutter_closing or _shutter_closed):
+		if not _hazard_catch_reset:
+			_avoid_shutter("shifted_unmed")
 	if next == StateManager.State.UNMED and not _saw_unmed_toast:
 		_saw_unmed_toast = true
 		_main.hud_toast("three of them keep this ward. none of them use the stairs the way you do.")
 
 
-# --- randomize-codes (CLAUDE.md hard rule) ---------------------------------
-#
-# Called from on_enter AND from the catch handler. This room has orderlies, so
-# without the second call the code would be memorisable across a reset.
-func _regenerate_code() -> void:
-	if not WardCodes.is_randomize_codes_enabled():
+# --- lucid shutter ---------------------------------------------------------
+
+func on_trigger_enter(id: String) -> void:
+	if id != "shutterWarning17" or not StateManager.is_lucid() or not _player_is_balcony():
 		return
-	_code = WardCodes.random_code_4()
-	_main.update_scrawl_text("codeScrawl", WardCodes.code_clue_text(_code))
+	if _shutter_warning or _shutter_closing or _shutter_closed:
+		return
+	_shutter_warning = true
+	_warning_elapsed = 0.0
+	_click_elapsed = 0.0
+	if _warning_lamp != null:
+		_warning_lamp.visible = true
+	Telemetry.event("hazard_warning", {
+		"hazard": "room17_shutter", "reason": "lucid_gallery_crossing"})
+	WardAudio.dispenser_clunk()
+	_main.hud_toast("a lamp clicks above you. the shutter is waking.")
+
+
+func on_trigger_exit(_id: String) -> void:
+	# The warning intentionally continues after the player clears its trigger:
+	# crossing quickly is safe, but turning around in lucid has a cost.
+	pass
+
+
+func _avoid_shutter(reason: String) -> void:
+	if not _shutter_warning and not _shutter_closing and not _shutter_closed:
+		return
+	_shutter_warning = false
+	_shutter_closing = false
+	_shutter_closed = false
+	_warning_elapsed = 0.0
+	_click_elapsed = 0.0
+	_set_shutter(SHUTTER_RETRACTED_Z)
+	if _warning_lamp != null:
+		_warning_lamp.visible = false
+	Telemetry.event("hazard_avoided", {
+		"hazard": "room17_shutter", "reason": reason})
+	_main.hud_toast("the clicking stops. raw hands pull it back.")
+
+
+func _activate_shutter() -> void:
+	if not _shutter_warning or not StateManager.is_lucid():
+		return
+	_shutter_warning = false
+	_shutter_closing = true
+	Telemetry.event("hazard_activated", {
+		"hazard": "room17_shutter", "reason": "warning_elapsed"})
+	_main.hud_toast("the shutter advances. raw hands can still stop it.")
+
+
+func _player_is_balcony() -> bool:
+	return _main != null and _main.player != null and _main.player.level == "balcony"
+
+
+func _player_in_shutter_sweep(from_z: float, to_z: float) -> bool:
+	if not _player_is_balcony():
+		return false
+	var player_pos: Vector3 = _main.player.global_position
+	if absf(player_pos.x) > SHUTTER_WIDTH * 0.5 + Tuning.PLAYER_RADIUS:
+		return false
+	var margin := SHUTTER_THICK * 0.5 + Tuning.PLAYER_RADIUS
+	var low := minf(from_z, to_z) - margin
+	var high := maxf(from_z, to_z) + margin
+	return player_pos.z >= low and player_pos.z <= high
+
+
+func _advance_shutter(delta: float) -> void:
+	if not _shutter_closing or not StateManager.is_lucid():
+		return
+	var from_z: float = _shutter.position.z
+	var to_z := move_toward(from_z, SHUTTER_CLOSED_Z,
+		SHUTTER_SPEED * maxf(delta, 0.0))
+	_set_shutter(to_z)
+	# Check the whole swept interval. The player's position is authored through
+	# XZ writes rather than a physics body, so checking only the final box would
+	# tunnel through a shutter on a large frame or a dropped browser frame.
+	if _player_in_shutter_sweep(from_z, to_z):
+		_catch_shutter()
+		return
+	if is_equal_approx(to_z, SHUTTER_CLOSED_Z):
+		_shutter_closing = false
+		_shutter_closed = true
+		if _warning_lamp != null:
+			_warning_lamp.visible = false
+
+
+func _catch_shutter() -> void:
+	if _hazard_catch_reset:
+		return
+	_hazard_catch_reset = true
+	Telemetry.event("hazard_caught", {
+		"hazard": "room17_shutter", "reason": "inside_closure_footprint"})
+	# A signalled reset, rather than an instant kill: return raw, retract the
+	# shutter, and place the player on the visible platform north of the hazard.
+	StateManager.force_state(StateManager.State.UNMED, "shutter-catch")
+	_shutter_warning = false
+	_shutter_closing = false
+	_shutter_closed = false
+	_set_shutter(SHUTTER_RETRACTED_Z)
+	if _warning_lamp != null:
+		_warning_lamp.visible = false
+	_main.shift_fx()
+	_main.teleport_player(SHUTTER_SAFE_X, SHUTTER_SAFE_Z, "balcony")
+	_main.hud_toast("the shutter catches you. raw, it lets go.")
+	_hazard_catch_reset = false
+
+
+func _set_shutter(z: float) -> void:
+	if _shutter == null:
+		return
+	_shutter.position.z = z
+	if _main != null and _main.collision != null:
+		_main.collision.sync_live()
+
+
+func _tick_shutter(delta: float) -> void:
+	if _shutter_warning:
+		_warning_elapsed += delta
+		_click_elapsed += delta
+		if _warning_lamp != null:
+			_warning_lamp.visible = fmod(_warning_elapsed, 0.5) < 0.32
+		var click_interval := lerpf(0.9, 0.25, clampf(_warning_elapsed / SHUTTER_WARNING_SEC, 0.0, 1.0))
+		if _click_elapsed >= click_interval:
+			_click_elapsed = 0.0
+			WardAudio.dispenser_clunk()
+		if _warning_elapsed >= SHUTTER_WARNING_SEC:
+			# Carry any excess frame time into the visible closing sweep.
+			var closure_delta := _warning_elapsed - SHUTTER_WARNING_SEC
+			_activate_shutter()
+			_advance_shutter(closure_delta)
+	elif _shutter_closing:
+		_warning_elapsed += delta
+		_click_elapsed += delta
+		if _warning_lamp != null:
+			_warning_lamp.visible = fmod(_warning_elapsed, 0.5) < 0.32
+		if _click_elapsed >= 0.25:
+			_click_elapsed = 0.0
+			WardAudio.dispenser_clunk()
+		_advance_shutter(delta)
 
 
 # --- the orderlies ---------------------------------------------------------
@@ -294,7 +464,6 @@ func _on_caught(toast: String) -> void:
 	_main.shift_fx()
 	_main.teleport_player(SPAWN_X, SPAWN_Z, SPAWN_LEVEL)
 	_main.hud_toast(toast)
-	_regenerate_code()
 
 
 # Primary threat across THREE patrols on TWO floors: chasing beats watching, a
@@ -307,7 +476,10 @@ func _on_caught(toast: String) -> void:
 # the fold. The HUD arrow therefore only ever points at someone who really can
 # reach the player.
 func _physics_process(_delta: float) -> void:
-	if _main == null or _orderlies.is_empty():
+	if _main == null:
+		return
+	_tick_shutter(_delta)
+	if _orderlies.is_empty():
 		return
 
 	var player_pos: Vector3 = _main.player.global_position
@@ -350,4 +522,10 @@ func _physics_process(_delta: float) -> void:
 func on_leave() -> void:
 	if _main != null:
 		_main.set_threat(0.0, null)
+	_shutter_warning = false
+	_shutter_closing = false
+	_shutter_closed = false
+	if _warning_lamp != null:
+		_warning_lamp.visible = false
+	_set_shutter(SHUTTER_RETRACTED_Z)
 	_free_orderlies()

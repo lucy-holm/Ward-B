@@ -149,6 +149,11 @@ func _ready() -> void:
 		# and get_viewport().get_texture() below still hands back the PREVIOUS
 		# frame — the HUD-visible one. Cost a whole capture the first time.
 		await get_tree().process_frame
+	# Optional press cover: compose type in Godot over the live player camera,
+	# so the background remains a real render rather than an edited screenshot.
+	if args.size() > 7 and args[7] == "cover":
+		_add_press_title()
+		await get_tree().process_frame
 
 	# Report what is ACTUALLY governing the render, not what we hope is.
 	var cam := _find_active_camera(game)
@@ -177,3 +182,34 @@ func _find_active_camera(node: Node) -> Camera3D:
 		if c != null:
 			return c
 	return null
+
+
+func _add_press_title() -> void:
+	var layer := CanvasLayer.new()
+	layer.layer = 100
+	add_child(layer)
+	var size := get_viewport().get_visible_rect().size
+	var gradient := Gradient.new()
+	gradient.set_color(0, Color(0.015, 0.025, 0.025, 0.0))
+	gradient.set_color(1, Color(0.015, 0.025, 0.025, 0.96))
+	var texture := GradientTexture2D.new()
+	texture.gradient = gradient
+	texture.fill_from = Vector2(0, 0)
+	texture.fill_to = Vector2(0, 1)
+	var shade := TextureRect.new()
+	shade.texture = texture
+	shade.position = Vector2(0, size.y * 0.42)
+	shade.size = Vector2(size.x, size.y * 0.58)
+	layer.add_child(shade)
+	for line in [["WARD B", 66, 0.67, Color(0.92, 0.95, 0.94)],
+		["ONE PILL. TWO REALITIES.", 20, 0.83, Color(0.624, 0.847, 0.796)],
+		["SURVIVAL HORROR PLAYTEST", 13, 0.91, Color(0.75, 0.79, 0.77)]]:
+		var label := Label.new()
+		label.text = line[0]
+		label.add_theme_font_override("font", preload("res://fonts/SpecialElite-Regular.ttf"))
+		label.add_theme_font_size_override("font_size", line[1])
+		label.add_theme_color_override("font_color", line[3])
+		label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		label.position = Vector2(0, size.y * line[2])
+		label.size.x = size.x
+		layer.add_child(label)

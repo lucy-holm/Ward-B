@@ -1,4 +1,6 @@
-# itch.io store page metadata — Ward B
+# itch.io store page metadata — Ward B (historical archive)
+
+> **Current copy:** use [`press/store-description.md`](../../../press/store-description.md), [`press/store-description.html`](../../../press/store-description.html), and [`press/release-notes.md`](../../../press/release-notes.md). This document records an earlier metadata pass and is retained for historical decisions; it is no longer the source of truth for the public page.
 
 Field-by-field copy for the itch.io "Edit game" form. Paste each fenced
 block into the field named in its heading. Written from the game's own
@@ -6,7 +8,7 @@ voice (lowercase interior text, clipped, clinical-but-haunted) where the
 field is player-facing copy; plain and direct where the field is
 itch's own UI chrome (tags, genre, install instructions).
 
-**Updated 2026-08-31 for the Godot build.** The Three.js build (`src/`) this
+**Historical snapshot, updated 2026-08-31 for the Godot build.** The Three.js build (`src/`) this
 doc originally cited was deprecated and frozen on 2026-08-23 — the Godot
 build in `godot/` is the only maintained build and the one that ships
 publicly (`docs/superpowers/specs/2026-08-23-threejs-deprecation.md`). Every

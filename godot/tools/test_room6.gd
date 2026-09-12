@@ -78,8 +78,10 @@ func _ready() -> void:
 	Telemetry.disabled = true
 	StateManager.force_state(StateManager.State.UNMED, "test")
 	_test_layout_and_contract()
+	_test_each_candidate_pickup()
 	_test_two_step_puzzle_and_noise()
 	_test_catch_preserves_completed_step()
+	await _test_real_focus_candidates()
 	await _test_real_main_noise_response()
 	_finish()
 
@@ -147,6 +149,15 @@ func _test_layout_and_contract() -> void:
 			"the panel has a distinct maintenance type")
 	_check(_find(room, "dispenser6") != null,
 		"the alcove refill route remains present")
+	_check(room.FUSE_LOCATIONS.size() == 4,
+		"the fuse has four authored hiding locations")
+	var distinct := {}
+	for location: Vector3 in room.FUSE_LOCATIONS:
+		_check(is_equal_approx(location.y, 0.40),
+			"fuse location sits on the floor (got y=%s)" % location.y)
+		distinct["%0.2f,%0.2f" % [location.x, location.z]] = true
+	_check(distinct.size() == room.FUSE_LOCATIONS.size(),
+		"fuse hiding locations are distinct")
 	room.free()
 
 
@@ -156,6 +167,13 @@ func _test_two_step_puzzle_and_noise() -> void:
 	var main: StubMain = ctx["main"]
 	var col: WardCollision = main.collision
 	var door := room.find_child("DoorCollider", true, false) as CollisionObject3D
+	for location: Vector3 in room.FUSE_LOCATIONS:
+		_check(not col.is_blocked_at(location.x, location.z, Tuning.PLAYER_RADIUS,
+			StateManager.State.UNMED),
+			"fuse location is reachable unmedicated: %s" % location)
+		_check(not col.is_blocked_at(location.x, location.z, Tuning.PLAYER_RADIUS,
+			StateManager.State.LUCID),
+			"fuse location is reachable lucid: %s" % location)
 
 	_check(not room._part_recovered and not room._panel_powered,
 		"maintenance starts with both steps incomplete")
@@ -189,6 +207,24 @@ func _test_two_step_puzzle_and_noise() -> void:
 		StateManager.State.LUCID), "the powered exit is walkable")
 	_teardown(ctx)
 	StateManager.force_state(StateManager.State.UNMED, "test")
+
+
+func _test_each_candidate_pickup() -> void:
+	var template: Node3D = ROOM.instantiate()
+	var candidate_count: int = template.FUSE_LOCATIONS.size()
+	template.free()
+	for index in candidate_count:
+		var ctx := _make_room()
+		var room: Node3D = ctx["room"]
+		var fuse := _find(room, "service_part6")
+		room._fuse_location_index = index
+		if fuse != null:
+			fuse.global_position = room.FUSE_LOCATIONS[index]
+		StateManager.force_state(StateManager.State.UNMED, "test")
+		room.on_interact("service_part6")
+		_check(room._part_recovered,
+			"candidate %d remains collectible while unmedicated" % index)
+		_teardown(ctx)
 
 
 func _test_real_main_noise_response() -> void:
@@ -229,14 +265,72 @@ func _test_real_main_noise_response() -> void:
 	StateManager.force_state(StateManager.State.UNMED, "test")
 
 
+func _test_real_focus_candidates() -> void:
+	# Aim the actual player Camera3D/InteractRay at every candidate. Manual
+	# on_interact calls above prove room logic; this catches a low or occluded
+	# pickup that the player's real focus ray could never select.
+	var game: Node = load("res://main.tscn").instantiate()
+	add_child(game)
+	await get_tree().process_frame
+	game.load_room("room6")
+	await get_tree().process_frame
+	var room: Node3D = game.current_room
+	var fuse := _find(room, "service_part6")
+	var player: Node3D = game.player
+	var approach := [
+		Vector3(6.30, 0.0, -4.0),
+		Vector3(3.80, 0.0, -2.0),
+		Vector3(8.50, 0.0, -2.0),
+		Vector3(10.70, 0.0, -1.8),
+	]
+	for index in room.FUSE_LOCATIONS.size():
+		StateManager.force_state(StateManager.State.UNMED, "test")
+		room._fuse_location_index = index
+		fuse.global_position = room.FUSE_LOCATIONS[index]
+		player.global_position = approach[index]
+		var target: Vector3 = fuse.global_position
+		var horizontal := Vector2(target.x - player.global_position.x,
+			target.z - player.global_position.z).length()
+		player.yaw = atan2(target.x - player.global_position.x,
+			-(target.z - player.global_position.z))
+		player.pitch = -atan2(player.camera.global_position.y - target.y, horizontal)
+		player.rotation.y = player.yaw
+		player.camera.rotation.x = player.pitch
+		player.force_update_transform()
+		player.camera.force_update_transform()
+		await get_tree().physics_frame
+		game._update_focus()
+		var ray: RayCast3D = player.camera.get_node("InteractRay")
+		var hit := ray.get_collider() if ray.is_colliding() else null
+		_check(game._focused == fuse,
+			"actual camera focus ray selects fuse candidate %d (hit=%s)" % [index, hit])
+	game.queue_free()
+	await get_tree().process_frame
+	StateManager.force_state(StateManager.State.UNMED, "test")
+
+
 func _test_catch_preserves_completed_step() -> void:
 	var ctx := _make_room()
 	var room: Node3D = ctx["room"]
 	var main: StubMain = ctx["main"]
+	var before_catch: int = room._fuse_location_index
+	room._on_caught()
+	_check(room._fuse_location_index != before_catch,
+		"an unacquired fuse rerolls after a catch")
+	var fuse := _find(room, "service_part6")
+	_check(fuse != null and fuse.global_position.is_equal_approx(
+		room.FUSE_LOCATIONS[room._fuse_location_index]),
+		"catch reroll moves the live fuse to the new authored location")
+	StateManager.force_state(StateManager.State.UNMED, "test")
 	room.on_interact("service_part6")
+	StateManager.force_state(StateManager.State.LUCID, "test")
+	room.on_interact("service_panel6")
+	var installed_location: int = room._fuse_location_index
 	room._on_caught()
 	_check(room._part_recovered,
 		"an orderly catch preserves the recovered part")
+	_check(room._panel_powered and room._fuse_location_index == installed_location,
+		"an installed fuse and powered panel never reroll after a catch")
 	_check(not main.teleports.is_empty(), "a catch still returns to the ordinary spawn")
 	_teardown(ctx)
 	StateManager.force_state(StateManager.State.UNMED, "test")

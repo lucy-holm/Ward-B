@@ -24,7 +24,7 @@ var passes := 0
 
 # Same reasoning as test_settings.gd's: a GDScript runtime error aborts only
 # the function it happens in, so a suite can silently test less than it claims.
-const EXPECTED_ASSERTIONS := 20
+const EXPECTED_ASSERTIONS := 21
 
 var _game: Node
 var _overlay: CanvasLayer
@@ -74,8 +74,12 @@ func _test_gate_before_admit() -> void:
 
 
 func _test_open_and_shape() -> void:
-	_overlay._on_admit_pressed()
+	# Drive the actual GUI button signal: the button consumes the click before
+	# Player._unhandled_input, so Main must still request pointer capture from
+	# its admit callback on hybrid iPad hardware.
+	_overlay._admit_btn.emit_signal("pressed")
 	_check(_game.player.is_input_enabled(), "ADMIT ME must hand input to the player")
+	_check(_game.player._capture_attempted, "ADMIT ME captures a real pointer gesture")
 
 	_game._open_pause()
 	_check(get_tree().paused, "opening the pause panel must pause the tree")

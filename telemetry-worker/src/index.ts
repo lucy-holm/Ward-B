@@ -77,7 +77,7 @@ export const PLAYTEST_EVENTS = new Set([
   'medication_expired', 'dispenser_refused', 'dispenser_used', 'pill_pickup',
   'keypad_open', 'keypad_close', 'keypad_success', 'keypad_denied', 'door_opened',
   'orderly_caught', 'pos', 'perf', 'idle_start', 'idle_end', 'error',
-  'puzzle_step', 'noise', 'investigation_started', 'investigation_ended',
+  'puzzle_step', 'puzzle_layout', 'noise', 'investigation_started', 'investigation_ended',
   'hazard_warning', 'hazard_activated', 'hazard_avoided', 'hazard_caught',
   'checkpoint_saved', 'checkpoint_save_failed', 'checkpoint_restored',
   'checkpoint_continue', 'pursuit_stalled', 'pursuit_recovered',

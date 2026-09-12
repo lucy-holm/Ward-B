@@ -32,7 +32,7 @@ var _threat_shown := 0.0
 # as the fill, so the moment the meter had a visible track the warning state
 # turned the empty part red too and the bar stopped reading as a gauge.
 var _med_fill: StyleBoxFlat
-var _touch_layout := DisplayServer.is_touchscreen_available()
+var _touch_layout := false
 const TOUCH_UI := preload("res://ui/touch_controls.gd")
 
 
@@ -54,8 +54,10 @@ func _ready() -> void:
 	# writes to _med_fill, so the meter must own its styleboxes before
 	# anything can be delivered to it.
 	_style_med_bar()
+	_touch_layout = WardInput.is_touch_mode()
 	_apply_scale()
 	get_viewport().size_changed.connect(_apply_scale)
+	WardInput.mode_changed.connect(_on_input_mode_changed)
 
 	StateManager.medication_changed.connect(_on_medication_changed)
 	StateManager.shift_ability_changed.connect(_on_shift_ability_changed)
@@ -111,9 +113,16 @@ func refresh_scale() -> void:
 func _input(event: InputEvent) -> void:
 	# Match touch_controls.gd's fallback for browsers that report no touch
 	# capability until the first real contact arrives.
-	if not _touch_layout and event is InputEventScreenTouch:
+	if event is InputEventScreenTouch or event is InputEventScreenDrag:
+		WardInput.set_touch_mode()
+	if not _touch_layout and WardInput.is_touch_mode():
 		_touch_layout = true
 		_apply_scale()
+
+
+func _on_input_mode_changed(mode: WardInput.Mode) -> void:
+	_touch_layout = mode == WardInput.Mode.TOUCH
+	_apply_scale()
 
 
 func _apply_scale() -> void:

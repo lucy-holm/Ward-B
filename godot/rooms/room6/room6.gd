@@ -7,8 +7,8 @@
 # while lucid. The first action makes noise and brings the existing orderly
 # back over the corridor, so the alcove remains a recoverable refill route.
 #
-# SOFT-LOCK AUDIT: the fuse is unmedicated-only, but it is beside the alcove
-# dispenser. A catch preserves the pickup and returns to the room's normal
+# SOFT-LOCK AUDIT: the fuse is unmedicated-only on one of four service trays;
+# the alcove dispenser remains available. A catch preserves a held fuse and returns to the normal
 # spawn; a player who spends the pill before the panel can always return to
 # that dispenser and refill. No collider is state-filtered here.
 #
@@ -33,16 +33,34 @@ const WAYPOINTS: Array[Vector3] = [
 	Vector3(0, 0, -2.0),
 ]
 
+# Four authored pockets in the existing L-shaped corridor. These are low
+# tray pickups (the visible lower cap rests at y=.264), deliberately
+# spread across the safe south alcove and east leg so a catch changes the
+# search without creating a new route or a state-filtered collider.
+# This is normal-mode spatial variation, so it is intentionally independent
+# of the keypad randomization setting: the fuse must still move after a catch
+# when code randomization is disabled.
+const FUSE_LOCATIONS: Array[Vector3] = [
+	Vector3(6.30, 0.40, -5.25),
+	Vector3(3.80, 0.40, -3.60),
+	Vector3(8.50, 0.40, -3.60),
+	Vector3(10.70, 0.40, -2.80),
+]
+
 var _orderly: CharacterBody3D = null
 var _door_unlocked := false
 var _part_recovered := false
 var _panel_powered := false
 var _saw_unmed_toast := false
 var _main: Node = null
+var _fuse_location_index := -1
+var _fuse_rng := RandomNumberGenerator.new()
 
 
 func on_enter(main: Node) -> void:
 	_main = main
+	if not _part_recovered:
+		_place_fuse("initial")
 	_door_unlocked = _panel_powered
 	_saw_unmed_toast = false
 
@@ -51,7 +69,7 @@ func on_enter(main: Node) -> void:
 
 	_spawn_orderly()
 	main.hud_objective(
-		"the corridor bends. recover the service fuse while you are raw.")
+		"search the corridor. recover the service fuse while you are raw.")
 	if _part_recovered and not _panel_powered:
 		main.hud_objective("reach the service panel. carry the fuse there.")
 	elif _panel_powered:
@@ -114,6 +132,25 @@ func on_interact(id: String) -> bool:
 	return false
 
 
+func _place_fuse(cause: String) -> void:
+	if _part_recovered or FUSE_LOCATIONS.is_empty():
+		return
+	if _fuse_location_index < 0:
+		_fuse_rng.randomize()
+	var next := _fuse_rng.randi_range(0, FUSE_LOCATIONS.size() - 1)
+	if FUSE_LOCATIONS.size() > 1 and next == _fuse_location_index:
+		next = (next + 1) % FUSE_LOCATIONS.size()
+	_fuse_location_index = next
+	var fuse := get_node_or_null("Interactables/service_part6_state/service_part6")
+	if fuse is Node3D:
+		(fuse as Node3D).global_position = FUSE_LOCATIONS[next]
+	Telemetry.event("puzzle_layout", {
+		"puzzle": "room6_maintenance",
+		"layout": _fuse_location_index,
+		"cause": cause,
+	})
+
+
 func _on_panel_powered() -> void:
 	if _panel_powered:
 		return
@@ -172,7 +209,11 @@ func _on_caught() -> void:
 	StateManager.force_state(StateManager.State.LUCID, "catch")
 	_main.shift_fx()
 	_main.teleport_player(SPAWN_X, SPAWN_Z)
-	_main.hud_toast('hands. a needle. "back to the start," he says.')
+	if not _part_recovered:
+		_place_fuse("catch")
+		_main.hud_toast("hands. a needle. the ward moved the fuse. search again.")
+	else:
+		_main.hud_toast('hands. a needle. "back to the start," he says.')
 
 
 func _physics_process(_delta: float) -> void:

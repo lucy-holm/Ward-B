@@ -1,6 +1,6 @@
 # Screenshot THE REAL GAME — main.tscn, its player camera, its WorldEnvironment.
 #
-#   godot --path godot --resolution 1280x720 tools/shoot_game.tscn -- <name> [seconds] [room_id] [lucid] [style_overrides] [nohud] [x,z,yaw[,level[,y]]]
+#   godot --path godot --resolution 1280x720 tools/shoot_game.tscn -- <name> [seconds] [room_id] [lucid] [style_overrides] [nohud] [x,z,yaw[,level[,y[,pitch]]]]
 #
 # Arg 6: pass "nohud" for a clean plate — hides main.gd's `hud` CanvasLayer
 # right before the frame is grabbed, same real camera/lighting/room as every
@@ -97,6 +97,11 @@ func _ready() -> void:
 		var rlevel: String = parts[3] if parts.size() > 3 else WardLevels.FLAT_LEVEL_ID
 		var ry: float = float(parts[4]) if parts.size() > 4 else 0.0
 		game.player.spawn_at(rx, rz, ryaw, rlevel, ry)
+		# Optional look pitch frames high wall clues and low pickups using the
+		# actual player camera, without altering saved settings. Radians.
+		if parts.size() > 5:
+			game.player.pitch = clampf(float(parts[5]), -1.25, 1.25)
+			game.player._apply_rotation()
 		# Let the per-tick vertical ease and any position-driven state (fog,
 		# trigger volumes) settle at the new spot before anything downstream
 		# (lucid crossfade, capture) reads it.

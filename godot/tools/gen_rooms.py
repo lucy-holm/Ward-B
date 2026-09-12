@@ -345,6 +345,7 @@ class Room:
         # Batched runs: (name, mesh_key, mat, [12-float rows]) — see prop_run().
         self.multimeshes = []
         self.scrawls = []
+        self.scrawl_bounds = {}
         self.interactables = []
         self.lights = []
         self.triggers = []            # (tid, min_x, max_x, min_z, max_z, state)
@@ -622,7 +623,7 @@ class Room:
                                  size if height is None else height, mat, label))
 
     # content --------------------------------------------------------------
-    def scrawl(self, text, pos, rot_y, size, sid=None, light=None, ink=None):
+    def scrawl(self, text, pos, rot_y, size, sid=None, light=None, ink=None, bounds=None):
         """Wall handwriting. Always unmed-only (the Scrawls wrapper).
 
         `light` gates it on the LIGHT axis too, on top of that: a
@@ -636,6 +637,10 @@ class Room:
         charge/fade dial (main.set_glow_fade) dims its ink along with the
         painted floor.
         """
+        if bounds is not None:
+            if not sid or len(bounds) != 2 or not all(math.isfinite(v) and v > 0 for v in bounds):
+                raise ValueError("scrawl bounds need a named label and positive width/height")
+            self.scrawl_bounds[sid] = bounds
         self.scrawls.append((text, pos, rot_y, size, sid, light, ink))
 
     def interactable(self, iid, itype, size, pos, mat, label, state=None, facing=None,
@@ -1712,6 +1717,10 @@ class Emitter:
                 body.append('text = "%s"' % text.replace('"', '\\"').replace("\n", "\\n"))
                 body.append('font = ExtResource("%s")' % self.scrawl_font())
                 body.append("font_size = 128")
+                if sid in r.scrawl_bounds:
+                    width, height = r.scrawl_bounds[sid]
+                    body.append("metadata/scrawl_max_width = %s" % width)
+                    body.append("metadata/scrawl_max_height = %s" % height)
                 # A dark ragged outline breaks up the clean vector edge of the
                 # default font and reads as paint bleeding into plaster. It is
                 # not a substitute for a proper hand-scrawled typeface, but it
@@ -3100,9 +3109,16 @@ def room6():
     # only lands on the right sign here by coincidence).
     r.interactable("dispenser6", "dispenser", (0.55, 0.75, 0.16), (6.3, 1.45, -5.9),
                    "dispenser", "use the dispenser", facing="pz")
-    # Free-standing and unmedicated-only: the broad caps make this read as a
-    # service fuse, not a second pill pickup. It is beside the dispenser so a
-    # caught player can refill and retry without losing the completed step.
+    # Four low service trays support the randomized fuse. Their feet meet the
+    # floor and tray tops meet the fuse cap at y=.264. These step-over details
+    # carry no collider, preserving the authored corridor patrol clearance.
+    for x, z in [(6.3, -5.25), (3.8, -3.6), (8.5, -3.6), (10.7, -2.8)]:
+        r.block((0.75, 0.12, 0.75), (x, 0.204, z), "prop")
+        for dx in (-0.30, 0.30):
+            for dz in (-0.30, 0.30):
+                r.block((0.035, 0.144, 0.035), (x + dx, 0.072, z + dz), "prop")
+    # Unmedicated-only: the broad caps distinguish the fuse from a pill.
+    # The room relocates this pickup among the four trays until it is held.
     # Keep the built-in pickup type so the placement audit recognises this as
     # a free-standing floor object; the room intercepts it before main's
     # pickup branch, and the custom model supplies the fuse silhouette.
@@ -3172,24 +3188,16 @@ def room6():
 
 
 # --- ROOM 7 — the Records Room ---------------------------------------------
-# Three shelving rows still force a serpentine crossing (east gap, west gap,
-# east gap), but the beat is a forced backtrack, not a single crossing: the
-# exit keypad sits right past the maze, reachable lucid and blind with no code
-# in hand. The code — and the dispenser, still hidden behind a row — both live
-# in the back half, by the entrance you just walked away from. So the route is
-# keypad first (safe, useless), then unmed back through the maze to read the
-# code and refill, then unmed (or lucid, if you spend the pill right there)
-# forward through it again to actually open the door. His patrol lives in the
-# pocket between all three rows — the belt you cross both ways — with a row's
-# mass to duck behind on either approach.
+# Three shelving rows force a serpentine crossing. Read the requested shape
+# near the entrance, recover its seal from one of three file stations while
+# raw, then feed the lucid discharge reader. Wrong records make noise; catches
+# change an uncollected request but preserve a held seal. Shelving remains
+# eye-high cover on the orderly's existing route, with a refill nook nearby.
 
 def room7():
     r = Room("room7", "the Records Room",
              floor=(-7.5, 6, -7, 5),
              spawn=(0, 4, 0),
-             # room8+ are out of scope for this migration pass; room7 ends the
-             # build instead of chaining onward. Restore ("room8", ...) when
-             # the rest of the ward is ported.
              exits=[("room8", -1, 1, -6.9, -5.8)])
 
     # shell, x [-6,6] z [-7,5] — reuses room4's exact footprint, different guts
@@ -3206,7 +3214,7 @@ def room7():
     r.wall_x(-1, 1, -7)
     r.block((1.8, 2.6, 0.06), (0, 1.4, -6.94), "glow")  # warm glow beyond the exit
 
-    # staff door collider — locked until the code is entered
+    # staff door collider — opened by the matched record
     r.solid(-1, 1, -5.13, -4.87, name="DoorCollider")
 
     # three shelving rows, gaps alternating east/west/east — a proper
@@ -3228,19 +3236,29 @@ def room7():
     r.scrawl("they keep the quiet\nbehind the files", (5.85, 1.7, 3.5), -math.pi / 2, 2.8)
     # Orderly atmosphere, unmoved — it already sat right where his belt runs.
     r.scrawl("the files don't forget.\nneither does he.", (-5.85, 1.7, -1), math.pi / 2, 2.8)
-    # The code, relocated to the back half, near the entrance.
-    r.scrawl("0 4 5 2", (-5.85, 1.7, 3.7), math.pi / 2, 2.4, sid="codeScrawl")
-    # Planted right where the code used to live, by the keypad.
-    r.scrawl("you walked right past it.\nback the way you came.", (5.85, 1.7, -4), -math.pi / 2, 2.6)
+    # Read the requested file seal before entering the shelves.
+    r.scrawl("discharge file:\ncircle", (-5.85, 1.7, 3.5), math.pi / 2, 2.4, sid="recordClue7")
+    # Reminder near the discharge reader.
+    r.scrawl("one seal fits.\nread the request by the entrance.", (5.85, 1.7, -4), -math.pi / 2, 2.6)
 
-    # Tucked behind row A, not visible from spawn or from the keypad.
+    # Tucked behind row A, out of sight from spawn and the discharge reader.
     # Mounted against the nook's south wall (z=0.8), thin in z; the nook's
     # open interior is +z of that wall, so facing is PINNED 'pz' (inferFacing
     # would point it -z, straight into the wall it's flush against).
     r.interactable("dispenser7", "dispenser", (0.55, 0.75, 0.16), (-6.7, 1.45, 1.0),
                    "dispenser", "use the dispenser", facing="pz")
-    r.interactable("keypad7", "keypad", (0.4, 0.5, 0.14), (1.35, 1.45, -4.81),
-                   "pad", "use the keypad")
+    # Physical matching, not another keypad. Seals sit in separate shelf
+    # shadows, outside the orderly belt; no new collider pinches the maze.
+    for shape, color, pos in [
+            ("circle", "#748994", (-4.6, 0.45, 3.6)),
+            ("square", "#858d6c", (4.65, 0.45, -1.1)),
+            ("triangle", "#a57564", (-4.6, 0.45, -3.5))]:
+        r.shape_key("record7_" + shape, shape, color, pos,
+                    label="take the " + shape + " record seal")
+    r.interactable("record_reader7", "record_reader", (0.5, 0.65, 0.16),
+                   (1.45, 1.45, -4.80), "pad", "file the record seal", facing="pz",
+                   model_script="res://fixtures/ward_puzzle_fixture.gd",
+                   model_props={"kind": '"reader"'})
     r.interactable("exitdoor", "door", (2, 3, 0.2), (0, 1.5, -5),
                    "door", "the exit door")
 
@@ -3287,11 +3305,10 @@ def room7():
 # staff-door gap, a -Z vestibule with a warm glow past the door) with simpler
 # guts — a desk and a coatrack, no maze, no nook.
 #
-# The coat on the rack holds a found pill: a calm top-up with nothing chasing
-# you, so it actually registers. The exit still asks for the established two
-# things (a code read unmed, a keypad worked lucid) so the player feels the
-# oscillation once while it is still free of consequence, right before room 10
-# makes it expensive.
+# The coat holds a pill and the office key, even at full pill capacity.
+# Finding a physical key provides a calm search beat after the call bells.
+# The keyhole is usable lucid; the dispenser keeps that transition recoverable
+# before room 10 makes the familiar safety of medication less dependable.
 
 def room9():
     r = Room("room9", "the Doctor's Office",
@@ -3312,7 +3329,7 @@ def room9():
     r.wall_x(-1, 1, -8)
     r.block((1.8, 2.6, 0.06), (0, 1.4, -7.8), "glow")  # warm glow beyond the exit
 
-    # staff door collider — locked until the code is entered
+    # staff door collider — opened by the coat key
     r.solid(-1, 1, -6.13, -5.87, name="DoorCollider")
 
     # the doctor's desk, dead center — flavor and a collider, nothing more
@@ -3324,7 +3341,7 @@ def room9():
 
     r.scrawl("they dose you small\nso you stay small", (4.85, 1.7, -1), -math.pi / 2, 2.6)
     r.scrawl("his coat still smells\nlike the ward", (-4.85, 1.7, -3.6), math.pi / 2, 2.4)
-    r.scrawl("5 2 1 6", (-4.85, 1.7, 1), math.pi / 2, 2.2, sid="codeScrawl")
+    r.scrawl("his coat kept\nthe way out", (-4.85, 1.7, 0.5), math.pi / 2, 2.0, sid="coatHint9")
 
     # A loose pill in the coat pocket. Typed pill_pickup, but room9.gd
     # intercepts it to vary the toast on an already-full carry — the builtin
@@ -3338,7 +3355,7 @@ def room9():
                    "dispenser", "use the dispenser", facing="nx")
     # One-use clinical chart: a checkpoint anchor, not a free-save point.
     # It carries no collider or light and sits in the west-wall gap between
-    # the code scrawl and the coat.
+    # the coat hint and the coat.
     # Authored world size is thin X / broad Z on the west wall. The generator
     # canonicalizes this to broad X / thin Z, then yaw=-PI/2 for px, so the
     # chart page and its text face +X into the corridor rather than the wall.
@@ -3346,8 +3363,10 @@ def room9():
                    (-4.82, 1.35, 2.0), "prop", "record your place", facing="px",
                    model_script="res://fixtures/maintenance_fixture.gd",
                    model_props={"marker_kind": '"checkpoint"'})
-    r.interactable("keypad9", "keypad", (0.4, 0.5, 0.14), (1.35, 1.45, -5.81),
-                   "pad", "use the keypad")
+    r.interactable("office_lock9", "key_lock", (0.25, 0.42, 0.14),
+                   (1.35, 1.45, -5.81), "pad", "use the brass key", facing="pz",
+                   model_script="res://fixtures/ward_puzzle_fixture.gd",
+                   model_props={"kind": '"keyhole"'})
     r.interactable("exitdoor", "door", (2, 3, 0.2), (0, 1.5, -6),
                    "door", "the exit door")
 
@@ -3356,7 +3375,7 @@ def room9():
     # The desk is the existing prop box at (1, -2.5), footprint x 0..2, z -3..-2;
     # the chair and desktop clutter are placed against those real numbers.
     #
-    # The west wall carries the code scrawl at z 1 and the coat (with the pill
+    # The west wall carries the coat hint at z .5 and the coat (with the pill
     # bottle interactable) at z -3.6, so the cabinets sit in the gap between.
     r.prop_run("skirting", "x", -5, 5, 4.88)
     r.prop_run("skirting", "x", -5, -1, -5.88)
@@ -3412,7 +3431,7 @@ def room8():
     r.wall_x(-1, 1, -10)          # caps the vestibule
     r.block((1.8, 2.6, 0.06), (0, 1.4, -9.8), "glow")  # warm glow beyond the exit
 
-    # staff door collider — locked until the code is entered; the room script
+    # staff door collider — opened by the call sequence; the room script
     # disables it in place.
     r.solid(-1, 1, -8.13, -7.87, name="DoorCollider")
 
@@ -3444,22 +3463,26 @@ def room8():
 
     r.scrawl("two sets of footsteps.\nonly one of them is yours",
              (8.75, 1.7, 4), -math.pi / 2, 2.8)
-    # The split code, on the island's south and north faces — the two halves
-    # face opposite ways, so you cannot read both from one standing position,
-    # and B's waist crosses both. Positions are verbatim from room8.ts.
-    r.scrawl("2 8 – –", (0, 1.6, 1.9), 0.0, 2.2, sid="codeScrawlA")
-    r.scrawl("– – 4 6", (0, 1.6, -1.9), math.pi, 2.2, sid="codeScrawlB")
+    # The full order is read under cover inside the refill alcove. Its panel
+    # sits above the dispenser, not across either island face or a doorway.
+    r.scrawl("call in order:\ncircle\nsquare\ntriangle",
+             (10.35, 2.35, 1.2), -math.pi / 2, 1.0, sid="bellOrder8", bounds=(1.35, 0.65))
 
     # Alcove end cap is at x=10.5, mouth opens toward -x, so facing is PINNED
     # 'nx' — see the facing-audit note above the alcove walls.
     r.interactable("dispenser8", "dispenser", (0.16, 0.75, 0.55), (10.36, 1.45, 1.2),
                    "dispenser", "use the dispenser", facing="nx")
-    # North-wall mounts, z-thin, proud of the inner face at z=-7.88; the room
-    # interior is +z of both, so facing is PINNED 'pz'. (The heuristic happens
-    # to agree here, but gen_rooms' header records two shipped bugs from
-    # trusting it, so both are explicit.)
-    r.interactable("keypad8", "keypad", (0.4, 0.5, 0.14), (1.35, 1.45, -7.81),
-                   "pad", "use the keypad", facing="pz")
+    # Distributed wall bells make the sequence a route, not a modal keypad.
+    # Faces are pinned toward the room; plates sit above the crash rails.
+    for shape, color, pos, facing, size in [
+            ("circle", "#748994", (-8.78, 1.5, 1.6), "px", (0.18, 0.7, 0.55)),
+            ("square", "#858d6c", (4.3, 1.5, -7.78), "pz", (0.55, 0.7, 0.18)),
+            ("triangle", "#a57564", (8.78, 1.5, -4.6), "nx", (0.18, 0.7, 0.55))]:
+        r.interactable("bell8_" + shape, "call_bell", size, pos, "prop",
+                       "ring the " + shape + " bell", facing=facing,
+                       model_script="res://fixtures/ward_puzzle_fixture.gd",
+                       model_props={"kind": '"bell"', "shape": '"%s"' % shape,
+                                    "color": _color_literal(color)})
     r.interactable("exitdoor", "door", (2, 3, 0.2), (0, 1.5, -8),
                    "door", "the exit door", facing="pz")
 
@@ -3870,10 +3893,17 @@ def room12():
     # its face at -9.88), never on the centre-line.
     r.scrawl("one cabinet past the first gate.\nnothing after it. remember.",
              (-9.86, 1.7, 38), math.pi / 2, 2.8)
+    # Keep the entry clue on the east face, but away from the Z1 barred
+    # window at z=43 and the dispenser on the opposite wall at z=42.
     r.scrawl("the whole floor breathes\nthe same stale air",
-             (9.86, 1.7, 42), -math.pi / 2, 2.4)
+             (9.86, 1.7, 34), -math.pi / 2, 2.4, sid="Scrawl1",
+             bounds=(2.8, 1.35))
+    # The old z=28 placement sat directly behind Z2Window on the west wall;
+    # the east face is continuous at z=17 and leaves the clue readable from
+    # the long hall without hiding it behind the window frame.
     r.scrawl("the ward keeps half its mind\nbehind the east wall",
-             (-9.86, 1.7, 28), math.pi / 2, 2.6)
+             (9.86, 1.7, 17), -math.pi / 2, 2.6, sid="Scrawl2",
+             bounds=(3.2, 1.35))
     # Code half 1, on nook C's end cap (wall at x=12, inner face 11.88).
     r.scrawl("8 5 – –", (11.86, 1.7, 27), -math.pi / 2, 2.2, sid="codeScrawlA")
     r.scrawl("the hall keeps two of them.\nthey never walk the same way twice.",
@@ -3883,8 +3913,12 @@ def room12():
     # On GATE C's north face, read from inside the stretch.
     r.scrawl("the far door doesn't care\nhow you got here.",
              (-5, 1.7, -7.86), 0, 2.6)
+    # Z4's west-wall dispenser is at z=-13. A narrower, slightly north-shifted
+    # band keeps this final direction clue clear of its model while retaining
+    # the intended last-cabinet approach.
     r.scrawl("the last cabinet.\nafter this, it's just the door.",
-             (-9.86, 1.7, -15), math.pi / 2, 2.4)
+             (-9.86, 1.7, -15.8), math.pi / 2, 2.4,
+             sid="Scrawl7", bounds=(2.8, 1.35))
 
     # --- interactables. Size tuples are in WORLD axes, so a west-wall mount
     # is thin in X: (0.16, 0.75, 0.55), NOT the canonical (0.55, 0.75, 0.16)
@@ -4226,10 +4260,15 @@ def room11():
              (-8.85, 1.65, 17), math.pi / 2, 2.6)
     r.scrawl("the hallway forgets\nhow long it's been",
              (-8.85, 1.65, 20), math.pi / 2, 2.4)
+    # Both east-wall clues must clear the in-pocket dispenser at z=11. Keep
+    # the verticality hints on that face, but use the open spans above and
+    # below the station rather than letting their long lines swallow it.
     r.scrawl("something keeps the low floor.\nsomething else keeps the high one.",
-             (8.85, 1.65, 13), -math.pi / 2, 2.6)
+             (8.85, 1.65, 14.5), -math.pi / 2, 2.6,
+             sid="Scrawl2", bounds=(2.8, 1.35))
     r.scrawl("the floor climbs on the east.\nhe never follows it up.",
-             (8.85, 1.65, 10.5), -math.pi / 2, 2.6)
+             (8.85, 1.65, 8.2), -math.pi / 2, 2.6,
+             sid="Scrawl3", bounds=(2.5, 1.35))
     # THE CODE — on the east wall at PLATFORM eye height, not ground height, so
     # it only reads to someone who has climbed the ramp. Proud of the wall face
     # by 0.1 rather than the usual 0.03 (room11.ts carries the same number).
@@ -4238,7 +4277,8 @@ def room11():
     r.scrawl("it opens for the calm.\nnot for you, yet.",
              (-5, 1.65, -9.85), 0.0, 2.4)
     r.scrawl("the last cabinet.\nafter this, it's just the door.",
-             (-8.85, 1.65, -14), math.pi / 2, 2.4)
+             (8.85, 1.65, -14), -math.pi / 2, 2.4,
+             sid="Scrawl6", bounds=(2.8, 1.35))
 
     # --- interactables -----------------------------------------------------
     # All three dispensers hang off a wallZ wall, so they are thin in X and
@@ -5066,7 +5106,11 @@ def room18():
     # 3.76m of usable wall between its mouth and its north cap.
     # 1.2, not larger: the Z1 pocket is only the 2.46m between the stub wall
     # (z=2.42) and the south cap's face (z=4.88). Measured, not guessed.
-    r.scrawl("one relay.\nthe whole ward.", (-5.85, 1.65, 3.65), math.pi / 2, 1.2)
+    # The dispenser occupies the only west-wall pocket at z=4. Move this
+    # short clue just north of it and cap its band so the two lines retain a
+    # clean clearance from the dispenser model and the stub-wall return.
+    r.scrawl("one relay.\nthe whole ward.", (-5.85, 1.65, 3.1),
+             math.pi / 2, 1.2, sid="Scrawl0", bounds=(1.1, 1.1))
     r.scrawl("it only moves once.\nthey made sure.", (-1.85, 1.65, -5.0), math.pi / 2, 1.3)
     r.scrawl("lights: the long way, lit.\ndoors: the short way, dark.",
              (1.85, 1.65, -5.0), -math.pi / 2, 1.2)
@@ -5074,7 +5118,9 @@ def room18():
     # touch either one. (The interact prompt carries the same information in
     # BOTH ward states — these are flavour, not the only channel.)
     r.scrawl("LIGHTS", (-1.5, 2.25, -6.85), 0.0, 1.0)
-    r.scrawl("DOORS", (1.5, 2.25, -6.85), 0.0, 1.0)
+    # Shift the north-cap stencil clear of the x=1 doorway return; the lever
+    # remains immediately to its left and still supplies the interaction cue.
+    r.scrawl("DOORS", (2.1, 2.25, -6.85), 0.0, 1.0)
 
     # --- interactables -----------------------------------------------------
     # West wall, so the faceplate points east — PINNED, never inferred.

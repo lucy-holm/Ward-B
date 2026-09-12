@@ -25,6 +25,7 @@ GameState="*res://autoload/game_state.gd"
 Telemetry="*res://autoload/telemetry.gd"
 WardAudio="*res://autoload/ward_audio.gd"
 BrowserLifecycle="*res://autoload/browser_lifecycle.gd"
+WardInput="*res://autoload/input_mode.gd"
 
 [display]
 

@@ -425,6 +425,8 @@ func _ready() -> void:
 	# Same injection pattern as world_collision: the player owns the timing of
 	# its own verticality step, this node owns the data.
 	player.world_levels = levels
+	player.pointer_capture_refused.connect(func() -> void:
+		hud_toast("cursor stays visible here. hold a mouse button and drag to look."))
 	Telemetry.snapshot_provider = player.get_snapshot
 
 	triggers = TriggerPoll.new()
@@ -519,8 +521,8 @@ func _begin_play() -> void:
 	# is still inside the one place a browser will actually grant it — see
 	# player.gd's own "CLICK TO CAPTURE" comment for why capture can't just
 	# be requested unconditionally at startup.
-	if not DisplayServer.is_touchscreen_available():
-		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+	if WardInput.is_pointer_mode():
+		player.request_pointer_capture()
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -563,8 +565,8 @@ func _close_pause() -> void:
 	# will grant pointer lock. Requesting it anywhere later (a deferred call, a
 	# _process check) is silently refused and leaves the run without mouse-look.
 	# Same reasoning, same guard, as _on_admit_pressed.
-	if not DisplayServer.is_touchscreen_available():
-		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+	if WardInput.is_pointer_mode():
+		player.request_pointer_capture()
 	Telemetry.event("pause_close")
 
 
@@ -1089,7 +1091,7 @@ func complete_room(to: String) -> void:
 		world_root.process_mode = Node.PROCESS_MODE_DISABLED
 		StateManager.set_process(false)
 		hud.visible = false
-		touch_controls.visible = false
+		touch_controls.disable_for_end()
 		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 		WardAudio.silence_threat()
 		add_child(preload("res://ui/end_overlay.gd").new())
@@ -1219,7 +1221,9 @@ func set_glow_fade(level: float) -> void:
 func update_scrawl_text(id: String, text: String) -> void:
 	var node := current_room.find_child(id, true, false)
 	if node is Label3D:
-		(node as Label3D).text = text
+		var label := node as Label3D
+		label.text = text
+		WardScrawl.schedule(label)
 
 
 ## Drives the directional threat indicator from an orderly room's update.

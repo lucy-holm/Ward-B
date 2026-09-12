@@ -27,6 +27,7 @@ signal pause_pressed
 @onready var _buttons: Control = $Root/Buttons
 
 var player: Node = null
+var _lifecycle_enabled := true
 
 
 ## Button geometry as a FRACTION of viewport width. Godot's web UI space is
@@ -45,10 +46,10 @@ func _ready() -> void:
 	$Root/Buttons/Shift.pressed.connect(func() -> void: shift_pressed.emit())
 	$Root/Pause.pressed.connect(func() -> void: pause_pressed.emit())
 
-	var touch := DisplayServer.is_touchscreen_available()
-	visible = touch
+	visible = WardInput.is_touch_mode()
 	_stick_base.visible = false
 	_stick_knob.visible = false
+	WardInput.mode_changed.connect(_on_input_mode_changed)
 
 	_layout()
 	get_viewport().size_changed.connect(_layout)
@@ -103,13 +104,35 @@ func _layout() -> void:
 	_stick_knob.size = Vector2(base * 0.45, base * 0.45)
 
 
+func _on_input_mode_changed(_mode: WardInput.Mode) -> void:
+	# Defer the hide caused by a pointer click so a click on one of these
+	# buttons can finish its GUI pressed signal before the touch layer changes
+	# modality. A touch event applies immediately on the next idle turn and
+	# always wins if both devices were used in the same frame.
+	call_deferred("_apply_input_mode_visibility")
+
+
+func _apply_input_mode_visibility() -> void:
+	visible = _lifecycle_enabled and WardInput.is_touch_mode()
+
+
+## The END overlay outlives gameplay. Keep a late touch or mode transition
+## from resurrecting the action buttons over that terminal screen.
+func disable_for_end() -> void:
+	_lifecycle_enabled = false
+	_stick_base.visible = false
+	_stick_knob.visible = false
+	visible = false
+
+
 func _input(event: InputEvent) -> void:
 	# Some mobile browsers report is_touchscreen_available() false. Reveal the
 	# controls the moment a real touch arrives, so a phone is never left
-	# without buttons. Never hides again — a device that has touched once has
-	# a touchscreen.
-	if not visible and event is InputEventScreenTouch:
-		visible = true
+	# without buttons. The explicit END lifecycle gate still owns terminal
+	# visibility after the run has finished.
+	if event is InputEventScreenTouch or event is InputEventScreenDrag:
+		if _lifecycle_enabled and WardInput.is_touch_mode():
+			visible = true
 
 
 func _process(_delta: float) -> void:

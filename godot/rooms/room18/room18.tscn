@@ -328,11 +328,13 @@ script = ExtResource("s_stateobj")
 visible_in_state = 2
 
 [node name="Scrawl0" type="Label3D" parent="Scrawls"]
-transform = Transform3D(0.000000, 0.000000, 1.000000, -0.170381, 0.985378, 0.000000, -0.985378, -0.170381, 0.000000, -5.8500, 1.6500, 3.6500)
+transform = Transform3D(0.000000, 0.000000, 1.000000, -0.144874, 0.989450, 0.000000, -0.989450, -0.144874, 0.000000, -5.8500, 1.6500, 3.1000)
 pixel_size = 0.0016
 text = "one relay.\nthe whole ward."
 font = ExtResource("f_scrawl")
 font_size = 128
+metadata/scrawl_max_width = 1.1
+metadata/scrawl_max_height = 1.1
 outline_size = 14
 outline_modulate = Color(0.18, 0.05, 0.04, 0.85)
 modulate = Color(0.62, 0.16, 0.12, 0.92)
@@ -388,7 +390,7 @@ double_sided = false
 no_depth_test = false
 
 [node name="Scrawl4" type="Label3D" parent="Scrawls"]
-transform = Transform3D(0.993312, 0.115457, 0.000000, -0.115457, 0.993312, 0.000000, -0.000000, -0.000000, 1.000000, 1.5000, 2.2500, -6.8500)
+transform = Transform3D(0.997708, -0.067667, 0.000000, 0.067667, 0.997708, 0.000000, -0.000000, 0.000000, 1.000000, 2.1000, 2.2500, -6.8500)
 pixel_size = 0.0013
 text = "DOORS"
 font = ExtResource("f_scrawl")

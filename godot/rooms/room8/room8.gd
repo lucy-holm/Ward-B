@@ -1,19 +1,10 @@
-# ROOM 8 — the East Ward.
-#
-# The finale: two of them. Orderly A keeps a tight orbit around the central
-# island; orderly B walks a wide figure-eight whose waist crosses right past
-# the island's north and south faces — exactly where the split code is
-# scrawled. Their loops are independent, but the geometry means they are
-# sometimes both near the island and sometimes both far from it, so the safe
-# window to read either half isn't fixed: you have to watch both of them, not
-# just one. One dispenser, tucked in an alcove out along B's eastern leg —
-# inside patrolled ground, but lucid is always safe regardless of who is
-# nearby, so reaching it is a navigation problem, not a combat one. A shadow
-# (the island, the alcove's own walls, a filing block on the west wall) is
-# always within reach of wherever you'd need to stand.
-#
-# Structurally this is room 5 doubled: same island-plus-split-code shape, same
-# south-cap spawn and north staff door, but two patrols instead of one.
+# ROOM 8 — The ward calls back.
+# Read a shape sequence in the dispenser alcove; ring distributed call bells
+# raw while two orderlies patrol. Each sound can draw an investigation.
+# No keypad: the route between physical bells is the puzzle. Correct bells
+# latch and survive catches; a wrong future bell clears the sequence.
+# The original cover, refill and patrol geometry are preserved. All bells
+# have shape AND color cues so monochrome never removes required information.
 extends Node3D
 
 const ORDERLY := preload("res://orderly/orderly.tscn")
@@ -45,7 +36,7 @@ const WAYPOINTS_A: Array[Vector3] = [
 ]
 
 # Orderly B — a wide figure-eight. The two centre waypoints (0, -+2.5) are its
-# waist, each hugging one face of the island, right where the code halves are:
+# waist, each hugging one face of the island, along the crossing between bell stations:
 # he crosses both scrawls every lap, from opposite directions.
 #
 # West legs at x=-7.3, NOT -7.5: the filing block's collider reaches x=-7.89
@@ -75,8 +66,9 @@ const WAYPOINTS_B: Array[Vector3] = [
 # clearance: A 0.80m, B 0.59m, against a 0.50m requirement).
 const WAYPOINTS: Array[Vector3] = WAYPOINTS_A
 
-# One code, two scrawls, on opposite faces of the island.
-var _code := "2846"
+const BELL_SHAPES := ["circle", "square", "triangle"]
+var _bell_order: Array = []
+var _bell_progress := 0
 
 var _orderly_a: CharacterBody3D = null
 var _orderly_b: CharacterBody3D = null
@@ -94,9 +86,14 @@ func on_enter(main: Node) -> void:
 	for node in _interactables():
 		node.availability = _is_available
 
-	_regenerate_code()
+	_bell_order = BELL_SHAPES.duplicate()
+	_bell_order.shuffle()
+	_bell_progress = 0
+	_main.update_scrawl_text("bellOrder8", "call in order:\n" + "\n".join(_bell_order))
+	Telemetry.event("puzzle_layout", {"puzzle": "call_bells8", "order": _bell_order.duplicate()})
+	_update_bells()
 	_spawn_orderlies()
-	main.hud_objective("the east ward. two of them, now. the code is split, same as before.")
+	main.hud_objective("three call bells. their order waits beside the medicine. ring them raw.")
 
 
 func _interactables() -> Array[Interactable]:
@@ -115,52 +112,60 @@ func _interactables() -> Array[Interactable]:
 
 
 func _is_available(id: String) -> bool:
-	match id:
-		# Scenery: the keypad opens it, never a hand on the door.
-		"exitdoor":
-			return false
-		"keypad8":
-			return not _door_unlocked
+	if id == "exitdoor":
+		return false
+	if id.begins_with("bell8_"):
+		return not _door_unlocked and not id.trim_prefix("bell8_") in _bell_order.slice(0, _bell_progress)
 	return true
 
 
 func on_interact(id: String) -> bool:
-	if id == "keypad8":
-		if not StateManager.is_lucid():
-			_main.hud_toast("the keypad is a smear of static. you can't read it like this.")
-			return true
-		# main.open_keypad emits keypad_open/success/denied itself.
-		_main.open_keypad(_code, _on_code_accepted)
+	if not id.begins_with("bell8_"):
+		return false
+	var shape := id.trim_prefix("bell8_")
+	if not BELL_SHAPES.has(shape) or _door_unlocked or shape in _bell_order.slice(0, _bell_progress):
 		return true
-
-	return false
-
-
-func _on_code_accepted() -> void:
+	if StateManager.is_lucid():
+		_main.hud_toast("under the quiet, the bell makes no sound. ring it raw.")
+		return true
+	WardAudio.dispenser_clunk()
+	_main.emit_noise("call_bell_" + shape, _main.player.global_position, _main.player.level)
+	if shape != _bell_order[_bell_progress]:
+		_bell_progress = 0
+		_update_bells()
+		Telemetry.event("puzzle_step", {"puzzle": "call_bells8", "step": "sequence_reset", "shape": shape})
+		_main.hud_toast("the wrong bell. all three lamps go dark.")
+		_main.hud_objective("read the order beside the dispenser. the bells only answer raw.")
+		return true
+	_bell_progress += 1
+	_update_bells()
+	Telemetry.event("puzzle_step", {"puzzle": "call_bells8", "step": "bell_latched", "shape": shape, "count": _bell_progress})
+	if _bell_progress < _bell_order.size():
+		_main.hud_toast("%d of three. the lamp holds. the sound carries." % _bell_progress)
+		_main.hud_objective("%d of three bells stay lit. keep the order. medicine can buy you a crossing." % _bell_progress)
+		return true
 	_door_unlocked = true
 	_main.move_interactable("exitdoor", Vector3(-1, 1.5, -8.85), PI / 2.0)
 	_main.unlock_door("DoorCollider")
-	# Interpolates the LIVE code — a rerolled code must read back correctly.
-	_main.hud_toast("%s. the last door." % _code)
-	_main.hud_objective("the door is open. go.")
+	Telemetry.event("puzzle_step", {"puzzle": "call_bells8", "step": "complete"})
+	_main.hud_toast("the ward has heard enough. the door opens.")
+	_main.hud_objective("all three lamps hold. through the door.")
+	return true
+
+
+func _update_bells() -> void:
+	for shape: String in BELL_SHAPES:
+		var bell: Interactable = _main._find_interactable(self, "bell8_" + shape)
+		if bell != null:
+			var model := bell.get_node_or_null("Model")
+			if model != null and model.has_method("set_engaged"):
+				model.set_engaged(shape in _bell_order.slice(0, _bell_progress))
 
 
 func on_state_change(next: StateManager.State) -> void:
 	if next == StateManager.State.UNMED and not _saw_unmed_toast:
 		_saw_unmed_toast = true
 		_main.hud_toast("the island throws two shadows now.")
-
-
-# --- randomize-codes (CLAUDE.md hard rule) ---------------------------------
-# Same split as room 5: A carries digits [0,2), B carries [2,4), and the mask
-# blanks the rest. Called from on_enter AND from the catch handler, so being
-# caught rerolls the code and a player cannot memorise it across a reset.
-func _regenerate_code() -> void:
-	if not WardCodes.is_randomize_codes_enabled():
-		return
-	_code = WardCodes.random_code_4()
-	_main.update_scrawl_text("codeScrawlA", WardCodes.code_clue_text(_code, [0, 2]))
-	_main.update_scrawl_text("codeScrawlB", WardCodes.code_clue_text(_code, [2, 4]))
 
 
 # --- the orderlies ---------------------------------------------------------
@@ -212,16 +217,14 @@ func _on_chase_started() -> void:
 # emitting after the teleport would record the spawn point for every catch and
 # flatten the catch heat-map into a single dot.
 #
-# The reroll goes LAST, so a player cannot memorise the code across a reset —
-# which matters doubly here, where collecting both halves means two separate
-# passes at the island.
+# Correct bells remain latched after a catch. Re-crossing the room is the cost.
 func _on_caught() -> void:
 	Telemetry.event("orderly_caught")
 	StateManager.force_state(StateManager.State.LUCID, "catch")
 	_main.shift_fx()
 	_main.teleport_player(SPAWN_X, SPAWN_Z)
 	_main.hud_toast('hands. a needle. "there are two of us now," he says.')
-	_regenerate_code()
+	# Latched bells survive restraint; only a wrong bell resets them.
 
 
 func _physics_process(_delta: float) -> void:

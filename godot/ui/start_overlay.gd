@@ -77,7 +77,7 @@ const INTRO_BBCODE := "You are a patient. What you see depends on what you've ta
 
 const TOGGLE_BBCODE := "randomize keypad codes\n[color=#e9f2ef99]a fresh code — and a fresh wall clue — every time you enter a room or get caught.[/color]"
 
-const BRIGHTNESS_BBCODE := "brightness\n[color=#e9f2ef99]the ward is meant to be dark. raise this until the walls behind this panel are just barely there — no further.[/color]"
+const BRIGHTNESS_BBCODE := "brightness\n[color=#e9f2ef99]raise this until nearby floors, walls and obstacles are clear without turning lit surfaces white.[/color]"
 
 const MONO_BBCODE := "black and white\n[color=#e9f2ef99]drains the colour out of the ward. the writing on the walls stays the brightest thing on them — it has to, you need to read it.[/color]"
 

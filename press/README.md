@@ -3,6 +3,9 @@
 Updated 2026-09-12 for the survival-horror playtest. The maintained and public
 game is `godot/`. The current marketing assets are in **`current/`**.
 
+Store tags: `3d`, `atmospheric`, `browser`, `first-person`, `horror`,
+`psychological-horror`, `puzzle`, `short`, `survival-horror`, `psx`.
+
 ## Publish these assets
 
 - `current/cover.png` — 630×500 cover. The title and tagline are composed by

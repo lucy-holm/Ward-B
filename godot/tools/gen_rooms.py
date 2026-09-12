@@ -4892,8 +4892,12 @@ def room17():
     # up inside the solid stepped blocks and contributes nothing. Both are
     # cosmetic and neither can be fixed room-side; the bounce Y needs to
     # follow its fitting's level in Emitter.emit().
+    # The south hall is 18m wide while the fittings reach only 6m. Keeping all
+    # three on x=0 leaves both walls and the records island outside useful
+    # direct light in UNMED. Alternate the next two across the route so each
+    # wall and the island gets a pool without adding another WebGL light.
     r.ward_lights([
-        (0, 32, 2.7), (0, 26, 2.7), (0, 20, 2.7),          # south hall
+        (0, 32, 2.7), (-4, 26, 2.7), (4, 20, 2.7),         # south hall
         (7, 13, 4.0),                                       # east stairwell
         (4, 4, 2.7), (-5, 6, 2.7), (-4, 0, 2.7), (0, -4, 2.7),   # pocket
         (5, 7, 5.7), (0, 1, 5.7), (-4, -4, 5.7),            # gallery

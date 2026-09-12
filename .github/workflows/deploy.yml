@@ -1,7 +1,7 @@
 name: Deploy to GitHub Pages
 
 # Pages is the staging/playtest deployment (NOT the real audience — that's
-# itch.io via deploy-itch.yml on the `release` branch). One Pages site hosts
+# itch.io via the manual deploy-itch-godot.yml workflow). One Pages site hosts
 # several builds by writing to different folders of the `gh-pages` branch:
 #
 #   hub (this repo's hub/)  -> site root   https://lucy-holm.github.io/Ward-B/
@@ -9,14 +9,9 @@ name: Deploy to GitHub Pages
 #   preview/<name>          -> previews/<name>  .../Ward-B/previews/<name>/
 #   main (Three.js)         -> threejs/    .../Ward-B/threejs/
 #
-# beta/ AND previews/ ARE THE GODOT BUILD as of the Godot-port merge. The
-# Three.js game moved to threejs/ rather than being dropped, because it is
-# still the COMPLETE game: Godot covers rooms 1-7 and Three.js covers 1-20
-# (MIGRATION_NOTES.md, "Rooms 8-20 are not ported"). Deleting the only
-# playable 20-room build from staging while the replacement is at a third of
-# the ward would remove the very thing you need to compare against. itch.io
-# still ships Three.js — see deploy-itch.yml, and deploy-itch-godot.yml for
-# the gated Godot path.
+# beta/ AND previews/ ARE THE GODOT BUILD. Godot contains all twenty rooms
+# and is also the public itch.io game. Three.js is frozen and remains at
+# threejs/ only as a historical reference (2026-08-23 deprecation decision).
 #
 # COST NOTE, because it is easy to miss and hard to undo: the Godot export is
 # a 38 MB index.wasm, and peaceiris commits the published files into the
@@ -83,8 +78,7 @@ jobs:
           # Build metadata baked into the bundle (see vite.config.ts).
           VITE_BUILD_SHA: ${{ github.sha }}
           # VITE_TELEMETRY_URL deliberately unset — Pages is staging/playtest.
-          # Telemetry is wired ONLY in deploy-itch.yml. See that file's long
-          # comment for the full rationale.
+          # Public Godot telemetry is wired only in deploy-itch-godot.yml.
 
       # --- Godot build (the primary staging build) -----------------------
       #

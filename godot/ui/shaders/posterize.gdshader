@@ -14,7 +14,8 @@ render_mode blend_mix, unshaded;
 // than unfinished.
 //
 // It sits ON TOP of the existing materials and changes nothing about them.
-// `enabled = 0.0` is a byte-exact passthrough, so this is fully reversible.
+// `enabled = 0.0` bypasses colour quantisation and the shadow lift. The styled
+// pixel sampling grid still applies; use pixel_size=1 when inspecting detail.
 //
 // COMPATIBILITY NOTES — both of these are load-bearing:
 //  * No array indexing. The Bayer value comes from the standard recursive
@@ -77,6 +78,15 @@ uniform float exposure : hint_range(0.1, 6.0) = 1.0;
 // exposure. 2.2 is sRGB's curve; higher pushes yet more levels into the dark.
 uniform float shadow_gamma : hint_range(1.0, 4.0) = 2.2;
 
+// Lifts the perceptual shadow signal BEFORE quantisation while preserving
+// absolute black. Applying this after quantisation only brightens the sparse
+// dither dots which survived bucket zero; it cannot recover a silhouette.
+// Compatibility/WebGL2 has no practical real-time bounce lighting, so this toe
+// curve makes the small ambient signal readable without lights, probes, depth
+// samples or branches. main.gd keeps it at zero in LUCID and scales it with
+// the player's brightness calibration in UNMED.
+uniform float shadow_lift : hint_range(0.0, 0.95) = 0.0;
+
 // BLACK AND WHITE. 0.0 = colour, 1.0 = fully desaturated. Player-facing.
 //
 // NOT the same thing as tint_amount above, and deliberately so. The duotone
@@ -126,13 +136,6 @@ float quantise(float v, float thr, float steps) {
 	return clamp(base + step(thr, scaled - base), 0.0, steps) / steps;
 }
 
-// Quantise on the perceptual curve. Returns the value in PERCEPTUAL space —
-// callers that need a brightness back out again must undo the curve, callers
-// using it as a 0..1 ramp position (the duotone) want it exactly like this.
-float quantise_perceptual(float v, float thr, float steps, float g) {
-	return quantise(pow(clamp(v, 0.0, 1.0), 1.0 / g), thr, steps);
-}
-
 void fragment() {
 	float px = max(pixel_size, 1.0);
 
@@ -165,7 +168,12 @@ void fragment() {
 	// is the opposite of the intended look. Undoing it keeps each pixel's
 	// original apparent brightness while the levels stay bunched in the
 	// shadows where this game needs them.
-	float lum_q = pow(quantise_perceptual(lum, thr, steps, g), g);
+	float perceptual_lum = pow(clamp(lum, 0.0, 1.0), 1.0 / g);
+	// Pull the toe halfway toward a second perceptual root at maximum lift.
+	// This increases the number of shadow pixels which clear the first dither
+	// threshold while retaining the authored output levels and absolute black.
+	perceptual_lum = mix(perceptual_lum, sqrt(perceptual_lum), shadow_lift * 0.5);
+	float lum_q = pow(quantise(perceptual_lum, thr, steps), g);
 
 	// Scale the original colour by the brightness change, rather than
 	// quantising R, G and B separately. Separate channels cross their bucket

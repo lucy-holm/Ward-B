@@ -2,10 +2,9 @@ name: Publish Godot build to itch.io
 
 # THE GODOT PATH TO ITCH, DELIBERATELY GATED.
 #
-# Separate file from deploy-itch.yml on purpose. That workflow publishes the
-# Three.js game on every push to `release`, and it is left completely
-# untouched — so no branch push can ever ship the Godot build by accident.
-# This one runs on manual dispatch ONLY.
+# Separate from deploy-itch.yml, the manual Three.js rollback lever.
+# Godot is the public game. This workflow runs on manual dispatch ONLY;
+# no branch push publishes to itch.io automatically.
 #
 # WHY THE GATE EXISTS — and why it is now inert but still here.
 #

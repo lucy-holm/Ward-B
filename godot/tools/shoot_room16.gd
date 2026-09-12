@@ -41,8 +41,20 @@ func _ready() -> void:
 	var want_dark: bool = str(args[6]).begins_with("d")
 	var seconds: float = float(args[7]) if args.size() > 7 else 3.0
 
+	# Match shoot_game.gd: visual audits begin from production defaults in memory
+	# and never inherit or overwrite this machine's saved calibration.
+	WardSettings._ensure_loaded()
+	WardSettings._randomize_codes = WardSettings.DEFAULT_RANDOMIZE_CODES
+	WardSettings._brightness = WardSettings.DEFAULT_BRIGHTNESS
+	WardSettings._monochrome = WardSettings.DEFAULT_MONOCHROME
+	for key: String in WardSettings.STYLE_SPEC:
+		WardSettings._style[key] = WardSettings._default_style_value(key)
+
 	var game: Node = load("res://main.tscn").instantiate()
 	add_child(game)
+	# Admission starts a new run and may clear a checkpoint. Mark capture
+	# sessions debug before pressing it so an audit cannot erase a real save.
+	Telemetry.debug = true
 	await get_tree().process_frame
 
 	# Dismiss the start overlay exactly as ADMIT ME does, so the shot is the

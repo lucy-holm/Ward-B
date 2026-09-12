@@ -79,7 +79,7 @@ func _ready() -> void:
 		env.glow_blend_mode = Environment.GLOW_BLEND_MODE_SCREEN
 		env.glow_hdr_threshold = 0.85
 		env.adjustment_enabled = true
-		env.adjustment_contrast = 1.08
+		env.adjustment_contrast = 1.0
 		env.adjustment_saturation = 0.88
 		var we := WorldEnvironment.new()
 		we.environment = env

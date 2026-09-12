@@ -26,6 +26,8 @@ This is an evolving playtest. Tell us which room you reached, where you felt los
 
 **Touch:** left stick to move, right-side drag to look, and on-screen interact, shift and pause buttons.
 
+Use **Configuration** to choose black and white and adjust brightness. Raise brightness until nearby floors, walls and obstacles are clear; it also reveals more detail in unmedicated shadows.
+
 ### Playtest data
 
 The itch build collects gameplay and technical data to help us understand progress, catches, quitting points and performance. This includes session/player identifiers, approximate in-room positions, and browser/device context. It does not request your name or email. For an untracked session, open the embedded game in its own tab and add **?notrack=1** to that game URL before playing; adding it only to this store page does not opt out the embedded game.

@@ -27,7 +27,7 @@ glow_hdr_threshold = 0.85
 glow_hdr_scale = 2.0
 adjustment_enabled = true
 adjustment_brightness = 1.0
-adjustment_contrast = 1.08
+adjustment_contrast = 1.0
 adjustment_saturation = 0.88
 
 [node name="Main" type="Node3D"]

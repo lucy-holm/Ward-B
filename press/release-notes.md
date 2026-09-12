@@ -8,9 +8,10 @@ This update gives Ward B more puzzle variety, more furnished spaces and more pre
 - **A fuller second half.** Treatment bays, observation wards, a two-storey gallery and service areas now have more landmarks, cover and distinct routes. The later rooms mix familiar puzzle rules with new spatial problems.
 - **Orderlies that react.** Pursuit and noise make your route matter. Medication can break a chase, but later hazards challenge the idea that lucid always means safe.
 - **Readable in monochrome.** Upright shapes, matching door-pad symbols, brighter bell fixtures and lit medication stations make key interactions easier to identify without color.
+- **Darkness you can navigate.** Unmedicated lighting now reveals more of the nearby environment. The brightness control lifts shadow detail as well as lit surfaces, with a stronger high setting for screens that need it. The gallery's lights now reach more of its route.
 - **Checkpoints and browser controls.** Clinical charts save milestones when browser storage is available. Mouse/keyboard, touch controls and hybrid input are supported.
 
-The PS1-inspired grain and dithered color treatment now sit alongside an optional monochrome mode. The new page screenshots come directly from the current game.
+The PS1-inspired grain and dithered color treatment now sit alongside an optional monochrome mode. The updated press kit uses captures directly from the game.
 
 Playtest data helps us find rooms where players get stuck, stop playing or encounter performance issues. The store page explains what is collected and how to start an untracked session.
 

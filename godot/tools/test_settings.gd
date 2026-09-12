@@ -12,7 +12,9 @@
 #                     wall scrawl it rewrites carries that same code's clue.
 #                     OFF: the baked code stands and the scrawl is untouched.
 #   brightness      — scales main.gd's real tonemap_exposure target for BOTH
-#                     ward states, preserving the LUCID:UNMED ratio.
+#                     ward states, preserving the LUCID:UNMED ratio, and also
+#                     raises UNMED ambient so dark geometry actually exists
+#                     before the posterise pass quantises it.
 #   look sensitivity— scales how far the REAL player node actually turns for a
 #                     given look delta, on both axes, without breaking the
 #                     pitch clamp.
@@ -41,7 +43,7 @@ const ROOM2_BAKED_CODE := "4118"
 # hypothetical: a RefCounted FakeMain made room2.on_enter raise, and both
 # randomize-codes tests — the entire point of this file — were skipped while
 # the run still exited 0. _finish fails the suite if the count does not match.
-const EXPECTED_ASSERTIONS := 49
+const EXPECTED_ASSERTIONS := 62
 
 
 # Stands in for main.gd's room-script API. room2.on_enter/_regenerate_code
@@ -66,7 +68,7 @@ class FakeMain extends Node:
 func _ready() -> void:
 	_test_setting_roundtrip()
 	_test_brightness_roundtrip_and_clamp()
-	_test_brightness_scales_exposure()
+	await _test_brightness_reaches_dark_render()
 	_test_look_sensitivity_roundtrip_and_clamp()
 	_test_look_sensitivity_scales_turn()
 	_test_hud_scale_roundtrip_and_clamp()
@@ -145,11 +147,11 @@ func _test_brightness_roundtrip_and_clamp() -> void:
 
 # --- brightness actually reaches the render ----------------------------
 #
-# main.gd._target_exposure is the single place the setting is expressed, so
-# this asserts against the REAL main.gd against the REAL MOOD table rather
+# main.gd owns the setting's rendering targets, so this asserts against the
+# REAL main.gd and REAL MOOD table rather
 # than recomputing the arithmetic here — a test that duplicated the formula
 # would pass even if _apply_mood stopped calling it.
-func _test_brightness_scales_exposure() -> void:
+func _test_brightness_reaches_dark_render() -> void:
 	var game: Node = load("res://main.tscn").instantiate()
 	add_child(game)
 
@@ -157,6 +159,8 @@ func _test_brightness_scales_exposure() -> void:
 	var unmed: int = StateManager.State.UNMED
 	var base_lucid: float = game.MOOD[lucid]["exposure"]
 	var base_unmed: float = game.MOOD[unmed]["exposure"]
+	var base_lucid_ambient: float = game.MOOD[lucid]["ambient"]
+	var base_unmed_ambient: float = game.MOOD[unmed]["ambient"]
 
 	WardSettings.set_brightness(1.0)
 	_check(
@@ -165,6 +169,10 @@ func _test_brightness_scales_exposure() -> void:
 	_check(
 		is_equal_approx(float(game._target_exposure(unmed)), base_unmed),
 		"brightness 1.0 must reproduce MOOD's baked UNMED exposure exactly")
+	_check(
+		is_equal_approx(float(game._target_ambient(unmed)), base_unmed_ambient),
+		"brightness 1.0 must reproduce MOOD's baked UNMED ambient exactly")
+	var shadow_at_1 := float(game._target_shadow_lift(unmed))
 
 	WardSettings.set_brightness(1.5)
 	var lucid_at_1_5 := float(game._target_exposure(lucid))
@@ -175,6 +183,16 @@ func _test_brightness_scales_exposure() -> void:
 	_check(
 		is_equal_approx(unmed_at_1_5, base_unmed * 1.5),
 		"brightness must scale UNMED exposure — it applies to BOTH states")
+	_check(
+		is_equal_approx(float(game._target_ambient(unmed)), base_unmed_ambient * 1.5),
+		"brightness must scale UNMED ambient so obstacle faces reach the posteriser")
+	_check(
+		is_equal_approx(float(game._target_ambient(lucid)), base_lucid_ambient),
+		"brightness must leave already-legible LUCID ambient at its authored value")
+	_check(
+		float(game._target_shadow_lift(unmed)) > shadow_at_1
+			and is_zero_approx(float(game._target_shadow_lift(lucid))),
+		"brightness must lift UNMED posterised shadows without lifting LUCID")
 
 	# The state contrast is the game. A calibration setting must not be able
 	# to flatten it, whatever the player picks.
@@ -189,13 +207,60 @@ func _test_brightness_scales_exposure() -> void:
 	WardSettings.set_brightness(1.8)
 	game.apply_brightness_now()
 	var env: Environment = game.get_node("WorldEnvironment").environment
+	_check(env.adjustment_enabled,
+		"the production environment must keep its authored colour adjustment enabled")
+	_check(is_equal_approx(env.adjustment_contrast, 1.0),
+		"post-tonemap contrast above 1.0 must not clamp dark geometry before posterisation")
 	var want := float(game._target_exposure(StateManager.state))
 	_check(
 		is_equal_approx(env.tonemap_exposure, want),
 		"apply_brightness_now must write the scaled exposure to the live Environment (got %f, want %f)"
 			% [env.tonemap_exposure, want])
+	var want_ambient := float(game._target_ambient(StateManager.state, RoomLight.is_dark()))
+	_check(
+		is_equal_approx(env.ambient_light_energy, want_ambient),
+		"apply_brightness_now must write effective dark ambient live (got %f, want %f)"
+			% [env.ambient_light_energy, want_ambient])
+	var posterize: ShaderMaterial = game.get_node("Posterize/Rect").material
+	_check(
+		is_equal_approx(float(posterize.get_shader_parameter("shadow_lift")),
+			float(game._target_shadow_lift(StateManager.state))),
+		"apply_brightness_now must write the live UNMED shadow lift")
+	_check(
+		float(game.MOOD[unmed]["ambient"]) < float(game.MOOD[lucid]["ambient"]),
+		"UNMED ambient floor must remain below the lucid atmosphere")
 
+	# Reproduce a slider change during the ward-state crossfade. The instant
+	# settings write must cancel the older fade, or its tail restores the stale
+	# shadow lift after the player releases the slider.
+	game._set_style(lucid, false)
+	WardSettings.set_brightness(1.7)
+	game.apply_brightness_now()
+	var stable_shadow_lift := float(game._target_shadow_lift(StateManager.state))
+	await get_tree().create_timer(0.55).timeout
+	_check(
+		is_equal_approx(float(posterize.get_shader_parameter("shadow_lift")), stable_shadow_lift),
+		"an old state fade must not overwrite a live brightness shadow lift")
+
+	# Room 16 can finish with its breaker dark. Loading room 17 resets RoomLight
+	# to lit without a ward-state transition, so load_room itself must refresh
+	# the Environment instead of waiting for the next medication shift.
+	game.load_room("room16")
+	game.set_room_dark(true)
+	await get_tree().create_timer(0.55).timeout
+	game.load_room("room17")
+	_check(not RoomLight.is_dark(),
+		"room 17 must not inherit room 16's dark light axis")
+	_check(
+		is_equal_approx(env.ambient_light_energy, float(game._target_ambient(unmed, false))),
+		"a same-state room load must restore lit ambient immediately")
+	_check(
+		is_equal_approx(env.fog_depth_end, float(game.MOOD[unmed]["fog_end"])),
+		"a same-state room load must restore the lit fog range immediately")
+
+	RoomLight.reset(false)
 	game.queue_free()
+	await get_tree().process_frame
 
 
 # --- look sensitivity --------------------------------------------------
@@ -528,7 +593,7 @@ func _finish() -> void:
 	print("")
 	print("test_settings: %d assertion(s) passed" % passes)
 	if failures.is_empty():
-		print("  OK - settings persist and actually drive rooms and exposure")
+		print("  OK - settings persist and actually drive rooms and rendering")
 	else:
 		for f in failures:
 			print("  FAIL  %s" % f)

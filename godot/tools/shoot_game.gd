@@ -1,6 +1,6 @@
 # Screenshot THE REAL GAME — main.tscn, its player camera, its WorldEnvironment.
 #
-#   godot --path godot --resolution 1280x720 tools/shoot_game.tscn -- <name> [seconds] [room_id] [lucid] [style_overrides] [nohud] [x,z,yaw[,level[,y[,pitch]]]]
+#   godot --path godot --resolution 1280x720 tools/shoot_game.tscn -- <name> [seconds] [room_id] [lucid] [style_overrides] [nohud] [x,z,yaw[,level[,y[,pitch]]]] [cover] [brightness] [dark]
 #
 # Arg 6: pass "nohud" for a clean plate — hides main.gd's `hud` CanvasLayer
 # right before the frame is grabbed, same real camera/lighting/room as every
@@ -55,6 +55,24 @@ func _ready() -> void:
 	var overrides: String = args[4] if args.size() > 4 else ""
 	var want_nohud: bool = args.size() > 5 and str(args[5]).begins_with("nohud")
 	var reposition: String = args[6] if args.size() > 6 else ""
+	# Every capture starts from production defaults in memory, never from this
+	# machine's saved dev-panel look. Direct assignment deliberately bypasses
+	# the public setters, which write user://settings.cfg: visual verification
+	# must never replace the player's saved calibration.
+	WardSettings._ensure_loaded()
+	WardSettings._randomize_codes = WardSettings.DEFAULT_RANDOMIZE_CODES
+	WardSettings._brightness = WardSettings.DEFAULT_BRIGHTNESS
+	WardSettings._monochrome = WardSettings.DEFAULT_MONOCHROME
+	for key: String in WardSettings.STYLE_SPEC:
+		WardSettings._style[key] = WardSettings._default_style_value(key)
+	# Arg 9 optionally overrides only this process's brightness. Set it before
+	# main.tscn instantiates so the normal startup mood reads it.
+	var brightness_override: float = float(args[8]) if args.size() > 8 else -1.0
+	var want_dark: bool = args.size() > 9 and str(args[9]).begins_with("d")
+	if brightness_override >= 0.0:
+		WardSettings._brightness = clampf(
+			brightness_override, WardSettings.BRIGHTNESS_MIN, WardSettings.BRIGHTNESS_MAX)
+		print("capture brightness override: %.2f (not persisted)" % WardSettings._brightness)
 
 	var game: Node = load("res://main.tscn").instantiate()
 	add_child(game)
@@ -107,6 +125,12 @@ func _ready() -> void:
 		# (lucid crossfade, capture) reads it.
 		await get_tree().create_timer(0.3).timeout
 
+	# Optional capture-only breaker state. Route it through the real main API so
+	# both the environment and LightObject visibility gates change together.
+	if want_dark and game.has_method("set_room_dark"):
+		game.set_room_dark(true)
+		await get_tree().create_timer(1.0).timeout
+
 	if want_lucid:
 		# Grant the shift ABILITY too, not just the state. The HUD gates its
 		# pill readout on can_shift and StateManager only drains the meter
@@ -142,6 +166,17 @@ func _ready() -> void:
 				mat.set_shader_parameter(k, int(v) if k == "levels" else v)
 			print("style overrides: %s" % overrides)
 		await get_tree().process_frame
+	var style_rect: ColorRect = game.get_node_or_null("Posterize/Rect")
+	var style_mat: ShaderMaterial = null if style_rect == null else style_rect.material as ShaderMaterial
+	if style_mat != null:
+		print("style: enabled=%.1f levels=%d exposure=%.2f gamma=%.2f shadow_lift=%.2f mono=%.1f" % [
+			float(style_mat.get_shader_parameter("enabled")),
+			int(style_mat.get_shader_parameter("levels")),
+			float(style_mat.get_shader_parameter("exposure")),
+			float(style_mat.get_shader_parameter("shadow_gamma")),
+			float(style_mat.get_shader_parameter("shadow_lift")),
+			float(style_mat.get_shader_parameter("mono_amount")),
+		])
 
 	if want_nohud and game.get("hud") != null:
 		game.hud.visible = false
@@ -163,7 +198,8 @@ func _ready() -> void:
 	var we: WorldEnvironment = game.get_node_or_null("WorldEnvironment")
 	if we != null and we.environment != null:
 		var e := we.environment
-		print("env: ambient=%.4f exposure=%.3f fog=%.1f..%.1f tonemap=%d" % [
+		print("env: dark=%s ambient=%.4f exposure=%.3f fog=%.1f..%.1f tonemap=%d" % [
+			RoomLight.is_dark(),
 			e.ambient_light_energy, e.tonemap_exposure,
 			e.fog_depth_begin, e.fog_depth_end, e.tonemap_mode])
 

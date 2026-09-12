@@ -141,6 +141,9 @@ const STYLE_UNMED := {
 	# have to do. This is a nudge, not the mechanism — pushing it far enough
 	# to matter on its own is what flattens the state into "dim grey".
 	"lift": 1.3,
+	# Raises non-black shadows before posterisation. This is the cheap WebGL2
+	# equivalent of a shadow/toe lift: no GI, probes or extra per-room lights.
+	"shadow_lift": 0.55,
 }
 
 # --- THE LIGHT AXIS, as atmosphere ------------------------------------------
@@ -164,15 +167,18 @@ const STYLE_UNMED := {
 # axis, the other is the light axis, and keeping them as two independent
 # factors is what makes the 2x2 orthogonal rather than a four-way lookup table.
 #
-# EXPOSURE IS NOT TOUCHED, on purpose. tonemap_exposure is the player's display
-# calibration (see _target_exposure's HARD CONSTRAINT comment) — dimming the
+# EXPOSURE IS NOT TOUCHED by the breaker. tonemap_exposure is part of the
+# player's display calibration (see _target_exposure) — dimming the
 # ward through it would fight a setting the player made about their screen, and
 # a player who calibrated for a bright room would experience a different
 # breaker than one who did not.
-const DARK_AMBIENT_MULT := 0.12
+# The breaker must hide light-gated clues, not the floor under the player's
+# feet. At 0.12 the combined UNMED ambient was 0.015 and nearby structure again
+# collapsed to black; 0.35 keeps the room much darker while leaving a route.
+const DARK_AMBIENT_MULT := 0.35
 # Softer than renderer.ts's 0.5/0.45, and for the reason MOOD's own comment
 # block gives above: TUNE AGAINST A LARGE ROOM AND A SMALL ONE. The Three.js
-# figures applied to a build whose unmed fog_far was 30m; here it is 16m, so
+# figures applied to a build whose unmed fog_far was 30m; here it is 20m, so
 # 0.45 would put fog_end at 7.2m — the exact number that comment records as
 # having rendered room 4 (a 12m hall) as two smears on black. Room 16's bay is
 # 16m x 22m and its phosphor path is 16m long, so an aggressive fog_end
@@ -207,16 +213,12 @@ const DARK_STYLE_LIFT := 1.6
 # nothing at runtime — this dict is the real source of truth for per-state
 # lighting.
 #
-# The gap between the two states is deliberately extreme. UNMEDICATED is meant
-# to be barely navigable: near-zero ambient, low exposure, lights heavily
-# scaled down and flickering. LUCID is clinically over-lit by contrast.
-# Shifting should feel like the building itself changes, not a colour filter.
-#
-# This is only safe because the things you MUST see are unshaded and so are
-# untouched by any of it: wall scrawls (shaded = false), the pill, the glow
-# panels, and the fixtures' amber/cyan accent strips. In the dark the red
-# scrawls and the pill burn through an almost black room — which is the
-# intended read, not a compromise.
+# The gap between the two states is deliberately strong. UNMEDICATED keeps low
+# exposure and weak, flickering fittings; LUCID is clinically over-lit by
+# contrast. Shifting should feel like the building itself changes, not a colour
+# filter. The dark state still needs enough diffuse signal to reveal nearby
+# walls, floors and obstacle silhouettes. Emissive clues alone are not a
+# navigable scene, especially on a phone or a bright display.
 #
 # TUNE AGAINST A LARGE ROOM AND A SMALL ONE, ALWAYS.
 #
@@ -229,10 +231,9 @@ const DARK_STYLE_LIFT := 1.6
 #
 # The dominant term for a big room is FOG, not light: unmed fog is near-black,
 # so a fog_end of 7.5m replaced everything past 7.5m in a 12m hall with solid
-# fog colour. No amount of light_scale could recover it. fog_end 16.0 with
-# fog_begin 2.5 keeps the close-range murk that makes corridors oppressive
-# while letting a hall resolve at all. light_scale/exposure then only had to
-# come part-way back (0.10 -> 0.30, 0.30 -> 0.42) rather than all the way.
+# fog colour. No amount of light_scale could recover it. Extending fog_end to
+# 20m keeps the close-range murk that makes corridors oppressive while keeping
+# room 17's route barrier visible from its 16m-away spawn.
 #
 # Verified on room 1 spawn AND room 4 centre, in both states.
 #
@@ -252,9 +253,12 @@ const DARK_STYLE_LIFT := 1.6
 #
 # EXPOSURE IS NOT THE WHOLE STORY EITHER. `exposure` below is the baseline at
 # a brightness setting of 1.0; _apply_mood multiplies it by the player's
-# display-calibration setting (WardSettings.get_brightness()). The setting is
-# a single multiplier applied to BOTH states so calibrating for a dim screen
-# cannot flatten the gap between them. See _target_exposure().
+# display-calibration setting (WardSettings.get_brightness()). Exposure scales
+# both states and preserves their ratio. UNMED ambient uses the same calibration
+# too: exposure cannot recover geometry that entered the post-process as black.
+# LUCID ambient stays authored at 0.28 because its geometry already has ample
+# signal and scaling it would wash out the clinical state. See _target_exposure
+# and _target_ambient.
 #
 # `light_tint` (2026-08 concept-art pass): multiplies every fitting's own
 # authored light_color in Atmosphere._tick_flicker — see set_light_color().
@@ -270,12 +274,9 @@ const DARK_STYLE_LIFT := 1.6
 # toward the same infection. LUCID's tint is close to identity (barely warm)
 # so daylight-through-barred-windows reads clean, matching concept 95b44321.
 #
-# UNMED's `exposure` (0.42) is DELIBERATELY UNTOUCHED by this pass — see the
-# HARD CONSTRAINT comment on _target_exposure(). Every other UNMED number
-# below moved instead: ambient and light_scale both dropped further, which is
-# safe because light PLACEMENT (room .tscn omni_range/omni_attenuation, tuned
-# tighter in the same pass so pools fall off faster) now carries more of the
-# "pool vs black" contrast that ambient/light_scale used to carry alone.
+# UNMED's `exposure` remains low at 0.56 so fixture pools still fall into deep
+# shadow. The ambient floor now keeps those shadows navigable; the old 0.006
+# value starved ACES and the posteriser of signal even when brightness was 200%.
 # LUCID's exposure DID move (0.95 -> 0.78): at 0.95 x the default 1.25
 # brightness-setting multiplier, a wall directly under a fixture (e.g. room 1's
 # spawn, 2m from L0) blew fully white with no readable detail — confirmed via
@@ -292,12 +293,23 @@ const MOOD := {
 		"light_tint": Color(1.0, 0.98, 0.93),
 	},
 	StateManager.State.UNMED: {
-		"fog": Color(0.090, 0.043, 0.039),
+		# Muted sickly haze. A red-heavy fog turns into a flat crimson wall at
+		# high brightness and hides the green/amber local-light contrast.
+		"fog": Color(0.060, 0.062, 0.052),
 		"fog_begin": 2.2,
-		"fog_end": 16.0,
-		"ambient": 0.006,
-		"exposure": 0.42,
-		"light_scale": 0.26,
+		# Keeps the room-17 route barrier (16m from spawn) inside the visible
+		# range instead of blending it fully into fog at the first frame.
+		"fog_end": 20.0,
+		# Cheap Compatibility-renderer fill, still below LUCID's atmosphere.
+		# It gives unlit faces a shape before ACES + posterisation;
+		# local fittings still create the pools and shadows that carry the horror.
+		"ambient": 0.100,
+		# 0.56 reaches 0.70 at the default 125% display calibration. That clears
+		# ACES' deep toe without approaching LUCID's 0.975 default exposure.
+		"exposure": 0.56,
+		# Keeps authored ceiling pools and their non-shadowed floor bounce visible
+		# enough to define a route; still under half LUCID's clinical energy.
+		"light_scale": 0.40,
 		"light_tint": Color(0.72, 1.0, 0.80),
 	},
 }
@@ -341,6 +353,7 @@ var _medication_trapped := false
 # be re-tested every tick until the player steps clear, so we latch here.
 var _awaiting_revert := false
 var _mood_tween: Tween
+var _style_tween: Tween
 var _fov_tween: Tween
 
 
@@ -658,22 +671,49 @@ func _update_revert_guard() -> void:
 
 # --- presentation ----------------------------------------------------------
 
-## The ONLY expression of the brightness setting anywhere in the game.
+## One expression of the brightness setting: finished-frame exposure.
 ##
 ## MOOD's per-state `exposure` is the baseline at a setting of 1.0; the
 ## player's display calibration is a single multiplier on top. Deliberately
 ## one multiplier shared by both states rather than a per-state offset: how
 ## dark a screen renders is a property of the screen, not of the ward, and
 ## scaling both by the same factor leaves the LUCID:UNMED exposure ratio
-## (0.95 : 0.42) exactly as tuned. A player calibrating for a dim laptop
+## (0.78 : 0.56) exactly as tuned. A player calibrating for a dim laptop
 ## therefore cannot accidentally flatten the difference between the two
 ## states, which is the one thing the whole game is built on.
 ##
-## tonemap_exposure is also the right knob rather than ambient or light_scale:
-## it is a post-tonemap gain on the finished frame, so it cannot change which
-## objects are lit, how far fog reaches, or anything the player reasons about.
+## This remains shared by both states. UNMED also needs _target_ambient because
+## a finished-frame gain cannot recover obstacle faces rendered at zero.
 func _target_exposure(state: int) -> float:
 	return float(MOOD[state]["exposure"]) * WardSettings.get_brightness()
+
+
+## Low-cost diffuse visibility floor for the Compatibility renderer.
+##
+## UNMED is the only state that scales ambient with display brightness. Its
+## authored value is intentionally tiny, and the old exposure-only calibration
+## left it below ACES' toe and the posteriser's first useful level even at 200%.
+## LUCID already has 0.28 ambient and scaling that would flatten wall detail.
+## `dark` composes the room-light axis in the same place as _apply_mood.
+func _target_ambient(state: int, dark := false) -> float:
+	var ambient := float(MOOD[state]["ambient"])
+	if state == StateManager.State.UNMED:
+		ambient *= WardSettings.get_brightness()
+	if dark:
+		ambient *= DARK_AMBIENT_MULT
+	return ambient
+
+
+## Posterised shadow toe, scaled with the same player-facing calibration.
+## Zero stays zero in the shader; this only spreads existing dark detail into
+## visible output levels. LUCID needs no toe lift.
+func _target_shadow_lift(state: int) -> float:
+	if state == StateManager.State.LUCID:
+		return 0.0
+	var at_default: float = float(STYLE_UNMED["shadow_lift"])
+	return clampf(
+		at_default * WardSettings.get_brightness() / WardSettings.DEFAULT_BRIGHTNESS,
+		0.0, 0.95)
 
 
 ## Re-applies the brightness setting to the ward RIGHT NOW, without waiting
@@ -694,7 +734,10 @@ func apply_brightness_now() -> void:
 		# exposure included, from the new setting.
 		_apply_mood(StateManager.state, true)
 		return
-	world_environment.environment.tonemap_exposure = _target_exposure(StateManager.state)
+	var env := world_environment.environment
+	env.tonemap_exposure = _target_exposure(StateManager.state)
+	env.ambient_light_energy = _target_ambient(StateManager.state, RoomLight.is_dark())
+	_set_style(StateManager.state, true)
 
 
 func _apply_mood(state: int, instant: bool) -> void:
@@ -712,7 +755,7 @@ func _apply_mood(state: int, instant: bool) -> void:
 	var dark := RoomLight.is_dark()
 	var fog_begin := float(m["fog_begin"]) * (DARK_FOG_BEGIN_MULT if dark else 1.0)
 	var fog_end := float(m["fog_end"]) * (DARK_FOG_END_MULT if dark else 1.0)
-	var ambient := float(m["ambient"]) * (DARK_AMBIENT_MULT if dark else 1.0)
+	var ambient := _target_ambient(state, dark)
 	var fog_color: Color = m["fog"]
 	if dark:
 		fog_color = Color(fog_color.r * DARK_FOG_COLOR_MULT,
@@ -844,12 +887,17 @@ func _apply_style_settings() -> void:
 	_set_style(StateManager.state, true)
 
 
-## Crossfades the duotone ramp and the pre-quantise lift between ward states,
-## on the same 0.45s curve as the mood tween so the two move together.
+## Crossfades the duotone ramp, pre-quantise lift and shadow toe between ward
+## states on the same 0.45s curve as the mood tween.
 func _set_style(state: int, instant: bool) -> void:
 	var mat := _posterize_material()
 	if mat == null:
 		return
+	# A settings change is an immediate authoritative write. Without cancelling
+	# the old ward-state fade, its final frames can overwrite the new brightness
+	# shadow lift after the slider has stopped moving.
+	if _style_tween != null and _style_tween.is_valid():
+		_style_tween.kill()
 	var s: Dictionary = STYLE_LUCID if state == StateManager.State.LUCID else STYLE_UNMED
 	var lift: float = float(s["lift"]) * WardSettings.get_style(WardSettings.KEY_STYLE_EXPOSURE)
 	# The light axis composes with the posterise ramp rather than fighting it:
@@ -863,19 +911,25 @@ func _set_style(state: int, instant: bool) -> void:
 		mat.set_shader_parameter("tint_lo", s["lo"])
 		mat.set_shader_parameter("tint_hi", s["hi"])
 		mat.set_shader_parameter("exposure", lift)
+		mat.set_shader_parameter("shadow_lift", _target_shadow_lift(state))
 		return
 
-	# One tween driving all three, rather than three tweens: the tints and the
-	# lift have to stay consistent with each other mid-fade or the ward passes
+	# One tween driving every state value: the tints and lifts have to stay
+	# consistent with each other mid-fade or the ward passes
 	# through a colour combination that belongs to neither state.
 	var from_lo: Color = mat.get_shader_parameter("tint_lo")
 	var from_hi: Color = mat.get_shader_parameter("tint_hi")
 	var from_lift: float = float(mat.get_shader_parameter("exposure"))
-	create_tween().set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT).tween_method(
+	var from_shadow_lift: float = float(mat.get_shader_parameter("shadow_lift"))
+	var to_shadow_lift := _target_shadow_lift(state)
+	_style_tween = create_tween()
+	_style_tween.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	_style_tween.tween_method(
 		func(t: float) -> void:
 			mat.set_shader_parameter("tint_lo", from_lo.lerp(s["lo"], t))
 			mat.set_shader_parameter("tint_hi", from_hi.lerp(s["hi"], t))
-			mat.set_shader_parameter("exposure", lerpf(from_lift, lift, t)),
+			mat.set_shader_parameter("exposure", lerpf(from_lift, lift, t))
+			mat.set_shader_parameter("shadow_lift", lerpf(from_shadow_lift, to_shadow_lift, t)),
 		0.0, 1.0, 0.45)
 
 
@@ -1044,6 +1098,12 @@ func load_room(id: String) -> void:
 		# common case and load-bearing for the "arrive at a lit room from a dark
 		# one" case, where the reset above has just turned the lights back on.
 		atmosphere.set_all_circuits(not RoomLight.is_dark(), true)
+
+	# RoomLight.reset can change the light axis without changing ward state, so
+	# StateManager emits no callback here. Reapply after the fresh lights and
+	# circuit state exist; otherwise a lit room entered from room 16 can inherit
+	# its dark ambient/fog/style until the player next shifts state.
+	_apply_mood(StateManager.state, true)
 
 	GameState.enter_room(id)
 

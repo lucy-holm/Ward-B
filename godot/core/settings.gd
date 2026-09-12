@@ -59,24 +59,25 @@ const KEY_STYLE_RESOLUTION := "style_resolution"
 const DEFAULT_RANDOMIZE_CODES := false
 
 ## Display calibration: a multiplier on Environment.tonemap_exposure, applied
-## to BOTH ward states (see main.gd _target_exposure).
+## to BOTH ward states (see main.gd _target_exposure). It also scales UNMED's
+## small ambient floor (see _target_ambient), because post-process exposure
+## cannot reveal geometry that the renderer supplied as black.
 ##
 ## DEFAULT IS ABOVE 1.0 ON PURPOSE. 1.0 reproduces the exposures baked into
 ## main.gd's MOOD, which the author reported as "a little bit too dark" once
 ## the camera-environment-override bug was fixed and those values finally
-## reached the screen. Rather than re-tune MOOD (which is a second agent's
-## territory, and whose per-state RATIO is carefully judged), the default
-## calibration lifts both states by the same factor, so the gap between LUCID
-## and UNMED is preserved exactly.
+## reached the screen. The default calibration lifts both exposures by the same
+## factor, so the gap between LUCID and UNMED stays intact. Only the already-
+## dark state's ambient follows it; LUCID ambient remains fixed to avoid
+## washed highlights.
 ##
 ## Chosen by measuring mean luminance of the real game render at the room-1
 ## spawn in UNMED (tools/shoot_game.tscn, not tools/shoot.gd — shoot.gd builds
 ## its own camera and environment and cannot see this setting at all).
 const DEFAULT_BRIGHTNESS := 1.25
 
-# Range endpoints. MIN still leaves the ward legible on a bright screen in a
-# dark room; MAX is where UNMED starts to lose its murk and read as merely
-# "dim grey", which kills the state contrast the whole game is built on.
+# Range endpoints. The ambient floor makes this range useful in UNMED as well
+# as changing final exposure; MAX still stays far below LUCID ambient.
 const BRIGHTNESS_MIN := 0.6
 const BRIGHTNESS_MAX := 2.0
 const BRIGHTNESS_STEP := 0.05

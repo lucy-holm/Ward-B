@@ -1,4 +1,4 @@
-[gd_scene load_steps=44 format=3 uid="uid://wardbroomc57f0a5"]
+[gd_scene load_steps=48 format=3 uid="uid://wardbroomc57f0a5"]
 
 [ext_resource type="Script" path="res://rooms/room13/room13.gd" id="s_room"]
 [ext_resource type="Material" uid="uid://wardbmatd0cabd0" path="res://materials/floor.tres" id="m_floor"]
@@ -13,9 +13,13 @@
 [ext_resource type="ArrayMesh" path="res://props/meshes/box_2000x24x28_b60.tres" id="am_box_2000x24x28_b60"]
 [ext_resource type="PackedScene" path="res://props/taped_notes.tscn" id="pk_taped_notes"]
 [ext_resource type="PackedScene" path="res://props/light_switch.tscn" id="pk_light_switch"]
+[ext_resource type="PackedScene" path="res://props/wheelchair.tscn" id="pk_wheelchair"]
+[ext_resource type="PackedScene" path="res://props/bedside_cabinet.tscn" id="pk_bedside_cabinet"]
 [ext_resource type="PackedScene" path="res://props/wall_stain.tscn" id="pk_wall_stain"]
 [ext_resource type="PackedScene" path="res://props/fire_alarm_point.tscn" id="pk_fire_alarm_point"]
 [ext_resource type="PackedScene" path="res://props/exit_sign.tscn" id="pk_exit_sign"]
+[ext_resource type="PackedScene" path="res://props/ward_bed.tscn" id="pk_ward_bed"]
+[ext_resource type="PackedScene" path="res://props/privacy_curtain.tscn" id="pk_privacy_curtain"]
 [ext_resource type="Script" path="res://core/room_exit.gd" id="s_exit"]
 
 [sub_resource type="BoxMesh" id="bm_0"]
@@ -376,14 +380,26 @@ transform = Transform3D(0.000000, 0, -1.000000, 0, 1, 0, 1.000000, 0, 0.000000, 
 [node name="LightSwitch1" parent="Props" instance=ExtResource("pk_light_switch")]
 transform = Transform3D(0.000000, 0, 1.000000, 0, 1, 0, -1.000000, 0, 0.000000, 3.8800, 1.0500, 20.8000)
 
-[node name="WallStain2" parent="Props" instance=ExtResource("pk_wall_stain")]
+[node name="EntryWheelchair" parent="Props" instance=ExtResource("pk_wheelchair")]
+transform = Transform3D(-1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, -1.000000, -2.8000, 0.0000, 18.4000)
+
+[node name="EntryCabinet" parent="Props" instance=ExtResource("pk_bedside_cabinet")]
+transform = Transform3D(-1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, -1.000000, 2.6000, 0.0000, 18.2000)
+
+[node name="WallStain4" parent="Props" instance=ExtResource("pk_wall_stain")]
 transform = Transform3D(0.000000, 0, 1.000000, 0, 1, 0, -1.000000, 0, 0.000000, 3.8800, 2.6000, -27.5000)
 
-[node name="FireAlarmPoint3" parent="Props" instance=ExtResource("pk_fire_alarm_point")]
+[node name="FireAlarmPoint5" parent="Props" instance=ExtResource("pk_fire_alarm_point")]
 transform = Transform3D(0.000000, 0, -1.000000, 0, 1, 0, 1.000000, 0, 0.000000, -3.8800, 1.4000, -29.2000)
 
-[node name="ExitSign4" parent="Props" instance=ExtResource("pk_exit_sign")]
+[node name="ExitSign6" parent="Props" instance=ExtResource("pk_exit_sign")]
 transform = Transform3D(-1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, -1.000000, 1.5000, 2.3500, -29.8800)
+
+[node name="RecoveryBay" parent="Props" instance=ExtResource("pk_ward_bed")]
+transform = Transform3D(0.000000, 0, -1.000000, 0, 1, 0, 1.000000, 0, 0.000000, -2.8000, 0.0000, -27.0000)
+
+[node name="RecoveryCurtain" parent="Props" instance=ExtResource("pk_privacy_curtain")]
+transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, -1.8000, 3.0000, -26.0000)
 
 [node name="Lights" type="Node3D" parent="."]
 

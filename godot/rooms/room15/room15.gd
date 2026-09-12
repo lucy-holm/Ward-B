@@ -67,8 +67,8 @@ const WAYPOINTS_A: Array[Vector3] = [
 # This is the timed dash the mechanic doc asked for.
 const WAYPOINTS_B: Array[Vector3] = [
 	Vector3(1.5, 0, -18),
-	Vector3(-7.6, 0, -18),
-	Vector3(-7.6, 0, -14.4),
+	Vector3(-7.4, 0, -18),
+	Vector3(-7.4, 0, -14.4),
 	Vector3(1.5, 0, -14.4),
 ]
 

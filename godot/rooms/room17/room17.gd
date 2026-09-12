@@ -14,7 +14,7 @@
 # Not a gate, not an unmed panel, not a keypad — wall, permanently. The only
 # way on is the east stairwell (x[6,8], z16 -> z10), across the gallery, and
 # down the west shaft (x[-8,-6], z4 -> z8), which is a hole cut in the
-# gallery's own decking, into the pocket where keypad17 and the code clue are.
+# gallery's own decking, into the pocket where the final bell is mounted.
 # Up, across, down. The flat route was never on the table.
 #
 # --- THREE ORDERLIES, AND WHAT ACTUALLY SEPARATES THEM ---------------------
@@ -58,7 +58,8 @@
 #
 # PILL ECONOMY (PILLS_MAX 1, binary). on_enter forces unmed, which is free.
 # dispenser17a by spawn tops off to 1. The hall, the climb, the gallery, the
-# descent and the code are all unmed and all free. ONE shift, at the keypad.
+# descent and the bells can all be completed raw. Medication remains an
+# optional escape from pursuit, with its own warning-first shutter threat.
 # dispenser17c sits at the west shaft's ground landing because the pocket has
 # no walk-back: the sealed wall stops the flat route and the east stair cannot
 # be re-entered from the pocket side, so a mistimed 45s revert down there
@@ -76,10 +77,11 @@
 # teleports them to the marked safe platform and returns the shutter to its
 # open position. Unmedicated never activates or damages the player.
 #
-# CODE: 9137 (randomised when enabled). EXIT: room18, the power-choice room.
+# THREE BELLS: circle -> square -> triangle, echoing room 8. EXIT: room18.
 extends Node3D
 
 const ORDERLY := preload("res://orderly/orderly.tscn")
+const BELL_SEQUENCE := preload("res://kit/bell_sequence.gd")
 
 const SPAWN_X := 0.0
 const SPAWN_Z := 32.0
@@ -124,7 +126,7 @@ const WAYPOINTS_B: Array[Vector3] = [
 
 # ORDERLY-POCKET — the floor directly beneath the gallery, the same rectangle
 # as WAYPOINTS_B at 0 instead of 3.4. Confined to x[0,6] z[3,9]: clear of the
-# west wall and dispenser17c, clear of both code scrawls by more than the 8.2m
+# west wall and dispenser17c, clear of the exit-wall scrawls by more than the 8.2m
 # inspection distance, and 0.61m off the landing guard's corner (needs >0.5).
 const WAYPOINTS_C: Array[Vector3] = [
 	Vector3(6, 0, 9),
@@ -137,7 +139,7 @@ const WAYPOINTS_C: Array[Vector3] = [
 # z=-6, rotated a quarter turn so the leaf lies flat in the vestibule.
 const DOOR_OPEN_POS := Vector3(-1, 1.5, -6.85)
 
-var _code := "9137"
+var _bells: RefCounted = BELL_SEQUENCE.new()
 
 var _orderlies: Array[CharacterBody3D] = []
 var _door_unlocked := false
@@ -179,19 +181,19 @@ func on_enter(main: Node) -> void:
 	if _warning_lamp != null:
 		_warning_lamp.visible = false
 
+	_bells.configure(_main, self, "gallery_calls17", "bell17_",
+		["circle", "square", "triangle"], _on_bells_accepted, "bellOrder17")
 	for node in _interactables():
 		node.availability = _is_available
-
-	_regenerate_code()
 	_spawn_orderlies()
 
 	# Forced raw at the threshold — free, since force_state never touches
-	# inventory, and it guarantees the room's single lucid spend happens at
-	# the keypad rather than being carried in from room 16.
+	# inventory, so the first bell's raw-state rule is evident on arrival. Medication
+	# is optional here and can trigger the gallery shutter.
 	StateManager.force_state(StateManager.State.UNMED, "room17-entry")
 	main.shift_fx()
 	main.hud_toast("you come to mid-stride, raw. this ward doesn't stay on one floor.")
-	main.hud_objective("the day room stacks itself. climb before you can cross.")
+	main.hud_objective("three calls: entry, gallery, then the ward below. find the numbered order before climbing.")
 
 
 func _interactables() -> Array[Interactable]:
@@ -211,36 +213,28 @@ func _interactables() -> Array[Interactable]:
 
 func _is_available(id: String) -> bool:
 	match id:
-		# Scenery: the keypad opens it, never a hand on the door.
+		# Scenery: the bells open it, never a hand on the door.
 		"exitdoor":
 			return false
-		"keypad17":
-			return not _door_unlocked
+		"bell17_circle", "bell17_square", "bell17_triangle":
+			return _bells.is_available(id)
 	return true
 
 
 func on_interact(id: String) -> bool:
-	if id == "keypad17":
-		if not StateManager.is_lucid():
-			_main.hud_toast("the keypad is a smear of static. you can't read it like this.")
-			return true
-		# TWO arguments: open_keypad(code, on_success). It emits
-		# keypad_open / keypad_success / keypad_denied telemetry itself.
-		_main.open_keypad(_code, _on_code_accepted)
-		return true
-
-	return false
+	if not id.begins_with("bell17_"):
+		return false
+	return _bells.handle(id)
 
 
-func _on_code_accepted() -> void:
+func _on_bells_accepted() -> void:
 	_door_unlocked = true
 	_main.move_interactable("exitdoor", DOOR_OPEN_POS, PI / 2.0)
 	# Drops the doorway on EVERY level. RailNorthDoorGap (level 'balcony') is
 	# what still keeps a gallery traveler from walking out over the vestibule
 	# once this is gone.
 	_main.unlock_door("DoorCollider")
-	# Interpolates the LIVE code — a rerolled code must read back correctly.
-	_main.hud_toast("%s. two floors, one lock." % _code)
+	_main.hud_toast("three bells. two floors, one lock.")
 	_main.hud_objective("the door is open. go.")
 
 
@@ -394,17 +388,6 @@ func _tick_shutter(delta: float) -> void:
 		_advance_shutter(delta)
 
 
-# --- randomize-codes (CLAUDE.md hard rule) ---------------------------------
-#
-# Called from on_enter AND from the catch handler. This room has orderlies, so
-# without the second call the code would be memorisable across a reset.
-func _regenerate_code() -> void:
-	if not WardCodes.is_randomize_codes_enabled():
-		return
-	_code = WardCodes.random_code_4()
-	_main.update_scrawl_text("codeScrawl", WardCodes.code_clue_text(_code))
-
-
 # --- the orderlies ---------------------------------------------------------
 # Built from a table rather than hand-wired, like room 12. Each gets its own
 # warn line and its own catch line: with three patrols across two floors, an
@@ -481,7 +464,6 @@ func _on_caught(toast: String) -> void:
 	_main.shift_fx()
 	_main.teleport_player(SPAWN_X, SPAWN_Z, SPAWN_LEVEL)
 	_main.hud_toast(toast)
-	_regenerate_code()
 
 
 # Primary threat across THREE patrols on TWO floors: chasing beats watching, a

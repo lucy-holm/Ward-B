@@ -1,25 +1,24 @@
 # ROOM 12 — the Asylum Floor.
 #
-# The finale, and the biggest footprint in the game: ~22m wide by 74m
-# north-south, five chambers, THREE orderlies, two state-filtered gates and a
-# code split across two nooks 22m apart.
+# A long treatment floor: ~22m wide by 74m north-south, five chambers, THREE
+# orderlies, two state-filtered gates, and a three-bell route across the ward.
 #
 # THE PILL ECONOMY (PILLS_MAX is 1, game-wide). Both gates seal UNMED-only, so
 # each crossing costs a shift to lucid, i.e. a pill. The whole middle of the
-# floor — the quiet ward, the day hall, all three orderlies and both code
-# halves — sits between them, and the pocket holds exactly ONE station:
+# floor — the quiet ward, the day hall, all three orderlies and the bell route
+# sit between them, and the pocket holds exactly ONE station:
 # dispenser12c, a metre south of GATE B. Intended solve:
 #
 #   forced unmed at spawn -> dispenser12a (top to 1, nothing spent)
 #   -> GATE B sealed -> shift lucid (-1, 0 left) -> cross
 #   -> dispenser12c, right there -> bank (0 -> 1)
-#   -> Z2 unmed (free): read half 1 in nook C, evade orderly C
-#   -> Z3 unmed: read half 2 in the hall nook, evade A + B
+#   -> Z2 unmed (free): read the numbered bell order in nook C, evade C
+#   -> Z3 unmed: ring the three wall bells in route order, evade A + B
 #   -> GATE C sealed -> shift lucid (-1, 0 left) -> cross -> still lucid, so
-#      the keypad needs nothing further
-#   -> dispenser12b in Z4 is a buffer the finale door does not need
+#      the bell route needs nothing further
+#   -> dispenser12b in Z4 is a recovery buffer before the next room
 #
-# FORCED RAW AT THE THRESHOLD (on_enter, below): room 11 ends on its keypad,
+# FORCED RAW AT THE THRESHOLD (on_enter, below): room 11 ends at its reader,
 # i.e. lucid, so without forcing unmed here a player who never shifts would
 # cross GATE B for free and the mandatory spend would evaporate. It costs no
 # pill — force_state does not touch inventory.
@@ -80,9 +79,9 @@ const WAYPOINTS_C: Array[Vector3] = [
 	Vector3(3, 0, 33.5),
 ]
 
-# One code, two scrawls, one per nook — the room 5 split, stretched across 22m
-# and three patrols.
-var _code := "8563"
+# Three physical bells, one numbered clue, and a route across three patrol bands.
+const BELL_SHAPES: Array[String] = ["circle", "square", "triangle"]
+var _bells := KitBellSequence.new()
 
 var _orderlies: Array[CharacterBody3D] = []
 var _door_unlocked := false
@@ -99,7 +98,10 @@ func on_enter(main: Node) -> void:
 	for node in _interactables():
 		node.availability = _is_available
 
-	_regenerate_code()
+	var sequence: Array[String] = BELL_SHAPES.duplicate()
+	sequence.shuffle()
+	_bells.configure(_main, self, "call_bells12", "bell12_", sequence,
+		_on_bells_accepted, "bellOrder12")
 	_spawn_orderlies()
 
 	# THE FORCED RAW THRESHOLD — see the header. Costs no pill; force_state
@@ -109,9 +111,8 @@ func on_enter(main: Node) -> void:
 	StateManager.force_state(StateManager.State.UNMED, "room12-entry")
 	_main.shift_fx()
 	_main.hud_toast("the floor swims into focus. still raw.")
-	main.hud_objective(
-		"the asylum floor. the last of it. two of them share the big hall; a third keeps his own room. "
-		+ "one cabinet waits just past the first gate — after that, it's a long dry stretch to the far side.")
+	main.hud_objective("three calls open the far door. find their numbered order in the east recess. "
+		+ "refill just past the first gate before crossing the observation hall.")
 
 
 func _interactables() -> Array[Interactable]:
@@ -131,32 +132,24 @@ func _interactables() -> Array[Interactable]:
 
 func _is_available(id: String) -> bool:
 	match id:
-		# Scenery: the keypad opens it, never a hand on the door.
+		# The door is scenery; the bell route opens it.
 		"exitdoor":
 			return false
-		"keypad12":
-			return not _door_unlocked
-	return true
+		_:
+			return not _bells.handles(id) or _bells.is_available(id)
 
 
 func on_interact(id: String) -> bool:
-	if id == "keypad12":
-		if not StateManager.is_lucid():
-			_main.hud_toast("the keypad is a smear of static. you can't read it like this.")
-			return true
-		# main.open_keypad emits keypad_open/success/denied itself.
-		_main.open_keypad(_code, _on_code_accepted)
-		return true
-
-	return false
+	return _bells.handle(id)
 
 
-func _on_code_accepted() -> void:
+func _on_bells_accepted() -> void:
+	if _door_unlocked:
+		return
 	_door_unlocked = true
 	_main.move_interactable("exitdoor", Vector3(-1, 1.5, -26.85), PI / 2.0)
 	_main.unlock_door("DoorCollider")
-	# Interpolates the LIVE code — a rerolled code must read back correctly.
-	_main.hud_toast("%s. the floor lets you go." % _code)
+	_main.hud_toast("the floor lets you go.")
 	_main.hud_objective("the door is open. go.")
 
 
@@ -164,19 +157,6 @@ func on_state_change(next: StateManager.State) -> void:
 	if next == StateManager.State.UNMED and not _saw_unmed_toast:
 		_saw_unmed_toast = true
 		_main.hud_toast("three shapes, and none of them are yours.")
-
-
-# --- randomize-codes (CLAUDE.md hard rule) ---------------------------------
-# Split across two scrawls exactly as room 5 does: A carries digits [0,2), B
-# carries [2,4), and the mask blanks the rest. Called in on_enter AND in the
-# catch handler — this room has orderlies, so a catch must reroll or the code
-# is memorisable across a reset.
-func _regenerate_code() -> void:
-	if not WardCodes.is_randomize_codes_enabled():
-		return
-	_code = WardCodes.random_code_4()
-	_main.update_scrawl_text("codeScrawlA", WardCodes.code_clue_text(_code, [0, 2]))
-	_main.update_scrawl_text("codeScrawlB", WardCodes.code_clue_text(_code, [2, 4]))
 
 
 # --- the orderlies ----------------------------------------------------------
@@ -246,7 +226,7 @@ func _on_caught() -> void:
 	_main.shift_fx()
 	_main.teleport_player(SPAWN_X, SPAWN_Z)
 	_main.hud_toast('hands. a needle. "the whole floor, and you still tried," he says.')
-	_regenerate_code()
+	# Correct bells remain latched after a catch; the route is the recovery cost.
 
 
 # Primary threat across THREE patrols: chasing beats watching, a higher watch

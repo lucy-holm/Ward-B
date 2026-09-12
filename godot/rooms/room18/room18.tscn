@@ -1,4 +1,4 @@
-[gd_scene load_steps=53 format=3 uid="uid://wardbroomc57f0aa"]
+[gd_scene load_steps=61 format=3 uid="uid://wardbroomc57f0aa"]
 
 [ext_resource type="Script" path="res://rooms/room18/room18.gd" id="s_room"]
 [ext_resource type="Material" uid="uid://wardbmatd0cabd0" path="res://materials/floor.tres" id="m_floor"]
@@ -16,6 +16,8 @@
 [ext_resource type="ArrayMesh" path="res://props/meshes/box_2000x100x20_b40.tres" id="am_box_2000x100x20_b40"]
 [ext_resource type="Material" path="res://props/trim_mat.tres" id="pm_trim"]
 [ext_resource type="ArrayMesh" path="res://props/meshes/box_2000x24x28_b60.tres" id="am_box_2000x24x28_b60"]
+[ext_resource type="PackedScene" path="res://props/crt_monitor.tscn" id="pk_crt_monitor"]
+[ext_resource type="PackedScene" path="res://props/paper_tray.tscn" id="pk_paper_tray"]
 [ext_resource type="PackedScene" path="res://props/cable_tray.tscn" id="pk_cable_tray"]
 [ext_resource type="PackedScene" path="res://props/hanging_cable.tscn" id="pk_hanging_cable"]
 [ext_resource type="PackedScene" path="res://props/wall_stain.tscn" id="pk_wall_stain"]
@@ -24,6 +26,12 @@
 [ext_resource type="PackedScene" path="res://props/barred_window.tscn" id="pk_barred_window"]
 [ext_resource type="PackedScene" path="res://props/wall_vent.tscn" id="pk_wall_vent"]
 [ext_resource type="PackedScene" path="res://props/wall_speaker.tscn" id="pk_wall_speaker"]
+[ext_resource type="PackedScene" path="res://props/utility_shelf_unit.tscn" id="pk_utility_shelf_unit"]
+[ext_resource type="PackedScene" path="res://props/filing_cabinet.tscn" id="pk_filing_cabinet"]
+[ext_resource type="PackedScene" path="res://props/linen_cart.tscn" id="pk_linen_cart"]
+[ext_resource type="PackedScene" path="res://props/reg_notice.tscn" id="pk_reg_notice"]
+[ext_resource type="PackedScene" path="res://props/fire_extinguisher.tscn" id="pk_fire_extinguisher"]
+[ext_resource type="PackedScene" path="res://props/wall_clock.tscn" id="pk_wall_clock"]
 [ext_resource type="Script" path="res://core/room_exit.gd" id="s_exit"]
 
 [sub_resource type="BoxMesh" id="bm_0"]
@@ -478,29 +486,56 @@ material_override = ExtResource("pm_trim")
 
 [node name="Props" type="Node3D" parent="."]
 
-[node name="CableTray0" parent="Props" instance=ExtResource("pk_cable_tray")]
+[node name="RelayMonitor" parent="Props" instance=ExtResource("pk_crt_monitor")]
+transform = Transform3D(-1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, -1.000000, -0.4500, 1.0000, 0.0000)
+
+[node name="RelayJobCards" parent="Props" instance=ExtResource("pk_paper_tray")]
+transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, 0.5000, 1.0000, 0.0500)
+
+[node name="CableTray2" parent="Props" instance=ExtResource("pk_cable_tray")]
 transform = Transform3D(0.000000, 0, 1.000000, 0, 1, 0, -1.000000, 0, 0.000000, 0.0000, 3.0000, -2.0000)
 
-[node name="HangingCable1" parent="Props" instance=ExtResource("pk_hanging_cable")]
+[node name="HangingCable3" parent="Props" instance=ExtResource("pk_hanging_cable")]
 transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, -2.6000, 3.0000, 1.0000)
 
-[node name="WallStain2" parent="Props" instance=ExtResource("pk_wall_stain")]
+[node name="WallStain4" parent="Props" instance=ExtResource("pk_wall_stain")]
 transform = Transform3D(0.000000, 0, 1.000000, 0, 1, 0, -1.000000, 0, 0.000000, 5.8800, 2.6000, 0.0000)
 
-[node name="PaperScatter3" parent="Props" instance=ExtResource("pk_paper_scatter")]
+[node name="PaperScatter5" parent="Props" instance=ExtResource("pk_paper_scatter")]
 transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, 3.0000, 0.0000, 2.4000)
 
-[node name="PlasterRubble4" parent="Props" instance=ExtResource("pk_plaster_rubble")]
+[node name="PlasterRubble6" parent="Props" instance=ExtResource("pk_plaster_rubble")]
 transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, -4.4000, 0.0000, -6.0000)
 
-[node name="BarredWindow5" parent="Props" instance=ExtResource("pk_barred_window")]
+[node name="BarredWindow7" parent="Props" instance=ExtResource("pk_barred_window")]
 transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, 0.0000, 1.8500, 4.8800)
 
-[node name="WallVent6" parent="Props" instance=ExtResource("pk_wall_vent")]
+[node name="WallVent8" parent="Props" instance=ExtResource("pk_wall_vent")]
 transform = Transform3D(0.000000, 0, 1.000000, 0, 1, 0, -1.000000, 0, 0.000000, 5.8800, 2.3500, 1.5000)
 
-[node name="WallSpeaker7" parent="Props" instance=ExtResource("pk_wall_speaker")]
+[node name="WallSpeaker9" parent="Props" instance=ExtResource("pk_wall_speaker")]
 transform = Transform3D(0.000000, 0, -1.000000, 0, 1, 0, 1.000000, 0, 0.000000, -5.8800, 2.5500, -1.5000)
+
+[node name="UtilityShelfUnit10" parent="Props" instance=ExtResource("pk_utility_shelf_unit")]
+transform = Transform3D(0.000000, 0, 1.000000, 0, 1, 0, -1.000000, 0, 0.000000, 4.8500, 0.0000, 1.0000)
+
+[node name="RelayParts" parent="Props" instance=ExtResource("pk_filing_cabinet")]
+transform = Transform3D(0.000000, 0, 1.000000, 0, 1, 0, -1.000000, 0, 0.000000, 4.5500, 0.0000, 3.4500)
+
+[node name="RelayCart" parent="Props" instance=ExtResource("pk_linen_cart")]
+transform = Transform3D(0.000000, 0, -1.000000, 0, 1, 0, 1.000000, 0, 0.000000, -4.2500, 0.0000, 3.4500)
+
+[node name="RegNotice13" parent="Props" instance=ExtResource("pk_reg_notice")]
+transform = Transform3D(0.000000, 0, 1.000000, 0, 1, 0, -1.000000, 0, 0.000000, 5.8800, 1.6000, -2.0000)
+
+[node name="Header" parent="Props/RegNotice13"]
+text = "POWER / ACCESS"
+
+[node name="FireExtinguisher14" parent="Props" instance=ExtResource("pk_fire_extinguisher")]
+transform = Transform3D(0.000000, 0, -1.000000, 0, 1, 0, 1.000000, 0, 0.000000, -5.8800, 1.1500, -5.4000)
+
+[node name="WallClock15" parent="Props" instance=ExtResource("pk_wall_clock")]
+transform = Transform3D(0.000000, 0, 1.000000, 0, 1, 0, -1.000000, 0, 0.000000, 5.8800, 2.2000, 3.1000)
 
 [node name="Lights" type="Node3D" parent="."]
 

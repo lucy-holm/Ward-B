@@ -118,6 +118,12 @@ class StubMain:
 	func update_scrawl_text(_id: String, _text: String) -> void:
 		pass
 
+	func emit_noise(_kind: String, _pos: Vector3, _level: String) -> void:
+		pass
+
+	func _find_interactable(_room: Node, id: String) -> Interactable:
+		return _find(room, id)
+
 	func _find(node: Node, id: String) -> Interactable:
 		if node is Interactable and (node as Interactable).interactable_id == id:
 			return node as Interactable
@@ -145,6 +151,7 @@ func _ready() -> void:
 	_test_shutter_activation_and_catch()
 	await _test_fittings_and_scrawls()
 	_test_door_actually_gates()
+	_test_bell_sequence_recovery()
 	_finish()
 
 
@@ -385,7 +392,14 @@ func _test_tagged_railing() -> void:
 			tagged += 1
 			_check(b.level_filter == "ground" or b.level_filter == "balcony",
 				"every tag names a declared level (found '%s')" % b.level_filter)
-	_check(tagged == 7, "seven colliders are level-tagged: three rails, landing guard, shutter and two gallery seats (got %d)" % tagged)
+	_check(tagged == 15, "fifteen colliders are level-tagged: rails, guard, shutter and ten furniture/island bodies (got %d)" % tagged)
+	for point in [Vector2(-3.0, 6.0), Vector2(-4.4, 6.0)]:
+		_check(col.is_blocked_at(point.x, point.y, r, st, "balcony"),
+			"new waiting furniture blocks the upper floor")
+		_check(not col.is_blocked_at(point.x, point.y, r, st, "ground"),
+			"new waiting furniture leaves the floor below clear")
+	_check(col.is_blocked_at(-4.0, -2.2, r, st, "ground"), "observation bed blocks ground")
+	_check(not col.is_blocked_at(-4.0, -2.2, r, st, "balcony"), "bed does not block the gallery above")
 	_check(col.is_blocked_at(8.48, 5.4, Tuning.PLAYER_RADIUS, StateManager.State.UNMED, "balcony"),
 		"gallery seats block only their actual floor")
 	_check(not col.is_blocked_at(8.48, 5.4, Tuning.PLAYER_RADIUS, StateManager.State.UNMED, "ground"),
@@ -1086,7 +1100,7 @@ func _test_fittings_and_scrawls() -> void:
 	_drop(room)
 
 
-# The exit is behind a real collider until the code is entered, and a
+	# The exit is behind a real collider until the bell sequence is entered, and a
 # StateObject cannot show that: DoorCollider is an ordinary always-on box that
 # main.unlock_door clears. Asserted against the cache the mover queries.
 func _test_door_actually_gates() -> void:
@@ -1099,7 +1113,9 @@ func _test_door_actually_gates() -> void:
 	var shut := _walk(col, lv, Vector2(0.0, -4.0), Vector2(0.0, -7.4), "ground")
 	_check(not shut["arrived"], "the exit door is solid before the code is entered")
 
-	room._on_code_accepted()
+	room.on_interact("bell17_circle")
+	room.on_interact("bell17_square")
+	room.on_interact("bell17_triangle")
 
 	var open := _walk(col, lv, Vector2(0.0, -4.0), Vector2(0.0, -7.4), "ground")
 	_check(open["arrived"], "and walkable after it")
@@ -1110,6 +1126,26 @@ func _test_door_actually_gates() -> void:
 		StateManager.State.UNMED, "balcony"),
 		"the opened doorway does NOT open a 3.4m drop off the gallery")
 
+	_teardown(f)
+
+
+func _test_bell_sequence_recovery() -> void:
+	var f := _make_room()
+	var room: Node3D = f["room"]
+	var main: StubMain = f["main"]
+	StateManager.force_state(StateManager.State.LUCID, "test-bell-state")
+	_check(room.on_interact("bell17_circle"), "lucid bell interaction is handled")
+	_check(room._bells.progress == 0, "lucid hands cannot advance the bell sequence")
+	StateManager.force_state(StateManager.State.UNMED, "test-bell-raw")
+	room.on_interact("bell17_circle")
+	_check(room._bells.progress == 1, "the first raw bell latches")
+	room._on_caught("test catch")
+	_check(room._bells.progress == 1, "a catch preserves earned bell progress")
+	StateManager.force_state(StateManager.State.UNMED, "test-bell-resume")
+	room.on_interact("bell17_square")
+	room.on_interact("bell17_triangle")
+	_check(room._bells.completed, "the ordered bells complete the puzzle")
+	_check(room._door_unlocked, "completed bells unlock the exit")
 	_teardown(f)
 
 

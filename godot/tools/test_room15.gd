@@ -551,11 +551,16 @@ func _test_three_shapes_are_three_shapes() -> void:
 		var glyph := node.get_node_or_null("Model/Idle/Glyph") as MeshInstance3D
 		_check(glyph != null and glyph.mesh.get_class() == expected[k["shape"]],
 			"%s's prop must carry a %s" % [k["id"], expected[k["shape"]]])
-		# The triangle is a prism, which is built standing up; it has to be
-		# laid flat like the disc and the slab or it reads as a wedge on edge.
+		# Normalize the prism locally, then the Idle mount stands all three
+		# silhouettes upright. None may become a floor slab or spin edge-on.
 		if glyph != null:
 			_check(glyph.rotation.is_equal_approx(ShapeGlyphs.glyph_tilt(k["shape"])),
-				"%s's glyph must lie flat" % k["id"])
+				"%s's glyph has the shared local mesh orientation" % k["id"])
+			var normal := glyph.global_basis.z if k["shape"] == "triangle" else glyph.global_basis.y
+			_check(absf(normal.normalized().dot(Vector3.UP)) < 0.01,
+				"%s's visible silhouette must stand upright" % k["id"])
+			_check(node.get_node("Model/Idle").spin_speed == 0.0,
+				"%s must not idle edge-on" % k["id"])
 
 	# And the 2D side: a point that is inside the square but outside both the
 	# circle and the triangle, so the three cannot be silently drawing the same

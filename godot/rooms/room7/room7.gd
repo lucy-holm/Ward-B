@@ -92,7 +92,7 @@ func on_interact(id: String) -> bool:
 		if selected != _required_shape:
 			Telemetry.event("puzzle_step", {"puzzle": "records7", "step": "mismatch", "shape": selected})
 			_main.emit_noise("record_mismatch", _main.player.global_position, _main.player.level)
-			_main.hud_toast("wrong file. the request by the entrance names its shape.")
+			_main.hud_toast("wrong file. match the shape on the door reader.")
 			return true
 		_record_held = true
 		_main.remove_interactable(id)
@@ -105,7 +105,7 @@ func on_interact(id: String) -> bool:
 	if _door_unlocked:
 		return true
 	if not _record_held:
-		_main.hud_toast("an empty reader. find the seal named by the entrance.")
+		_main.hud_toast("the reader wants a %s seal. look behind the shelves." % _required_shape)
 		return true
 	if not StateManager.is_lucid():
 		_main.hud_toast("the slot won't hold still. steady your hands.")
@@ -127,8 +127,16 @@ func _choose_record(avoid_previous := false) -> void:
 	if avoid_previous:
 		choices.erase(previous)
 	_required_shape = str(choices.pick_random())
-	_main.update_scrawl_text("recordClue7", "discharge file:\n" + _required_shape)
+	_update_request_display()
 	Telemetry.event("puzzle_layout", {"puzzle": "records7", "shape": _required_shape})
+
+func _update_request_display() -> void:
+	_main.update_scrawl_text("recordClue7", "discharge file:\n" + _required_shape)
+	var reader: Interactable = _main._find_interactable(self, "record_reader7")
+	if reader != null:
+		var model := reader.get_node_or_null("Model")
+		if model != null and model.has_method("set_shape"):
+			model.set_shape(_required_shape)
 
 
 func on_state_change(next: StateManager.State) -> void:

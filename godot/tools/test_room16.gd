@@ -263,7 +263,11 @@ func _phosphor_nodes(room: Node) -> Array:
 
 func _omni_lights(room: Node) -> Array:
 	var out: Array = []
-	_find_all(room, out, func(n: Node) -> bool: return n is OmniLight3D)
+	# Battery locator lights are outside the room's switched mains circuit.
+	# Their steady behavior is covered by test_flicker; test the fluorescents
+	# here so this still detects a breaker being overwritten by Atmosphere.
+	_find_all(room, out, func(n: Node) -> bool:
+		return n is OmniLight3D and not bool(n.get_meta("atmosphere_exempt", false)))
 	return out
 
 

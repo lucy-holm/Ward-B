@@ -181,6 +181,13 @@ func collect_lights(room: Node) -> void:
 func _collect(node: Node) -> void:
 	if node is OmniLight3D:
 		var l := node as OmniLight3D
+		# Self-contained locator lights own their authored energy/color. Keep
+		# them outside this collector entirely so mood, flicker, and circuit
+		# writes can never stomp their accessibility cue.
+		if bool(node.get_meta("atmosphere_exempt", false)):
+			for child in node.get_children():
+				_collect(child)
+			return
 		_lights.append(l)
 		_base_energy.append(l.light_energy)
 		_base_color.append(l.light_color)

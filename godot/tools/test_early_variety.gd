@@ -58,6 +58,10 @@ func _records(shape: String) -> void:
 	await _load_room("room7")
 	var room: Node = game.current_room
 	room._required_shape = shape
+	room._update_request_display()
+	var reader_model: Node = game._find_interactable(room, "record_reader7").get_node("Model")
+	check(reader_model.shape == shape and reader_model.get_node("Symbol").get_child_count() == 1,
+		"reader visibly requests the current %s seal" % shape)
 	check(game._find_interactable(room, "keypad7") == null, "records has no keypad")
 	check(_door_blocked(-5), "records starts locked")
 	StateManager.force_state(StateManager.State.LUCID, "test")
@@ -72,6 +76,7 @@ func _records(shape: String) -> void:
 	room.on_interact("record7_" + shape)
 	room._on_caught()
 	check(room._record_held and room._required_shape == shape, "held seal survives catch unchanged")
+	check(reader_model.shape == shape, "held seal's reader symbol survives catch")
 	StateManager.force_state(StateManager.State.UNMED, "test")
 	_use("record_reader7")
 	check(_door_blocked(-5), "raw reader refuses without losing held seal")
@@ -85,10 +90,20 @@ func _records(shape: String) -> void:
 		for state in [StateManager.State.LUCID, StateManager.State.UNMED]:
 			check(not game.collision.is_blocked_at(point.x, point.y, Tuning.PLAYER_RADIUS, state),
 				"record pocket is clear in both states")
+	await _load_room("room7")
+	room = game.current_room
+	var previous: String = room._required_shape
+	room._on_caught()
+	reader_model = game._find_interactable(room, "record_reader7").get_node("Model")
+	check(room._required_shape != previous and reader_model.shape == room._required_shape,
+		"uncollected catch rerolls both the request and reader symbol")
 
 func _bells(order: Array) -> void:
 	await _load_room("room8")
 	var room: Node = game.current_room
+	var clue := room.find_child("bellOrder8", true, false) as Label3D
+	check(clue.text == "bell order\n1. %s\n2. %s\n3. %s" % room._bell_order,
+		"discovered numbered instructions match the randomized bell order")
 	room._bell_order = order.duplicate()
 	check(game._find_interactable(room, "keypad8") == null, "east ward has no keypad")
 	StateManager.force_state(StateManager.State.LUCID, "test")
@@ -150,6 +165,17 @@ func _focus_checks() -> void:
 		["record_reader7", Vector2(1.45, -3.4)],
 	]:
 		await _focus_item(item[0], item[1])
+		if str(item[0]).begins_with("record7_"):
+			var model: Node3D = game._find_interactable(game.current_room, item[0]).get_node("Model")
+			var glyph: MeshInstance3D = model.get_node("Idle/Glyph")
+			var normal := glyph.global_basis.z if model.shape == "triangle" else glyph.global_basis.y
+			check(absf(normal.normalized().dot(Vector3.UP)) < 0.01,
+				"%s silhouette stands vertically" % item[0])
+			var approach := Vector3(item[1].x, glyph.global_position.y, item[1].y)
+			check(absf(normal.normalized().dot((approach - glyph.global_position).normalized())) > 0.95,
+				"%s silhouette faces its clear approach" % item[0])
+			check(model.get_node("Idle").spin_speed == 0.0,
+				"%s never idles edge-on" % item[0])
 
 	await _load_room("room8")
 	for item in [

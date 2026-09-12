@@ -89,11 +89,11 @@ func on_enter(main: Node) -> void:
 	_bell_order = BELL_SHAPES.duplicate()
 	_bell_order.shuffle()
 	_bell_progress = 0
-	_main.update_scrawl_text("bellOrder8", "call in order:\n" + "\n".join(_bell_order))
+	_main.update_scrawl_text("bellOrder8", "bell order\n1. %s\n2. %s\n3. %s" % _bell_order)
 	Telemetry.event("puzzle_layout", {"puzzle": "call_bells8", "order": _bell_order.duplicate()})
 	_update_bells()
 	_spawn_orderlies()
-	main.hud_objective("three call bells. their order waits beside the medicine. ring them raw.")
+	main.hud_objective("read the numbered order above the medicine. press each matching wall bell while unmedicated.")
 
 
 func _interactables() -> Array[Interactable]:

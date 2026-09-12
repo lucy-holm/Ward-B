@@ -118,10 +118,10 @@ material = ExtResource("m_wall2")
 size = Vector3(0.5500, 0.7500, 0.1600)
 
 [sub_resource type="BoxShape3D" id="bs_12"]
-size = Vector3(0.5000, 0.9000, 0.5000)
+size = Vector3(0.6600, 1.2000, 0.6600)
 
 [sub_resource type="BoxShape3D" id="bs_13"]
-size = Vector3(0.5000, 0.6500, 0.1600)
+size = Vector3(0.6500, 0.8500, 0.1600)
 
 [sub_resource type="BoxShape3D" id="bs_14"]
 size = Vector3(2.0000, 3.0000, 0.2000)
@@ -473,7 +473,7 @@ script = ExtResource("s_stateobj")
 visible_in_state = 2
 
 [node name="record7_circle" type="Area3D" parent="Interactables/record7_circle_state"]
-transform = Transform3D(-1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, -1.000000, -4.6000, 0.4500, 3.6000)
+transform = Transform3D(0.000000, 0, -1.000000, 0, 1, 0, 1.000000, 0, 0.000000, -4.6000, 0.6000, 3.6000)
 collision_layer = 32
 collision_mask = 0
 script = ExtResource("s_interactable")
@@ -486,7 +486,7 @@ shape = SubResource("bs_12")
 
 [node name="Model" type="Node3D" parent="Interactables/record7_circle_state/record7_circle"]
 script = ExtResource("s_model_shape_key")
-fixture_size = Vector3(0.5000, 0.9000, 0.5000)
+fixture_size = Vector3(0.6600, 1.2000, 0.6600)
 color = Color(0.4549, 0.5373, 0.5804, 1.0000)
 shape = "circle"
 
@@ -495,7 +495,7 @@ script = ExtResource("s_stateobj")
 visible_in_state = 2
 
 [node name="record7_square" type="Area3D" parent="Interactables/record7_square_state"]
-transform = Transform3D(-1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, -1.000000, 4.6500, 0.4500, -1.1000)
+transform = Transform3D(0.000000, 0, 1.000000, 0, 1, 0, -1.000000, 0, 0.000000, 4.6500, 0.6000, -1.1000)
 collision_layer = 32
 collision_mask = 0
 script = ExtResource("s_interactable")
@@ -508,7 +508,7 @@ shape = SubResource("bs_12")
 
 [node name="Model" type="Node3D" parent="Interactables/record7_square_state/record7_square"]
 script = ExtResource("s_model_shape_key")
-fixture_size = Vector3(0.5000, 0.9000, 0.5000)
+fixture_size = Vector3(0.6600, 1.2000, 0.6600)
 color = Color(0.5216, 0.5529, 0.4235, 1.0000)
 shape = "square"
 
@@ -517,7 +517,7 @@ script = ExtResource("s_stateobj")
 visible_in_state = 2
 
 [node name="record7_triangle" type="Area3D" parent="Interactables/record7_triangle_state"]
-transform = Transform3D(-1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, -1.000000, -4.6000, 0.4500, -3.5000)
+transform = Transform3D(0.000000, 0, -1.000000, 0, 1, 0, 1.000000, 0, 0.000000, -4.6000, 0.6000, -3.5000)
 collision_layer = 32
 collision_mask = 0
 script = ExtResource("s_interactable")
@@ -530,7 +530,7 @@ shape = SubResource("bs_12")
 
 [node name="Model" type="Node3D" parent="Interactables/record7_triangle_state/record7_triangle"]
 script = ExtResource("s_model_shape_key")
-fixture_size = Vector3(0.5000, 0.9000, 0.5000)
+fixture_size = Vector3(0.6600, 1.2000, 0.6600)
 color = Color(0.6471, 0.4588, 0.3922, 1.0000)
 shape = "triangle"
 
@@ -548,7 +548,7 @@ shape = SubResource("bs_13")
 
 [node name="Model" type="Node3D" parent="Interactables/record_reader7"]
 script = ExtResource("s_model_ward_puzzle_fixture")
-fixture_size = Vector3(0.5000, 0.6500, 0.1600)
+fixture_size = Vector3(0.6500, 0.8500, 0.1600)
 kind = "reader"
 
 [node name="exitdoor" type="Area3D" parent="Interactables"]

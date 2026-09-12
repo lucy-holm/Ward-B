@@ -683,7 +683,7 @@ class Room:
     #   fixture centre = face +- thin / 2         (sits fully proud of the wall)
     #   panel centre   = face +- 0.03             (kit.ts's DEFAULT_SCRAWL_PROUD)
 
-    def shape_key(self, kid, shape, color, pos, label="take it", size=(0.5, 0.9, 0.5)):
+    def shape_key(self, kid, shape, color, pos, label="take it", size=(0.5, 0.9, 0.5), facing="pz"):
         """A free-standing shape-key pickup.
 
         ALWAYS states='unmed', and that is the entire visibility design: the
@@ -698,7 +698,7 @@ class Room:
         way in room 7).
         """
         self.interactable(kid, "shape_key", size, pos, "prop", label,
-                          state="unmed", facing="pz",
+                          state="unmed", facing=facing,
                           model_script="res://fixtures/shape_key.gd",
                           model_props={"shape": '"%s"' % shape,
                                        "color": _color_literal(color)})
@@ -3249,13 +3249,14 @@ def room7():
                    "dispenser", "use the dispenser", facing="pz")
     # Physical matching, not another keypad. Seals sit in separate shelf
     # shadows, outside the orderly belt; no new collider pinches the maze.
-    for shape, color, pos in [
-            ("circle", "#748994", (-4.6, 0.45, 3.6)),
-            ("square", "#858d6c", (4.65, 0.45, -1.1)),
-            ("triangle", "#a57564", (-4.6, 0.45, -3.5))]:
+    for shape, color, pos, facing in [
+            ("circle", "#748994", (-4.6, 0.60, 3.6), "px"),
+            ("square", "#858d6c", (4.65, 0.60, -1.1), "nx"),
+            ("triangle", "#a57564", (-4.6, 0.60, -3.5), "px")]:
         r.shape_key("record7_" + shape, shape, color, pos,
-                    label="take the " + shape + " record seal")
-    r.interactable("record_reader7", "record_reader", (0.5, 0.65, 0.16),
+                    label="take the " + shape + " record seal",
+                    size=(0.66, 1.2, 0.66), facing=facing)
+    r.interactable("record_reader7", "record_reader", (0.65, 0.85, 0.16),
                    (1.45, 1.45, -4.80), "pad", "file the record seal", facing="pz",
                    model_script="res://fixtures/ward_puzzle_fixture.gd",
                    model_props={"kind": '"reader"'})
@@ -3465,8 +3466,8 @@ def room8():
              (8.75, 1.7, 4), -math.pi / 2, 2.8)
     # The full order is read under cover inside the refill alcove. Its panel
     # sits above the dispenser, not across either island face or a doorway.
-    r.scrawl("call in order:\ncircle\nsquare\ntriangle",
-             (10.35, 2.35, 1.2), -math.pi / 2, 1.0, sid="bellOrder8", bounds=(1.35, 0.65))
+    r.scrawl("bell order\n1. circle\n2. square\n3. triangle",
+             (10.35, 2.40, 1.2), -math.pi / 2, 1.0, sid="bellOrder8", bounds=(1.35, 0.90))
 
     # Alcove end cap is at x=10.5, mouth opens toward -x, so facing is PINNED
     # 'nx' — see the facing-audit note above the alcove walls.
@@ -3475,11 +3476,11 @@ def room8():
     # Distributed wall bells make the sequence a route, not a modal keypad.
     # Faces are pinned toward the room; plates sit above the crash rails.
     for shape, color, pos, facing, size in [
-            ("circle", "#748994", (-8.78, 1.5, 1.6), "px", (0.18, 0.7, 0.55)),
-            ("square", "#858d6c", (4.3, 1.5, -7.78), "pz", (0.55, 0.7, 0.18)),
-            ("triangle", "#a57564", (8.78, 1.5, -4.6), "nx", (0.18, 0.7, 0.55))]:
+            ("circle", "#748994", (-8.78, 1.6, 1.6), "px", (0.18, 0.9, 0.72)),
+            ("square", "#858d6c", (4.3, 1.6, -7.78), "pz", (0.72, 0.9, 0.18)),
+            ("triangle", "#a57564", (8.78, 1.6, -4.6), "nx", (0.18, 0.9, 0.72))]:
         r.interactable("bell8_" + shape, "call_bell", size, pos, "prop",
-                       "ring the " + shape + " bell", facing=facing,
+                       "press the " + shape + " call bell", facing=facing,
                        model_script="res://fixtures/ward_puzzle_fixture.gd",
                        model_props={"kind": '"bell"', "shape": '"%s"' % shape,
                                     "color": _color_literal(color)})
@@ -4944,7 +4945,7 @@ def room15():
     # alcove looks empty, the prop is not drawn, and the interaction ray will
     # not focus it. Each sits at its leg2's far cap — unreachable, and
     # unseeable, without rounding the blind corner.
-    r.shape_key("shapeKeyA", "circle", "#3fa9dd", (-10.5, 0.9, -0.3))
+    r.shape_key("shapeKeyA", "circle", "#3fa9dd", (-10.5, 0.9, -0.3), facing="nz")
     r.shape_key("shapeKeyB", "square", "#4caf6a", (10.5, 0.9, -12.3))
     r.shape_key("shapeKeyC", "triangle", "#c1170f", (-10.5, 0.9, -20.3))
 

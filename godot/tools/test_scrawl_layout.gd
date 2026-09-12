@@ -96,17 +96,18 @@ func _test_room8_override_and_dynamic_text() -> void:
 		room.queue_free()
 		remove_child(room)
 		return
-	label.set_meta(WardScrawl.META_MAX_WIDTH, 1.35)
-	label.set_meta(WardScrawl.META_MAX_HEIGHT, 0.65)
+	_check(is_equal_approx(float(label.get_meta(WardScrawl.META_MAX_WIDTH)), 1.35)
+		and is_equal_approx(float(label.get_meta(WardScrawl.META_MAX_HEIGHT)), 0.90),
+		"numbered bell order has an authored 1.35m x 0.9m band")
 	var authored := float(label.get_meta(WardScrawl.META_AUTHORED_PIXEL_SIZE, label.pixel_size))
-	var long_text := "call in order:\ntriangle\ncircle\nsquare"
+	var long_text := "bell order\n1. triangle\n2. circle\n3. square"
 	label.text = long_text
 	WardScrawl.schedule(label)
 	await get_tree().process_frame
 	await get_tree().process_frame
 	var long_box := WardScrawl.world_aabb(label)
-	_check(maxf(long_box.size.x, long_box.size.z) <= 1.37 and long_box.size.y <= 0.67,
-			"room8's narrow clue obeys its 1.35m x 0.65m metadata envelope")
+	_check(maxf(long_box.size.x, long_box.size.z) <= 1.37 and long_box.size.y <= 0.92,
+			"room8's numbered clue obeys its 1.35m x 0.9m metadata envelope")
 	var dispenser_box := _combined_visual_aabb(room.get_node_or_null("Interactables/dispenser8/Model"))
 	_check(dispenser_box.size == Vector3.ZERO or not long_box.intersects(dispenser_box),
 			"room8's narrow clue does not overlap the dispenser model")
@@ -195,7 +196,8 @@ func _combined_visual_aabb(node: Node) -> AABB:
 		return AABB()
 	var result := AABB()
 	var found := false
-	if node is VisualInstance3D:
+	# Light influence bounds are not solid surfaces that can obscure writing.
+	if node is GeometryInstance3D:
 		result = _world_aabb(node)
 		found = result.size != Vector3.ZERO
 	for child in node.get_children():

@@ -141,7 +141,7 @@ material = ExtResource("m_prop")
 size = Vector3(0.5500, 0.7500, 0.1600)
 
 [sub_resource type="BoxShape3D" id="bs_13"]
-size = Vector3(0.5500, 0.7000, 0.1800)
+size = Vector3(0.7200, 0.9000, 0.1800)
 
 [sub_resource type="BoxShape3D" id="bs_14"]
 size = Vector3(2.0000, 3.0000, 0.2000)
@@ -479,13 +479,13 @@ double_sided = false
 no_depth_test = false
 
 [node name="bellOrder8" type="Label3D" parent="Scrawls"]
-transform = Transform3D(0.000000, 0.000000, -1.000000, -0.059829, 0.998209, 0.000000, 0.998209, 0.059829, 0.000000, 10.3500, 2.3500, 1.2000)
+transform = Transform3D(0.000000, 0.000000, -1.000000, -0.206375, 0.978473, 0.000000, 0.978473, 0.206375, 0.000000, 10.3500, 2.4000, 1.2000)
 pixel_size = 0.0013
-text = "call in order:\ncircle\nsquare\ntriangle"
+text = "bell order\n1. circle\n2. square\n3. triangle"
 font = ExtResource("f_scrawl")
 font_size = 128
 metadata/scrawl_max_width = 1.35
-metadata/scrawl_max_height = 0.65
+metadata/scrawl_max_height = 0.9
 outline_size = 14
 outline_modulate = Color(0.18, 0.05, 0.04, 0.85)
 modulate = Color(0.62, 0.16, 0.12, 0.92)
@@ -513,58 +513,58 @@ shape = SubResource("bs_12")
 transform = Transform3D(1.00000, 0, 0, 0, 1.00000, 0, 0, 0, 1.00000, 0.0000, 0.0000, 0.0000)
 
 [node name="bell8_circle" type="Area3D" parent="Interactables"]
-transform = Transform3D(0.000000, 0, -1.000000, 0, 1, 0, 1.000000, 0, 0.000000, -8.7800, 1.5000, 1.6000)
+transform = Transform3D(0.000000, 0, -1.000000, 0, 1, 0, 1.000000, 0, 0.000000, -8.7800, 1.6000, 1.6000)
 collision_layer = 32
 collision_mask = 0
 script = ExtResource("s_interactable")
 interactable_id = "bell8_circle"
 interactable_type = "call_bell"
-label = "ring the circle bell"
+label = "press the circle call bell"
 
 [node name="Shape" type="CollisionShape3D" parent="Interactables/bell8_circle"]
 shape = SubResource("bs_13")
 
 [node name="Model" type="Node3D" parent="Interactables/bell8_circle"]
 script = ExtResource("s_model_ward_puzzle_fixture")
-fixture_size = Vector3(0.5500, 0.7000, 0.1800)
+fixture_size = Vector3(0.7200, 0.9000, 0.1800)
 color = Color(0.4549, 0.5373, 0.5804, 1.0000)
 kind = "bell"
 shape = "circle"
 
 [node name="bell8_square" type="Area3D" parent="Interactables"]
-transform = Transform3D(-1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, -1.000000, 4.3000, 1.5000, -7.7800)
+transform = Transform3D(-1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, -1.000000, 4.3000, 1.6000, -7.7800)
 collision_layer = 32
 collision_mask = 0
 script = ExtResource("s_interactable")
 interactable_id = "bell8_square"
 interactable_type = "call_bell"
-label = "ring the square bell"
+label = "press the square call bell"
 
 [node name="Shape" type="CollisionShape3D" parent="Interactables/bell8_square"]
 shape = SubResource("bs_13")
 
 [node name="Model" type="Node3D" parent="Interactables/bell8_square"]
 script = ExtResource("s_model_ward_puzzle_fixture")
-fixture_size = Vector3(0.5500, 0.7000, 0.1800)
+fixture_size = Vector3(0.7200, 0.9000, 0.1800)
 color = Color(0.5216, 0.5529, 0.4235, 1.0000)
 kind = "bell"
 shape = "square"
 
 [node name="bell8_triangle" type="Area3D" parent="Interactables"]
-transform = Transform3D(0.000000, 0, 1.000000, 0, 1, 0, -1.000000, 0, 0.000000, 8.7800, 1.5000, -4.6000)
+transform = Transform3D(0.000000, 0, 1.000000, 0, 1, 0, -1.000000, 0, 0.000000, 8.7800, 1.6000, -4.6000)
 collision_layer = 32
 collision_mask = 0
 script = ExtResource("s_interactable")
 interactable_id = "bell8_triangle"
 interactable_type = "call_bell"
-label = "ring the triangle bell"
+label = "press the triangle call bell"
 
 [node name="Shape" type="CollisionShape3D" parent="Interactables/bell8_triangle"]
 shape = SubResource("bs_13")
 
 [node name="Model" type="Node3D" parent="Interactables/bell8_triangle"]
 script = ExtResource("s_model_ward_puzzle_fixture")
-fixture_size = Vector3(0.5500, 0.7000, 0.1800)
+fixture_size = Vector3(0.7200, 0.9000, 0.1800)
 color = Color(0.6471, 0.4588, 0.3922, 1.0000)
 kind = "bell"
 shape = "triangle"

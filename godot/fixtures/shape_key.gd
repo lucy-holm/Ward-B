@@ -1,4 +1,4 @@
-# A shape-key prop: a small pedestal with a coloured shape resting on it.
+# A shape-key prop: an upright seal on a dark stand, facing its approach lane.
 #
 # Port of world.ts's buildShapeKey(). Built from script rather than authored as
 # a .tscn because shape AND colour are per-instance (a room's three keys are
@@ -43,22 +43,36 @@ func _ready() -> void:
 	pedestal.position.y = -h * 0.5 + pedestal_h * 0.5
 	add_child(pedestal)
 
-	var glyph_size := w * 0.75
+	var glyph_size := w * 0.80
 	# glyph_instance, not glyph_mesh: the triangle is a PrismMesh and needs a
 	# static tilt to lie flat (see ShapeGlyphs' porting-trap note).
-	var glyph := ShapeGlyphs.glyph_instance(shape, glyph_size, color)
+	# Color is a secondary cue. Pale faces stay distinct from the dark backing
+	# after monochrome/posterization, including the originally dark red triangle.
+	var glyph := ShapeGlyphs.glyph_instance(shape, glyph_size,
+		color.lerp(Color(0.94, 0.92, 0.85), 0.82))
+	var glyph_y := -h * 0.5 + pedestal_h + glyph_size * 0.5
+	var backing_mat := StandardMaterial3D.new()
+	backing_mat.albedo_color = Color(0.025, 0.03, 0.025)
+	backing_mat.roughness = 1.0
+	var backing_mesh := BoxMesh.new()
+	backing_mesh.size = Vector3(w * 0.96, glyph_size * 1.18, 0.045)
+	backing_mesh.material = backing_mat
+	var backing := MeshInstance3D.new()
+	backing.name = "Backing"
+	backing.mesh = backing_mesh
+	backing.position = Vector3(0, glyph_y, glyph_size * 0.13)
+	add_child(backing)
 
-	# The idle spin/bob/emissive pulse, shared verbatim with pill_pickup.tscn —
-	# world.ts pushed shape_key meshes onto the SAME `animated` list as
-	# pill_pickup, so a key reads as "take me" with the exact idle tell the
-	# player already learned in room 1. The pulse is why the glyph material is
-	# emissive: pill_idle.gd drives emission_energy_multiplier.
+	# Keep the pickup's subtle bob/pulse, but never rotate its face edge-on.
+	# The mount turns every flat glyph upright; the triangle's own local tilt
+	# still normalizes the PrismMesh before this shared rotation is applied.
 	var idle := IDLE.new()
 	idle.name = "Idle"
-	idle.spin_speed = 1.0
-	idle.bob_amount = 0.03
+	idle.spin_speed = 0.0
+	idle.rotation.x = PI / 2
+	idle.bob_amount = 0.015
 	idle.bob_speed = 2.0
-	idle.pulse_amount = 0.15
-	idle.position.y = -h * 0.5 + pedestal_h + glyph_size * 0.28
+	idle.pulse_amount = 0.05
+	idle.position.y = glyph_y
 	idle.add_child(glyph)
 	add_child(idle)

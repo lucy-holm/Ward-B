@@ -1,4 +1,4 @@
-[gd_scene load_steps=47 format=3 uid="uid://wardbroom7deb971"]
+[gd_scene load_steps=49 format=3 uid="uid://wardbroom7deb971"]
 
 [ext_resource type="Script" path="res://rooms/room19_lights/room19_lights.gd" id="s_room"]
 [ext_resource type="Material" uid="uid://wardbmatd0cabd0" path="res://materials/floor.tres" id="m_floor"]
@@ -10,6 +10,7 @@
 [ext_resource type="Script" path="res://core/state_object.gd" id="s_stateobj"]
 [ext_resource type="FontFile" path="res://fonts/RockSalt-Regular.ttf" id="f_scrawl"]
 [ext_resource type="PackedScene" path="res://fixtures/dispenser.tscn" id="fx_dispenser"]
+[ext_resource type="Script" path="res://fixtures/maintenance_fixture.gd" id="s_model_maintenance_fixture"]
 [ext_resource type="Script" path="res://core/interactable.gd" id="s_interactable"]
 [ext_resource type="PackedScene" path="res://props/missing_ceiling_tile.tscn" id="pk_missing_ceiling_tile"]
 [ext_resource type="PackedScene" path="res://props/hanging_cable.tscn" id="pk_hanging_cable"]
@@ -116,6 +117,9 @@ material = ExtResource("m_glow")
 size = Vector3(0.5500, 0.7500, 0.1600)
 
 [sub_resource type="BoxShape3D" id="bs_9"]
+size = Vector3(0.6500, 0.7000, 0.1200)
+
+[sub_resource type="BoxShape3D" id="bs_10"]
 size = Vector3(2.0000, 3.0000, 0.7000)
 
 [node name="Room" type="Node3D"]
@@ -355,6 +359,23 @@ shape = SubResource("bs_8")
 [node name="Model" parent="Interactables/dispenser19" instance=ExtResource("fx_dispenser")]
 transform = Transform3D(1.00000, 0, 0, 0, 1.00000, 0, 0, 0, 1.00000, 0.0000, 0.0000, 0.0000)
 
+[node name="checkpoint19" type="Area3D" parent="Interactables"]
+transform = Transform3D(-1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, -1.000000, 4.0000, 2.2500, -7.8200)
+collision_layer = 32
+collision_mask = 0
+script = ExtResource("s_interactable")
+interactable_id = "checkpoint19"
+interactable_type = "checkpoint"
+label = "record your place"
+
+[node name="Shape" type="CollisionShape3D" parent="Interactables/checkpoint19"]
+shape = SubResource("bs_9")
+
+[node name="Model" type="Node3D" parent="Interactables/checkpoint19"]
+script = ExtResource("s_model_maintenance_fixture")
+fixture_size = Vector3(0.6500, 0.7000, 0.1200)
+marker_kind = "checkpoint"
+
 [node name="Props" type="Node3D" parent="."]
 
 [node name="MissingCeilingTile0" parent="Props" instance=ExtResource("pk_missing_ceiling_tile")]
@@ -552,5 +573,5 @@ script = ExtResource("s_exit")
 exit_to = "room20"
 
 [node name="Shape" type="CollisionShape3D" parent="Exits/Exit0"]
-shape = SubResource("bs_9")
+shape = SubResource("bs_10")
 

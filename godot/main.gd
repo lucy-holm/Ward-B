@@ -325,6 +325,13 @@ var atmosphere: Atmosphere
 # Area3D — see core/trigger_volume.gd.
 var triggers: TriggerPoll
 
+const CHECKPOINT_STORE := preload("res://core/checkpoints.gd")
+var checkpoints := CHECKPOINT_STORE.new()
+var _checkpoint_id := ""
+var _used_checkpoints := {}
+var _noise_next_ms := {}
+var _ended := false
+
 var current_room: Node = null
 var current_room_id := ""
 
@@ -383,6 +390,7 @@ func _ready() -> void:
 	start_overlay = START_OVERLAY_SCENE.instantiate()
 	add_child(start_overlay)
 	start_overlay.admit_pressed.connect(_on_admit_pressed)
+	start_overlay.continue_pressed.connect(_on_continue_pressed)
 	# Live display calibration: the config panel deliberately renders over the
 	# real, already-loaded ward (see start_overlay.gd), so dragging the slider
 	# has to write through to the frame behind it on the same tick.
@@ -453,6 +461,10 @@ func _ready() -> void:
 
 	_apply_mood(StateManager.state, true)
 	load_room(start_room)
+	if requested.is_empty():
+		var saved: Dictionary = checkpoints.load_saved()
+		if not saved.is_empty():
+			start_overlay.set_checkpoint_label(str(checkpoints.anchor(saved["checkpoint"])["label"]))
 	# Deliberately does NOT call player.set_input_enabled(true) here — the
 	# scene is meant to be visible as a backdrop behind the start overlay
 	# ("initial presentation: scene visible behind the start overlay",
@@ -460,6 +472,38 @@ func _ready() -> void:
 
 
 func _on_admit_pressed() -> void:
+	_checkpoint_id = ""
+	_used_checkpoints.clear()
+	if not Telemetry.debug:
+		checkpoints.clear()
+	_begin_play()
+
+
+func _on_continue_pressed() -> void:
+	var saved: Dictionary = checkpoints.load_saved()
+	if saved.is_empty():
+		_on_admit_pressed()
+		return
+	var id: String = saved["checkpoint"]
+	var anchor: Dictionary = checkpoints.anchor(id)
+	GameState.reset_run()
+	GameState.flags = saved["flags"].duplicate(true)
+	GameState.pills = int(saved["pills"])
+	GameState.pills_are_scarce = saved["scarce"]
+	for room: String in saved["completed"]:
+		GameState.complete_room(room)
+	StateManager.can_shift = true
+	StateManager.force_state(StateManager.State.LUCID, "checkpoint_continue")
+	_checkpoint_id = id
+	_used_checkpoints[id] = true
+	load_room(anchor["room"])
+	_place_at_checkpoint(anchor)
+	_begin_play()
+	Telemetry.event("checkpoint_continue", {"checkpoint": id})
+	hud_toast("your name is still on the chart. begin here.")
+
+
+func _begin_play() -> void:
 	hud.visible = true
 	player.set_input_enabled(true)
 	# Starts idle/perf sampling and stamps the run clocks. Deliberately here
@@ -525,6 +569,8 @@ func _close_pause() -> void:
 
 
 func _physics_process(_delta: float) -> void:
+	if _ended:
+		return
 	_update_focus()
 	_update_revert_guard()
 
@@ -879,6 +925,10 @@ func _interact() -> void:
 		if current_room.on_interact(id):
 			return
 
+	if itype == "checkpoint":
+		record_checkpoint(id)
+		return
+
 	match itype:
 		"dispenser":
 			if GameState.pills >= Tuning.PILLS_MAX:
@@ -940,6 +990,7 @@ func load_room(id: String) -> void:
 		current_room.queue_free()
 		current_room = null
 	_focused = null
+	_noise_next_ms.clear()
 
 	# Variant rooms resolve their scene from a flag here; everything else is a
 	# straight ROOM_SCENES lookup. See ROOM_VARIANTS.
@@ -1008,6 +1059,8 @@ func load_room(id: String) -> void:
 
 	if current_room.has_method("on_enter"):
 		current_room.on_enter(self)
+	if atmosphere != null:
+		atmosphere.configure_shadows(player, OS.has_feature("web") and DisplayServer.is_touchscreen_available())
 
 	# Resets the per-room counters and clocks BEFORE the enter event, so a
 	# revisit of a room already seen is measured on its own rather than
@@ -1018,16 +1071,28 @@ func load_room(id: String) -> void:
 
 
 func complete_room(to: String) -> void:
+	if _ended:
+		return
 	# Rollups are read BEFORE load_room(), which resets the room counters.
 	Telemetry.event("room_complete", Telemetry.room_rollup())
 	GameState.complete_room(current_room_id)
 	if to == "END":
+		if not Telemetry.debug:
+			checkpoints.clear()
 		player.set_input_enabled(false)
 		Telemetry.event("game_complete", Telemetry.session_rollup())
 		# Beacon: this is the last thing that will ever be sent for this
 		# session, and game_complete is the event the whole funnel is built
 		# to measure.
 		Telemetry.flush(true)
+		_ended = true
+		world_root.process_mode = Node.PROCESS_MODE_DISABLED
+		StateManager.set_process(false)
+		hud.visible = false
+		touch_controls.visible = false
+		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+		WardAudio.silence_threat()
+		add_child(preload("res://ui/end_overlay.gd").new())
 		return
 	load_room(to)
 
@@ -1067,6 +1132,7 @@ func open_keypad(code: String, on_success: Callable, on_denied := Callable()) ->
 
 	keypad.denied.connect(func(attempt: String) -> void:
 		Telemetry.event("keypad_denied", {"entered": attempt})
+		emit_noise("keypad_error", player.global_position, player.level)
 		if on_denied.is_valid():
 			on_denied.call(attempt))
 
@@ -1168,3 +1234,68 @@ func set_threat(level: float, bearing) -> void:
 		WardAudio.silence_threat()
 	else:
 		WardAudio.set_threat(level, level >= 1.0)
+
+
+# --- authored pressure and recovery ----------------------------------------
+
+func emit_noise(source: String, position: Vector3, source_level := "") -> int:
+	if current_room == null:
+		return 0
+	var key := source.left(64)
+	var now := Time.get_ticks_msec()
+	if now < int(_noise_next_ms.get(key, 0)):
+		return 0
+	_noise_next_ms[key] = now + 1500
+	var floor_id: String = player.level if source_level.is_empty() else source_level
+	var responders := 0
+	for orderly: Node in get_tree().get_nodes_in_group("orderly"):
+		if current_room.is_ancestor_of(orderly) and orderly.has_method("hear_noise"):
+			if orderly.hear_noise(position, floor_id, key):
+				responders += 1
+	Telemetry.event("noise", {"source": key, "responders": responders,
+		"source_level": floor_id, "noise_x": snappedf(position.x, 0.01), "noise_z": snappedf(position.z, 0.01)})
+	if responders > 0:
+		hud_toast("the sound carries. footsteps answer.")
+	return responders
+
+
+func record_checkpoint(id: String) -> bool:
+	var anchor: Dictionary = checkpoints.anchor(id)
+	if anchor.is_empty() or anchor["room"] != current_room_id:
+		return false
+	if id == "checkpoint19" and GameState.get_flag("room18.power") != "lights":
+		return false
+	if _used_checkpoints.has(id):
+		hud_toast("your place is already marked.")
+		return false
+	_checkpoint_id = id
+	var snapshot: Dictionary = checkpoints.make_snapshot(id, GameState.pills,
+		GameState.pills_are_scarce, GameState.flags, GameState.rooms_completed)
+	var result: int = OK if Telemetry.debug else checkpoints.save(snapshot)
+	if result != OK:
+		Telemetry.event("checkpoint_save_failed", {"checkpoint": id, "error": result})
+		hud_toast("the chart won't keep. your place holds for this visit.")
+		return false
+	_used_checkpoints[id] = true
+	WardAudio.dispenser_clunk()
+	Telemetry.event("checkpoint_saved", {"checkpoint": id, "persistent": not Telemetry.debug})
+	hud_toast("your place is marked. you can begin here again.")
+	return true
+
+
+func _place_at_checkpoint(anchor: Dictionary) -> void:
+	var position: Vector3 = anchor["position"]
+	player.spawn_at(position.x, position.z, anchor["yaw"], anchor["level"], position.y)
+	Telemetry.resync_distance()
+
+
+func restore_checkpoint() -> bool:
+	var anchor: Dictionary = checkpoints.anchor(_checkpoint_id)
+	if anchor.is_empty() or anchor["room"] != current_room_id:
+		return false
+	var position: Vector3 = anchor["position"]
+	if collision.is_blocked_at(position.x, position.z, Tuning.PLAYER_RADIUS, StateManager.state, anchor["level"]):
+		return false
+	_place_at_checkpoint(anchor)
+	Telemetry.event("checkpoint_restored", {"checkpoint": _checkpoint_id})
+	return true

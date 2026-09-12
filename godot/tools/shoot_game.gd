@@ -58,6 +58,8 @@ func _ready() -> void:
 
 	var game: Node = load("res://main.tscn").instantiate()
 	add_child(game)
+	# Captures must never erase or replace a real milestone save on this host.
+	Telemetry.debug = true
 
 	# Dismiss the start overlay, exactly as pressing ADMIT ME does.
 	#

@@ -64,13 +64,19 @@
 # be re-entered from the pocket side, so a mistimed 45s revert down there
 # would otherwise mean retracing the entire crossing.
 #
-# NO COLLIDER IN THIS ROOM IS STATE-FILTERED, so circle_hits_solid_unmed can
+# No unmedicated-only barrier is introduced, so circle_hits_solid_unmed can
 # never find a trapped case at any XZ on either level: the timer expiring on
 # the gallery, mid-stair or in the pocket is always a free instant revert.
 # Exposure, never a soft-lock.
 #
-# CODE: 9137. EXIT: room18 (not ported yet; this room is deliberately not
-# registered in main.gd's ROOM_SCENES).
+# LATE LUCID HAZARD — the gallery's shutter is warning-first, not a silent
+# trap. Entering its lucid warning zone starts a 3s lamp/click cadence. The
+# player can cross before it closes, or shift unmedicated at any point to
+# retract it. If the player remains in the closing footprint, the catch/reset
+# teleports them to the marked safe platform and returns the shutter to its
+# open position. Unmedicated never activates or damages the player.
+#
+# CODE: 9137 (randomised when enabled). EXIT: room18, the power-choice room.
 extends Node3D
 
 const ORDERLY := preload("res://orderly/orderly.tscn")
@@ -82,6 +88,15 @@ const SPAWN_Z := 32.0
 const SPAWN_LEVEL := "ground"
 
 const BALCONY_Y := 3.4
+
+const SHUTTER_RETRACTED_Z := -6.4
+const SHUTTER_CLOSED_Z := 2.0
+const SHUTTER_WIDTH := 17.4
+const SHUTTER_THICK := 0.22
+const SHUTTER_WARNING_SEC := 3.0
+const SHUTTER_SPEED := 3.5
+const SHUTTER_SAFE_X := -7.45
+const SHUTTER_SAFE_Z := -1.7
 
 # ORDERLY-SOUTH — the approach. A flat back-and-forth across the south hall;
 # the crossing to the east stair mouth (x~7, z=16) is a through-point, not a
@@ -128,13 +143,41 @@ var _orderlies: Array[CharacterBody3D] = []
 var _door_unlocked := false
 var _saw_unmed_toast := false
 
+var _shutter: AnimatableBody3D = null
+var _shutter_shape: CollisionShape3D = null
+var _warning_lamp: MeshInstance3D = null
+var _shutter_warning := false
+var _shutter_closing := false
+var _shutter_closed := false
+var _warning_elapsed := 0.0
+var _click_elapsed := 0.0
+var _hazard_catch_reset := false
+
 var _main: Node = null
+
+
+func _ready() -> void:
+	_shutter = get_node_or_null("Geometry/GalleryShutter17") as AnimatableBody3D
+	_shutter_shape = get_node_or_null("Geometry/GalleryShutter17/Shape") as CollisionShape3D
+	_warning_lamp = get_node_or_null("Geometry/ShutterWarningLamp") as MeshInstance3D
+	_set_shutter(SHUTTER_RETRACTED_Z)
+	if _warning_lamp != null:
+		_warning_lamp.visible = false
 
 
 func on_enter(main: Node) -> void:
 	_main = main
 	_door_unlocked = false
 	_saw_unmed_toast = false
+	_shutter_warning = false
+	_shutter_closing = false
+	_shutter_closed = false
+	_warning_elapsed = 0.0
+	_click_elapsed = 0.0
+	_hazard_catch_reset = false
+	_set_shutter(SHUTTER_RETRACTED_Z)
+	if _warning_lamp != null:
+		_warning_lamp.visible = false
 
 	for node in _interactables():
 		node.availability = _is_available
@@ -202,9 +245,153 @@ func _on_code_accepted() -> void:
 
 
 func on_state_change(next: StateManager.State) -> void:
+	if next == StateManager.State.UNMED and (_shutter_warning or _shutter_closing or _shutter_closed):
+		if not _hazard_catch_reset:
+			_avoid_shutter("shifted_unmed")
 	if next == StateManager.State.UNMED and not _saw_unmed_toast:
 		_saw_unmed_toast = true
 		_main.hud_toast("three of them keep this ward. none of them use the stairs the way you do.")
+
+
+# --- lucid shutter ---------------------------------------------------------
+
+func on_trigger_enter(id: String) -> void:
+	if id != "shutterWarning17" or not StateManager.is_lucid() or not _player_is_balcony():
+		return
+	if _shutter_warning or _shutter_closing or _shutter_closed:
+		return
+	_shutter_warning = true
+	_warning_elapsed = 0.0
+	_click_elapsed = 0.0
+	if _warning_lamp != null:
+		_warning_lamp.visible = true
+	Telemetry.event("hazard_warning", {
+		"hazard": "room17_shutter", "reason": "lucid_gallery_crossing"})
+	WardAudio.dispenser_clunk()
+	_main.hud_toast("a lamp clicks above you. the shutter is waking.")
+
+
+func on_trigger_exit(_id: String) -> void:
+	# The warning intentionally continues after the player clears its trigger:
+	# crossing quickly is safe, but turning around in lucid has a cost.
+	pass
+
+
+func _avoid_shutter(reason: String) -> void:
+	if not _shutter_warning and not _shutter_closing and not _shutter_closed:
+		return
+	_shutter_warning = false
+	_shutter_closing = false
+	_shutter_closed = false
+	_warning_elapsed = 0.0
+	_click_elapsed = 0.0
+	_set_shutter(SHUTTER_RETRACTED_Z)
+	if _warning_lamp != null:
+		_warning_lamp.visible = false
+	Telemetry.event("hazard_avoided", {
+		"hazard": "room17_shutter", "reason": reason})
+	_main.hud_toast("the clicking stops. raw hands pull it back.")
+
+
+func _activate_shutter() -> void:
+	if not _shutter_warning or not StateManager.is_lucid():
+		return
+	_shutter_warning = false
+	_shutter_closing = true
+	Telemetry.event("hazard_activated", {
+		"hazard": "room17_shutter", "reason": "warning_elapsed"})
+	_main.hud_toast("the shutter advances. raw hands can still stop it.")
+
+
+func _player_is_balcony() -> bool:
+	return _main != null and _main.player != null and _main.player.level == "balcony"
+
+
+func _player_in_shutter_sweep(from_z: float, to_z: float) -> bool:
+	if not _player_is_balcony():
+		return false
+	var player_pos: Vector3 = _main.player.global_position
+	if absf(player_pos.x) > SHUTTER_WIDTH * 0.5 + Tuning.PLAYER_RADIUS:
+		return false
+	var margin := SHUTTER_THICK * 0.5 + Tuning.PLAYER_RADIUS
+	var low := minf(from_z, to_z) - margin
+	var high := maxf(from_z, to_z) + margin
+	return player_pos.z >= low and player_pos.z <= high
+
+
+func _advance_shutter(delta: float) -> void:
+	if not _shutter_closing or not StateManager.is_lucid():
+		return
+	var from_z: float = _shutter.position.z
+	var to_z := move_toward(from_z, SHUTTER_CLOSED_Z,
+		SHUTTER_SPEED * maxf(delta, 0.0))
+	_set_shutter(to_z)
+	# Check the whole swept interval. The player's position is authored through
+	# XZ writes rather than a physics body, so checking only the final box would
+	# tunnel through a shutter on a large frame or a dropped browser frame.
+	if _player_in_shutter_sweep(from_z, to_z):
+		_catch_shutter()
+		return
+	if is_equal_approx(to_z, SHUTTER_CLOSED_Z):
+		_shutter_closing = false
+		_shutter_closed = true
+		if _warning_lamp != null:
+			_warning_lamp.visible = false
+
+
+func _catch_shutter() -> void:
+	if _hazard_catch_reset:
+		return
+	_hazard_catch_reset = true
+	Telemetry.event("hazard_caught", {
+		"hazard": "room17_shutter", "reason": "inside_closure_footprint"})
+	# A signalled reset, rather than an instant kill: return raw, retract the
+	# shutter, and place the player on the visible platform north of the hazard.
+	StateManager.force_state(StateManager.State.UNMED, "shutter-catch")
+	_shutter_warning = false
+	_shutter_closing = false
+	_shutter_closed = false
+	_set_shutter(SHUTTER_RETRACTED_Z)
+	if _warning_lamp != null:
+		_warning_lamp.visible = false
+	_main.shift_fx()
+	_main.teleport_player(SHUTTER_SAFE_X, SHUTTER_SAFE_Z, "balcony")
+	_main.hud_toast("the shutter catches you. raw, it lets go.")
+	_hazard_catch_reset = false
+
+
+func _set_shutter(z: float) -> void:
+	if _shutter == null:
+		return
+	_shutter.position.z = z
+	if _main != null and _main.collision != null:
+		_main.collision.sync_live()
+
+
+func _tick_shutter(delta: float) -> void:
+	if _shutter_warning:
+		_warning_elapsed += delta
+		_click_elapsed += delta
+		if _warning_lamp != null:
+			_warning_lamp.visible = fmod(_warning_elapsed, 0.5) < 0.32
+		var click_interval := lerpf(0.9, 0.25, clampf(_warning_elapsed / SHUTTER_WARNING_SEC, 0.0, 1.0))
+		if _click_elapsed >= click_interval:
+			_click_elapsed = 0.0
+			WardAudio.dispenser_clunk()
+		if _warning_elapsed >= SHUTTER_WARNING_SEC:
+			# Carry any excess frame time into the visible closing sweep.
+			var closure_delta := _warning_elapsed - SHUTTER_WARNING_SEC
+			_activate_shutter()
+			_advance_shutter(closure_delta)
+	elif _shutter_closing:
+		_warning_elapsed += delta
+		_click_elapsed += delta
+		if _warning_lamp != null:
+			_warning_lamp.visible = fmod(_warning_elapsed, 0.5) < 0.32
+		if _click_elapsed >= 0.25:
+			_click_elapsed = 0.0
+			WardAudio.dispenser_clunk()
+		_advance_shutter(delta)
 
 
 # --- randomize-codes (CLAUDE.md hard rule) ---------------------------------
@@ -307,7 +494,10 @@ func _on_caught(toast: String) -> void:
 # the fold. The HUD arrow therefore only ever points at someone who really can
 # reach the player.
 func _physics_process(_delta: float) -> void:
-	if _main == null or _orderlies.is_empty():
+	if _main == null:
+		return
+	_tick_shutter(_delta)
+	if _orderlies.is_empty():
 		return
 
 	var player_pos: Vector3 = _main.player.global_position
@@ -350,4 +540,10 @@ func _physics_process(_delta: float) -> void:
 func on_leave() -> void:
 	if _main != null:
 		_main.set_threat(0.0, null)
+	_shutter_warning = false
+	_shutter_closing = false
+	_shutter_closed = false
+	if _warning_lamp != null:
+		_warning_lamp.visible = false
+	_set_shutter(SHUTTER_RETRACTED_Z)
 	_free_orderlies()

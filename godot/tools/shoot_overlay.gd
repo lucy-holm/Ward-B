@@ -39,6 +39,7 @@ func _ready() -> void:
 
 	var game: Node = load("res://main.tscn").instantiate()
 	add_child(game)
+	Telemetry.debug = true # captures cannot overwrite a player's milestone
 	# Long enough for room 1 to load, the mood to apply and the lights to
 	# settle; the mood crossfade alone is 0.45 s.
 	await get_tree().create_timer(4.0).timeout
@@ -49,7 +50,16 @@ func _ready() -> void:
 		get_tree().quit(1)
 		return
 
-	if panel == "pause":
+	if panel == "checkpoint":
+		overlay.set_checkpoint_label("the doctor's office")
+		await get_tree().process_frame
+		await get_tree().process_frame
+	elif panel == "end":
+		overlay._on_admit_pressed()
+		game.complete_room("END")
+		await get_tree().process_frame
+		await get_tree().process_frame
+	elif panel == "pause":
 		# Drive the real buttons and the real main.gd path rather than poking
 		# visibility, so the shot also exercises _open_pause's input gate and
 		# the pause of the tree.

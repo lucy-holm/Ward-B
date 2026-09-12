@@ -96,6 +96,11 @@ class StubMain:
 	var toasts: Array = []
 	var objectives: Array = []
 	var threat := -1.0
+	var noises: Array[String] = []
+
+	func emit_noise(source: String, _position: Vector3, _source_level := "") -> int:
+		noises.append(source)
+		return 0
 
 	func hud_toast(text: String) -> void:
 		toasts.append(text)

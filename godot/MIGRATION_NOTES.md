@@ -230,49 +230,26 @@ Physics ticks at a fixed 60 Hz, which is strictly better than the original's
 `dt` clamped to 0.05 s. Per-tick displacement (0.057 m) stays far below the
 0.35 m radius, so tunnelling remains impossible.
 
-### 2.2 Orderly movement: straight-line today, `NavigationAgent3D` if baked
-The chase *rules* are ported exactly (see §3). The **movement** is layered.
+### 2.2 Orderly movement: bounded collision-aware pursuit
 
-The original stepped in a straight line and slid along AABBs, which meant a
-blocked orderly could **wedge permanently** — nothing re-paths, so he grinds
-against a corner forever. `kit.patrol()` exists purely to validate ≥0.5 m
-clearance on every leg at authoring time and catch that at build time.
+The September survival pass replaces the empty-navigation fallback with
+`OrderlyPlanner`, a room-local visibility graph around live AABB corners.
+Clear authored patrol legs keep their direct path. Chase, investigation and
+return routes can go around cover, with bounded planning and collision checks
+on every movement step. No room needs a baked `NavigationRegion3D`.
 
-`NavigationAgent3D` was introduced to remove that bug class. **It has never
-actually been active**, and this section previously claimed otherwise.
+Medication still ends pursuit. Noise from authored puzzle actions can draw a
+nearby orderly into a brief investigation; new sounds while lucid can change
+his position, but cannot make him catch a lucid player. Fixed-level identity
+continues to gate sight, catch and navigation. Moving gates invalidate routes.
+The extra pressure is an intentional gameplay deviation from the frozen
+Three.js implementation, not port parity.
 
-> 🐞 **The frozen-orderly bug.** `_move_toward` gated on
-> `NavigationServer3D.map_get_iteration_id(...) != 0` as a proxy for "a usable
-> navmesh exists". It does not mean that — it means "the navigation server has
-> synced", which becomes true in *every* scene about three physics frames in.
-> No room in this project has ever contained a `NavigationRegion3D`, so the map
-> had **zero regions**, every path query returned an empty path, and
-> `get_next_path_position()` answered with the orderly's *own* position. `dir`
-> came out zero-length and he returned before stepping. Every orderly in the
-> game stood frozen on waypoint 0, in every room, for the entire life of the
-> port. `check_rooms` never caught it because it validates patrol *wiring* —
-> waypoints present, legs clear — and never ticks physics, so a perfectly
-> authored patrol loop that is never walked passes every check.
-
-The guard now tests the thing it depends on: whether the agent handed back a
-position meaningfully different from where he already is. That degrades
-correctly in both directions — with no navmesh he walks the **straight-line
-path the Three.js build used**, which is what the patrol legs were authored and
-clearance-validated against; bake `NavigationRegion3D`s later and he starts
-pathing around obstacles with no code change. `kit.patrol()`'s clearance
-validation is therefore still load-bearing, not vestigial.
-
-Because straight-line is what actually runs, rooms 5/6/7 are back on the
-geometry they were originally tuned for (room 7's east leg at `x = 1.0` to
-avoid wedging against a shelf, room 6's dt-simulated waypoints), so the
-reaction-time audits hold as written.
-
-Regression test: `_test_orderly_patrols` in `tools/test_mechanics.gd` asserts
-he displaces from spawn and visits every waypoint. It was confirmed to fail
-against the broken guard before being committed alongside the fix.
-
-The final step still resolves through the same AABB routine as the player,
-so he can never end up inside geometry a navmesh might smooth over.
+`tools/test_orderly_pursuit.tscn` exercises route clearance, dynamic blockers,
+level boundaries and investigation; the existing patrol and room suites remain
+load-bearing. `docs/audits/2026-09-12-orderly-pursuit.md` records planner limits.
+Human playtesting still needs to establish whether stronger pursuit leaves
+sufficient time to understand clues and reach medication.
 
 ### 2.3 Footsteps are spatial — more information than before
 His mesh is hidden while you are lucid, so footsteps are the *only* way to

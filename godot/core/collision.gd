@@ -50,6 +50,7 @@ class Box:
 	var state_filter: int = -1
 	var level_filter: String = ""
 	var source: Node3D = null
+	var disabled := false
 
 	func _init(a: float, b: float, c: float, d: float, filter: int = -1, level := "") -> void:
 		min_x = a
@@ -60,6 +61,21 @@ class Box:
 		level_filter = level
 
 	func active_in(state: int) -> bool:
+		if source != null:
+			if not is_instance_valid(source):
+				return false
+			if source is CollisionShape3D and ((source as CollisionShape3D).disabled or disabled):
+				return false
+			var body := source.get_parent()
+			if body is CollisionObject3D:
+				var layer := (body as CollisionObject3D).collision_layer
+				var solid_mask := LAYER_WORLD_STATIC | LAYER_SOLID_LUCID | LAYER_SOLID_UNMED
+				if layer & solid_mask == 0:
+					return false
+				if layer & LAYER_SOLID_LUCID:
+					return state == StateManager.State.LUCID
+				if layer & LAYER_SOLID_UNMED:
+					return state == StateManager.State.UNMED
 		return state_filter == -1 or state_filter == state
 
 	## Untagged colliders are active on EVERY level, so this is trivially true
@@ -71,6 +87,16 @@ class Box:
 
 
 var boxes: Array[Box] = []
+## XZ footprint read from the room's decorative Floor mesh when available.
+## Flat rooms do not have authored WardLevels rectangles, so this gives route
+## planning a room-local boundary instead of allowing a detour outside walls.
+var room_footprint := Vector4(-INF, INF, -INF, INF)
+
+## Monotonic revision for consumers that cache routes. It changes after a room
+## rebuild and when sync_live() observes a gate/prop moving or changing its
+## collision layer.
+var revision := 0
+var _last_frame_synced := -1
 
 
 ## Rebuild the cache from a room subtree. Walls author themselves as
@@ -79,7 +105,76 @@ var boxes: Array[Box] = []
 ## every frame.
 func rebuild_from(root: Node) -> void:
 	boxes.clear()
+	room_footprint = Vector4(-INF, INF, -INF, INF)
+	_last_frame_synced = -1
+	var floor := root.find_child("Floor", true, false) if root != null else null
+	if floor is MeshInstance3D and (floor as MeshInstance3D).mesh is BoxMesh:
+		var mesh := (floor as MeshInstance3D).mesh as BoxMesh
+		var xf := (floor as MeshInstance3D).global_transform
+		var half := mesh.size * 0.5
+		var ex := absf(xf.basis.x.x) * half.x + absf(xf.basis.y.x) * half.y + absf(xf.basis.z.x) * half.z
+		var ez := absf(xf.basis.x.z) * half.x + absf(xf.basis.y.z) * half.y + absf(xf.basis.z.z) * half.z
+		room_footprint = Vector4(xf.origin.x - ex, xf.origin.x + ex,
+				xf.origin.z - ez, xf.origin.z + ez)
 	_collect(root)
+	revision += 1
+
+
+## Reconcile cached boxes with the live CollisionShape3D nodes. Rooms normally
+## call rebuild_collision() when a gate changes, but moving props and tests can
+## change a body between those calls. Orderly route planning calls this cheap
+## pass before reading the cache, so a stale gate can never make a chase cut
+## through a wall. Returns true when any box changed.
+func sync_live() -> bool:
+	var changed := false
+	for b in boxes:
+		if b.source == null or not is_instance_valid(b.source):
+			if b.source != null:
+				changed = true
+			continue
+		var cs := b.source as CollisionShape3D
+		var body := cs.get_parent() as CollisionObject3D
+		if cs == null or body == null or cs.shape == null:
+			continue
+		var layer := body.collision_layer
+		var solid_mask := LAYER_WORLD_STATIC | LAYER_SOLID_LUCID | LAYER_SOLID_UNMED
+		var live_filter := -1
+		if layer & LAYER_SOLID_LUCID:
+			live_filter = StateManager.State.LUCID
+		elif layer & LAYER_SOLID_UNMED:
+			live_filter = StateManager.State.UNMED
+		var xf := cs.global_transform
+		var half := (cs.shape as BoxShape3D).size * 0.5 if cs.shape is BoxShape3D else Vector3.ZERO
+		var ex := absf(xf.basis.x.x) * half.x + absf(xf.basis.y.x) * half.y + absf(xf.basis.z.x) * half.z
+		var ez := absf(xf.basis.x.z) * half.x + absf(xf.basis.y.z) * half.y + absf(xf.basis.z.z) * half.z
+		var o := xf.origin
+		var nmin_x := o.x - ex
+		var nmax_x := o.x + ex
+		var nmin_z := o.z - ez
+		var nmax_z := o.z + ez
+		var live_disabled := cs.disabled or layer & solid_mask == 0
+		if b.min_x != nmin_x or b.max_x != nmax_x or b.min_z != nmin_z or b.max_z != nmax_z \
+				or b.state_filter != live_filter or b.disabled != live_disabled:
+			changed = true
+		b.min_x = nmin_x
+		b.max_x = nmax_x
+		b.min_z = nmin_z
+		b.max_z = nmax_z
+		b.state_filter = live_filter
+		b.disabled = live_disabled
+	if changed:
+		revision += 1
+	return changed
+
+
+## Shared-actor entry point. Multiple orderlies can ask about the same room
+## cache in one physics tick; only the first caller needs to inspect nodes.
+func sync_live_once_per_frame() -> bool:
+	var frame := Engine.get_physics_frames()
+	if frame == _last_frame_synced:
+		return false
+	_last_frame_synced = frame
+	return sync_live()
 
 
 func _collect(node: Node) -> void:
@@ -117,6 +212,7 @@ func _add_box(cs: CollisionShape3D, shape: BoxShape3D, body: CollisionObject3D) 
 
 	var b := Box.new(o.x - ex, o.x + ex, o.z - ez, o.z + ez, filter, _level_tag_of(body))
 	b.source = cs
+	b.disabled = cs.disabled or layer & solid_mask == 0
 	boxes.append(b)
 
 

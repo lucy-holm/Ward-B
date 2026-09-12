@@ -334,7 +334,7 @@ class Room:
         # `level` is the stacked-level tag — see the verticality block below.
         # `light` is the LIGHT-AXIS tag ('lit' | 'dark' | None) — see block().
         self.walls = []
-        self.movers = []              # (name, size, pos, mat) — AnimatableBody3D, see mover()
+        self.movers = []              # (name, size, pos, mat, level) — AnimatableBody3D, see mover()
         # (name, iid, cell_x, cell_z, size, mat, label) — see push_block()
         self.push_blocks = []
         self.props = []
@@ -543,7 +543,7 @@ class Room:
     def has_verticality(self):
         return bool(self.height_zones or self.ramps or self.levels or self.stairwells)
 
-    def mover(self, name, size, pos, mat="wall2"):
+    def mover(self, name, size, pos, mat="wall2", level=None):
         """A wall that MOVES at runtime: mesh + collider welded into one body,
         emitted as an AnimatableBody3D rather than a StaticBody3D.
 
@@ -564,7 +564,7 @@ class Room:
         Unlike block(), mesh and collider are the SAME box centred on the body
         origin, so the room script can move both with one position write.
         """
-        self.movers.append((name, size, pos, mat))
+        self.movers.append((name, size, pos, mat, level))
 
     def push_block(self, name, iid, cell_x, cell_z, size=0.86, height=None,
                    mat="prop", label="push it"):
@@ -968,6 +968,10 @@ class Room:
         # patrol-clearance validator counts and make the audit trail a lie.
         children = {}
         has_body = spec["collider"] is not None
+        # The collision reader tags the body's own metadata, not its prefab
+        # root. A gallery prop must not become an invisible wall downstairs.
+        if level is not None and has_body:
+            children.setdefault("Collider", {})["metadata/level"] = level
 
         if light in ("lit", "dark") and has_body and collider is not False:
             raise ValueError(
@@ -1619,7 +1623,7 @@ class Emitter:
         # Geometry parent as everything else so WardCollision.rebuild_from
         # picks them up like any other solid; the room script then keeps the
         # cached box in step with the transform it writes.
-        for (mname, msize, mpos, mmat) in r.movers:
+        for (mname, msize, mpos, mmat, mlevel) in r.movers:
             sh = self.box_shape(msize)
             mm = self.box_mesh(msize, mmat)
             body.append('[node name="%s" type="AnimatableBody3D" parent="Geometry"]' % mname)
@@ -1627,6 +1631,8 @@ class Emitter:
             body.append("collision_layer = %d" % LAYER_WORLD)
             body.append("collision_mask = 0")
             body.append("sync_to_physics = false")
+            if mlevel:
+                body.append('metadata/level = "%s"' % mlevel)
             body.append("")
             body.append('[node name="Shape" type="CollisionShape3D" parent="Geometry/%s"]' % mname)
             body.append('shape = SubResource("%s")' % sh)
@@ -3042,12 +3048,11 @@ def room5():
 # --- ROOM 6 — the West Corridor --------------------------------------------
 # First bend in the ward, first room where the dispenser isn't waiting at the
 # safe entrance: it sits in an alcove off the long leg of the L, right where
-# his patrol runs. The exit code is scrawled unmed-only, further down the same
-# leg, past the alcove. Nothing here is individually new — you've read scrawls
-# unmed, you've fed a keypad lucid, you've shared a room with him — the room
-# just makes you leapfrog all three at once: dash unmed for the code, fall
-# back to the alcove to restock, cross lucid at the moment that actually
-# matters.
+# his patrol runs. The way out is a two-step maintenance job: recover an
+# identifiable service fuse while unmedicated, then fit and power the panel
+# while lucid. The first action makes noise and brings the existing orderly
+# back over the corridor, so the alcove remains a recoverable refill route
+# rather than a quiet hiding place.
 #
 # NOTE: L-shaped, and the exit is on +X (east), not -Z.
 
@@ -3070,7 +3075,7 @@ def room6():
     # east cap, with the exit doorway gap
     r.wall_z(-4.6, -3.9, 12)
     r.wall_z(-1.9, -1.2, 12)
-    r.solid(11.88, 12.12, -3.9, -1.9, name="DoorCollider")   # exit door collider, opened by the keypad
+    r.solid(11.88, 12.12, -3.9, -1.9, name="DoorCollider")   # exit door collider, opened by the powered service panel
 
     # vestibule beyond the exit door, x [12,14] z [-3.9,-1.9]
     r.wall_x(12, 14, -3.9)
@@ -3087,10 +3092,7 @@ def room6():
 
     r.scrawl("he learned this hallway\nbefore you did", (-1.45, 1.7, 3), math.pi / 2, 3)
     r.scrawl("count his steps.\nthen move.", (6.3, 1.6, -1.45), math.pi, 2.6)
-    # Pulled a couple meters west of the keypad, deeper into the leg his
-    # patrol actually walks — widens the gap between "found the code" and
-    # "safe at the keypad".
-    r.scrawl("6 3 2 9", (8.3, 1.6, -4.35), 0, 2.4, sid="codeScrawl")
+    r.scrawl("the spare is warm.\nmake it useful.", (8.3, 1.6, -4.35), 0, 2.0)
 
     # Off the entrance, in the alcove his loop passes — the first dispenser
     # you have to actually walk into his route to reach. Alcove end cap is at
@@ -3098,8 +3100,23 @@ def room6():
     # only lands on the right sign here by coincidence).
     r.interactable("dispenser6", "dispenser", (0.55, 0.75, 0.16), (6.3, 1.45, -5.9),
                    "dispenser", "use the dispenser", facing="pz")
-    r.interactable("keypad6", "keypad", (0.14, 0.5, 0.4), (11.81, 1.45, -2.9),
-                   "pad", "use the keypad")
+    # Free-standing and unmedicated-only: the broad caps make this read as a
+    # service fuse, not a second pill pickup. It is beside the dispenser so a
+    # caught player can refill and retry without losing the completed step.
+    # Keep the built-in pickup type so the placement audit recognises this as
+    # a free-standing floor object; the room intercepts it before main's
+    # pickup branch, and the custom model supplies the fuse silhouette.
+    r.interactable("service_part6", "pill_pickup", (0.52, 0.8, 0.52),
+                   (6.3, 0.4, -5.25), "prop", "take the service fuse",
+                   state="unmed", facing="pz",
+                   model_script="res://fixtures/maintenance_fixture.gd",
+                   model_props={"marker_kind": '"fuse"'})
+    # East-wall panel, deliberately distinct from a keypad. It is visible in
+    # both states, but the room script makes the actual fit/power action lucid.
+    r.interactable("service_panel6", "maintenance_panel", (0.16, 0.8, 0.8),
+                   (11.81, 1.45, -2.9), "pad", "fit the fuse and power the panel",
+                   facing="nx", model_script="res://fixtures/maintenance_fixture.gd",
+                   model_props={"marker_kind": '"panel"'})
     r.interactable("exitdoor", "door", (0.2, 3, 2), (12, 1.5, -2.9),
                    "door", "the exit door")
 
@@ -3319,6 +3336,16 @@ def room9():
     # dispensers above document what happens when it does not.
     r.interactable("dispenser9", "dispenser", (0.16, 0.75, 0.55), (4.8, 1.45, 1.0),
                    "dispenser", "use the dispenser", facing="nx")
+    # One-use clinical chart: a checkpoint anchor, not a free-save point.
+    # It carries no collider or light and sits in the west-wall gap between
+    # the code scrawl and the coat.
+    # Authored world size is thin X / broad Z on the west wall. The generator
+    # canonicalizes this to broad X / thin Z, then yaw=-PI/2 for px, so the
+    # chart page and its text face +X into the corridor rather than the wall.
+    r.interactable("checkpoint9", "checkpoint", (0.12, 0.70, 0.50),
+                   (-4.82, 1.35, 2.0), "prop", "record your place", facing="px",
+                   model_script="res://fixtures/maintenance_fixture.gd",
+                   model_props={"marker_kind": '"checkpoint"'})
     r.interactable("keypad9", "keypad", (0.4, 0.5, 0.14), (1.35, 1.45, -5.81),
                    "pad", "use the keypad")
     r.interactable("exitdoor", "door", (2, 3, 0.2), (0, 1.5, -6),
@@ -4368,6 +4395,12 @@ def room14():
     # door is opened by weight and by nothing else.
     r.interactable("gate14", "door", (2, 3, 0.2), (0, 1.5, -14),
                    "door", "the gate", facing="pz")
+    # One-use clinical chart at the safe south-wall anchor. Its marker is
+    # an interactable visual only; room14 owns checkpoint persistence.
+    r.interactable("checkpoint14", "checkpoint", (0.65, 0.70, 0.12),
+                   (-2.0, 1.35, 8.82), "prop", "record your place", facing="nz",
+                   model_script="res://fixtures/maintenance_fixture.gd",
+                   model_props={"marker_kind": '"checkpoint"'})
 
     # --- set dressing --------------------------------------------------------
     # The patrol runs x -4.2..4.2 at z -11.9, straight across the plate zone,
@@ -4499,15 +4532,14 @@ def room14():
 # Stair mouths and the balcony landing are crossings, not stand-and-read
 # spots, and are held to the moving-target standard rooms 5-12 use.
 #
-# EVERY COLLIDER IN THIS ROOM IS STATE-UNFILTERED. There is no unmed-sealed
+# The new shutter is lucid-only. There is still no unmed-sealed
 # gate anywhere — the sealed wall is a permanent wall, not a paid gate — so
 # circle_hits_solid_unmed can never find a trapped case at any XZ on either
 # level, and the 45s medication timer expiring on the gallery, mid-stair or
 # in the pocket is always a free instant revert. Exposure, never a soft-lock.
 #
 # CODE: 9137 (fresh against 4118/1907/6329/0452/2846/5216/3175/8563/2593).
-# EXIT targets room18, which is not ported yet — room 17 is deliberately NOT
-# registered in main.gd, so check_rooms' chain walk never reaches it.
+# EXIT targets room18, the power-choice room in the registered campaign.
 def room17():
     GROUND_Y = 0.0
     BALCONY_Y = 3.4
@@ -4653,6 +4685,24 @@ def room17():
     # header's seam fix A before touching any of these four numbers.
     r.solid(6.6, 8, 9.1, 9.4, name="LandingGuard", level="ground")
 
+    # --- the lucid shutter -------------------------------------------------
+    # A late, warning-first hazard on the gallery. It is retracted into the
+    # north wall at load (outside the balcony patrol route) and slides to
+    # z=2.0 only after room17.gd has given the player a 3s click cadence.
+    # Full-width closure leaves no silent side bypass; the visible platform
+    # north of it is the safe alcove where shifting unmedicated retracts it.
+    r.mover("GalleryShutter17", (17.4, 1.6, 0.22),
+            (0, 4.2, -6.4), "wall2", level="balcony")
+    r.trigger("shutterWarning17", -8.5, 8.5, 1.0, 3.2, state="lucid")
+    r.block((0.6, 0.12, 0.04), (0, 5.1, 2.0), "glow",
+            collider=None, name="ShutterWarningLamp")
+    r.block((0.72, 0.20, 0.16), (0, 5.1, 1.9), "prop",
+            collider=None, name="ShutterLampHousing")
+    r.block((0.045, 0.8, 0.045), (0, 5.6, 1.9), "prop",
+            collider=None, name="ShutterLampConduit")
+    r.block((2.1, 0.012, 1.8), (-7.45, BALCONY_Y + 0.007, -1.7),
+            "pad", collider=None, name="ShutterSafePlatform")
+
     # --- exit door ---------------------------------------------------------
     # Untagged, so it blocks a gallery traveler too until the keypad drops it;
     # after that RailNorthDoorGap is what keeps the gallery closed.
@@ -4727,7 +4777,7 @@ def room17():
     ])
 
     # --- set dressing --------------------------------------------------------
-    # COLLIDER-FREE. Room 17 is the only room with genuinely STACKED levels, and
+    # Room 17 is the only room with genuinely STACKED levels, and
     # every collider here has to declare which level it belongs to or it blocks
     # the floor beneath the gallery as well. Dressing that carries no collider
     # sidesteps that entirely; anything solid up here should be authored with an
@@ -4739,6 +4789,23 @@ def room17():
     r.model("paper_scatter", (-5.0, 24.0))
     r.model("plaster_rubble", (6.2, 10.0))
     r.model("wall_stain", (8.88, 18.0), facing="nx")
+    # Small upper-gallery dressing pass: a stain mounted at eye level on the
+    # east wall makes the upper route read as an occupied ward, without a new
+    # collider or another light.
+    r.model("wall_stain", (8.88, 0.0), facing="nx", y=4.55,
+            name="UpperWallStain17")
+    r.model("notice_board", (8.88, 6.5), facing="nx", y=4.85,
+            name="GalleryNotice17")
+    r.model("wall_vent", (8.88, -3.2), facing="nx", y=5.45,
+            name="GalleryVent17")
+    r.model("ward_sign", (-8.88, -2.5), facing="px", y=4.95,
+            name="GallerySign17", text="GALLERY")
+    # Waiting seats fill the entry end, outside the shutter's swept z[-6.4,2]
+    # and >2m from the nearest patrol leg. Only the gallery receives collision.
+    r.model("beam_seating", (8.48, 5.4), facing="nx", y=BALCONY_Y,
+            level="balcony", name="GallerySeatA17")
+    r.model("beam_seating", (8.48, 8.0), facing="nx", y=BALCONY_Y,
+            level="balcony", name="GallerySeatB17")
 
     return r
 
@@ -5281,6 +5348,14 @@ def room19_lights():
     r.model("wall_vent", (6.88, 1.0), facing="nx")
     r.model("wall_speaker", (-6.88, -3.0), facing="px")
     r.model("barred_window", (6.88, -5.5), facing="nx")
+
+    # One-use clinical chart on the north platform wall. The anchor is behind
+    # the lower crossing and carries no collider, keeping both branches'
+    # patrol/sightline geometry unchanged.
+    r.interactable("checkpoint19", "checkpoint", (0.65, 0.70, 0.12),
+                   (4.0, 2.25, -7.82), "prop", "record your place", facing="pz",
+                   model_script="res://fixtures/maintenance_fixture.gd",
+                   model_props={"marker_kind": '"checkpoint"'})
 
     return r
 

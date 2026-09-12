@@ -12,10 +12,36 @@
 // from the outside right up until the batch was read.
 import { chromium } from 'playwright';
 import { spawn, execFileSync } from 'node:child_process';
+import { cpSync, mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const PORT = 8904;
 const HOST = 'html-classic.itch.zone';
 const COLLECTOR = 'https://collector.invalid.example/ingest';
+const EXPORT_DIR = mkdtempSync(join(tmpdir(), 'wardb-telemetry-session-'));
+const SOURCE_DIR = join(dirname(fileURLToPath(import.meta.url)), '..');
+const PROJECT_DIR = mkdtempSync(join(tmpdir(), 'wardb-telemetry-session-project-'));
+cpSync(SOURCE_DIR, PROJECT_DIR, {
+  recursive: true,
+  filter: (path) => !['.godot', '.git', 'build', '__pycache__'].includes(path.split('/').at(-1)),
+});
+let server;
+let browser;
+
+// Register cleanup before touching the staged project. This covers export/
+// boot failures as well as the normal browser-test path, and the real source
+// tree's build_config.gd is never modified by this verifier.
+let cleaned = false;
+function cleanup() {
+  if (cleaned) return;
+  cleaned = true;
+  if (server) server.kill();
+  rmSync(EXPORT_DIR, { recursive: true, force: true });
+  rmSync(PROJECT_DIR, { recursive: true, force: true });
+}
+process.once('exit', cleanup);
 
 const results = [];
 const check = (name, pass, detail = '') => {
@@ -23,18 +49,18 @@ const check = (name, pass, detail = '') => {
   console.log(`${pass ? 'PASS' : 'FAIL'}  ${name}${detail ? `  (${detail})` : ''}`);
 };
 
-execFileSync('tools/write_build_config.sh', [COLLECTOR, ''], { stdio: 'inherit' });
-execFileSync('godot', ['--headless', '--path', '.', '--import'], { stdio: 'ignore' });
-execFileSync('godot', ['--headless', '--path', '.', '--export-release', 'Web', 'build/index.html'], {
+execFileSync('tools/write_build_config.sh', [COLLECTOR, ''], { stdio: 'ignore', cwd: PROJECT_DIR });
+execFileSync('godot', ['--headless', '--path', PROJECT_DIR, '--import'], { stdio: 'ignore' });
+execFileSync('godot', ['--headless', '--path', PROJECT_DIR, '--export-release', 'Web', join(EXPORT_DIR, 'index.html')], {
   stdio: 'ignore',
 });
 
-const server = spawn('python3', ['-m', 'http.server', String(PORT), '--directory', 'build'], {
+server = spawn('python3', ['-m', 'http.server', String(PORT), '--directory', EXPORT_DIR], {
   stdio: 'ignore',
 });
 await new Promise((r) => setTimeout(r, 800));
 
-const browser = await chromium.launch({
+browser = await chromium.launch({
   channel: 'chrome',
   args: [
     '--use-gl=swiftshader', '--enable-unsafe-swiftshader', '--no-sandbox',
@@ -75,6 +101,21 @@ try {
   });
   await page.mouse.click((geom.bw * 0.5) / geom.dpr, (geom.bh * 0.65) / geom.dpr);
   await page.waitForTimeout(2000);
+
+  // Backgrounding is resumable. Override visibilityState in this harness so
+  // the real browser callback runs without closing the tab; a hidden→visible
+  // cycle must not create the terminal quit event.
+  await page.evaluate(() => {
+    Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true });
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+  await page.waitForTimeout(700);
+  await page.evaluate(() => {
+    Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+  await page.waitForTimeout(700);
+  check('visibility hidden→visible preserves the session (no quit)', !events.some((e) => e.name === 'quit'));
 
   // Walk and look. Q is deliberately NOT pressed to test shifting: room 1
   // gates the ability (StateManager.can_shift starts false and the tutorial
@@ -130,10 +171,16 @@ try {
 
   const idleEnd = events.find((e) => e.name === 'idle_end');
   if (idleEnd) check('idle_end reports idle_s', 'idle_s' in idleEnd, `idle_s=${idleEnd.idle_s}`);
+
+  // pagehide is the terminal close path. Dispatching it exercises the real
+  // JavaScriptBridge callback and sendBeacon route while keeping the browser
+  // alive long enough to observe the captured batch.
+  await page.evaluate(() => window.dispatchEvent(new Event('pagehide')));
+  await page.waitForTimeout(1000);
+  check('pagehide records terminal quit', events.some((e) => e.name === 'quit'));
 } finally {
   await browser.close();
-  server.kill();
-  execFileSync('tools/write_build_config.sh', ['', ''], { stdio: 'inherit' });
+  cleanup();
 }
 
 const failed = results.filter((r) => !r.pass);

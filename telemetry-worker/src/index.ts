@@ -40,6 +40,12 @@ export interface Env {
 
 const MAX_BODY_BYTES = 256 * 1024; // 256 KB
 const MAX_EVENTS_PER_BATCH = 1000;
+const MAX_EVENT_NAME_CHARS = 64;
+const MAX_EVENT_KEY_CHARS = 64;
+const MAX_EVENT_STRING_CHARS = 512;
+const MAX_EVENT_KEYS = 32;
+const MAX_EVENT_ARRAY_ITEMS = 32;
+const MAX_EVENT_DEPTH = 3;
 const DEFAULT_POSTHOG_HOST = 'https://us.i.posthog.com';
 const NEVER_MIRROR = new Set(['pos', 'perf']);
 
@@ -57,6 +63,51 @@ interface RawEvent {
   x?: number;
   z?: number;
   [key: string]: unknown;
+}
+
+// The event names below are the stable playtest vocabulary. Unknown names are
+// deliberately retained so an additive client rollout never loses data; the
+// bounds keep a malformed or experimental field from consuming an entire D1
+// batch. The full JSON remains in `data`, so this is wire-compatible with the
+// original collector and with future event fields.
+export const PLAYTEST_EVENTS = new Set([
+  'page_load', 'session_start', 'room_enter', 'room_complete', 'game_complete',
+  'visibility_hidden', 'visibility_visible',
+  'quit', 'pause_open', 'pause_close', 'shift', 'pills_empty',
+  'medication_expired', 'dispenser_refused', 'dispenser_used', 'pill_pickup',
+  'keypad_open', 'keypad_close', 'keypad_success', 'keypad_denied', 'door_opened',
+  'orderly_caught', 'pos', 'perf', 'idle_start', 'idle_end', 'error',
+  'puzzle_step', 'noise', 'investigation_started', 'investigation_ended',
+  'hazard_warning', 'hazard_activated', 'hazard_avoided', 'hazard_caught',
+  'checkpoint_saved', 'checkpoint_save_failed', 'checkpoint_restored',
+  'checkpoint_continue', 'pursuit_stalled', 'pursuit_recovered',
+]);
+
+function boundedValue(value: unknown, depth = 0): unknown {
+  if (typeof value === 'string') return value.slice(0, MAX_EVENT_STRING_CHARS);
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+  if (typeof value === 'boolean' || value === null) return value;
+  if (depth >= MAX_EVENT_DEPTH) return typeof value === 'object' ? '[truncated]' : null;
+  if (Array.isArray(value)) return value.slice(0, MAX_EVENT_ARRAY_ITEMS).map((item) => boundedValue(item, depth + 1));
+  if (typeof value === 'object') {
+    const out: Record<string, unknown> = {};
+    for (const [key, item] of Object.entries(value).slice(0, MAX_EVENT_KEYS)) {
+      out[key.slice(0, MAX_EVENT_KEY_CHARS)] = boundedValue(item, depth + 1);
+    }
+    return out;
+  }
+  return null;
+}
+
+function normalizeEvent(value: unknown): RawEvent | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const bounded = boundedValue(value);
+  if (!bounded || typeof bounded !== 'object' || Array.isArray(bounded)) return null;
+  const event = bounded as RawEvent;
+  if (typeof event.name === 'string') event.name = event.name.slice(0, MAX_EVENT_NAME_CHARS);
+  // PLAYTEST_EVENTS is intentionally advisory: preserve unknown names for
+  // forward compatibility, while keeping this set as the reviewable schema.
+  return event;
 }
 
 interface BatchPayload {
@@ -140,12 +191,18 @@ async function handleIngest(request: Request, env: Env, ctx: ExecutionContext): 
 
   let payload: BatchPayload;
   try {
-    payload = JSON.parse(rawBody);
+    const parsed: unknown = JSON.parse(rawBody);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      return json({ error: 'invalid payload' }, 400);
+    }
+    payload = parsed as BatchPayload;
   } catch {
     return json({ error: 'invalid json' }, 400);
   }
 
-  const events = Array.isArray(payload.events) ? payload.events : [];
+  const events = Array.isArray(payload.events)
+    ? payload.events.map(normalizeEvent).filter((event): event is RawEvent => event !== null)
+    : [];
   if (events.length === 0) {
     // Nothing to do, but not an error — respond fast and cheap.
     return json({ ok: true, written: 0 });

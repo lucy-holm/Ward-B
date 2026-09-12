@@ -131,12 +131,6 @@ func _ready() -> void:
 	_apply_real_unmed_environment()
 	DirAccess.make_dir_recursive_absolute("res://.artifacts")
 
-	# orderly.gd moves via NavigationAgent3D — without a baked NavigationRegion3D
-	# it can never find a path (get_next_path_position() just returns its own
-	# position forever) and would sit frozen for this whole harness. Real rooms
-	# bake one; this throwaway scene needs its own flat one over the floor.
-	_build_navigation()
-
 	_dummy_player = Node3D.new()
 	_dummy_player.name = "DummyPlayer"
 	_dummy_player.add_to_group("player")
@@ -157,30 +151,12 @@ func _ready() -> void:
 	_far_camera.look_at(Vector3(0, 1.3, 0), Vector3.UP)
 	_head_camera.look_at(Vector3(0, 2.55, 0), Vector3.UP)
 	_collar_camera.look_at(Vector3(0, 2.25, 0), Vector3.UP)
-
-
-func _build_navigation() -> void:
-	var nav_mesh := NavigationMesh.new()
-	var half := 7.0  # matches the 14x14 floor in preview.tscn
-	nav_mesh.vertices = PackedVector3Array([
-		Vector3(-half, 0, -half),
-		Vector3(half, 0, -half),
-		Vector3(half, 0, half),
-		Vector3(-half, 0, half),
-	])
-	nav_mesh.add_polygon(PackedInt32Array([0, 1, 2, 3]))
-
-	var region := NavigationRegion3D.new()
-	region.navigation_mesh = nav_mesh
-	add_child(region)
-
-
 func _process(delta: float) -> void:
 	_t += delta
 
 	# Timeline: patrol -> step into the cone -> let the ramp fill -> chase.
-	# He actually walks his patrol route now (see _build_navigation), so
-	# "step into the cone" has to track his CURRENT position/facing rather
+	# He actually walks his patrol route, so "step into the cone" has to track
+	# his CURRENT position/facing rather
 	# than a fixed world point, or he may have walked past it by t=2.5.
 	if _t < 2.5:
 		_dummy_player.position = Vector3(0, 1.6, 20)

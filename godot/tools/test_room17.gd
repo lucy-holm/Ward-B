@@ -141,6 +141,8 @@ func _ready() -> void:
 	_test_the_route()
 	_test_patrol_clearance_per_level()
 	_test_no_state_filtered_geometry()
+	_test_shutter_warning_and_avoidance()
+	_test_shutter_activation_and_catch()
 	await _test_fittings_and_scrawls()
 	_test_door_actually_gates()
 	_finish()
@@ -383,7 +385,11 @@ func _test_tagged_railing() -> void:
 			tagged += 1
 			_check(b.level_filter == "ground" or b.level_filter == "balcony",
 				"every tag names a declared level (found '%s')" % b.level_filter)
-	_check(tagged == 4, "four colliders are level-tagged: three rails and the landing guard (got %d)" % tagged)
+	_check(tagged == 7, "seven colliders are level-tagged: three rails, landing guard, shutter and two gallery seats (got %d)" % tagged)
+	_check(col.is_blocked_at(8.48, 5.4, Tuning.PLAYER_RADIUS, StateManager.State.UNMED, "balcony"),
+		"gallery seats block only their actual floor")
+	_check(not col.is_blocked_at(8.48, 5.4, Tuning.PLAYER_RADIUS, StateManager.State.UNMED, "ground"),
+		"the pocket remains walkable underneath gallery seats")
 	_check(untagged > 10, "and the shell stays untagged, i.e. solid on both floors")
 
 	# The south rail, mid-run at x=0.
@@ -870,7 +876,104 @@ func _test_no_state_filtered_geometry() -> void:
 		for level: String in ["ground", "balcony"]:
 			_check(not col.circle_hits_solid_unmed(c[0], c[1], Tuning.PLAYER_RADIUS, level),
 				"the medication timer can expire at (%.0f, %.0f) on '%s' with nothing to "
-					% [c[0], c[1], level] + "embed the player in")
+				% [c[0], c[1], level] + "embed the player in")
+
+
+# --- 9. lucid shutter ------------------------------------------------------
+
+func _test_shutter_warning_and_avoidance() -> void:
+	var f := _make_room()
+	var room: Node3D = f["room"]
+	var player: Node3D = f["player"]
+	var col: WardCollision = (f["main"] as StubMain).collision
+	player.level = "balcony"
+	player.global_position = Vector3(0.0, BALCONY_Y, 8.0)
+	StateManager.force_state(StateManager.State.LUCID, "test")
+
+	player.level = "ground"
+	room.on_trigger_enter("shutterWarning17")
+	_check(not room._shutter_warning, "walking below the gallery never activates its warning")
+	player.level = "balcony"
+	room.on_trigger_enter("shutterWarning17")
+	_check(room._shutter_warning, "lucid entry into the gallery zone starts the shutter warning")
+	_check(room.SHUTTER_WARNING_SEC >= 2.5,
+		"the shutter warning gives at least 2.5 seconds of reaction time")
+	room._tick_shutter(1.0)
+	room._tick_shutter(1.0)
+	_check(room._shutter_warning and not room._shutter_closed,
+		"the warning cadence leaves the shutter open before its deadline")
+
+	# Shifting raw is the authored safe action, even if the player has not
+	# crossed the zone yet.
+	StateManager.force_state(StateManager.State.UNMED, "test")
+	room.on_state_change(StateManager.State.UNMED)
+	_check(not room._shutter_warning and not room._shutter_closed,
+		"shifting unmedicated retracts the warning shutter")
+	_check(not col.is_blocked_at(0.0, room.SHUTTER_CLOSED_Z,
+		Tuning.PLAYER_RADIUS, StateManager.State.UNMED, "balcony"),
+		"the retracted shutter leaves the gallery route walkable")
+	_teardown(f)
+	StateManager.force_state(StateManager.State.UNMED, "test")
+
+
+func _test_shutter_activation_and_catch() -> void:
+	var f := _make_room()
+	var room: Node3D = f["room"]
+	var main: StubMain = f["main"]
+	var player: Node3D = f["player"]
+	player.level = "balcony"
+	player.global_position = Vector3(0.0, BALCONY_Y, 8.0)
+	StateManager.force_state(StateManager.State.LUCID, "test")
+
+	room.on_trigger_enter("shutterWarning17")
+	room._tick_shutter(room.SHUTTER_WARNING_SEC + 0.5)
+	_check(not room._shutter_warning, "the shutter warning ends at activation")
+	_check(room._shutter_closing and room._shutter.position.z > room.SHUTTER_RETRACTED_Z
+		and room._shutter.position.z < room.SHUTTER_CLOSED_Z,
+		"the shutter visibly advances during its mechanical closure")
+	room.on_trigger_enter("shutterWarning17")
+	_check(room._shutter_closing and not room._shutter_warning,
+		"re-entering the zone cannot freeze or restart a moving shutter")
+	# It can sweep across the ground player's XZ without hitting downstairs.
+	player.level = "ground"
+	player.global_position = Vector3(0, 0, 0)
+	room._tick_shutter(10.0)
+	_check(room._shutter_closed and is_equal_approx(room._shutter.position.z,
+		room.SHUTTER_CLOSED_Z),
+		"a large frame delta still completes the shutter without tunnelling")
+	_check(main.teleports.is_empty() and StateManager.is_lucid(),
+		"the upper shutter cannot catch a player on the ground floor")
+
+	# Reset the signalled catch route, then put the player in the swept path.
+	StateManager.force_state(StateManager.State.UNMED, "test")
+	room.on_state_change(StateManager.State.UNMED)
+	player.level = "balcony"
+	player.global_position = Vector3(0.0, BALCONY_Y, 0.0)
+	StateManager.force_state(StateManager.State.LUCID, "test")
+	room.on_trigger_enter("shutterWarning17")
+	room._tick_shutter(room.SHUTTER_WARNING_SEC + 0.1)
+	room._tick_shutter(2.0)
+	_check(not room._shutter_closed,
+		"a player met by the swept shutter receives a reset instead of a kill")
+	_check(not StateManager.is_lucid(), "the shutter catch reset returns the player raw")
+	_check(player.level == "balcony", "the shutter catch reset stays on the gallery level")
+	_check(Vector2(player.global_position.x, player.global_position.z).distance_to(
+		Vector2(room.SHUTTER_SAFE_X, room.SHUTTER_SAFE_Z)) < 0.01,
+		"the shutter catch reset lands on the visible safe platform")
+	_check(not main.teleports.is_empty(), "the shutter catch uses the room teleport API")
+	_check(not main.collision.is_blocked_at(room.SHUTTER_SAFE_X, room.SHUTTER_SAFE_Z,
+		Tuning.PLAYER_RADIUS, StateManager.State.UNMED, "balcony"), "hazard recovery point is clear while raw")
+	# Natural meter expiry has the same safe retract semantics mid-sweep.
+	player.global_position = Vector3(0, BALCONY_Y, 8)
+	StateManager.force_state(StateManager.State.LUCID, "test")
+	room.on_trigger_enter("shutterWarning17")
+	room._tick_shutter(room.SHUTTER_WARNING_SEC + 0.1)
+	StateManager.force_state(StateManager.State.UNMED, "medication_expired")
+	room.on_state_change(StateManager.State.UNMED)
+	_check(not room._shutter_closing and is_equal_approx(room._shutter.position.z,
+		room.SHUTTER_RETRACTED_Z), "meter expiry retracts a moving shutter immediately")
+	_teardown(f)
+	StateManager.force_state(StateManager.State.UNMED, "test")
 
 
 func _test_fittings_and_scrawls() -> void:

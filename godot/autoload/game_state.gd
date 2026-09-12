@@ -50,7 +50,8 @@ var pills_are_scarce := false:
 # already is, so it goes here and is cleared by reset_run() with everything
 # else — a second playthrough must not inherit the first one's undercroft.
 #
-# Never persisted. A catch does NOT clear it (nothing calls reset_run on a
+# A milestone save persists the required branch facts through WardCheckpoints.
+# A catch does NOT clear this bag (nothing calls reset_run on a
 # catch, by design), so a player caught after throwing the relay comes back to
 # a room where they already decided, which is the whole point of the choice.
 var flags := {}

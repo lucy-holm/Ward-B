@@ -1,4 +1,4 @@
-[gd_scene load_steps=60 format=3 uid="uid://wardbroomc57f0a6"]
+[gd_scene load_steps=62 format=3 uid="uid://wardbroomc57f0a6"]
 
 [ext_resource type="Script" path="res://rooms/room14/room14.gd" id="s_room"]
 [ext_resource type="Material" uid="uid://wardbmatd0cabd0" path="res://materials/floor.tres" id="m_floor"]
@@ -12,6 +12,7 @@
 [ext_resource type="FontFile" path="res://fonts/RockSalt-Regular.ttf" id="f_scrawl"]
 [ext_resource type="PackedScene" path="res://fixtures/dispenser.tscn" id="fx_dispenser"]
 [ext_resource type="PackedScene" path="res://fixtures/door.tscn" id="fx_door"]
+[ext_resource type="Script" path="res://fixtures/maintenance_fixture.gd" id="s_model_maintenance_fixture"]
 [ext_resource type="Script" path="res://core/interactable.gd" id="s_interactable"]
 [ext_resource type="ArrayMesh" path="res://props/meshes/box_2000x100x20_b40.tres" id="am_box_2000x100x20_b40"]
 [ext_resource type="Material" path="res://props/trim_mat.tres" id="pm_trim"]
@@ -87,6 +88,9 @@ material = ExtResource("m_glow")
 [sub_resource type="BoxShape3D" id="bs_5"]
 size = Vector3(0.5500, 0.7500, 0.1600)
 
+[sub_resource type="BoxShape3D" id="bs_6"]
+size = Vector3(0.6500, 0.7000, 0.1200)
+
 [sub_resource type="MultiMesh" id="mm_skirtingrun0_0"]
 transform_format = 1
 instance_count = 5
@@ -135,7 +139,7 @@ instance_count = 8
 mesh = ExtResource("am_box_2000x145x40_b180")
 buffer = PackedFloat32Array(0.0000, 0.0000, 1.0000, 4.8120, 0.0000, 1.0000, 0.0000, 0.9000, -1.0000, 0.0000, 0.0000, -6.7000, 0.0000, 0.0000, 1.0000, 4.8120, 0.0000, 1.0000, 0.0000, 0.9000, -1.0000, 0.0000, 0.0000, -4.7000, 0.0000, 0.0000, 1.0000, 4.8120, 0.0000, 1.0000, 0.0000, 0.9000, -1.0000, 0.0000, 0.0000, -2.7000, 0.0000, 0.0000, 1.0000, 4.8120, 0.0000, 1.0000, 0.0000, 0.9000, -1.0000, 0.0000, 0.0000, -0.7000, 0.0000, 0.0000, 1.0000, 4.8120, 0.0000, 1.0000, 0.0000, 0.9000, -1.0000, 0.0000, 0.0000, 1.3000, 0.0000, 0.0000, 1.0000, 4.8120, 0.0000, 1.0000, 0.0000, 0.9000, -1.0000, 0.0000, 0.0000, 3.3000, 0.0000, 0.0000, 1.0000, 4.8120, 0.0000, 1.0000, 0.0000, 0.9000, -1.0000, 0.0000, 0.0000, 5.3000, 0.0000, 0.0000, 1.0000, 4.8120, 0.0000, 1.0000, 0.0000, 0.9000, -1.0000, 0.0000, 0.0000, 7.3000)
 
-[sub_resource type="BoxShape3D" id="bs_6"]
+[sub_resource type="BoxShape3D" id="bs_7"]
 size = Vector3(2.0000, 3.0000, 0.7000)
 
 [node name="Room" type="Node3D"]
@@ -321,6 +325,23 @@ shape = SubResource("bs_3")
 
 [node name="Model" parent="Interactables/gate14" instance=ExtResource("fx_door")]
 transform = Transform3D(1.00000, 0, 0, 0, 1.00000, 0, 0, 0, 1.00000, 0.0000, 0.0000, 0.0000)
+
+[node name="checkpoint14" type="Area3D" parent="Interactables"]
+transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, -2.0000, 1.3500, 8.8200)
+collision_layer = 32
+collision_mask = 0
+script = ExtResource("s_interactable")
+interactable_id = "checkpoint14"
+interactable_type = "checkpoint"
+label = "record your place"
+
+[node name="Shape" type="CollisionShape3D" parent="Interactables/checkpoint14"]
+shape = SubResource("bs_6")
+
+[node name="Model" type="Node3D" parent="Interactables/checkpoint14"]
+script = ExtResource("s_model_maintenance_fixture")
+fixture_size = Vector3(0.6500, 0.7000, 0.1200)
+marker_kind = "checkpoint"
 
 [node name="PropRuns" type="Node3D" parent="."]
 
@@ -589,5 +610,5 @@ script = ExtResource("s_exit")
 exit_to = "room15"
 
 [node name="Shape" type="CollisionShape3D" parent="Exits/Exit0"]
-shape = SubResource("bs_6")
+shape = SubResource("bs_7")
 

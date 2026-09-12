@@ -278,6 +278,7 @@ func _throw_breaker(dark: bool) -> void:
 	_main.set_room_dark(dark)
 	_set_lever(dark)
 	Telemetry.event("light_switch", {"dark": dark, "charge": _charge})
+	_main.emit_noise("breaker", _main.player.global_position, WardLevels.FLAT_LEVEL_ID)
 
 	if not dark:
 		_main.hud_toast("fluorescents stutter, then hold. it's too bright in here now.")

@@ -65,6 +65,7 @@
 extends CanvasLayer
 
 signal admit_pressed
+signal continue_pressed
 signal brightness_changed
 signal hud_scale_changed
 signal monochrome_changed
@@ -90,6 +91,7 @@ const COLOR_GHOST_BORDER := Color(0.914, 0.949, 0.937, 0.3)
 
 @onready var _start_panel: Control = $StartPanel
 @onready var _settings_panel: Control = $SettingsPanel
+@onready var _continue_btn: Button = $StartPanel/CenterContainer/Center/ContinueBtn
 @onready var _admit_btn: Button = $StartPanel/CenterContainer/Center/AdmitBtn
 @onready var _config_btn: Button = $StartPanel/CenterContainer/Center/ConfigBtn
 @onready var _intro_label: RichTextLabel = $StartPanel/CenterContainer/Center/Card/Intro
@@ -170,6 +172,9 @@ func _ready() -> void:
 	_hud_scale_slider.step = WardSettings.HUD_SCALE_STEP
 
 	_admit_btn.pressed.connect(_on_admit_pressed)
+	_continue_btn.pressed.connect(func() -> void:
+		visible = false
+		continue_pressed.emit())
 	_config_btn.pressed.connect(_on_config_pressed)
 	_done_btn.pressed.connect(_on_done_pressed)
 	_toggle.toggled.connect(_on_toggle_changed)
@@ -195,20 +200,22 @@ func _apply_scale() -> void:
 	var vp := get_viewport().get_visible_rect().size
 	var s := clampf(float(vp.y) / BASE_HEIGHT, SCALE_MIN, SCALE_MAX)
 	var card_w := clampf(520.0 * s, 240.0, float(vp.x) * 0.86)
+	var compact_start := vp.x > vp.y and vp.y < 500.0
 
 	# --- start panel
-	$StartPanel/CenterContainer/Center.add_theme_constant_override("separation", int(20 * s))
+	$StartPanel/CenterContainer/Center.add_theme_constant_override("separation", 8 if compact_start else int(20 * s))
 	var title := $StartPanel/CenterContainer/Center/Title
 	title.get_node("WARD").add_theme_font_size_override("font_size", int(34 * s))
 	title.get_node("B").add_theme_font_size_override("font_size", int(34 * s))
 	$StartPanel/CenterContainer/Center/Sub.add_theme_font_size_override("font_size", int(11 * s))
 
 	var card: PanelContainer = $StartPanel/CenterContainer/Center/Card
-	card.custom_minimum_size = Vector2(card_w, 0)
+	card.custom_minimum_size = Vector2(minf(vp.x * 0.86, 700 * s) if compact_start else card_w, 0)
 	_style_card(card, s, 0.6)
 	_intro_label.add_theme_font_size_override("normal_font_size", int(13 * s))
 
 	_style_button(_admit_btn, s, false)
+	_style_button(_continue_btn, s, false)
 	_style_button(_config_btn, s, true)
 
 	# --- settings panel
@@ -345,6 +352,17 @@ func _style_button(btn: Button, s: float, ghost: bool) -> void:
 
 
 # --- panel switching ---------------------------------------------------
+
+func set_checkpoint_label(label: String) -> void:
+	# Continue is the first action for returning players. Hidden on a fresh
+	# profile, it leaves the original admission layout unchanged.
+	if _continue_btn.get_index() > _admit_btn.get_index():
+		_continue_btn.get_parent().move_child(_continue_btn, _admit_btn.get_index())
+	_continue_btn.visible = not label.is_empty()
+	_continue_btn.text = "CONTINUE — " + label.to_upper()
+	_admit_btn.text = "ADMIT ME" if label.is_empty() else "NEW ADMISSION"
+	_apply_scale()
+
 
 func _on_admit_pressed() -> void:
 	# Hide first, exactly like hud.ts's showStart (display:none, THEN the

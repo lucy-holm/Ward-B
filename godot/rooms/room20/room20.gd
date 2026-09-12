@@ -536,6 +536,7 @@ func _try_push() -> bool:
 	# back to start the tween — a visible stutter on every single push.
 	_crate_visual.position = Vector3(_tween_offset.x, 0.0, _tween_offset.y)
 	Telemetry.event("push")
+	_main.emit_noise("crate_push", Vector3(_crate_x, 0.0, _crate_z), WardLevels.FLAT_LEVEL_ID)
 	return true
 
 

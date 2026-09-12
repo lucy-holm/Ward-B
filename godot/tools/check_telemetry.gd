@@ -27,8 +27,11 @@ func _ready() -> void:
 	_test_transmission_gate()
 	_test_envelope()
 	_test_row_shape()
+	_test_data_bounds()
 	_test_counters()
 	_test_queue_cap()
+	_test_visibility_semantics()
+	_test_completion_freezes_telemetry()
 	await _test_shift_event_shape()
 
 	if _fail == 0:
@@ -166,6 +169,53 @@ func _test_row_shape() -> void:
 	_check(row["name"] == "door_opened", "name preserved")
 
 	Telemetry._queue.clear()
+	GameState.set_flag("room18.power", "lights")
+	Telemetry.snapshot_provider = func() -> Dictionary: return {"room": "room19"}
+	Telemetry.event("room_enter")
+	_check(Telemetry._queue[0].get("room_variant") == "lights",
+		"logical room19 enter carries the selected route variant")
+	GameState.flags.erase("room18.power")
+	Telemetry._queue.clear()
+
+
+func _test_data_bounds() -> void:
+	Telemetry.disabled = false
+	Telemetry._queue.clear()
+	var values: Array = []
+	for i in 40:
+		values.append(i)
+	Telemetry.event("noise", {
+		"source": String("s").repeat(600),
+		"values": values,
+		"nested": {"deep": {"deeper": {"bottom": {"value": "bounded"}}}},
+	})
+	var bounded_row: Dictionary = Telemetry._queue[0]
+	_check(str(bounded_row["source"]).length() == Telemetry.MAX_EVENT_STRING_CHARS,
+		"event strings are bounded")
+	_check((bounded_row["values"] as Array).size() == Telemetry.MAX_EVENT_ARRAY_ITEMS,
+		"event arrays are bounded")
+	_check(bounded_row["nested"]["deep"]["deeper"]["bottom"] == "[truncated]",
+		"deep event values are bounded")
+	var many_fields := {}
+	for i in Telemetry.MAX_EVENT_KEYS + 5:
+		many_fields["field_%02d_%s" % [i, "x".repeat(80)]] = i
+	many_fields["nan_value"] = NAN
+	many_fields["inf_value"] = INF
+	Telemetry.event("bounds", many_fields)
+	var bounded_fields: Dictionary = Telemetry._queue[1]
+	var copied := 0
+	for key: String in bounded_fields:
+		if key.begins_with("field_"):
+			copied += 1
+			_check(key.length() <= Telemetry.MAX_EVENT_KEY_CHARS,
+				"top-level event keys are bounded")
+	_check(copied == Telemetry.MAX_EVENT_KEYS,
+		"top-level event fields are capped (got %d)" % copied)
+	Telemetry.event("finite", {"nan_value": NAN, "inf_value": INF})
+	var bounded_numbers: Dictionary = Telemetry._queue[2]
+	_check(bounded_numbers.get("nan_value") == null and bounded_numbers.get("inf_value") == null,
+		"non-finite numbers are encoded as null")
+	Telemetry._queue.clear()
 
 
 # --- rollup counters (F12) -----------------------------------------------
@@ -221,14 +271,6 @@ func _test_queue_cap() -> void:
 	Telemetry.disabled = false
 	Telemetry._queue.clear()
 	Telemetry._dropped = 0
-	Telemetry.snapshot_provider = Callable()
-
-	# QUEUE_CAP is a BACKSTOP, not the everyday limit: FLUSH_AT_SIZE (50) is
-	# far lower, and flush() drains the queue whether or not it is allowed to
-	# transmit, so in normal play the queue never approaches 500. The cap only
-	# bites if flushing somehow stops draining. That is exactly why it is
-	# worth asserting the bound holds when the queue IS overfull, rather than
-	# asserting a drop count that the very next flush resets to zero.
 	for i in Telemetry.QUEUE_CAP + 20:
 		Telemetry._queue.append({"name": "filler"})
 	Telemetry.event("pos")
@@ -236,9 +278,92 @@ func _test_queue_cap() -> void:
 		Telemetry._queue.size() <= Telemetry.QUEUE_CAP,
 		"queue never exceeds QUEUE_CAP (got %d)" % Telemetry._queue.size()
 	)
-
 	Telemetry._queue.clear()
 	Telemetry._dropped = 0
+
+
+# --- browser visibility semantics -----------------------------------------
+
+func _test_visibility_semantics() -> void:
+	var saved_disabled := Telemetry.disabled
+	var saved_started := Telemetry._started
+	var saved_suspended := Telemetry._suspended
+	var saved_idle := Telemetry._idle
+	var saved_quit := Telemetry._quit_fired
+	var saved_completed := Telemetry._completed
+	Telemetry.disabled = false
+	Telemetry._started = true
+	Telemetry._suspended = false
+	Telemetry._idle = false
+	Telemetry._quit_fired = false
+	Telemetry._active_accum_ms = 0
+	Telemetry._active_since_ms = Telemetry._mono_ms()
+	Telemetry._perf_samples = PackedFloat32Array([60.0])
+	Telemetry._perf_window_start_ms = 1
+	var activity_before_hidden := Telemetry._last_activity_ms
+	Telemetry._queue.clear()
+
+	Telemetry.event("page_load")
+	Telemetry.suspend_for_visibility()
+	var hidden_active := Telemetry.active_ms()
+	_check(Telemetry._suspended, "visibility suspension sets suspended state")
+	_check(not Telemetry._quit_fired, "visibility suspension does not fire terminal quit")
+	_check(Telemetry._queue.is_empty(), "visibility suspension flushes queued telemetry")
+	_check(Telemetry.active_ms() == hidden_active, "active time excludes hidden interval")
+	Telemetry._input(InputEventKey.new())
+	_check(Telemetry._last_activity_ms == activity_before_hidden,
+		"input while hidden cannot restart active accounting")
+	Telemetry.event("pos")
+	_check(Telemetry._queue.size() == 1, "events raised during suspension remain bounded and resumable")
+	Telemetry.resume_from_visibility()
+	_check(not Telemetry._suspended, "visibility resume clears suspended state")
+	_check(not Telemetry._quit_fired, "visibility resume preserves the session")
+	_check(Telemetry._perf_samples.is_empty() and Telemetry._perf_window_start_ms > 1,
+		"visibility resume resets the performance window")
+	Telemetry._process(10.0)
+	_check(Telemetry._perf_samples.is_empty(),
+		"first resumed frame is excluded from performance sampling")
+
+	Telemetry.disabled = saved_disabled
+	Telemetry._started = saved_started
+	Telemetry._suspended = saved_suspended
+	Telemetry._idle = saved_idle
+	Telemetry._quit_fired = saved_quit
+	Telemetry._completed = saved_completed
+	Telemetry._queue.clear()
+	Telemetry.snapshot_provider = Callable()
+
+
+func _test_completion_freezes_telemetry() -> void:
+	var saved_started := Telemetry._started
+	var saved_completed := Telemetry._completed
+	var saved_quit := Telemetry._quit_fired
+	var saved_suspended := Telemetry._suspended
+	Telemetry.disabled = false
+	Telemetry._started = true
+	Telemetry._completed = false
+	Telemetry._quit_fired = false
+	Telemetry._idle = false
+	Telemetry._suspended = false
+	Telemetry._active_accum_ms = 0
+	Telemetry._active_since_ms = Telemetry._mono_ms()
+	Telemetry._queue.clear()
+	Telemetry.event("game_complete")
+	var finished_active := Telemetry.active_ms()
+	Telemetry._fire_quit()
+	_check(Telemetry._completed, "game_complete freezes telemetry clocks")
+	_check(Telemetry.active_ms() == finished_active, "active time stops after game completion")
+	_check(not Telemetry._quit_fired, "pagehide after game completion does not add quit")
+	Telemetry.suspend_for_visibility()
+	var hidden_finished_active := Telemetry.active_ms()
+	Telemetry.resume_from_visibility()
+	_check(hidden_finished_active == finished_active and Telemetry.active_ms() == finished_active,
+		"hide/show after completion cannot accrue active time")
+	Telemetry._started = saved_started
+	Telemetry._completed = saved_completed
+	Telemetry._quit_fired = saved_quit
+	Telemetry._suspended = saved_suspended
+	Telemetry._queue.clear()
 
 
 # --- the shift wire shape (F13) ------------------------------------------

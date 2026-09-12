@@ -5040,6 +5040,13 @@ def room18():
     r.model("wall_stain", (5.88, 0.0), facing="nx")
     r.model("paper_scatter", (3.0, 2.4))
     r.model("plaster_rubble", (-4.4, -6.0))
+    # High perimeter dressing keeps the relay readable while giving the
+    # otherwise bare hall the institutional language of the concept plates.
+    # These are all wall-mounted and clear of the console, dispenser, levers,
+    # and exit-door footprint.
+    r.model("barred_window", (0, 4.88), facing="nz")
+    r.model("wall_vent", (5.88, 1.5), facing="nx")
+    r.model("wall_speaker", (-5.88, -1.5), facing="px")
 
     return r
 
@@ -5144,6 +5151,12 @@ def room19_doors():
     r.model("hanging_cable", (2.0, -3.0))
     r.model("paper_scatter", (4.0, 2.0))
     r.model("plaster_rubble", (-5.0, -5.0))
+    # The corridor stays floor-clear for its sightline and timing beat. A
+    # call point, vent, and speaker make the perimeter legible without adding
+    # a collider or narrowing the three-metre patrol lane.
+    r.model("fire_alarm_point", (-6.88, 0.5), facing="px")
+    r.model("wall_vent", (-3.12, -3.5), facing="nx")
+    r.model("wall_speaker", (-3.12, -0.8), facing="nx")
 
     return r
 
@@ -5262,6 +5275,12 @@ def room19_lights():
     r.model("hanging_cable", (-3.0, 1.5))
     r.model("paper_scatter", (-4.5, -4.0))
     r.model("plaster_rubble", (5.2, 2.0))
+    # Perimeter dressing reinforces the lit branch's institutional identity;
+    # the platform, rails, ramp mouth, and two crossing sightlines remain
+    # uncluttered and these wall props carry no collision bodies.
+    r.model("wall_vent", (6.88, 1.0), facing="nx")
+    r.model("wall_speaker", (-6.88, -3.0), facing="px")
+    r.model("barred_window", (6.88, -5.5), facing="nx")
 
     return r
 
@@ -5644,6 +5663,12 @@ def room16():
     r.model("wall_stain", (7.88, 3.0), facing="nx")
     r.model("plaster_rubble", (5.0, 4.2))
     r.model("paper_scatter", (-4.6, 1.8))
+    # High perimeter dressing fills the bay while staying outside both deep
+    # clue nooks and the breaker footprint. These kit props are wall-mounted,
+    # so the light-axis room keeps its existing collision and path audit.
+    r.model("barred_window", (0, 5.88), facing="nz")
+    r.model("wall_vent", (7.88, 0.8), facing="nx")
+    r.model("pipe_run", (-7.88, 1.2), facing="px")
 
     return r
 

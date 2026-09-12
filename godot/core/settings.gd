@@ -141,6 +141,14 @@ const HUD_SCALE_STEP := 0.05
 ## channel, so the writing stays the brightest thing on a grey wall.
 const DEFAULT_MONOCHROME := false
 
+# The browser presents the Godot canvas at CSS size multiplied by the device
+# pixel ratio. On a touch phone that can make the full-resolution 3D pass
+# needlessly fragment-bound, while the HUD remains a native-resolution Canvas
+# layer. Keep desktop and explicit user choices at full scale; only a fresh
+# web/touch profile gets the conservative default.
+const DEFAULT_STYLE_RESOLUTION := 1.0
+const DEFAULT_STYLE_RESOLUTION_WEB_TOUCH := 0.5
+
 ## Every style knob in one table: default, range, step and display label.
 ##
 ## ONE TABLE, THREE CONSUMERS — this is the reason the style block is keyed
@@ -167,15 +175,18 @@ const STYLE_SPEC := {
 		"label": "Style enabled", "hint": "0 = untouched frame, byte-exact passthrough",
 	},
 	KEY_STYLE_LEVELS: {
-		"default": 4.0, "min": 2.0, "max": 16.0, "step": 1.0,
-		"label": "Quantise levels", "hint": "2 = pure 1-bit; 4 keeps keypad digits legible",
+		# Eight tones retain the worn plaster and orderly silhouette instead
+		# of reducing whole surfaces to a high-contrast stipple. Existing saved
+		# dev-panel preferences remain authoritative.
+		"default": 8.0, "min": 2.0, "max": 16.0, "step": 1.0,
+		"label": "Quantise levels", "hint": "2 = pure 1-bit; 8 retains shadow and surface detail",
 	},
 	KEY_STYLE_PIXEL_SIZE: {
 		"default": 2.0, "min": 1.0, "max": 8.0, "step": 1.0,
 		"label": "Dither pixel size", "hint": "Device pixels per styled pixel",
 	},
 	KEY_STYLE_DITHER: {
-		"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.05,
+		"default": 0.75, "min": 0.0, "max": 1.0, "step": 0.05,
 		"label": "Dither amount", "hint": "0 = flat banding, 1 = full ordered dither",
 	},
 	# DEFAULTS TO 0 (keep hue) on evidence, not taste. Full duotone collapses
@@ -207,7 +218,7 @@ const STYLE_SPEC := {
 		"label": "Shadow detail", "hint": "Concentrates levels in the dark; 1.0 = linear",
 	},
 	KEY_STYLE_RESOLUTION: {
-		"default": 1.0, "min": 0.25, "max": 1.0, "step": 0.05,
+		"default": DEFAULT_STYLE_RESOLUTION, "min": 0.25, "max": 1.0, "step": 0.05,
 		"label": "3D resolution scale", "hint": "Viewport.scaling_3d_scale — the big perf lever",
 	},
 }
@@ -221,6 +232,19 @@ static var _monochrome := DEFAULT_MONOCHROME
 static var _style := {}
 
 
+## Pure selection logic for the initial 3D scale. Keeping platform inputs as
+## arguments lets the settings suite prove the mobile branch without needing
+## to pretend a headless process is a phone.
+static func style_resolution_default(for_web: bool, has_touch: bool) -> float:
+	return DEFAULT_STYLE_RESOLUTION_WEB_TOUCH if for_web and has_touch else DEFAULT_STYLE_RESOLUTION
+
+
+static func _default_style_value(key: String) -> float:
+	if key == KEY_STYLE_RESOLUTION:
+		return style_resolution_default(OS.has_feature("web"), DisplayServer.is_touchscreen_available())
+	return float(STYLE_SPEC[key]["default"])
+
+
 static func _ensure_loaded() -> void:
 	if _loaded:
 		return
@@ -231,7 +255,7 @@ static func _ensure_loaded() -> void:
 	# leaves every get_style() falling through to 0.0, which reads as "style
 	# disabled, zero levels" rather than "first run, use the defaults".
 	for key: String in STYLE_SPEC:
-		_style[key] = float(STYLE_SPEC[key]["default"])
+		_style[key] = _default_style_value(key)
 
 	var cfg := ConfigFile.new()
 	if cfg.load(PATH) != OK:
@@ -255,7 +279,7 @@ static func _ensure_loaded() -> void:
 	for key: String in STYLE_SPEC:
 		var spec: Dictionary = STYLE_SPEC[key]
 		_style[key] = clampf(
-			float(cfg.get_value(SECTION, key, spec["default"])),
+			float(cfg.get_value(SECTION, key, _default_style_value(key))),
 			float(spec["min"]), float(spec["max"]))
 
 
@@ -270,7 +294,7 @@ static func _save() -> void:
 	cfg.set_value(SECTION, KEY_HUD_SCALE, _hud_scale)
 	cfg.set_value(SECTION, KEY_MONOCHROME, _monochrome)
 	for key: String in STYLE_SPEC:
-		cfg.set_value(SECTION, key, _style.get(key, float(STYLE_SPEC[key]["default"])))
+		cfg.set_value(SECTION, key, _style.get(key, _default_style_value(key)))
 	var err := cfg.save(PATH)
 	if err != OK:
 		push_warning(
@@ -363,7 +387,7 @@ static func set_style(key: String, value: float) -> void:
 static func reset_style() -> void:
 	_ensure_loaded()
 	for key: String in STYLE_SPEC:
-		_style[key] = float(STYLE_SPEC[key]["default"])
+		_style[key] = _default_style_value(key)
 	_save()
 
 

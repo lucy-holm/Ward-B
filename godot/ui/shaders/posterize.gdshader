@@ -33,17 +33,17 @@ uniform sampler2D screen_tex : hint_screen_texture, repeat_disable, filter_neare
 // Wet/dry blend for the whole effect. 0.0 = untouched frame.
 uniform float enabled : hint_range(0.0, 1.0) = 1.0;
 
-// Quantisation steps. 2 = pure 1-bit. 4 is the shipping default: it kills the
-// plastic gradients while leaving keypad digits and code plates legible,
-// which pure 1-bit does not reliably do.
-uniform int levels : hint_range(2, 16) = 4;
+// Quantisation steps. Eight retains worn surfaces and silhouettes while
+// keeping the retro bands. WardSettings supplies the player's saved choice.
+uniform int levels : hint_range(2, 16) = 8;
 
-// Device pixels per styled pixel. >1 also cuts the effective shading rate of
-// this pass and gives the dither a chunky, deliberate grid.
+// Device pixels per styled pixel. This changes sample spacing and gives the
+// dither a chunky grid; it does NOT reduce fragment invocations. The viewport
+// scaling_3d_scale setting is what actually reduces 3D rendering work.
 uniform float pixel_size : hint_range(1.0, 8.0) = 2.0;
 
 // 0.0 = flat banding (posterise only), 1.0 = full ordered dither.
-uniform float dither_amount : hint_range(0.0, 1.0) = 1.0;
+uniform float dither_amount : hint_range(0.0, 1.0) = 0.75;
 
 // 0.0 = keep the original hue, quantised per channel.
 // 1.0 = collapse to the tint_lo -> tint_hi ramp by luminance.

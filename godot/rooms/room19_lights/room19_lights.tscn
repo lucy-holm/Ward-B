@@ -1,4 +1,4 @@
-[gd_scene load_steps=44 format=3 uid="uid://wardbroom7deb971"]
+[gd_scene load_steps=47 format=3 uid="uid://wardbroom7deb971"]
 
 [ext_resource type="Script" path="res://rooms/room19_lights/room19_lights.gd" id="s_room"]
 [ext_resource type="Material" uid="uid://wardbmatd0cabd0" path="res://materials/floor.tres" id="m_floor"]
@@ -15,6 +15,9 @@
 [ext_resource type="PackedScene" path="res://props/hanging_cable.tscn" id="pk_hanging_cable"]
 [ext_resource type="PackedScene" path="res://props/paper_scatter.tscn" id="pk_paper_scatter"]
 [ext_resource type="PackedScene" path="res://props/plaster_rubble.tscn" id="pk_plaster_rubble"]
+[ext_resource type="PackedScene" path="res://props/wall_vent.tscn" id="pk_wall_vent"]
+[ext_resource type="PackedScene" path="res://props/wall_speaker.tscn" id="pk_wall_speaker"]
+[ext_resource type="PackedScene" path="res://props/barred_window.tscn" id="pk_barred_window"]
 [ext_resource type="Script" path="res://core/room_exit.gd" id="s_exit"]
 
 [sub_resource type="BoxMesh" id="bm_0"]
@@ -365,6 +368,15 @@ transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, 
 
 [node name="PlasterRubble3" parent="Props" instance=ExtResource("pk_plaster_rubble")]
 transform = Transform3D(1.000000, 0, 0.000000, 0, 1, 0, -0.000000, 0, 1.000000, 5.2000, 0.0000, 2.0000)
+
+[node name="WallVent4" parent="Props" instance=ExtResource("pk_wall_vent")]
+transform = Transform3D(0.000000, 0, 1.000000, 0, 1, 0, -1.000000, 0, 0.000000, 6.8800, 2.3500, 1.0000)
+
+[node name="WallSpeaker5" parent="Props" instance=ExtResource("pk_wall_speaker")]
+transform = Transform3D(0.000000, 0, -1.000000, 0, 1, 0, 1.000000, 0, 0.000000, -6.8800, 2.5500, -3.0000)
+
+[node name="BarredWindow6" parent="Props" instance=ExtResource("pk_barred_window")]
+transform = Transform3D(0.000000, 0, 1.000000, 0, 1, 0, -1.000000, 0, 0.000000, 6.8800, 1.8500, -5.5000)
 
 [node name="Lights" type="Node3D" parent="."]
 

@@ -41,7 +41,7 @@ const ROOM2_BAKED_CODE := "4118"
 # hypothetical: a RefCounted FakeMain made room2.on_enter raise, and both
 # randomize-codes tests — the entire point of this file — were skipped while
 # the run still exited 0. _finish fails the suite if the count does not match.
-const EXPECTED_ASSERTIONS := 44
+const EXPECTED_ASSERTIONS := 49
 
 
 # Stands in for main.gd's room-script API. room2.on_enter/_regenerate_code
@@ -73,6 +73,7 @@ func _ready() -> void:
 	_test_hud_scale_resizes_the_hud()
 	_test_monochrome_roundtrip()
 	_test_monochrome_reaches_the_shader()
+	_test_style_resolution_selection()
 	_test_room2_randomize_on()
 	_test_room2_randomize_off()
 	_restore_defaults()
@@ -422,6 +423,32 @@ func _test_monochrome_reaches_the_shader() -> void:
 	game.queue_free()
 
 
+# The web canvas uses device pixels, so a fresh touch profile starts the 3D
+# pass at half scale. The helper takes platform facts as arguments so this
+# remains deterministic in the headless suite; the saved-value check then
+# proves a player's explicit dev-panel choice survives a cache reload.
+func _test_style_resolution_selection() -> void:
+	_check(
+		is_equal_approx(WardSettings.style_resolution_default(true, true), 0.5),
+		"web touch default must use 0.5 3D scale")
+	_check(
+		is_equal_approx(WardSettings.style_resolution_default(true, false), 1.0),
+		"web desktop default must remain full 3D scale")
+	_check(
+		is_equal_approx(WardSettings.style_resolution_default(false, true), 1.0),
+		"native touch default must remain full 3D scale")
+	_check(
+		is_equal_approx(WardSettings.style_resolution_default(false, false), 1.0),
+		"native desktop default must remain full 3D scale")
+
+	WardSettings.set_style(WardSettings.KEY_STYLE_RESOLUTION, 0.75)
+	WardSettings._reset_cache_for_tests()
+	_check(
+		is_equal_approx(
+			WardSettings.get_style(WardSettings.KEY_STYLE_RESOLUTION), 0.75),
+		"an explicit saved 3D scale must survive reload unchanged")
+
+
 # --- randomize codes, end to end through a real room -------------------
 
 func _load_room2() -> Node:
@@ -488,6 +515,7 @@ func _restore_defaults() -> void:
 	WardSettings.set_look_sensitivity(WardSettings.DEFAULT_LOOK_SENSITIVITY)
 	WardSettings.set_hud_scale(WardSettings.DEFAULT_HUD_SCALE)
 	WardSettings.set_monochrome(WardSettings.DEFAULT_MONOCHROME)
+	WardSettings.reset_style()
 
 
 func _finish() -> void:

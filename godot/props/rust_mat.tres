@@ -1,14 +1,20 @@
-[gd_resource type="StandardMaterial3D" format=3 uid="uid://wardbprmrust1"]
+[gd_resource type="ShaderMaterial" load_steps=3 format=3 uid="uid://wardbprmrust1"]
 
-; Bed and trolley frames: cream paint gone over to rust.
-;
-; The reference board's bed-frame study is BOTH at once — white enamel with
-; rust eating through it — which one albedo cannot be. This sits at the
-; midpoint, a dirty rust-tan, because the alternative (clean cream, rust in a
-; texture) needs a UV set and a rust mask, and nothing else in the kit carries
-; UVs. At ward light levels the midpoint reads correctly as old painted iron.
+; Bed and trolley frames: chipped cream paint over dark oxidised iron.
+; The concept board shows both coatings; a flat midpoint read as wood.
+
+; 2026-09-12: shared three-tap wear replaces the flat colour placeholder.
+; Retains the authored palette; dirt/chips also vary highlight roughness.
+
+[ext_resource type="Shader" path="res://props/ward_wear.gdshader" id="1_shader"]
+[ext_resource type="Texture2D" path="res://props/ward_wear_noise.tres" id="2_noise"]
 
 [resource]
-albedo_color = Color(0.29, 0.245, 0.215, 1)
-roughness = 0.82
-metallic = 0.04
+shader = ExtResource("1_shader")
+shader_parameter/wear_tex = ExtResource("2_noise")
+shader_parameter/paint_color = Color(0.53, 0.48, 0.39, 1)
+shader_parameter/substrate_color = Color(0.22, 0.15, 0.105, 1)
+shader_parameter/chip_threshold = 0.47
+shader_parameter/dirt_strength = 0.25
+shader_parameter/paint_roughness = 0.62
+shader_parameter/metalness = 0.04

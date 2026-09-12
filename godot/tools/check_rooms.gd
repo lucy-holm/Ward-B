@@ -18,8 +18,11 @@
 #   - the collider cache is non-empty
 extends Node
 
+const MAIN := preload("res://main.gd")
+
 var failures: Array[String] = []
 var checked := 0
+var variant_paths_checked := 0
 
 
 func _ready() -> void:
@@ -31,6 +34,22 @@ func _ready() -> void:
 
 	for id: String in registry:
 		_check_room(id, registry[id], registry)
+
+	# ROOM_SCENES contains one fallback path for a logical variant room so the
+	# chain walker has an id to follow. Validate every real branch as well;
+	# otherwise room19_doors can regress while the default lights scene keeps
+	# this checker green.
+	for logical_id: String in MAIN.ROOM_VARIANTS:
+		var variant: Dictionary = MAIN.ROOM_VARIANTS[logical_id]
+		var scenes: Dictionary = variant.get("scenes", {})
+		for variant_name: String in scenes:
+			variant_paths_checked += 1
+			var variant_path := str(scenes[variant_name])
+			# The fallback was already checked through ROOM_SCENES. Avoid doing
+			# that scene twice while still counting both variant paths as covered.
+			if str(registry.get(logical_id, "")) == variant_path:
+				continue
+			_check_room("%s[%s]" % [logical_id, variant_name], variant_path, registry)
 
 	_check_chain(registry)
 	_check_materials()
@@ -175,7 +194,7 @@ func _check_room(id: String, path: String, registry: Dictionary) -> void:
 	_check_triggers(id, room)
 
 	# --- patrol clearance ---
-	_check_patrol(id, col)
+	_check_patrol(id, path, col)
 
 	_dispose(room)
 
@@ -198,9 +217,15 @@ func _check_room(id: String, path: String, registry: Dictionary) -> void:
 const PATROL_MARGIN := 0.1  # on top of the body radius; kit.ts's ">0.5" rule
 
 
-func _check_patrol(id: String, col: WardCollision) -> void:
-	var script: GDScript = load("res://rooms/%s/%s.gd" % [id, id])
+func _check_patrol(id: String, scene_path: String, col: WardCollision) -> void:
+	# Derive the script beside the scene being checked. A logical variant id
+	# (room19) has no matching rooms/room19/room19.gd; its real scripts live
+	# beside room19_lights.tscn and room19_doors.tscn.
+	var script_path := "%s/%s.gd" % [scene_path.get_base_dir(),
+		scene_path.get_file().get_basename()]
+	var script: GDScript = load(script_path)
 	if script == null:
+		_fail("%s: could not load patrol script %s" % [id, script_path])
 		return
 
 	# EVERY route, not just one named WAYPOINTS.
@@ -396,7 +421,7 @@ func _fail(msg: String) -> void:
 
 func _finish() -> void:
 	print("")
-	print("check_rooms: %d room(s) checked" % checked)
+	print("check_rooms: %d room(s) checked; %d variant path(s) covered" % [checked, variant_paths_checked])
 	if failures.is_empty():
 		print("  OK - all invariants hold")
 	else:

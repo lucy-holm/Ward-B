@@ -51,41 +51,28 @@ width = 256
 height = 256
 noise = SubResource("FastNoiseLite_floor_stain")
 
-; Palette pass (2026-08, matB): base_color was a warm tan — the PBR board's
-; "SCUFFED LINOLEUM FLOOR TILES" panel is a sage-grey, R~=G>B, not a tan
-; where R>G>B with a wide spread. Re-sampled off that panel directly
-; (averaged ~0.34-0.40 in its brighter regions) and landed a little above
-; that floor so LUCID traffic areas don't read as black; grout/stain darkened
-; a touch to match. roughness_base/roughness_wet UNTOUCHED — see this file's
-; existing reflectivity comment below; judge specular by eye, not by mean.
-;
-; Sage retune (2026-08, matC): matB landed R~=G>B, which is grey with a hint
-; of green — coordinator review called it "a fairly flat dark green-grey,"
-; not the distinctly sage/olive lino the board shows. Pushed G further above
-; both R and B (was 0.455/0.44/0.395, now 0.46/0.40/0.315 — G leads by a
-; visible margin, not a hair) so the hue itself reads green before value or
-; grime does any of the work. decay_color follows the same shift so the
-; UNMED-side rot drift stays in the same colour family instead of drifting
-; back toward neutral. grout_color nudged warmer/browner (was a near-neutral
-; dark grey) — "dirt collected in grout" reads as dirt only if it contrasts
-; in HUE with the sage tile, not just in value.
+; 2026-09-12 concept audit: the real game camera showed deep glossy grooves
+; and bright green islands, closer to cobbles than the reference's flat lino.
+; Keep a soft fitting reflection, but shallow the grout relief and desaturate
+; the olive. Compared in room2/room4 lucid with the PS1 pass bypassed, then
+; checked again with the shipping dither and in unmedicated/monochrome views.
 [resource]
 render_priority = 0
 shader = ExtResource("1_shader")
-shader_parameter/decay = 0.35
-shader_parameter/base_color = Color(0.40, 0.46, 0.315, 1)
+shader_parameter/decay = 0.22
+shader_parameter/base_color = Color(0.43, 0.435, 0.365, 1)
 shader_parameter/decay_color = Color(0.075, 0.09, 0.06, 1)
-shader_parameter/grout_color = Color(0.095, 0.082, 0.058, 1)
+shader_parameter/grout_color = Color(0.18, 0.17, 0.135, 1)
 shader_parameter/stain_color = Color(0.24, 0.155, 0.11, 1)
 shader_parameter/tile_size = 0.5
 shader_parameter/grout_width = 0.022
 shader_parameter/tile_jitter = 0.11
 shader_parameter/is_ceiling = false
-shader_parameter/groove_depth = 0.012
+shader_parameter/groove_depth = 0.004
 shader_parameter/groove_reach = 0.32
-shader_parameter/groove_normal_strength = 7.0
+shader_parameter/groove_normal_strength = 1.25
 shader_parameter/ceil_sag_strength = 0.0
-shader_parameter/parallax_strength = 0.6
+shader_parameter/parallax_strength = 0.25
 shader_parameter/mottle_tex = SubResource("NoiseTexture2D_floor_mottle")
 shader_parameter/stain_tex = SubResource("NoiseTexture2D_floor_stain")
 shader_parameter/normal_tex = SubResource("NoiseTexture2D_floor_normal")
@@ -94,11 +81,7 @@ shader_parameter/wear_freq_mult = 3.2
 shader_parameter/stain_scale = 0.14
 shader_parameter/normal_scale = 2.2
 shader_parameter/mottle_strength = 0.32
-; wear_strength 0.32 -> 0.38: slightly more visible hard-edged scuffing —
-; the concept board calls for "worn traffic paths," and this mask is the
-; only non-decay-gated wear the shader has (see header: base material wear,
-; present in both realities).
-shader_parameter/wear_strength = 0.42
+shader_parameter/wear_strength = 0.25
 shader_parameter/wear_threshold = 0.56
 ; wear_track_stretch (matC): 1.0 -> 0.4 elongates the scuff mask along world
 ; Z, so it reads as streaky traffic tracks down a corridor's long axis
@@ -107,23 +90,7 @@ shader_parameter/wear_threshold = 0.56
 shader_parameter/wear_track_stretch = 0.4
 shader_parameter/stain_strength = 0.65
 shader_parameter/stain_threshold = 0.5
-shader_parameter/ao_strength = 0.4
-shader_parameter/normal_strength = 0.55
-; Reflectivity pass (2026-08): roughness_base 0.72 -> 0.4, roughness_wet
-; 0.16 -> 0.1. Measured in-engine (tools/shoot_states.tscn against the REAL
-; main.tscn, not tools/shoot.gd) that 0.72 never produced a visible specular
-; response anywhere a level FPS camera actually looks — the GGX lobe was too
-; wide to read as a highlight, only as a faint diffuse-like brightening. The
-; decay-gated roughness_wet pooling this shader already had (see header) is
-; correct but was gated behind decay, which nothing in the game currently
-; varies per room (every material sits at its .tres default), so it almost
-; never engaged. Lowering the BASELINE is what makes fittings read as
-; bouncing off the floor at all; the wet-pool mechanic still layers on top
-; of it. Confirmed with before/after screenshots: room2 and room4 in LUCID
-; go from a flat matte tile grid to visible glossy highlight patches on the
-; nearest floor tiles. Do not raise this back toward 0.72 without shooting
-; room2 and room4 LUCID again — a flat average over the floor barely moves
-; even when the visible change is large, because a specular hotspot is
-; spatially small; judge by eye against these two rooms, not by the mean.
-shader_parameter/roughness_base = 0.52
-shader_parameter/roughness_wet = 0.3
+shader_parameter/ao_strength = 0.22
+shader_parameter/normal_strength = 0.25
+shader_parameter/roughness_base = 0.58
+shader_parameter/roughness_wet = 0.34

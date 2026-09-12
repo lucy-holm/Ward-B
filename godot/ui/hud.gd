@@ -32,6 +32,8 @@ var _threat_shown := 0.0
 # as the fill, so the moment the meter had a visible track the warning state
 # turned the empty part red too and the bar stopped reading as a gauge.
 var _med_fill: StyleBoxFlat
+var _touch_layout := DisplayServer.is_touchscreen_available()
+const TOUCH_UI := preload("res://ui/touch_controls.gd")
 
 
 func _ready() -> void:
@@ -106,6 +108,14 @@ func refresh_scale() -> void:
 	_apply_scale()
 
 
+func _input(event: InputEvent) -> void:
+	# Match touch_controls.gd's fallback for browsers that report no touch
+	# capability until the first real contact arrives.
+	if not _touch_layout and event is InputEventScreenTouch:
+		_touch_layout = true
+		_apply_scale()
+
+
 func _apply_scale() -> void:
 	var h := float(get_viewport().get_visible_rect().size.y)
 	# CLAMP THE DERIVATION, THEN APPLY THE SETTING — in that order, and not the
@@ -143,15 +153,57 @@ func _apply_scale() -> void:
 	var margin: MarginContainer = $Margin
 	for side in ["left", "top", "right", "bottom"]:
 		margin.add_theme_constant_override("margin_" + side, m)
+	if _touch_layout:
+		var vp := get_viewport().get_visible_rect().size
+		var btn := clampf(TOUCH_UI.BTN_FRACTION * vp.x, TOUCH_UI.BTN_MIN, TOUCH_UI.BTN_MAX)
+		var touch_margin: float = TOUCH_UI.MARGIN_FRACTION * vp.x
+		var gap := maxf(8.0, 8.0 * s)
+		if vp.y > vp.x:
+			# Portrait has vertical room: readouts sit above E/Q and the
+			# objective below pause, leaving all three buttons unobscured.
+			margin.add_theme_constant_override("margin_bottom", int(ceil(touch_margin + btn * 2.1 + gap)))
+			margin.add_theme_constant_override("margin_top", int(ceil(touch_margin + maxf(44.0, btn * 0.44) + gap)))
+		else:
+			# Landscape has horizontal room: keep the whole HUD to the left
+			# of the action cluster (also clearing the smaller pause button).
+			margin.add_theme_constant_override("margin_right", int(ceil(touch_margin + btn * 2.1 + gap)))
 	# Wider and much taller than the 180x8 hairline this replaced: at 720p
 	# that was 8 device pixels of grey-on-grey, and it is the only thing on
 	# screen telling the player how long they have left to be lucid.
-	med_bar.custom_minimum_size = Vector2(240.0 * s, 16.0 * s)
+	med_bar.custom_minimum_size.y = 16.0 * s
 	$Margin/Root/Bottom.add_theme_constant_override("separation", int(20 * s))
+	_fit_bottom_row()
 	# The reticle is a fixed-size Panel; keep it proportional too.
 	reticle.size = Vector2(6.0 * s, 6.0 * s)
 	reticle.position = -reticle.size * 0.5
 	prompt_label.position.y = 26.0 * s
+
+
+## Keep the actionable bottom readouts inside the viewport on narrow screens.
+## The medication bar is the flexible element: pills and countdown retain
+## their natural text width, and the bar takes whatever room remains. This is
+## needed after visibility changes too, because a fresh HUD is laid out while
+## the row is hidden and becomes wider when lucid state is entered.
+func _fit_bottom_row() -> void:
+	var h := float(get_viewport().get_visible_rect().size.y)
+	var s := clampf(h / BASE_HEIGHT, SCALE_MIN, SCALE_MAX) * WardSettings.get_hud_scale()
+	var margin := float($Margin.get_theme_constant("margin_left"))
+	var right := float($Margin.get_theme_constant("margin_right"))
+	var available := maxf(0.0, get_viewport().get_visible_rect().size.x - margin - right)
+	var bottom: HBoxContainer = $Margin/Root/Bottom
+	var reserved := 0.0
+	var visible_count := 0
+	for label: Label in [pills_label, countdown_label]:
+		if label.visible:
+			reserved += label.get_combined_minimum_size().x
+			visible_count += 1
+	var visible_children := visible_count + (1 if med_bar.visible else 0)
+	if visible_children > 1:
+		reserved += float(bottom.get_theme_constant("separation")) * float(visible_children - 1)
+	med_bar.custom_minimum_size.x = minf(240.0 * s, maxf(0.0, available - reserved))
+	# A top-level Control can grow to its old minimum during viewport resize;
+	# shrinking its children does not restore those enlarged offsets for it.
+	$Margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
 
 func _ignore_mouse(node: Node) -> void:
@@ -193,6 +245,7 @@ func _on_pills_changed(count: int) -> void:
 
 func _on_shift_ability_changed(can_shift: bool) -> void:
 	pills_label.visible = can_shift
+	_fit_bottom_row()
 
 
 ## Gives the meter a real track and a real fill, replacing ProgressBar's
@@ -238,6 +291,7 @@ func _on_state_changed(next: StateManager.State, _prev: StateManager.State, _sou
 	# The countdown follows the meter exactly — a stale "12s" left on screen
 	# after a revert would be worse than no number at all.
 	countdown_label.visible = lucid
+	_fit_bottom_row()
 
 
 ## Directional threat. `level` is the aggregate watch ramp (0..1); `bearing`

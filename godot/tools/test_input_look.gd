@@ -47,6 +47,11 @@ func _press() -> InputEventMouseButton:
 
 
 func _ready() -> void:
+	# This must be the engine's effective setting, not merely a similarly
+	# named key in project.godot. Repeating the section prefix in the key
+	# leaves emulation enabled and applies touch AND synthetic mouse look.
+	_check(not bool(ProjectSettings.get_setting("input_devices/pointing/emulate_mouse_from_touch", true)),
+		"touch-to-mouse emulation must be disabled at the effective engine setting")
 	var player: Node = (load("res://player/player.tscn") as PackedScene).instantiate()
 	add_child(player)
 	player.set_input_enabled(true)
@@ -86,13 +91,19 @@ func _ready() -> void:
 
 	# Touch must be untouched by all of this.
 	player._look_accum = Vector2.ZERO
+	var touch := InputEventScreenTouch.new()
+	touch.index = 0
+	touch.pressed = true
+	touch.position = Vector2(player.viewport_width() * 0.75, 400)
+	player._unhandled_input(touch)
 	var drag := InputEventScreenDrag.new()
 	drag.index = 0
 	drag.position = Vector2(900, 400)
 	drag.relative = Vector2(20, 0)
 	player._unhandled_input(drag)
-	_check(player._look_accum != Vector2.ZERO or true,
-		"screen drag path still reachable (smoke)")
+	var expected: Vector2 = drag.relative * (player.TOUCH_FULL_SWEEP_RAD / player.viewport_width() / Tuning.LOOK_SENSITIVITY)
+	_check(player._look_accum.is_equal_approx(expected),
+		"one touch drag must apply one viewport-normalised look delta")
 
 	print("test_input_look: %d assertion(s)" % _checks)
 	if _fails == 0:
